@@ -1,0 +1,1 @@
+"""The agent: ONE ReAct loop over a per-condition tool surface (a `WorkspaceLike`); the condition is just the toolset. loop.py drives it; retriever.py exposes it as a Retriever; tools/ holds the per-condition workspaces (code_fix, code_grep, doc_research, doc_dci)."""

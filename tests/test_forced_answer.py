@@ -1,0 +1,137 @@
+"""Unit tests for the shared prefill-elicitation mechanism (agent_search/agent/forced_answer.py) —
+extracted from scripts/force_answer_backfill.py so agent_search/agent/loop.py's inline elicitation
+and the offline backfill script share ONE implementation. No GPU/model/network needed; the client
+is a stub recording call kwargs (mirrors tests/test_force_answer_backfill.py's `_fake_client`).
+"""
+from __future__ import annotations
+
+from types import SimpleNamespace
+
+from agent_search.agent.forced_answer import (
+    DEFAULT_FALLBACK_MAX_TOKENS,
+    DEFAULT_PREFILL_MAX_TOKENS,
+    FALLBACK_MSG,
+    FORCE_MSG,
+    call_plain_ask,
+    call_prefill,
+    elicit_final_answer,
+    prefill_messages_for,
+)
+
+
+def _fake_client(contents):
+    calls = []
+
+    def create(**kwargs):
+        i = len(calls)
+        calls.append(kwargs)
+        text = contents[min(i, len(contents) - 1)]
+        return SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content=text))])
+
+    client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
+    client._calls = calls
+    return client
+
+
+# --- prefill_messages_for ------------------------------------------------------------------------
+
+def test_prefill_messages_for_appends_open_answer_tag():
+    base = [{"role": "system", "content": "sys"}, {"role": "user", "content": "Q?"}]
+    prefilled = prefill_messages_for(base)
+    assert prefilled[:-1] == base
+    assert prefilled[-1] == {"role": "assistant", "content": "<answer>"}
+    assert base == [{"role": "system", "content": "sys"}, {"role": "user", "content": "Q?"}]  # no mutation
+
+
+# --- call_prefill: request shape -----------------------------------------------------------------
+
+def test_call_prefill_request_shape():
+    client = _fake_client(["Paris"])
+    messages = [{"role": "system", "content": "sys"}, {"role": "user", "content": "Q?"}]
+    text = call_prefill(client, "my-model", messages, max_tokens=200)
+    assert text == "Paris"
+    kwargs = client._calls[0]
+    assert kwargs["model"] == "my-model"
+    assert kwargs["messages"][-1] == {"role": "assistant", "content": "<answer>"}
+    assert kwargs["messages"][:-1] == messages
+    assert kwargs["stop"] == ["</answer>"]
+    assert kwargs["extra_body"] == {"add_generation_prompt": False, "continue_final_message": True}
+    assert kwargs["max_tokens"] == 200
+
+
+def test_call_prefill_uses_default_tuning_knobs():
+    client = _fake_client(["Paris"])
+    call_prefill(client, "m", [{"role": "user", "content": "Q"}])
+    kwargs = client._calls[0]
+    assert kwargs["max_tokens"] == DEFAULT_PREFILL_MAX_TOKENS
+
+
+# --- call_plain_ask: request shape (no prefill flags) ---------------------------------------------
+
+def test_call_plain_ask_request_shape_has_no_prefill_flags():
+    client = _fake_client(["<answer>Paris</answer>"])
+    messages = [{"role": "system", "content": "sys"}, {"role": "user", "content": "Q?"}]
+    text = call_plain_ask(client, "my-model", messages)
+    assert text == "<answer>Paris</answer>"
+    kwargs = client._calls[0]
+    assert "extra_body" not in kwargs
+    assert "stop" not in kwargs
+    assert kwargs["messages"][-1]["role"] == "user"
+    assert FALLBACK_MSG in kwargs["messages"][-1]["content"]
+    assert kwargs["max_tokens"] == DEFAULT_FALLBACK_MAX_TOKENS
+
+
+# --- elicit_final_answer: primary/fallback + the returned method_tag ------------------------------
+
+def test_elicit_final_answer_uses_prefill_when_non_empty_single_call():
+    client = _fake_client(["Paris"])
+    messages = [{"role": "system", "content": "sys"}, {"role": "user", "content": "Q?"}]
+    answer, tag, raw = elicit_final_answer(messages, client, "my-model")
+    assert (answer, tag, raw) == ("Paris", "prefill", "Paris")
+    assert len(client._calls) == 1                # single call — no fallback needed
+
+
+def test_elicit_final_answer_strips_trailing_answer_tag_if_echoed():
+    # belt-and-braces: some server config might echo the stop string anyway.
+    client = _fake_client(["Paris</answer>"])
+    messages = [{"role": "user", "content": "Q?"}]
+    answer, tag, _raw = elicit_final_answer(messages, client, "my-model")
+    assert answer == "Paris" and tag == "prefill"
+
+
+def test_elicit_final_answer_falls_back_once_when_prefill_is_empty():
+    client = _fake_client(["   ", "<answer>Paris</answer>"])
+    messages = [{"role": "user", "content": "Q?"}]
+    answer, tag, raw = elicit_final_answer(messages, client, "my-model")
+    assert answer == "Paris"
+    assert tag == "plain_ask_fallback"
+    assert raw == "<answer>Paris</answer>"
+    assert len(client._calls) == 2
+    assert "extra_body" not in client._calls[1]     # the SECOND call is the plain-ask shape
+
+
+def test_elicit_final_answer_returns_empty_tag_when_both_calls_fail():
+    client = _fake_client(["", "no tags here, sorry"])
+    messages = [{"role": "user", "content": "Q?"}]
+    answer, tag, _raw = elicit_final_answer(messages, client, "my-model")
+    assert answer == ""
+    assert tag == "empty"
+
+
+def test_elicit_final_answer_uses_custom_extract_fn():
+    """The fallback extraction is pluggable (`extract_fn`) — loop.py's inline caller and
+    force_answer_backfill.py's `elicit_answer` wrapper both pass loop._extract_answer explicitly;
+    the default (None) lazily imports the same function, exercised by the test above."""
+    client = _fake_client(["", "<answer>whatever the real extractor would find</answer>"])
+    messages = [{"role": "user", "content": "Q?"}]
+    answer, tag, raw = elicit_final_answer(
+        messages, client, "my-model", extract_fn=lambda _text: "custom-extracted")
+    assert answer == "custom-extracted"
+    assert tag == "plain_ask_fallback"
+    assert raw == "<answer>whatever the real extractor would find</answer>"
+
+
+# --- constants sanity (the inline loop.py caller and the offline script both key off these) -------
+
+def test_force_msg_is_a_tool_response_shaped_instruction():
+    assert "STEP BUDGET REACHED" in FORCE_MSG and "<answer>" in FORCE_MSG

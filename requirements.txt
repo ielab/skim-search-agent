@@ -1,0 +1,25 @@
+# Pinned to the exact environment that produced the paper's results (Python 3.10).
+# The BQL core and reference executor need no retrieval or serving dependencies below.
+# Loosen pins at your own risk; these exact versions are what we verified.
+
+# --- Retrieval stack -------------------------------------------------------------
+pyserini==1.2.0               # BM25 via Lucene/Anserini (needs Java 11+); BM25_BACKEND=pyserini
+sentence-transformers==5.5.1 # dense encoders (bge / Qwen3-Embedding); needs torch
+faiss-cpu==1.14.3             # ANN index past ~1M docs; below that an exact flat index is used
+transformers==5.10.2
+torch==2.11.0
+
+# --- Evaluation harness ----------------------------------------------------------
+datasets==5.0.0               # HF loaders for the benchmark corpora
+numpy==2.2.6
+scipy==1.15.3                 # paired statistics
+pyyaml==6.0.3
+tqdm==4.68.1
+openai==2.41.0                # OpenAI-compatible client for the served backbone and judge
+
+# --- Serving (agent backbones, local) --------------------------------------------
+vllm==0.22.1                  # On H100/SM90, export VLLM_USE_FLASHINFER_MOE_FP16=0
+                              # (FlashInfer CUTLASS MoE JIT fails there; scripts/ set this).
+
+# --- Development -----------------------------------------------------------------
+pytest==9.0.3

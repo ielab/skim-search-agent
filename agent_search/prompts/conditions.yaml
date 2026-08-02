@@ -1,0 +1,238 @@
+# Condition = task template x toolset. The agent harness auto-registers
+# `agent_<name>` for each key here (with `agent` aliased to `codefix`), so adding a
+# condition is one binding — no code change. `task` selects a tasks/*.md template
+# (which carries the domain); `toolset` selects a tools.yaml toolset (which, with
+# any per-tool manuals, is rendered into the task's {{tools}} / {{tool_manuals}}).
+conditions:
+  # THE method, both arms: the BQL field-tagged Boolean surface + search -> fetch. The old
+  # prefix-functional surface, one-shot-search, and localization conditions are retired for BOTH arms.
+  #
+  # CODE arm — search -> fetch a function/method, then commit a <fix> (scored fix-file-ok).
+  # `codefix` is the method; `codefix_grep` is its baseline (same task/contract/scoring —
+  # real regex grep + a line-range read instead of the field-tagged surface, uncoached).
+  codefix:       {task: taskfix, toolset: search_fetch}
+  codefix_grep:  {task: taskfix, toolset: grep_read}
+  # PATCH-mode twins (same lean ACI/toolset; terminal <fix> is an APPLYABLE SEARCH/REPLACE
+  # edit, compiled to a unified diff by evaluation/patch_synthesis and graded by the REAL
+  # SWE-bench harness via sb-cli — FAIL_TO_PASS/PASS_TO_PASS). The prose `codefix`/`codefix_grep`
+  # localization twins above are left untouched, so their runs stand.
+  codefix_patch:      {task: taskfix_patch, toolset: search_fetch}
+  codefix_grep_patch: {task: taskfix_patch, toolset: grep_read}
+  # DEEP-RESEARCH arm — search -> fetch a named section, then <answer> (grounded EM/F1 +
+  # gold-doc coverage). `research` is the method; `research_bm25` is the retrieve-then-visit
+  # baseline (BM25 search + visit the whole doc); `research_dci` is the brute-force baseline
+  # (bash + read over the raw corpus filesystem, no retriever at all — chen2026dci / RISE).
+  #
+  # THREE arms then share ONE bm25 top-k retrieval and differ ONLY in the READ strategy — the
+  # clean "given identical retrieval, how do you READ?" comparison:
+  #   research_bm25       : whole-doc VISIT           (read the entire retrieved doc)
+  #   research_bm25_dci   : bash/read SHELL           (grep/read bounded to the retrieved docs)
+  #   research_bm25_fetch : structured SECTION-FETCH  (fetch one named section — RISE's headline
+  #                          efficiency arm: DCI-level accuracy at a fraction of the tokens)
+  research:            {task: research, toolset: research}
+  research_bm25:       {task: research, toolset: research_bm25}
+  research_dci:        {task: research, toolset: dci}
+  research_bm25_dci:   {task: research, toolset: bm25_dci}
+  research_bm25_fetch: {task: research, toolset: bm25_fetch}
+  # NEW, additive-only ablation rungs — `research` (BQL v1) is untouched above and stays the
+  # baseline method; these are separate, newly-named conditions, never a mutation of it.
+  #   research_v2    : BQL v2 — typed date[RANGE] ranges + constraint-coverage feedback on a
+  #                     0-exact-hit AND (same search->fetch instrument, richer executor + coaching).
+  #   research_indri : the Indri graded query-language backend (#combine/#weight/#band, proximity
+  #                     windows, #syn, field-restriction, filters, date ops) — a query never
+  #                     0-hits; belief diagnostics name the weakest constraint on the top hit.
+  research_v2:         {task: research, toolset: search_fetch_v2}
+  research_indri:      {task: research, toolset: indri}
+  #   research_snip  : content SNIPPETS in the structured search listing — search_s/fetch_s are
+  #     ALIASES of search/fetch (same tool shapes, same DocSearchFetch executor) on a workspace
+  #     built with `snippets=True`; each search hit gets ONE appended line — the doc's
+  #     best-matching ~25-token window for the query's positive leaf tokens (earliest window
+  #     wins ties; falls back to the doc opening when there are no leaf tokens). Motivated by
+  #     TRIAGE failures: the gold doc appears in the listing (title + section names + infobox
+  #     keys, no content) and the agent never fetches it — unlike research_v2/research_indri,
+  #     this changes the OBSERVATION, not the query surface or coaching (same skill manual as
+  #     `research`). See doc_research.py's `_best_line`/`_render_hits`.
+  research_snip:       {task: research, toolset: search_fetch_s}
+  # NEW, additive-only HYBRID cells — cross graded Indri search with the OTHER arms' read
+  # strategies, disentangling "search interface" from "read granularity" (the existing cells
+  # conflate them: bm25 = keyword search + whole-doc read; indri = graded search + section read).
+  #   research_indri_visit : graded Indri SEARCH (isearch_v — same ranking/diagnostics/op_nudge
+  #     as research_indri's isearch) WITH a per-hit content snippet (fairness parity with the
+  #     bm25 baseline's opening-snippet listing — a content-blind listing would handicap this
+  #     cell on the search-axis comparison) + whole-doc VISIT read (visit_v, same as the bm25
+  #     baseline's visit). A strict single-axis swap vs research_bm25: same read, same
+  #     content-bearing listing, only the search ENGINE differs (graded Indri vs BM25 keyword).
+  #   research_indri_snip  : graded Indri SEARCH with content SNIPPETS (isearch_s, same isearch
+  #     ranking + a one-line best-matching excerpt per hit, motivated like research_snip) +
+  #     structured SECTION fetch (the SAME `fetch` tool `research`/`research_indri` use).
+  research_indri_visit: {task: research, toolset: indri_visit}
+  research_indri_snip:  {task: research, toolset: indri_snip}
+  # NEW, additive-only DENSE baseline — the modern RAG default: a mirror of `research_bm25`
+  # (retrieve-then-visit) with the retrieval engine swapped from BM25 keyword search to dense
+  # embeddings (BAAI/bge-base-en-v1.5, cosine similarity over the SAME persisted doc-embedding
+  # cache indexes/dense/BAAI__bge-base-en-v1.5-sl1024/<key>/ that Indri's DenseBelief and the
+  # `dense` retriever condition already build/persist). Same <answer> contract as research_bm25;
+  # UNCOACHED (no manual — see doc_research.py's DenseVisit).
+  research_dense:      {task: research, toolset: dense_visit}
+  # NEW, additive-only HARDENED bm25 baseline — a fairness fix, not a new capability. Our
+  # method cells (research_snip/research_indri_snip) show a QUERY-BIASED best-matching excerpt
+  # per search hit (doc_research.py's `_best_line`); research_bm25's listing instead shows the
+  # doc's fixed OPENING snippet — real search engines show query-biased snippets, so a fair
+  # bm25 baseline must too, or the listing axis is unfair in our favor. `research_bm25q` is
+  # research_bm25's SAME bm25 retrieval + whole-doc visit read, with ONLY the listing's snippet
+  # swapped to that same best-matching-window logic (module-level `best_line`, shared with the
+  # method cells). UNCOACHED (no manual), like research_bm25 — see doc_research.py's Bm25Visit
+  # (query_biased=True).
+  research_bm25q:      {task: research, toolset: bm25q_visit}
+  # NEW, additive-only DENSE structured-read cell — completes the search x read factorial:
+  # research_dense fills {dense search} x {whole-doc visit}, research_bm25_fetch fills {bm25
+  # search} x {structure->parts read}; `research_dense_fetch` fills {dense search} x
+  # {structure->parts read}. SAME dense retrieval engine as research_dense (DenseBelief,
+  # top_k_doc_ids), LIVE per search call; SAME structured section-fetch read as
+  # research_bm25_fetch (DocSearchFetch's `fetch`, inherited unchanged) — PLUS a one-line
+  # best-matching excerpt per hit (research_snip's `_best_line`), since research_snip
+  # established a content-bearing listing is the fair default once any arm shows one.
+  # UNCOACHED (no manual) — see doc_research.py's `DenseFetchWorkspace`.
+  research_dense_fetch: {task: research, toolset: dense_fetch}
+  # NEW, additive-only PLAIN sibling of research_dense_fetch — completes the DENSE read-interface
+  # family the same way research_bql_dense_fetch completes BQL_DENSE's (visit/plain-fetch/
+  # snippet-fetch): dense was the ONLY query engine among bm25/bql/indri/dense that lacked a
+  # PLAIN (no-excerpt) fetch cell — research_dense_fetch's `DenseFetchWorkspace.search` had no
+  # `snippets` flag at all and appended the `» excerpt` line unconditionally. SAME live dense
+  # retrieval engine as research_dense/research_dense_fetch (DenseBelief, top_k_doc_ids), LIVE
+  # per search call; SAME structured section-fetch read as research_dense_fetch (DocSearchFetch's
+  # `fetch`, inherited unchanged) — MINUS the one-line best-matching excerpt per hit. This is
+  # research_dense_fetch's SAME search minus the excerpt: isolates what the snippet itself
+  # contributes on top of pure dense retrieval + section-fetch, holding search and read fixed —
+  # the dense-only analog of research_bql_dense_fetch's isolation for the dense-fused BQL
+  # executor. UNCOACHED (no manual) — see doc_research.py's `DenseFetchPlainWorkspace`.
+  research_dense_fetch_plain: {task: research, toolset: dense_fetch_plain}
+  # NEW, additive-only BQL x VISIT hybrid cell — completes the search x read factorial's LAST
+  # missing cross: {BQL search} x {whole-doc visit}. `research`/`research_v2` already fill
+  # {BQL search} x {structure->parts read}; `research_bm25`/`research_dense`/
+  # `research_indri_visit` fill {bm25/dense/indri search} x {whole-doc visit} — this is the one
+  # cell of the 5(search)x2(read) grid that was still empty. `research_bql_visit`'s search_bv is
+  # the SAME BQL v2 search research_v2 uses (search_v2's coverage_topk ranking + typed date[RANGE]
+  # nudge), rendered WITH a per-hit content excerpt (fairness parity with the bm25/dense/indri
+  # visit cells' content-bearing listings — the SAME amendment research_indri_visit makes over
+  # research_indri), PLUS a whole-doc VISIT read (visit_bv, mirroring Bm25Visit.visit exactly)
+  # instead of a structured section fetch. Reuses the SAME bql_doc_v2.md/bql_browsecomp_v2.md
+  # skill research_v2 teaches (same query language, no new manual) — see doc_research.py's
+  # `BqlVisitWorkspace`.
+  research_bql_visit:  {task: research, toolset: bql_visit}
+  # NEW, additive-only FAIR-LISTING sibling of research_bm25_fetch — a listing-consistency fix,
+  # not a new capability. research_bm25_fetch's search listing was CONTENT-BLIND (structure
+  # only: title + section names + infobox keys, no excerpt), while every OTHER method fetch
+  # cell (research_snip, research_indri_snip, research_dense_fetch) shows each hit's
+  # best-matching excerpt via the shared module-level `best_line` — an inconsistency across the
+  # search x read factorial grid. `research_bm25_fetch_snip` is research_bm25_fetch's SAME live
+  # bm25 retrieval + SAME structured section-fetch read (byte-identical ranking for the same
+  # query/engine/k — see doc_research.py's `Bm25FetchSnipWorkspace`), with ONLY the listing's
+  # content changed: a one-line query-biased best-matching excerpt appended per hit, the SAME
+  # amendment `research_dense_fetch` makes over `research_bm25_fetch`'s own bare table.
+  # UNCOACHED (no manual) — see doc_research.py's `Bm25FetchSnipWorkspace`.
+  research_bm25_fetch_snip: {task: research, toolset: bm25_fetch_snip}
+  # NEW, additive-only BM25+DENSE HYBRID baseline — the control that isolates the BQL method's
+  # contribution from the mere "sparse+dense fusion" effect. Neither research_bm25 nor
+  # research_dense alone is the right control once a QL method could just be reproducing
+  # textbook hybrid search: a real deployment would fuse keyword + semantic rankings, so the
+  # honest baseline to beat is THAT fusion, not either ranker alone. Retrieval is Reciprocal
+  # Rank Fusion (RRF, k=60 — the standard constant, Cormack/Clarke/Buettcher 2009) over TWO
+  # independent top-100 pools: the canonical pyserini/Lucene BM25 ranking (BM25_BACKEND=pyserini
+  # path — the SAME build_bm25_engine every bm25-consuming arm uses) and the FAISS/dense ranking
+  # (the SAME BAAI/bge-base-en-v1.5 embedder + persisted doc-embedding cache research_dense/
+  # research_dense_fetch already build/persist). `research_hybrid` mirrors research_bm25/
+  # research_dense's retrieve-then-visit shape EXACTLY (Bm25Visit's listing format, incl. the
+  # opening snippet) — see doc_research.py's `HybridVisit`/`rrf_fuse` for the exact formula.
+  # UNCOACHED (no manual), like bm25/dense.
+  research_hybrid: {task: research, toolset: hybrid_visit}
+  # `research_hybrid_fetch_snip` is the fetch-mode twin, mirroring research_bm25_fetch_snip: SAME
+  # RRF-fused hybrid retrieval as research_hybrid, rendered as a structure table + a one-line
+  # best-matching excerpt per hit (research_bm25_fetch_snip's listing shape), paired with the
+  # SAME structured section-fetch read every method/fetch cell uses — see doc_research.py's
+  # `HybridFetchSnipWorkspace`. UNCOACHED (no manual).
+  research_hybrid_fetch_snip: {task: research, toolset: hybrid_fetch_snip}
+  # NEW, additive-only DENSE-FUSED BQL ranking (BQL_DENSE — see
+  # agent_search/retrievers/structural/bql/dense_fuse.py). Motivation: research_bql_visit
+  # already shows BQL-as-filter over a lexical ranker beats the SERP baseline on the strength
+  # of its QL filter alone (the cleanest QL signal); this asks whether fusing dense evidence
+  # into the RANKING of what the filter already selected combines that filter value with dense
+  # fusion's paraphrase-robustness, instead of trading one off for the other (the "why not BQL
+  # with dense instead of Indri with dense" design question). Mechanism: the boolean/field/date
+  # FILTER executes exactly as `research_bql_visit`/`research_snip` — nothing about candidate
+  # SELECTION changes. Only the ORDER of filter-passing candidates changes: RRF (k=60) of the
+  # existing BM25 ranking and dense cosine similarity RESTRICTED TO THOSE SAME filter-passing
+  # doc_ids (never a global dense search — a document that fails the filter can never appear,
+  # regardless of embedding similarity; see dense_fuse.py's "Why dense scoring is restricted"
+  # section). `coverage_topk`'s 0-exact-hit constraint-COVERAGE fallback fuses WITHIN each
+  # coverage tier only (a doc satisfying fewer AND-children can never be promoted past one
+  # satisfying more, purely by dense similarity).
+  #
+  # `research_bql_dense_visit` mirrors `research_bql_visit` EXACTLY (search_bqld/visit_bqld are
+  # search_bv/visit_bv byte-for-byte — same manual, same listing, same whole-doc visit read —
+  # see doc_research.py's `BqlVisitWorkspace`); `research_bql_dense_snip` mirrors `research_snip`
+  # EXACTLY (search_bqlds/fetch_bqlds are search_s/fetch_s byte-for-byte — same manual, same
+  # snippet listing, same structured section-fetch read — see doc_research.py's
+  # `DocSearchFetch`). In BOTH cases the ONLY difference from their mirror cell is the ranking:
+  # `agent/retriever.py`'s 'bqldensevisit'/'bqldensesnip' arms attach a `DenseBelief` to the
+  # SAME shared BQL executor the mirror cells use (needs the SAME persisted
+  # indexes/dense/BAAI__bge-base-en-v1.5-sl1024/<key>/ doc-embedding cache research_dense/
+  # research_dense_fetch/research_hybrid already build/persist — fails loud if missing, same
+  # contract as those arms).
+  research_bql_dense_visit: {task: research, toolset: bql_dense_visit}
+  research_bql_dense_snip:  {task: research, toolset: bql_dense_snip}
+  # NEW, additive-only DENSE-FUSED BQL cell completing the BQL_DENSE read-interface family
+  # (visit / plain-fetch / snippet-fetch): `research_bql_dense_snip` mirrors `research_snip`;
+  # `research_bql_dense_fetch` mirrors `research` (plain `doc` arm) — SAME dense-fused BQL
+  # executor as `research_bql_dense_snip`/`research_bql_dense_visit` (BQL_DENSE — see
+  # agent_search/retrievers/structural/bql/dense_fuse.py), but the listing is PLAIN (no per-hit
+  # excerpt — `DocSearchFetch`'s constructor default `snippets=False`, unchanged), paired with
+  # the SAME structured section-FETCH read every fetch-family cell uses. This is
+  # research_bql_dense_snip's SEARCH minus the excerpt: isolates what the snippet itself
+  # contributes on top of the dense-fused BQL filter+rank, holding search and read fixed.
+  # `search_bqldf`/`fetch_bqldf` are `search`/`fetch` byte-for-byte (BQL_DENSE only changes
+  # ranking, never the filter or the listing's content) — see doc_research.py's
+  # `DocSearchFetch`, `agent/retriever.py`'s 'bqldensefetch' arm.
+  research_bql_dense_fetch: {task: research, toolset: bql_dense_fetch}
+  # NEW, additive-only "retrieve-and-read" baseline — sits between one-shot RAG (scripts/
+  # oneshot_rag.py: a single stuffed prompt, no agent loop/choice at all) and the SERP
+  # retrieve-then-visit baseline (research_bm25: bm25_search->visit, a listing the agent must
+  # then CHOOSE to visit): isolates the value of the agent's choose-what-to-read step by
+  # removing it entirely. `research_bm25_autoread`'s ONLY tool, bm25_read_search, runs the SAME
+  # bm25 ranking as research_bm25 but its response already IS the full text of every top-k hit
+  # (capped at MAX_VISIT_TOKENS per doc, same cap/marker research_bm25's `visit` uses) — there
+  # is NO visit/fetch tool in this toolset at all. UNCOACHED (no manual), like research_bm25 —
+  # see doc_research.py's `Bm25AutoRead`.
+  research_bm25_autoread: {task: research, toolset: bm25_autoread}
+  # NEW, additive-only DENSE analog of `research_bm25_autoread` — the SAME "retrieve-and-read"
+  # shape, SAME AUTOREAD_TOPK pool depth, SAME MAX_VISIT_TOKENS per-doc cap, but retrieval is
+  # dense embedding cosine similarity (the SAME persisted doc-embedding cache research_dense/
+  # research_dense_fetch use) instead of BM25 — the ONLY axis that differs from
+  # research_bm25_autoread. `research_dense_autoread`'s ONLY tool, dense_read_search, runs the
+  # SAME dense ranking as research_dense but its response already IS the full text of every
+  # top-k hit — there is NO visit/fetch tool in this toolset at all. UNCOACHED (no manual), like
+  # research_dense/research_bm25_autoread — see doc_research.py's `DenseAutoRead`.
+  research_dense_autoread: {task: research, toolset: dense_autoread}
+  # NEW, additive-only BM25+DENSE HYBRID analog of research_bm25_autoread/research_dense_autoread
+  # -- the "retrieve-and-read" baseline with RRF-fused hybrid retrieval (SAME fusion as
+  # research_hybrid: top-100 pyserini/Lucene BM25 pool x top-100 FAISS/dense pool, RRF k=60)
+  # instead of a single engine. `research_hybrid_autoread`'s ONLY tool, hybrid_read_search, runs
+  # the SAME RRF-fused ranking as research_hybrid but its response already IS the full text of
+  # every top-k hit -- there is NO visit/fetch tool in this toolset at all. UNCOACHED (no manual),
+  # like research_hybrid/research_bm25_autoread/research_dense_autoread -- see doc_research.py's
+  # `HybridAutoRead`.
+  research_hybrid_autoread: {task: research, toolset: hybrid_autoread}
+  # NEW, additive-only DENSE-ONLY BQL ranking cells -- the answer to "what does BQL_DENSE's RRF
+  # fusion itself contribute, vs pure dense re-ranking of the SAME filter-passing candidates?"
+  # BYTE-FOR-BYTE research_bql_dense_visit/research_bql_dense_snip (same manual, same listing,
+  # same read, same boolean/field/date filter, same coverage-tier structure) -- the ONLY
+  # difference is that the ORDER of filter-passing candidates is PURE dense rank
+  # (dense_rank_for_candidates, see agent_search/retrievers/structural/bql/dense_fuse.py's
+  # "dense-ONLY ordering" section) instead of RRF(bm25, dense). `agent/retriever.py`'s
+  # 'bqldonlyvisit'/'bqldonlysnip' arms build the SAME shared BQL executor via
+  # `load_or_build_dense_only` (executor.py) -- a `DenseOnlyStructuralExecutor`, needing the SAME
+  # persisted indexes/dense/BAAI__bge-base-en-v1.5-sl1024/<key>/ doc-embedding cache the
+  # dense-fused cells already build/persist -- fails loud if missing, same contract as those arms.
+  # See doc_research.py's `BqlDonlyVisitWorkspace`/`DocSearchFetchDonlySnip`.
+  research_bql_donly_visit: {task: research, toolset: bql_donly_visit}
+  research_bql_donly_snip:  {task: research, toolset: bql_donly_snip}

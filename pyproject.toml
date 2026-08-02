@@ -1,0 +1,52 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "skimsearchagent"
+version = "0.1.0"
+description = "Composable infrastructure for building and evaluating deep-research agents"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "Apache-2.0" }
+authors = [{ name = "Anonymous (under review)" }]
+keywords = ["deep-research", "information-retrieval", "llm-agents", "rag", "agent-evaluation"]
+classifiers = [
+    "Programming Language :: Python :: 3.10",
+    "Topic :: Text Processing :: Indexing",
+]
+
+# The BQL executor itself is dependency-free; PyYAML loads the shared agent/tool profiles.
+dependencies = ["pyyaml==6.0.3"]
+
+[project.optional-dependencies]
+retrieval = [
+    "pyserini==1.2.0",
+    "sentence-transformers==5.5.1",
+    "faiss-cpu==1.14.3",
+    "transformers==5.10.2",
+    "torch==2.11.0",
+]
+api = ["openai==2.41.0"]
+serve = ["vllm==0.22.1", "openai==2.41.0"]
+eval = ["datasets==5.0.0", "numpy==2.2.6", "scipy==1.15.3", "tqdm==4.68.1"]
+dev = ["pytest==9.0.3", "numpy==2.2.6", "openai==2.41.0"]
+all = [
+    "pyserini==1.2.0",
+    "sentence-transformers==5.5.1",
+    "faiss-cpu==1.14.3",
+    "transformers==5.10.2",
+    "torch==2.11.0",
+    "openai==2.41.0",
+    "vllm==0.22.1",
+    "datasets==5.0.0",
+    "numpy==2.2.6",
+    "scipy==1.15.3",
+    "tqdm==4.68.1",
+]
+
+[tool.setuptools.packages.find]
+include = ["agent_search*", "evaluation*", "analysis*"]
+
+# Roadmap note: the import path is `agent_search` for continuity with the paper artifacts;
+# distribution name is `skimsearchagent`; the import path remains `agent_search`.

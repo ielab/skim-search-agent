@@ -1,0 +1,19 @@
+# Dependency-light debug evals. Outputs should go under runs/debug/.
+# The agent conditions are the NEW design: code-fix (search->fetch) + deep-research, each
+# with its in-loop access baseline (codefix_grep; research_bm25/research_dci).
+
+datasets:
+  - fixture
+
+level: function
+k: [1, 5, 10]
+runs_dir: runs/debug
+
+retrievers:
+  - agent_codefix
+  - agent_codefix_grep
+  - agent_research
+  - agent_research_bm25
+  - agent_research_dci
+  - grep
+  - bm25_local

@@ -1,0 +1,947 @@
+toolsets:
+  # THE method (both arms): the BQL field-tagged Boolean surface + search -> fetch instrument.
+  # `search` returns ranked candidates + their STRUCTURE (no bodies); `fetch` pulls a named part.
+  #   code : files -> functions/methods; the agent then commits a <fix> (taskfix.md).
+  #   docs : articles -> sections/infobox; the agent then answers <answer> (research.md).
+  # The workspace (code vs doc) is picked by the run's domain; the manual by field profile.
+  search_fetch:
+    - search
+    - fetch
+  # deep-research over a shared document corpus (multi-hop QA / BrowseComp-Plus).
+  #   research     : the method — field-tagged search -> fetch a named section (structured access).
+  #   research_bm25: the retrieve-then-visit baseline — BM25 search then visit the WHOLE doc.
+  research:
+    - search
+    - fetch
+  research_bm25:
+    - bm25_search
+    - visit
+  # the code arm's GREP baseline (RISE-style: real regex over live source + a line-range
+  # read). Same <fix> contract + fix-file-ok scoring as search_fetch; UNCOACHED — no manual
+  # (models already know regex; the honest baseline is grep-as-naturally-used).
+  grep_read:
+    - grep
+    - read
+  # the doc arm's DCI baseline (chen2026dci, RISE's brute-force reference): a bash shell +
+  # line-range read over the RAW corpus filesystem, NO retriever at all. Same <answer>
+  # contract as research/research_bm25; UNCOACHED (a shell needs no manual).
+  dci:
+    - bash
+    - read
+  # the doc arm's RETRIEVAL-BOUNDED brute-force baseline: bm25 top-k search (SAME retrieval
+  # as research_bm25) then a bash shell + line-range read (SAME shell as dci), but rooted at
+  # a flat export of ONLY those k retrieved docs — isolates the READ strategy (shell vs
+  # visit-whole-doc) while holding retrieval identical. Same <answer> contract; UNCOACHED.
+  bm25_dci:
+    - bm25_search
+    - bash
+    - read
+  # the doc arm's RETRIEVAL-BOUNDED STRUCTURED read: bm25 top-k search (SAME retrieval as
+  # research_bm25 / research_bm25_dci) then fetch a named SECTION (SAME section-fetch as the
+  # `research` method) — the third read strategy over identical bm25 retrieval (section-fetch
+  # vs whole-doc visit vs shell grep). Same <answer> contract; UNCOACHED (retrieval is a plain
+  # search box; section-fetch needs no BQL skill — its listing already names the sections).
+  bm25_fetch:
+    - bm25_search
+    - fetch
+  # NEW, additive-only ablation rungs (`research`'s toolset above is untouched). Both reuse
+  # the SAME task (research.md) and the SAME <answer> contract; only the retrieval surface
+  # + workspace behavior differ.
+  #   search_fetch_v2: BQL v2 — search_v2/fetch_v2 are ALIASES of search/fetch (same tool
+  #     shapes) so they get their OWN manual (bql_*_v2.md, typed date[RANGE] + coverage
+  #     feedback coaching) and their own arm-dispatch marker in retriever.py, without
+  #     touching search/fetch's own manuals or the `research` condition's toolset.
+  #   indri: the Indri graded-QL backend. `isearch` is named apart from `search` so its
+  #     description/manual are its own; `fetch` is the SAME structured section-fetch tool
+  #     `research`/`research_v2` use (only the retrieval half differs).
+  search_fetch_v2:
+    - search_v2
+    - fetch_v2
+  indri:
+    - isearch
+    - fetch
+  #   search_fetch_s: content SNIPPETS — search_s/fetch_s are ALIASES of search/fetch (same tool
+  #     shapes, same DocSearchFetch executor) on a workspace built with `snippets=True`; each
+  #     search hit gets one appended best-matching-excerpt line — see
+  #     agent_search/agent/tools/doc_research.py's `_best_line`/`_render_hits`. A distinct tool
+  #     NAME (not just a flag) so it gets its own manual entry, but that manual is the SAME
+  #     bql_doc.md/bql_browsecomp.md `search` already uses (the condition changes the
+  #     OBSERVATION, not the coaching).
+  search_fetch_s:
+    - search_s
+    - fetch_s
+  # NEW, additive-only HYBRID toolsets — cross graded Indri search with the OTHER arms' read
+  # strategies (see conditions.yaml's research_indri_visit/research_indri_snip comment).
+  #   indri_visit: isearch_v (graded Indri search, content-bearing listing — parity with
+  #     bm25_search's opening-snippet listing) + visit_v (whole-doc read, same as `visit`).
+  #   indri_snip:  isearch_s (graded Indri search + a one-line best-matching excerpt per hit) +
+  #     fetch (the SAME structured section-fetch `research`/`research_indri` use).
+  indri_visit:
+    - isearch_v
+    - visit_v
+  indri_snip:
+    - isearch_s
+    - fetch
+  # NEW, additive-only DENSE baseline — the modern RAG default: swap research_bm25's retrieval
+  # engine (BM25 keyword search) for dense embeddings (BAAI/bge-base-en-v1.5, the SAME cached
+  # doc-embedding matrix Indri's DenseBelief / the `dense` retriever condition already build),
+  # keeping the identical retrieve-then-visit READ (`visit`, renamed `visit_d` for its own tool
+  # entry) — see agent_search/agent/tools/doc_research.py's `DenseVisit`. UNCOACHED (no manual),
+  # like `bm25_search`.
+  dense_visit:
+    - dense_search
+    - visit_d
+  # NEW, additive-only HARDENED bm25 baseline — a fairness fix (see conditions.yaml's
+  # research_bm25q comment): SAME retrieve-then-visit shape as `research_bm25`
+  # (bm25_search/visit), just with the search listing's per-hit snippet swapped from the doc's
+  # OPENING slice to a QUERY-BIASED best-matching excerpt (the same window logic
+  # research_snip/research_indri_snip use). Distinct tool NAMES (bm25q_search/visit_q, not just
+  # a flag) so the listing's tool description can say so; UNCOACHED (no manual), like
+  # bm25_search/visit.
+  bm25q_visit:
+    - bm25q_search
+    - visit_q
+  # NEW, additive-only DENSE structured-read cell — fills {dense search} x {structure->parts
+  # read} (research_bm25_fetch already fills {bm25 search} x {structure->parts read};
+  # research_dense fills {dense search} x {whole-doc visit}). `dense_search_f` is dense_search's
+  # retrieval, `fetch` is the SAME structured section-fetch `research`/`research_bm25_fetch` use
+  # — see agent_search/agent/tools/doc_research.py's `DenseFetchWorkspace`. UNCOACHED (no
+  # manual), like dense_search/bm25_search.
+  dense_fetch:
+    - dense_search_f
+    - fetch
+  # NEW, additive-only PLAIN sibling of `dense_fetch` — the missing no-excerpt dense fetch cell
+  # (see conditions.yaml's research_dense_fetch_plain comment and doc_research.py's
+  # `DenseFetchPlainWorkspace`): SAME live dense retrieval + SAME structured section-fetch read
+  # as `dense_fetch`, just with the listing's per-hit content changed from structure+excerpt back
+  # to structure-only — the reverse of the move `bm25_fetch_snip`/`dense_fetch` make over their
+  # own bare/plain siblings. `dense_search_fp` is the retrieval tool (distinct name from
+  # `dense_search_f` so its description can say so); `fetch` is the SAME structured section-fetch
+  # `dense_fetch`/`bm25_fetch`/`research` use, reused unmodified.
+  dense_fetch_plain:
+    - dense_search_fp
+    - fetch
+  # NEW, additive-only BQL x VISIT hybrid — completes the search x read factorial's last missing
+  # cross: {BQL search} x {whole-doc visit} (research/research_v2 already fill {BQL search} x
+  # {structure->parts read}). `search_bv` is the SAME BQL v2 search research_v2 uses (search_v2's
+  # richer executor: typed date[RANGE] + constraint-coverage feedback), PLUS a per-hit content
+  # excerpt (fairness parity, like isearch_v over isearch); `visit_bv` is a whole-doc read, SAME
+  # contract as `visit`/`visit_v`/`visit_d`/`visit_q` — see doc_research.py's `BqlVisitWorkspace`.
+  bql_visit:
+    - search_bv
+    - visit_bv
+  # NEW, additive-only FAIR-LISTING sibling of `bm25_fetch` — a listing-consistency fix (see
+  # conditions.yaml's research_bm25_fetch_snip comment): SAME live bm25 retrieval + SAME
+  # structured section-fetch read as `bm25_fetch`, just with the listing's per-hit content
+  # changed from structure-only to structure + a best-matching excerpt (the SAME move
+  # `dense_fetch` makes over `bm25_fetch`'s own bare table). `bm25_search_snip` is the
+  # retrieval tool (distinct name from `bm25_search` so its description can say so); `fetch` is
+  # the SAME structured section-fetch `bm25_fetch`/`research`/`dense_fetch` use, reused
+  # unmodified.
+  bm25_fetch_snip:
+    - bm25_search_snip
+    - fetch
+  # NEW, additive-only BM25+DENSE HYBRID baseline toolsets — the sparse+dense fusion control
+  # (see conditions.yaml's research_hybrid/research_hybrid_fetch_snip comments; the exact RRF
+  # formula + pool sizes are documented in agent_search/agent/tools/doc_research.py's module
+  # docstring and `rrf_fuse`).
+  #   hybrid_visit:      hybrid_search (RRF-fused bm25+dense retrieval) + visit_h (whole-doc
+  #     read) — mirrors research_bm25/research_dense's retrieve-then-visit shape.
+  #   hybrid_fetch_snip: hybrid_search_snip (SAME RRF-fused retrieval + excerpt listing) + fetch
+  #     (the SAME structured section-fetch read) — mirrors research_bm25_fetch_snip/
+  #     research_dense_fetch.
+  hybrid_visit:
+    - hybrid_search
+    - visit_h
+  hybrid_fetch_snip:
+    - hybrid_search_snip
+    - fetch
+  # NEW, additive-only DENSE-FUSED BQL toolsets (BQL_DENSE — see
+  # agent_search/retrievers/structural/bql/dense_fuse.py): BQL executes its boolean/field/date
+  # FILTER exactly as `bql_visit`/`search_fetch_s` do; the ranking of filter-passing candidates
+  # becomes RRF (k=60) of the existing BM25 ranking and dense similarity RESTRICTED to those
+  # SAME filter-passing doc_ids (never a global dense search — filter semantics are structurally
+  # preserved). Mirror the `bql_visit`/`search_fetch_s` toolsets exactly, tool-for-tool — only
+  # the ranking under the hood (a DENSE-ATTACHED executor) differs; see conditions.yaml's
+  # research_bql_dense_visit/research_bql_dense_snip and doc_research.py's `BqlVisitWorkspace`/
+  # `DocSearchFetch`.
+  #   bql_dense_visit: search_bqld/visit_bqld mirror search_bv/visit_bv (BQL search x whole-doc
+  #     visit) byte-for-byte, distinct tool names only so this cell gets its own manual entry.
+  #   bql_dense_snip:  search_bqlds/fetch_bqlds mirror search_s/fetch_s (BQL search + snippet
+  #     listing x structured section-fetch) byte-for-byte, same reason.
+  #   bql_dense_fetch: search_bqldf/fetch_bqldf mirror the PLAIN `search`/`fetch` toolset (BQL
+  #     search + PLAIN listing, no per-hit excerpt, x structured section-fetch) byte-for-byte —
+  #     research_bql_dense_snip minus the snippet; completes the BQL_DENSE read-interface family
+  #     (visit / plain-fetch / snippet-fetch) the SAME way `research`/`research_snip` complete it
+  #     for the non-dense BQL executor. See conditions.yaml's research_bql_dense_fetch.
+  bql_dense_visit:
+    - search_bqld
+    - visit_bqld
+  bql_dense_snip:
+    - search_bqlds
+    - fetch_bqlds
+  bql_dense_fetch:
+    - search_bqldf
+    - fetch_bqldf
+  # NEW, additive-only "retrieve-and-read" baseline — sits between one-shot RAG (a single
+  # stuffed prompt, no agent loop/choice at all) and the SERP retrieve-then-visit baseline
+  # (research_bm25: a listing the agent must CHOOSE to visit): isolates the value of the
+  # agent's choose-what-to-read step by removing it entirely. ONE tool, `bm25_read_search` —
+  # the SAME BM25 ranking as `bm25_search`, but the response IS the full text of every top-k
+  # hit; there is NO visit/fetch tool in this toolset at all — see doc_research.py's
+  # `Bm25AutoRead`.
+  bm25_autoread:
+    - bm25_read_search
+  # NEW, additive-only DENSE analog of `bm25_autoread` — the "retrieve-and-read" baseline with
+  # dense retrieval instead of BM25 (see conditions.yaml's research_dense_autoread comment and
+  # doc_research.py's `DenseAutoRead`). ONE tool, `dense_read_search` — the SAME dense-embedding
+  # ranking as `dense_search`, but the response IS the full text of every top-k hit; there is NO
+  # visit/fetch tool in this toolset at all.
+  dense_autoread:
+    - dense_read_search
+  # NEW, additive-only BM25+DENSE HYBRID analog of `bm25_autoread`/`dense_autoread` — the
+  # "retrieve-and-read" baseline with RRF-fused hybrid retrieval instead of a single engine (see
+  # conditions.yaml's research_hybrid_autoread comment and doc_research.py's `HybridAutoRead`).
+  # ONE tool, `hybrid_read_search` — the SAME RRF-fused ranking as `hybrid_search`, but the
+  # response IS the full text of every top-k hit; there is NO visit/fetch tool in this toolset.
+  hybrid_autoread:
+    - hybrid_read_search
+  # NEW, additive-only DENSE-ONLY BQL toolsets (the dense-ONLY siblings of bql_dense_visit/
+  # bql_dense_snip — see conditions.yaml's research_bql_donly_visit/research_bql_donly_snip and
+  # agent_search/retrievers/structural/bql/dense_fuse.py's "dense-ONLY ordering" section). Mirror
+  # bql_dense_visit/bql_dense_snip tool-for-tool — only the ranking under the hood (a
+  # DenseOnlyStructuralExecutor instead of a plain RRF-fused executor) differs.
+  #   bql_donly_visit: search_bqldo/visit_bqldo mirror search_bqld/visit_bqld (BQL search x
+  #     whole-doc visit) byte-for-byte, distinct tool names only so this cell gets its own
+  #     manual entry.
+  #   bql_donly_snip:  search_bqldos/fetch_bqldos mirror search_bqlds/fetch_bqlds (BQL search +
+  #     snippet listing x structured section-fetch) byte-for-byte, same reason.
+  bql_donly_visit:
+    - search_bqldo
+    - visit_bqldo
+  bql_donly_snip:
+    - search_bqldos
+    - fetch_bqldos
+
+tools:
+  # THE method (both arms): search -> fetch (the BQL field-tagged Boolean surface). `search`
+  # lowers term[field] to the BQL executor and returns ranked candidates + their structure
+  # (NO bodies); `fetch` pulls a named part. Descriptions are domain-neutral; the MANUAL is
+  # domain-selected (code -> bql_code, docs -> bql_doc) and renders only when the tool is set.
+  search:
+    description: "Boolean/structural search over the corpus (field-tagged term[field] syntax); returns ranked candidates plus their STRUCTURE — code: a file's function/method names; docs: an article's section names + infobox keys — no bodies, numbered for fetch."
+    manual:                              # field_profile -> manual (general/wiki share bql_doc.md:
+                                          # section/infobox simply never populate on a flat corpus)
+      code: skills/bql_code.md
+      general: skills/bql_doc.md
+      wiki: skills/bql_doc.md
+      # browsecomp's real fields are title/body/author/date (verified: 0/3348 docs carry a
+      # '##' section marker or an infobox — see corpus_build/browsecomp_plus/build.py's
+      # schema). bql_doc.md's title/section/infobox/body table taught two fields that ALWAYS
+      # 0-hit on this corpus and never mentioned the two that actually work — bql_browsecomp.md
+      # (title/body/author/date, no section/infobox) is the corpus-correct manual.
+      browsecomp: skills/bql_browsecomp.md
+    parameters:
+      type: object
+      properties:
+        query:
+          type: string
+          description: "Field-tagged Boolean query: term[field], AND/OR/NOT, wildcard*, \"phrase\". Code fields: def, call, string, comment, sig, file. Doc fields: title, body, section, infobox."
+        k:
+          type: integer
+          description: "Max ranked candidates to return (default 5)."
+      required: [query]
+  fetch:
+    description: "Pull a specific part of a candidate a previous search ranked — code: a function/method name or a line range like L1-40; docs: a named section or the infobox. Never the whole file/document."
+    parameters:
+      type: object
+      properties:
+        specs:
+          type: array
+          description: "List of [rank, part] pairs referencing the last search's numbering; part is a name from that candidate's structure list (or an L-range for code)."
+          items:
+            type: array
+      required: [specs]
+  # search_v2/fetch_v2: ALIASES of search/fetch for the research_v2 condition (search_fetch_v2
+  # toolset). Same call shape and (via DocSearchFetch.run's alias handling) the SAME workspace
+  # methods as search/fetch — the only difference is a richer executor underneath (typed
+  # date[RANGE] ranges + coverage_topk) and, via this distinct tool NAME, their OWN manual
+  # (bql_*_v2.md) — manuals are keyed per-tool-name+domain (see prompts/loader.py), not
+  # per-toolset, so a distinct manual needs a distinct tool name.
+  search_v2:
+    description: "Boolean/structural search over the corpus (field-tagged term[field] syntax, PLUS typed date[RANGE] ranges); returns ranked candidates plus their STRUCTURE (no bodies), numbered for fetch. A 0-exact-hit multi-constraint AND falls back to constraint-COVERAGE ranking (closest docs by how many clauses they satisfy, naming the unmatched one) before the plain relevance fallback."
+    manual:
+      general: skills/bql_doc_v2.md
+      wiki: skills/bql_doc_v2.md
+      browsecomp: skills/bql_browsecomp_v2.md
+    parameters:
+      type: object
+      properties:
+        query:
+          type: string
+          description: "Field-tagged Boolean query: term[field], AND/OR/NOT, wildcard*, \"phrase\", date[RANGE] (e.g. date[1980..1989], date[<2023-12])."
+        k:
+          type: integer
+          description: "Max ranked candidates to return (default 5)."
+      required: [query]
+  fetch_v2:
+    description: "Pull a specific part of a candidate a previous search_v2 ranked — a named section or the infobox. Never the whole document. Identical to fetch."
+    parameters:
+      type: object
+      properties:
+        specs:
+          type: array
+          description: "List of [rank, part] pairs referencing the last search_v2's numbering; part is a name from that candidate's structure list."
+          items:
+            type: array
+      required: [specs]
+  # search_s/fetch_s: ALIASES of search/fetch for the research_snip condition (search_fetch_s
+  # toolset) — same call shape and (via DocSearchFetch.run's alias handling) the SAME workspace
+  # methods as search/fetch, just on a workspace built with `snippets=True`. A distinct tool NAME
+  # is what gets it its own manual ENTRY, but the manual VALUES are the SAME as search's
+  # (bql_doc.md / bql_browsecomp.md) — the condition changes the observation, not the coaching.
+  search_s:
+    description: "Boolean/structural search over the corpus (field-tagged term[field] syntax); returns ranked candidates plus their STRUCTURE — code: a file's function/method names; docs: an article's section names + infobox keys — no bodies, numbered for fetch. Each hit includes a one-line best-matching excerpt."
+    manual:
+      code: skills/bql_code.md
+      general: skills/bql_doc.md
+      wiki: skills/bql_doc.md
+      browsecomp: skills/bql_browsecomp.md
+    parameters:
+      type: object
+      properties:
+        query:
+          type: string
+          description: "Field-tagged Boolean query: term[field], AND/OR/NOT, wildcard*, \"phrase\". Code fields: def, call, string, comment, sig, file. Doc fields: title, body, section, infobox."
+        k:
+          type: integer
+          description: "Max ranked candidates to return (default 5)."
+      required: [query]
+  fetch_s:
+    description: "Pull a specific part of a candidate a previous search ranked — code: a function/method name or a line range like L1-40; docs: a named section or the infobox. Never the whole file/document."
+    parameters:
+      type: object
+      properties:
+        specs:
+          type: array
+          description: "List of [rank, part] pairs referencing the last search's numbering; part is a name from that candidate's structure list (or an L-range for code)."
+          items:
+            type: array
+      required: [specs]
+  isearch:
+    description: "Indri structured query over the corpus (#combine/#weight/#band, #odN/#uwN windows, #syn, term.field, #filreq/#filrej, #date:between) — returns ranked docs with per-constraint belief diagnostics; graded matching: a query NEVER returns zero docs."
+    manual: skills/indri_doc.md
+    parameters:
+      type: object
+      properties:
+        query:
+          type: string
+          description: "An Indri query, e.g. #combine(dog train), #od1(white house), term.title, #date:between(2002-01-01 2002-12-31)."
+        k:
+          type: integer
+          description: "Max ranked candidates to return (default 5)."
+      required: [query]
+  # isearch_v/isearch_s: NEW hybrid-condition tool NAMES for the SAME Indri backend `isearch`
+  # queries (research_indri_visit / research_indri_snip — see conditions.yaml). Distinct names
+  # (not just distinct workspace behavior) so each gets its own manual ENTRY, though the manual
+  # VALUE is the SAME skills/indri_doc.md `isearch` already uses — the condition changes the
+  # read/observation surface, not the query-language coaching.
+  isearch_v:
+    description: "Indri structured query over the corpus (#combine/#weight/#band, #odN/#uwN windows, #syn, term.field, #filreq/#filrej, #date:between) — returns ranked docs with per-constraint belief diagnostics and a one-line best-matching excerpt per hit; graded matching: a query NEVER returns zero docs."
+    manual: skills/indri_doc.md
+    parameters:
+      type: object
+      properties:
+        query:
+          type: string
+          description: "An Indri query, e.g. #combine(dog train), #od1(white house), term.title, #date:between(2002-01-01 2002-12-31)."
+        k:
+          type: integer
+          description: "Max ranked candidates to return (default 5)."
+      required: [query]
+  isearch_s:
+    description: "Indri structured query over the corpus (#combine/#weight/#band, #odN/#uwN windows, #syn, term.field, #filreq/#filrej, #date:between) — returns ranked docs with per-constraint belief diagnostics; graded matching: a query NEVER returns zero docs. Each hit includes a one-line best-matching excerpt."
+    manual: skills/indri_doc.md
+    parameters:
+      type: object
+      properties:
+        query:
+          type: string
+          description: "An Indri query, e.g. #combine(dog train), #od1(white house), term.title, #date:between(2002-01-01 2002-12-31)."
+        k:
+          type: integer
+          description: "Max ranked candidates to return (default 5)."
+      required: [query]
+  bm25_search:
+    # shared by three arms: the retrieve-then-visit baseline (research_bm25, numbered to `visit`),
+    # the retrieval-bounded DCI baseline (research_bm25_dci, numbered docs are the ONLY files
+    # staged for `bash`/`read`), and the retrieval-bounded section-fetch arm (research_bm25_fetch,
+    # numbered to `fetch` a named section — its listing shows each hit's section names). In every
+    # case nothing outside this ranking is reachable. Plain BM25 over flat doc text, NO manual.
+    description: "Keyword search over the document corpus (BM25); returns ranked documents (with `fetch` available: each hit's title + section names + infobox keys; otherwise title + a short opening snippet). Depending on the toolset: `visit` a ranked doc for its full text, `fetch` a named section of a ranked doc, or (bm25_dci) `bash`/`read` the ranked docs directly — no other documents are reachable."
+    parameters:
+      type: object
+      properties:
+        query:
+          type: string
+          description: "A keyword query, for example: treaty that ended the Mexican-American War."
+      required: [query]
+  visit:
+    description: "Read a whole document that a previous search ranked (the retrieve-then-visit baseline). Returns the full doc text, capped."
+    parameters:
+      type: object
+      properties:
+        rank:
+          type: integer
+          description: "The 1-based rank from the last search, or a doc id."
+      required: [rank]
+  visit_v:
+    # research_indri_visit's read tool — SAME description/contract as `visit` (the bm25 arm's
+    # whole-doc read), just paired with `isearch_v`'s graded search instead of `bm25_search`.
+    description: "Read a whole document that a previous search ranked (the retrieve-then-visit baseline). Returns the full doc text, capped."
+    parameters:
+      type: object
+      properties:
+        rank:
+          type: integer
+          description: "The 1-based rank from the last search, or a doc id."
+      required: [rank]
+  dense_search:
+    # the doc arm's DENSE baseline (the modern RAG default): dense embedding (cosine similarity)
+    # retrieval over the SAME persisted doc-embedding cache the `dense` retriever condition and
+    # Indri's DenseBelief already build (BAAI/bge-base-en-v1.5) — otherwise the SAME retrieve-
+    # then-visit shape as `bm25_search` (title + a short opening snippet listing, no structure).
+    # NO manual: retrieval is a plain search box (uncoached, like bm25_search).
+    description: "Semantic similarity search over the document corpus (dense embeddings, cosine similarity); returns ranked documents (title + a short opening snippet). `visit` a ranked doc for its full text — no other documents are reachable."
+    parameters:
+      type: object
+      properties:
+        query:
+          type: string
+          description: "A natural-language query describing what you are looking for, for example: treaty that ended the Mexican-American War."
+      required: [query]
+  visit_d:
+    # research_dense's read tool — SAME description/contract as `visit` (the bm25 arm's
+    # whole-doc read), just paired with `dense_search`'s dense retrieval instead of bm25_search.
+    description: "Read a whole document that a previous search ranked (the retrieve-then-visit baseline). Returns the full doc text, capped."
+    parameters:
+      type: object
+      properties:
+        rank:
+          type: integer
+          description: "The 1-based rank from the last search, or a doc id."
+      required: [rank]
+  bm25q_search:
+    # research_bm25q's retrieval tool — the HARDENED bm25 baseline (see conditions.yaml):
+    # bm25_search's description, with the listing's snippet noted as query-biased instead of
+    # the doc opening (fairness parity with research_snip/research_indri_snip's excerpt).
+    # UNCOACHED (no manual), like bm25_search.
+    description: "Keyword search over the document corpus (BM25); returns ranked documents (title + each hit shows its best-matching excerpt for your query, not just the doc opening). `visit` a ranked doc for its full text — no other documents are reachable."
+    parameters:
+      type: object
+      properties:
+        query:
+          type: string
+          description: "A keyword query, for example: treaty that ended the Mexican-American War."
+      required: [query]
+  visit_q:
+    # research_bm25q's read tool — SAME description/contract as `visit` (the bm25 arm's
+    # whole-doc read), just paired with `bm25q_search`'s query-biased listing instead of
+    # bm25_search's opening-snippet listing.
+    description: "Read a whole document that a previous search ranked (the retrieve-then-visit baseline). Returns the full doc text, capped."
+    parameters:
+      type: object
+      properties:
+        rank:
+          type: integer
+          description: "The 1-based rank from the last search, or a doc id."
+      required: [rank]
+  bm25_read_search:
+    # research_bm25_autoread's ONLY tool (the "retrieve-and-read" baseline — see conditions.yaml
+    # and doc_research.py's `Bm25AutoRead`): SAME BM25 retrieval as `bm25_search`, but the
+    # response already IS the full text of every top-k hit — there is no visit/fetch tool in
+    # this condition, so the description says so explicitly (no dangling "then visit/fetch"
+    # instruction the agent could go looking for). UNCOACHED (no manual), like bm25_search.
+    description: "Keyword search over the document corpus (BM25); returns the FULL TEXT of the top-ranked documents directly (not a listing to visit) — there is no separate visit or fetch tool in this condition, so everything you need from a hit is already in this response."
+    parameters:
+      type: object
+      properties:
+        query:
+          type: string
+          description: "A keyword query, for example: treaty that ended the Mexican-American War."
+      required: [query]
+  dense_read_search:
+    # research_dense_autoread's ONLY tool (the DENSE "retrieve-and-read" baseline — see
+    # conditions.yaml and doc_research.py's `DenseAutoRead`): SAME dense-embedding retrieval as
+    # `dense_search`, but the response already IS the full text of every top-k hit — there is no
+    # visit/fetch tool in this condition, so the description says so explicitly (no dangling
+    # "then visit/fetch" instruction the agent could go looking for). UNCOACHED (no manual),
+    # like dense_search/bm25_read_search.
+    description: "Semantic/dense retrieval search over the document corpus (dense embeddings, cosine similarity); returns the FULL TEXT of the top-ranked documents directly (not a listing to visit) — there is no separate visit or fetch tool in this condition, so everything you need from a hit is already in this response."
+    parameters:
+      type: object
+      properties:
+        query:
+          type: string
+          description: "A natural-language query describing what you are looking for, for example: treaty that ended the Mexican-American War."
+      required: [query]
+  dense_search_f:
+    # research_dense_fetch's retrieval tool (the {dense search} x {structure->parts read} cell —
+    # see agent_search/agent/tools/doc_research.py's `DenseFetchWorkspace`): like `dense_search`'s
+    # description, but the read is a structured section-fetch instead of a whole-doc visit — so
+    # the listing carries structure + a content excerpt, and `fetch` (not `visit`) is the read
+    # tool. UNCOACHED (no manual), like dense_search/bm25_search.
+    description: "Semantic similarity search over the document corpus (dense embeddings, cosine similarity); returns ranked docs plus their section names + infobox keys + a best-matching excerpt for your query — NOT full text; fetch a named section to read. `fetch` a named section (or the infobox) of a ranked doc — no other documents are reachable."
+    parameters:
+      type: object
+      properties:
+        query:
+          type: string
+          description: "A natural-language query describing what you are looking for, for example: treaty that ended the Mexican-American War."
+        k:
+          type: integer
+          description: "Max ranked candidates to return (default 10)."
+      required: [query]
+  dense_search_fp:
+    # research_dense_fetch_plain's retrieval tool (the missing PLAIN dense fetch cell — see
+    # agent_search/agent/tools/doc_research.py's `DenseFetchPlainWorkspace`): BYTE-FOR-BYTE
+    # `dense_search_f`'s retrieval, but the listing carries NO per-hit excerpt (structure only —
+    # SAME move `search_bqldf` makes over `search_bqlds`, and the plain `search`/`bm25_search`
+    # schemas make over their own snip siblings: exposes only `query`, no `k`). UNCOACHED (no
+    # manual), like dense_search_f/dense_search/bm25_search.
+    description: "Semantic similarity search over the document corpus (dense embeddings, cosine similarity); returns ranked docs plus their section names + infobox keys — NOT full text, no excerpt; fetch a named section to read. `fetch` a named section (or the infobox) of a ranked doc — no other documents are reachable."
+    parameters:
+      type: object
+      properties:
+        query:
+          type: string
+          description: "A natural-language query describing what you are looking for, for example: treaty that ended the Mexican-American War."
+      required: [query]
+  search_bv:
+    # research_bql_visit's search tool (the {BQL search} x {whole-doc visit} factorial cell —
+    # see agent_search/agent/tools/doc_research.py's `BqlVisitWorkspace`): the SAME BQL v2
+    # search `search_v2` exposes (typed date[RANGE] ranges + constraint-coverage feedback on a
+    # 0-exact-hit AND), reusing the SAME bql_doc_v2.md/bql_browsecomp_v2.md manual, PLUS a
+    # one-line best-matching excerpt per hit (fairness parity with the bm25/dense/indri visit
+    # cells' content-bearing listings). Paired with `visit_bv` (not `fetch`) — no structure read.
+    description: "Boolean/structural search over the corpus (field-tagged term[field] syntax, PLUS typed date[RANGE] ranges); returns ranked candidates plus their STRUCTURE (section names + infobox keys) and a one-line best-matching excerpt per hit — NOT full body text. A 0-exact-hit multi-constraint AND falls back to constraint-COVERAGE ranking (closest docs by how many clauses they satisfy, naming the unmatched one) before the plain relevance fallback. Then `visit_bv` a ranked doc to read its full text."
+    manual:
+      general: skills/bql_doc_v2.md
+      wiki: skills/bql_doc_v2.md
+      browsecomp: skills/bql_browsecomp_v2.md
+    parameters:
+      type: object
+      properties:
+        query:
+          type: string
+          description: "Field-tagged Boolean query: term[field], AND/OR/NOT, wildcard*, \"phrase\", date[RANGE] (e.g. date[1980..1989], date[<2023-12])."
+        k:
+          type: integer
+          description: "Max ranked candidates to return (default 5)."
+      required: [query]
+  visit_bv:
+    # research_bql_visit's read tool — SAME description/contract as `visit`/`visit_v`/`visit_d`/
+    # `visit_q` (the whole-doc read), just paired with `search_bv`'s BQL v2 search instead.
+    description: "Read a whole document that a previous search ranked (the retrieve-then-visit baseline). Returns the full doc text, capped."
+    parameters:
+      type: object
+      properties:
+        rank:
+          type: integer
+          description: "The 1-based rank from the last search, or a doc id."
+      required: [rank]
+  search_bqld:
+    # research_bql_dense_visit's search tool (BQL_DENSE — see
+    # agent_search/retrievers/structural/bql/dense_fuse.py): BYTE-FOR-BYTE `search_bv`'s
+    # description/manual/parameters — the query language and listing are IDENTICAL; only the
+    # ranking of filter-passing candidates differs (RRF-fused with dense similarity restricted
+    # to those same candidates, instead of plain BM25). Paired with `visit_bqld` (not `fetch`).
+    description: "Boolean/structural search over the corpus (field-tagged term[field] syntax, PLUS typed date[RANGE] ranges); returns ranked candidates plus their STRUCTURE (section names + infobox keys) and a one-line best-matching excerpt per hit — NOT full body text. A 0-exact-hit multi-constraint AND falls back to constraint-COVERAGE ranking (closest docs by how many clauses they satisfy, naming the unmatched one) before the plain relevance fallback. Then `visit_bqld` a ranked doc to read its full text."
+    manual:
+      general: skills/bql_doc_v2.md
+      wiki: skills/bql_doc_v2.md
+      browsecomp: skills/bql_browsecomp_v2.md
+    parameters:
+      type: object
+      properties:
+        query:
+          type: string
+          description: "Field-tagged Boolean query: term[field], AND/OR/NOT, wildcard*, \"phrase\", date[RANGE] (e.g. date[1980..1989], date[<2023-12])."
+        k:
+          type: integer
+          description: "Max ranked candidates to return (default 5)."
+      required: [query]
+  visit_bqld:
+    # research_bql_dense_visit's read tool — SAME description/contract as `visit_bv` (the whole-
+    # doc read), just paired with `search_bqld`'s dense-fused ranking instead.
+    description: "Read a whole document that a previous search ranked (the retrieve-then-visit baseline). Returns the full doc text, capped."
+    parameters:
+      type: object
+      properties:
+        rank:
+          type: integer
+          description: "The 1-based rank from the last search, or a doc id."
+      required: [rank]
+  search_bqlds:
+    # research_bql_dense_snip's search tool (BQL_DENSE): BYTE-FOR-BYTE `search_s`'s description/
+    # manual/parameters (search_fetch_s toolset) — same field-tagged query language + snippet
+    # listing; only the ranking of filter-passing candidates differs (dense-fused, see
+    # dense_fuse.py). Paired with `fetch_bqlds` (a named section fetch, not a whole-doc visit).
+    description: "Boolean/structural search over the corpus (field-tagged term[field] syntax); returns ranked candidates plus their STRUCTURE — code: a file's function/method names; docs: an article's section names + infobox keys — no bodies, numbered for fetch. Each hit includes a one-line best-matching excerpt."
+    manual:
+      code: skills/bql_code.md
+      general: skills/bql_doc.md
+      wiki: skills/bql_doc.md
+      browsecomp: skills/bql_browsecomp.md
+    parameters:
+      type: object
+      properties:
+        query:
+          type: string
+          description: "Field-tagged Boolean query: term[field], AND/OR/NOT, wildcard*, \"phrase\". Code fields: def, call, string, comment, sig, file. Doc fields: title, body, section, infobox."
+        k:
+          type: integer
+          description: "Max ranked candidates to return (default 5)."
+      required: [query]
+  fetch_bqlds:
+    # research_bql_dense_snip's fetch tool — SAME contract as `fetch`/`fetch_s` (a named
+    # section or the infobox of a ranked doc; never the whole document).
+    description: "Pull a specific part of a candidate a previous search ranked — code: a function/method name or a line range like L1-40; docs: a named section or the infobox. Never the whole file/document."
+    parameters:
+      type: object
+      properties:
+        specs:
+          type: array
+          description: "List of [rank, part] pairs referencing the last search's numbering; part is a name from that candidate's structure list (or an L-range for code)."
+          items:
+            type: array
+      required: [specs]
+  search_bqldf:
+    # research_bql_dense_fetch's search tool (BQL_DENSE — see
+    # agent_search/retrievers/structural/bql/dense_fuse.py): BYTE-FOR-BYTE `search`'s own
+    # description/manual/parameters (the PLAIN listing — no per-hit excerpt); only the ranking of
+    # filter-passing candidates differs (RRF-fused with dense similarity restricted to those same
+    # candidates, instead of plain BM25) — SAME mechanism `search_bqlds`/`search_bqld` use.
+    # Paired with `fetch_bqldf` (a named section fetch, not a whole-doc visit) — this is
+    # research_bql_dense_snip's SAME search minus the excerpt.
+    description: "Boolean/structural search over the corpus (field-tagged term[field] syntax); returns ranked candidates plus their STRUCTURE — code: a file's function/method names; docs: an article's section names + infobox keys — no bodies, numbered for fetch."
+    manual:
+      code: skills/bql_code.md
+      general: skills/bql_doc.md
+      wiki: skills/bql_doc.md
+      browsecomp: skills/bql_browsecomp.md
+    parameters:
+      type: object
+      properties:
+        query:
+          type: string
+          description: "Field-tagged Boolean query: term[field], AND/OR/NOT, wildcard*, \"phrase\". Code fields: def, call, string, comment, sig, file. Doc fields: title, body, section, infobox."
+        k:
+          type: integer
+          description: "Max ranked candidates to return (default 5)."
+      required: [query]
+  fetch_bqldf:
+    # research_bql_dense_fetch's fetch tool — SAME contract as `fetch`/`fetch_bqlds` (a named
+    # section or the infobox of a ranked doc; never the whole document).
+    description: "Pull a specific part of a candidate a previous search ranked — code: a function/method name or a line range like L1-40; docs: a named section or the infobox. Never the whole file/document."
+    parameters:
+      type: object
+      properties:
+        specs:
+          type: array
+          description: "List of [rank, part] pairs referencing the last search's numbering; part is a name from that candidate's structure list (or an L-range for code)."
+          items:
+            type: array
+      required: [specs]
+  bm25_search_snip:
+    # research_bm25_fetch_snip's retrieval tool (the fair-listing sibling of research_bm25_fetch
+    # — see agent_search/agent/tools/doc_research.py's `Bm25FetchSnipWorkspace`): SAME live bm25
+    # retrieval as `bm25_search`, but the listing carries each hit's section names + infobox
+    # keys PLUS a best-matching excerpt for your query — NOT full text; `fetch` a named section
+    # to read (SAME move `dense_search_f` makes over `dense_search`). UNCOACHED (no manual),
+    # like bm25_search/dense_search_f.
+    description: "Keyword search over the document corpus (BM25); returns ranked docs plus their section names + infobox keys + a best-matching excerpt for your query — NOT full text; fetch a named section to read. `fetch` a named section (or the infobox) of a ranked doc — no other documents are reachable."
+    parameters:
+      type: object
+      properties:
+        query:
+          type: string
+          description: "A keyword query, for example: treaty that ended the Mexican-American War."
+        k:
+          type: integer
+          description: "Max ranked candidates to return (default 10)."
+      required: [query]
+  hybrid_search:
+    # research_hybrid's retrieval tool (the BM25+DENSE HYBRID baseline — see conditions.yaml):
+    # Reciprocal Rank Fusion (RRF, k=60) over a top-100 pyserini/Lucene BM25 pool and a top-100
+    # FAISS/dense pool (SAME bge-base embedder + cache research_dense uses) — see
+    # doc_research.py's `HybridVisit`/`rrf_fuse`. UNCOACHED (no manual), like bm25_search/
+    # dense_search.
+    description: "Hybrid keyword+semantic search over the document corpus: a canonical Lucene BM25 ranking and a dense-embedding (cosine similarity) ranking are each computed over a top-100 pool, then combined by Reciprocal Rank Fusion (RRF, k=60) into one ranked list. Returns ranked documents (title + a short opening snippet). `visit_h` a ranked doc for its full text — no other documents are reachable."
+    parameters:
+      type: object
+      properties:
+        query:
+          type: string
+          description: "A keyword or natural-language query, for example: treaty that ended the Mexican-American War."
+        k:
+          type: integer
+          description: "Max fused candidates to return (default 5)."
+      required: [query]
+  visit_h:
+    # research_hybrid's read tool — SAME description/contract as `visit`/`visit_d`/`visit_q`
+    # (the whole-doc read), just paired with `hybrid_search`'s RRF-fused listing instead.
+    description: "Read a whole document that a previous search ranked (the retrieve-then-visit baseline). Returns the full doc text, capped."
+    parameters:
+      type: object
+      properties:
+        rank:
+          type: integer
+          description: "The 1-based rank from the last search, or a doc id."
+      required: [rank]
+  hybrid_search_snip:
+    # research_hybrid_fetch_snip's retrieval tool — SAME RRF fusion as `hybrid_search`, rendered
+    # as a structure table + best-matching excerpt per hit (SAME move bm25_search_snip/
+    # dense_search_f make over their own bare/whole-doc siblings) — see doc_research.py's
+    # `HybridFetchSnipWorkspace`. UNCOACHED (no manual).
+    description: "Hybrid keyword+semantic search over the document corpus (Reciprocal Rank Fusion, RRF k=60, over a top-100 canonical BM25 pool and a top-100 dense-embedding pool). Returns ranked docs plus their section names + infobox keys + a best-matching excerpt for your query — NOT full text; fetch a named section to read. `fetch` a named section (or the infobox) of a ranked doc — no other documents are reachable."
+    parameters:
+      type: object
+      properties:
+        query:
+          type: string
+          description: "A keyword or natural-language query, for example: treaty that ended the Mexican-American War."
+        k:
+          type: integer
+          description: "Max fused candidates to return (default 10)."
+      required: [query]
+  grep:
+    # the code arm's grep baseline: a REAL regular expression over live source, returning
+    # matching LINES (not units/files) — grep as intended (RISE gives agents rg/grep in a
+    # shell). NO manual: models already know regex.
+    description: "Regex search over all source (case-insensitive); returns matching lines as path:line: text. Invalid regex falls back to a literal substring search."
+    parameters:
+      type: object
+      properties:
+        pattern:
+          type: string
+          description: "A regular expression, for example sqlmigrate|rollback."
+      required: [pattern]
+  read:
+    # shared by the code grep baseline (a file line-range) and the doc DCI baseline (a
+    # corpus-file line-range); NO manual — a plain ranged read needs no teaching.
+    description: "Read a file by line range. Code: a repo file path, up to ~80 lines per call. Docs (DCI baseline): a path relative to the corpus directory, offset (1-indexed line, default 1) and limit (default 2000 lines) page through long files."
+    parameters:
+      type: object
+      properties:
+        path:
+          type: string
+          description: "File path (code: repo-relative; docs: relative to the corpus directory)."
+        start:
+          type: integer
+          description: "Code arm: first line to read."
+        end:
+          type: integer
+          description: "Code arm: last line to read."
+        offset:
+          type: integer
+          description: "Doc DCI arm: 1-indexed line number to start reading from (default 1)."
+        limit:
+          type: integer
+          description: "Doc DCI arm: maximum number of lines to read (default 2000)."
+      required: [path]
+  bash:
+    # shared by two arms: the doc arm's DCI baseline (no retriever at all — the corpus
+    # directory holds every document) and the bm25_dci baseline (the corpus directory holds
+    # ONLY the bm25_search top-k — everything else is out of reach). NO manual — a shell
+    # needs no teaching.
+    description: "Run a bash command (grep/rg/ls/find/wc) in the corpus directory to search for candidate files. The corpus directory contains only the documents available to you this episode (with bm25_search: only its top-ranked hits) — there is no broader search/retrieval tool. Output is truncated to the last ~2000 lines or ~50KB, whichever is hit first."
+    parameters:
+      type: object
+      properties:
+        command:
+          type: string
+          description: "A bash command, e.g. rg -l 'term' . or grep -rn 'term' ."
+        timeout:
+          type: number
+          description: "Timeout in seconds (optional, default 60)."
+      required: [command]
+  bm25:
+    description: "Lexical BM25 keyword search over the corpus; returns the top matching units/documents."
+    parameters:
+      type: object
+      properties:
+        query:
+          type: string
+          description: "A keyword query, for example retry backoff timeout."
+      required: [query]
+  dense:
+    description: "Dense embedding (semantic) search over the corpus; use when the exact wording is uncertain."
+    parameters:
+      type: object
+      properties:
+        query:
+          type: string
+          description: "A natural-language query describing what you are looking for."
+      required: [query]
+  search_dir:
+    description: "Grep for a literal term across all files; returns each matching file with a match count."
+    parameters:
+      type: object
+      properties:
+        term:
+          type: string
+        dir:
+          type: string
+          description: "Optional subdirectory to restrict to."
+      required: [term]
+  search_file:
+    description: "Grep for a term within one file or the currently open file; returns matching line numbers."
+    parameters:
+      type: object
+      properties:
+        term:
+          type: string
+        file:
+          type: string
+      required: [term]
+  find_file:
+    description: "Find files by name or glob, for example widgets.py or *.py."
+    parameters:
+      type: object
+      properties:
+        pattern:
+          type: string
+        dir:
+          type: string
+      required: [pattern]
+  semantic_search:
+    description: "Dense semantic search over code units; use when exact vocabulary is uncertain."
+    parameters:
+      type: object
+      properties:
+        query:
+          type: string
+      required: [query]
+  open:
+    description: "Open a file and show a line-numbered window. Optionally jump to a line."
+    parameters:
+      type: object
+      properties:
+        path:
+          type: string
+        line:
+          type: integer
+      required: [path]
+  goto:
+    description: "Move the open file window to a given line."
+    parameters:
+      type: object
+      properties:
+        line:
+          type: integer
+      required: [line]
+  scroll_down:
+    description: "Scroll the open file window down."
+    parameters:
+      type: object
+      properties: {}
+  scroll_up:
+    description: "Scroll the open file window up."
+    parameters:
+      type: object
+      properties: {}
+  submit:
+    description: "Declare the functions/methods that must be edited, then stop. Each location should be path:function, most likely first."
+    parameters:
+      type: object
+      properties:
+        locations:
+          type: array
+          items:
+            type: string
+      required: [locations]
+  hybrid_read_search:
+    # research_hybrid_autoread's ONLY tool (the BM25+DENSE HYBRID "retrieve-and-read" baseline —
+    # see conditions.yaml and doc_research.py's `HybridAutoRead`): SAME RRF-fused hybrid
+    # retrieval as `hybrid_search`/`hybrid_search_snip` (top-100 bm25 pool x top-100 dense pool,
+    # RRF k=60), but the response already IS the full text of every top-k hit — there is no
+    # visit/fetch tool in this condition, so the description says so explicitly (no dangling
+    # "then visit/fetch" instruction the agent could go looking for). UNCOACHED (no manual),
+    # like bm25_read_search/dense_read_search.
+    description: "Hybrid keyword+semantic search over the document corpus (Reciprocal Rank Fusion, RRF k=60, over a top-100 canonical BM25 pool and a top-100 dense-embedding pool); returns the FULL TEXT of the top-ranked documents directly (not a listing to visit) — there is no separate visit or fetch tool in this condition, so everything you need from a hit is already in this response."
+    parameters:
+      type: object
+      properties:
+        query:
+          type: string
+          description: "A keyword or natural-language query, for example: treaty that ended the Mexican-American War."
+      required: [query]
+  search_bqldo:
+    # research_bql_donly_visit's search tool (the DENSE-ONLY sibling of research_bql_dense_visit
+    # — see agent_search/retrievers/structural/bql/dense_fuse.py's "dense-ONLY ordering"
+    # section): BYTE-FOR-BYTE `search_bqld`'s description/manual/parameters — the query language
+    # and listing are IDENTICAL; only the ranking of filter-passing candidates differs (pure
+    # dense rank, not RRF with bm25). Paired with `visit_bqldo` (not `fetch`).
+    description: "Boolean/structural search over the corpus (field-tagged term[field] syntax, PLUS typed date[RANGE] ranges); returns ranked candidates plus their STRUCTURE (section names + infobox keys) and a one-line best-matching excerpt per hit — NOT full body text. A 0-exact-hit multi-constraint AND falls back to constraint-COVERAGE ranking (closest docs by how many clauses they satisfy, naming the unmatched one) before the plain relevance fallback. Then `visit_bqldo` a ranked doc to read its full text."
+    manual:
+      general: skills/bql_doc_v2.md
+      wiki: skills/bql_doc_v2.md
+      browsecomp: skills/bql_browsecomp_v2.md
+    parameters:
+      type: object
+      properties:
+        query:
+          type: string
+          description: "Field-tagged Boolean query: term[field], AND/OR/NOT, wildcard*, \"phrase\", date[RANGE] (e.g. date[1980..1989], date[<2023-12])."
+        k:
+          type: integer
+          description: "Max ranked candidates to return (default 5)."
+      required: [query]
+  visit_bqldo:
+    # research_bql_donly_visit's read tool — SAME description/contract as `visit_bqld`/`visit_bv`
+    # (the whole-doc read), just paired with `search_bqldo`'s dense-only ranking instead.
+    description: "Read a whole document that a previous search ranked (the retrieve-then-visit baseline). Returns the full doc text, capped."
+    parameters:
+      type: object
+      properties:
+        rank:
+          type: integer
+          description: "The 1-based rank from the last search, or a doc id."
+      required: [rank]
+  search_bqldos:
+    # research_bql_donly_snip's search tool (the DENSE-ONLY sibling of research_bql_dense_snip —
+    # see agent_search/retrievers/structural/bql/dense_fuse.py's "dense-ONLY ordering" section):
+    # BYTE-FOR-BYTE `search_bqlds`'s description/manual/parameters — same field-tagged query
+    # language + snippet listing; only the ranking of filter-passing candidates differs (pure
+    # dense rank WITHIN each coverage tier, not RRF). Paired with `fetch_bqldos` (a named section
+    # fetch, not a whole-doc visit).
+    description: "Boolean/structural search over the corpus (field-tagged term[field] syntax); returns ranked candidates plus their STRUCTURE — code: a file's function/method names; docs: an article's section names + infobox keys — no bodies, numbered for fetch. Each hit includes a one-line best-matching excerpt."
+    manual:
+      code: skills/bql_code.md
+      general: skills/bql_doc.md
+      wiki: skills/bql_doc.md
+      browsecomp: skills/bql_browsecomp.md
+    parameters:
+      type: object
+      properties:
+        query:
+          type: string
+          description: "Field-tagged Boolean query: term[field], AND/OR/NOT, wildcard*, \"phrase\". Code fields: def, call, string, comment, sig, file. Doc fields: title, body, section, infobox."
+        k:
+          type: integer
+          description: "Max ranked candidates to return (default 5)."
+      required: [query]
+  fetch_bqldos:
+    # research_bql_donly_snip's fetch tool — SAME contract as `fetch_bqlds`/`fetch` (a named
+    # section or the infobox of a ranked doc; never the whole document).
+    description: "Pull a specific part of a candidate a previous search ranked — code: a function/method name or a line range like L1-40; docs: a named section or the infobox. Never the whole file/document."
+    parameters:
+      type: object
+      properties:
+        specs:
+          type: array
+          description: "List of [rank, part] pairs referencing the last search's numbering; part is a name from that candidate's structure list (or an L-range for code)."
+          items:
+            type: array
+      required: [specs]

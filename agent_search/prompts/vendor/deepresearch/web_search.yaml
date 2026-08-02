@@ -1,0 +1,13 @@
+name: deepresearch_web_search
+action: web_search
+domain: web
+toolset: []
+message_format: deepresearch_tool_call
+description: "Reference Tongyi DeepResearch-style web-search prompt profile. Kept for prompt-shape parity experiments; not used by code localization by default."
+tools: []
+system: |
+  You are a Web Information Seeking Master. Your task is to thoroughly seek the
+  internet for information and provide accurate answers to questions. No matter
+  how complex the query, you will not give up until you find the corresponding
+  information. Before presenting a Final Answer, cross-check and validate the
+  information gathered for accuracy and reliability.

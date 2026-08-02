@@ -1,0 +1,19 @@
+[load] browsecomp_plus_flat _visit_uncapped/agent_research_bm25
+[load] browsecomp_plus_structured _headline_validation/agent_research_bql_dense_snip
+[load] browsecomp_plus_structured _headline_validation/agent_research_hybrid_fetch_snip
+[load] browsecomp_plus_structured _headline_validation/agent_research_snip
+[load] browsecomp_plus_structured _visit_uncapped/agent_research_bm25
+[load] hotpotqa_flat _visit_uncapped/agent_research_bm25
+[load] hotpotqa_structured _headline_validation/agent_research_bql_dense_snip
+[load] hotpotqa_structured _headline_validation/agent_research_hybrid_fetch_snip
+[load] hotpotqa_structured _headline_validation/agent_research_snip
+[load] hotpotqa_structured _visit_uncapped/agent_research_bm25
+[load] musique_flat _visit_uncapped/agent_research_bm25
+[load] musique_structured _headline_validation/agent_research_bql_dense_snip
+[load] musique_structured _headline_validation/agent_research_hybrid_fetch_snip
+[load] musique_structured _headline_validation/agent_research_snip
+[load] musique_structured _visit_uncapped/agent_research_bm25
+[gate] PASSED: delta 4.69879518072289 vs 4.69879518072289, p 0.010420769409438875 vs 0.010420769409438875
+[equiv] {'cell': 'runs/_headline_validation/agent/browsecomp_plus_structured/Tongyi-DeepResearch-30B-A3B/agent_research_bql_dense_snip', 'n': 830, 'same_id_sets': True, 'n_disagreements': 0, 'passed': True}
+
+wrote: analysis/matched_budget_reanalysis_data.json analysis/matched_budget_reanalysis.md
