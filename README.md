@@ -60,7 +60,7 @@ SkimSearchAgent requires Python 3.10 or newer. The reference BQL engine and loca
 do not require Java, a GPU, or an API key.
 
 ```bash
-git clone <repository-url>
+git clone ielab/skim-search-agent
 cd skim-search-agent
 
 python3.10 -m venv .venv
