@@ -43,9 +43,8 @@ interfaces and runs every configuration through the same harness.
 
 - **Build complete research agents.** Use the shared reason–act–observe loop, termination and
   answer handling, configurable budgets, prompt profiles, and tool registry.
-- **Work over different corpora.** Fixed document collections and per-question code repositories
-  share the same corpus and unit abstractions. Flat text, passages, sections, and metadata are all
-  supported.
+- **Work over different corpora.** Document collections share one corpus and unit abstraction.
+  Flat text, passages, sections, and metadata are all supported.
 - **Mix search and reading strategies.** Combine whole-document visits, section fetches, result
   cards, snippets, shell-style corpus access, or your own tools.
 - **Swap retrieval components.** Use local or Lucene BM25, dense retrieval, reciprocal-rank
@@ -120,9 +119,9 @@ and `--api-base http://localhost:8000/v1`. In-process vLLM is available with `--
 
 | layer | interface or entry point | included examples |
 |---|---|---|
-| Corpus | [`CorpusSource`](agent_search/core/interfaces.py), [`Unit`](agent_search/core/units.py) | shared QA collections, structured documents, SWE-bench repositories |
+| Corpus | [`CorpusSource`](agent_search/core/interfaces.py), [`Unit`](agent_search/core/units.py) | shared QA collections, structured documents |
 | Model | [`Model`](agent_search/core/interfaces.py), [`models/backends.py`](agent_search/models/backends.py) | in-process vLLM, OpenAI-compatible servers, OpenAI, Gemini |
-| Agent policy | [`Policy`](agent_search/agent/loop.py), prompt profiles | ReAct-style research and code policies |
+| Agent policy | [`Policy`](agent_search/agent/loop.py), prompt profiles | ReAct-style research policies |
 | Tools and reading | [`Tool`](agent_search/core/interfaces.py), [`agent/tools/`](agent_search/agent/tools/) | search, result inspection, whole-page visit, section fetch, shell and file access |
 | Retrieval and ranking | [`Retriever`](agent_search/core/interfaces.py), [`retrievers/`](agent_search/retrievers/) | grep, BM25, dense, hybrid, BQL, Indri-style retrieval |
 | Evaluation | [`evaluation/`](evaluation/) | answer scoring, retrieval metrics, LLM judging, tokens, calls, traces |
@@ -224,8 +223,8 @@ python -m evaluation.run_eval \
 ## Data and reproducibility
 
 The repository contains builders for BrowseComp-Plus and Wikipedia-based QA collections, together
-with paired flat and structured variants used by the Sieve study. It also registers code-search
-tasks including SWE-bench. The paper's built corpora are published on Hugging Face —
+with paired flat and structured variants used by the Sieve study. The paper's built corpora are
+published on Hugging Face —
 [`wshuai190/browsecomp-plus-structured-full`](https://huggingface.co/datasets/wshuai190/browsecomp-plus-structured-full),
 [`wshuai190/hotpotqa-structured`](https://huggingface.co/datasets/wshuai190/hotpotqa-structured),
 and [`wshuai190/musique-structured`](https://huggingface.co/datasets/wshuai190/musique-structured)
