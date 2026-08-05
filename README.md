@@ -225,7 +225,11 @@ python -m evaluation.run_eval \
 
 The repository contains builders for BrowseComp-Plus and Wikipedia-based QA collections, together
 with paired flat and structured variants used by the Sieve study. It also registers code-search
-tasks including SWE-bench. Dataset preparation is documented in
+tasks including SWE-bench. The paper's built corpora are published on Hugging Face —
+[`wshuai190/browsecomp-plus-structured-full`](https://huggingface.co/datasets/wshuai190/browsecomp-plus-structured-full),
+[`wshuai190/hotpotqa-structured`](https://huggingface.co/datasets/wshuai190/hotpotqa-structured),
+and [`wshuai190/musique-structured`](https://huggingface.co/datasets/wshuai190/musique-structured)
+— so they can be pulled instead of rebuilt; staging commands and the builders are documented in
 [`corpus_build/README.md`](corpus_build/README.md).
 
 Every run writes its resolved configuration, per-question outputs, agent actions, observations,

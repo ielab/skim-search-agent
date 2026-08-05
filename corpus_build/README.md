@@ -21,24 +21,34 @@ Run **inside** the relevant folder; each has its own README with exact commands.
 
 ## Published datasets (Hugging Face) — pull instead of rebuild
 
-Built corpora are pushed to **private** HF datasets so any node can pull them without rebuilding
-(the browsecomp structured corpus took a one-time ~$19 `gpt-5.4-nano` sectioning batch — see
-`browsecomp_plus/README.md`).
+The built corpora used in the paper are published on Hugging Face, so you can pull them instead
+of rebuilding (the browsecomp structured corpus took a one-time ~$19 `gpt-5.4-nano` sectioning
+batch — see `browsecomp_plus/README.md`):
 
 | dataset | contents |
 |---|---|
-| [`wshuai190/browsecomp-plus-structured`](https://huggingface.co/datasets/wshuai190/browsecomp-plus-structured) *(private)* | `structured/` + `flat/` (each `corpus.jsonl` + `queries.jsonl` + `qrels/test.tsv`) **+ `sections.jsonl`** (raw `{_id, sections}` map) |
-| *wikipedia (`hotpotqa`/`2wiki`/`musique`)* | *same layout once built — sections are native to `structured-wikipedia`, so **no paid batch*** |
+| [`wshuai190/browsecomp-plus-structured-full`](https://huggingface.co/datasets/wshuai190/browsecomp-plus-structured-full) | the complete 100,195-doc collection: `structured/` + `flat/` (each `corpus.jsonl` + `queries.jsonl` + `qrels/test.tsv`) **+ `sections.jsonl`** (raw `{_id, sections}` map) |
+| [`wshuai190/hotpotqa-structured`](https://huggingface.co/datasets/wshuai190/hotpotqa-structured) | HotpotQA flat + structured twin, same layout |
+| [`wshuai190/musique-structured`](https://huggingface.co/datasets/wshuai190/musique-structured) | MuSiQue flat + structured twin, same layout |
+| *2wiki* | not published yet — rebuild with [`wikipedia/`](wikipedia/) (sections are native to `structured-wikipedia`, so no paid batch) |
 
-Pull + stage into `data/` (the layout the harness expects):
+Pull + stage into `data/` (the `data/<dataset_name>/` BEIR layout the harness expects):
 ```bash
-huggingface-cli download wshuai190/browsecomp-plus-structured --repo-type dataset --local-dir data/_hf/bcp
-cp -r data/_hf/bcp/structured data/browsecomp_plus_structured
-cp -r data/_hf/bcp/flat       data/browsecomp_plus_flat
-# sections.jsonl lets you re-assemble the pair WITHOUT the paid batch:
+huggingface-cli download wshuai190/browsecomp-plus-structured-full --repo-type dataset --local-dir data/_hf/bcp
+cp -r data/_hf/bcp/structured data/browsecomp_plus_structured_full
+cp -r data/_hf/bcp/flat       data/browsecomp_plus_flat_full
+
+huggingface-cli download wshuai190/hotpotqa-structured --repo-type dataset --local-dir data/_hf/hotpotqa
+cp -r data/_hf/hotpotqa/structured data/hotpotqa_structured
+cp -r data/_hf/hotpotqa/flat       data/hotpotqa_flat
+
+huggingface-cli download wshuai190/musique-structured --repo-type dataset --local-dir data/_hf/musique
+cp -r data/_hf/musique/structured data/musique_structured
+cp -r data/_hf/musique/flat       data/musique_flat
+
+# browsecomp only: sections.jsonl lets you re-assemble the pair WITHOUT the paid batch:
 #   python browsecomp_plus/build.py corpus --sections data/_hf/bcp/sections.jsonl
 ```
-**Private on purpose** — these de-obfuscate a benchmark corpus; do not make them public.
 
 ## How the two differ (important — they are NOT symmetric)
 - **`wikipedia/`** — the title *is* the article identity, so a title match (after norm/strip

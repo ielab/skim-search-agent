@@ -27,14 +27,18 @@ Contents:
 - `pip install -r requirements.txt`. The BQL core and local scoring need only the standard
   library + pytest; Pyserini, sentence-transformers, FAISS, and vLLM are needed for the
   paper-scale runs.
+- API keys and every knob referenced below are templated in [`.env.example`](../.env.example)
+  (copy to `.env`, fill in, `set -a; source .env; set +a`; never commit a filled-in `.env`).
 - Sanity check: `python -m pytest tests/` (BQL parser/executor and scoring unit tests). Once the
   Pyserini JVM starts it swallows pytest's terminal output; use `--junitxml=report.xml` when you
   need the results programmatically.
 
 ## 2. Data
 
-Pull the published flat/structured twins from Hugging Face into `data/` (see the dataset table in
-[`corpus_build/README.md`](../corpus_build/README.md)), or rebuild them from scratch with the
+Pull the published flat/structured twins from Hugging Face into `data/` — the paper's corpora are
+released as `wshuai190/browsecomp-plus-structured-full`, `wshuai190/hotpotqa-structured`, and
+`wshuai190/musique-structured` (staging commands in
+[`corpus_build/README.md`](../corpus_build/README.md)) — or rebuild them from scratch with the
 pipelines in `corpus_build/`:
 
 - `corpus_build/wikipedia/` builds the HotpotQA and MuSiQue twins by matching benchmark documents
