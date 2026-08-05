@@ -8,7 +8,6 @@ Bring the documents, model, and search strategy. SkimSearchAgent supplies the ag
 retrieval and reading primitives, reproducible evaluation, and the interfaces that connect them.
 
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-3776AB.svg)](#quickstart)
-[![Research preview](https://img.shields.io/badge/status-research%20preview-7C3AED.svg)](#project-status)
 [![Pluggable](https://img.shields.io/badge/corpora%20%7C%20models%20%7C%20methods-pluggable-00897B.svg)](#what-can-be-swapped)
 
 [Quickstart](#quickstart) ·
@@ -273,10 +272,3 @@ If you use Sieve or its released evaluation resources, please cite:
   url           = {https://arxiv.org/abs/2608.02751}
 }
 ```
-
-## Project status
-
-SkimSearchAgent is a research preview extracted from a large experimental codebase. The core
-interfaces, reference retrievers, evaluation path, and paper configurations are tested, but public
-APIs may still change before the first stable release. Issues and focused pull requests are
-welcome.
