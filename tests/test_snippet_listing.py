@@ -8,8 +8,6 @@ byte-for-byte — the existing `research` condition/toolset must be completely u
 """
 from __future__ import annotations
 
-import re
-
 from agent_search.agent.tools.doc_research import DocSearchFetch
 from agent_search.corpus.units import units_from_documents
 from agent_search.prompts import load_condition
@@ -98,32 +96,15 @@ def test_render_hits_with_empty_leaf_toks_uses_opening_fallback():
     assert excerpt == " ".join([_PAD] * 25)
 
 
-# --- 4. condition loading: research_snip shares research's skill, differs only in tools ------
+# --- 4. condition loading: research_snip carries the doc skill coaching -----------------
 
-def _strip_tools_block(system: str) -> str:
-    return re.sub(r"<tools>.*?</tools>", "<tools/>", system, flags=re.DOTALL)
-
-
-def test_research_snip_condition_loads_with_same_skill_as_research():
-    base = load_condition("research")
+def test_research_snip_condition_loads_with_doc_skill_coaching():
     snip = load_condition("research_snip")
     assert snip.toolset == "search_fetch_s"
     assert snip.tool_names == ("search_s", "fetch_s")
-    assert base.tool_names == ("search", "fetch")
-    # same task/skill coaching — a distinctive sentence from bql_doc.md present in both.
+    # a distinctive sentence from bql_doc.md present in the composed system prompt.
     sentinel = "Query entity NAMES, never the question's wording"
-    assert sentinel in base.system
     assert sentinel in snip.system
-    # the composed system differs ONLY in the rendered <tools> JSON block (tool names/params).
-    assert _strip_tools_block(base.system) == _strip_tools_block(snip.system)
-    assert base.system != snip.system
-
-
-def test_existing_research_condition_still_uses_plain_search_fetch():
-    p = load_condition("research")
-    assert p.toolset == "research"
-    assert p.tool_names == ("search", "fetch")
-    assert "»" not in p.system
 
 
 # --- 5. run() aliases: search_s/fetch_s behave exactly like search/fetch --------------------

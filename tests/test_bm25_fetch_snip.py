@@ -154,12 +154,6 @@ def test_research_bm25_fetch_snip_condition_loads():
     assert p.tool_names == ("bm25_search_snip", "fetch")
 
 
-def test_existing_research_bm25_fetch_condition_is_unaffected():
-    p = load_condition("research_bm25_fetch")
-    assert p.toolset == "bm25_fetch"
-    assert p.tool_names == ("bm25_search", "fetch")
-
-
 def test_existing_research_dense_fetch_condition_is_unaffected():
     p = load_condition("research_dense_fetch")
     assert p.toolset == "dense_fetch"

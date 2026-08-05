@@ -106,17 +106,17 @@ def test_agent_policy_uses_prompt_profile_and_fake_model():
         seen["messages"] = messages
         return '<tool_call>{"name":"search","arguments":{"query":"make_token[def]"}}</tool_call>'
 
-    p = AgentPolicy(generate=fake_generate, prompt_path=get_prompt_spec("codefix").path)
+    p = AgentPolicy(generate=fake_generate, prompt_path=get_prompt_spec("research_snip").path)
     out = p.propose(Task("t", "find the bug"), [])
     assert "search" in out
     sysmsg = seen["messages"][0]["content"].lower()
-    assert seen["messages"][0]["role"] == "system" and "fix" in sysmsg
+    assert seen["messages"][0]["role"] == "system" and "search" in sysmsg
     assert seen["messages"][1]["role"] == "user" and "find the bug" in seen["messages"][1]["content"]
 
 
 def test_agent_policy_history_is_alternating_messages():
     p = AgentPolicy(generate=lambda m: "<answer></answer>",
-                    prompt_path=get_prompt_spec("research").path)
+                    prompt_path=get_prompt_spec("research_snip").path)
     hist = [Step(name="search", args={"query": "x[title]"}, observation="3 matches",
                  raw_output='<tool_call>{"name":"search","arguments":{"query":"x[title]"}}</tool_call>')]
     msgs = p.build_messages(Task("t", "q"), hist)
@@ -164,7 +164,7 @@ def test_run_episode_nudge_compliance_tags_elicitation_nudge():
             return '<tool_call>{"name":"search","arguments":{"query":"x"}}</tool_call>'
         return "<answer>Paris</answer>"
 
-    policy = AgentPolicy(generate=fake_generate, prompt_path=get_prompt_spec("research").path)
+    policy = AgentPolicy(generate=fake_generate, prompt_path=get_prompt_spec("research_snip").path)
     traj = run_episode(policy, Task("t", "capital of France?"), _AnyToolWS(), units=[],
                        max_steps=3, domain="general")
     assert traj.stopped_reason == "answer"
@@ -182,7 +182,7 @@ def test_run_episode_ignored_nudge_triggers_inline_prefill_and_fills_answer():
     fake_generate.client = _fake_client(["Paris"])
     fake_generate.model = "m"
 
-    policy = AgentPolicy(generate=fake_generate, prompt_path=get_prompt_spec("research").path)
+    policy = AgentPolicy(generate=fake_generate, prompt_path=get_prompt_spec("research_snip").path)
     traj = run_episode(policy, Task("t", "capital of France?"), _AnyToolWS(), units=[],
                        max_steps=3, domain="general")
     assert traj.stopped_reason == "max_steps"        # the underlying episode outcome is unchanged
@@ -205,7 +205,7 @@ def test_run_episode_inline_elicitation_message_list_matches_live_build_messages
     fake_generate.client = _fake_client(["Paris"])
     fake_generate.model = "m"
 
-    policy = AgentPolicy(generate=fake_generate, prompt_path=get_prompt_spec("research").path)
+    policy = AgentPolicy(generate=fake_generate, prompt_path=get_prompt_spec("research_snip").path)
     run_episode(policy, Task("t", "capital of France?"), _AnyToolWS(), units=[],
                max_steps=3, domain="general")
     sent = fake_generate.client._calls[0]["messages"][:-1]   # strip the "<answer>" prefill turn
@@ -220,7 +220,7 @@ def test_run_episode_prefill_failure_is_tagged_not_crashed():
     def fake_generate(messages):
         return '<tool_call>{"name":"search","arguments":{"query":"x"}}</tool_call>'
 
-    policy = AgentPolicy(generate=fake_generate, prompt_path=get_prompt_spec("research").path)
+    policy = AgentPolicy(generate=fake_generate, prompt_path=get_prompt_spec("research_snip").path)
     traj = run_episode(policy, Task("t", "q"), _AnyToolWS(), units=[], max_steps=3, domain="general")
     assert traj.stopped_reason == "max_steps"
     assert traj.final_answer == ""
@@ -239,7 +239,7 @@ def test_run_episode_prefill_call_exception_is_tagged_not_crashed():
         chat=SimpleNamespace(completions=SimpleNamespace(create=_boom)))
     fake_generate.model = "m"
 
-    policy = AgentPolicy(generate=fake_generate, prompt_path=get_prompt_spec("research").path)
+    policy = AgentPolicy(generate=fake_generate, prompt_path=get_prompt_spec("research_snip").path)
     traj = run_episode(policy, Task("t", "q"), _AnyToolWS(), units=[], max_steps=3, domain="general")
     assert traj.final_answer == ""
     assert traj.elicitation == "prefill_failed"
@@ -254,7 +254,7 @@ def test_run_episode_code_domain_never_tags_elicitation():
     fake_generate.client = _fake_client(["should never be called"])
     fake_generate.model = "m"
 
-    policy = AgentPolicy(generate=fake_generate, prompt_path=get_prompt_spec("codefix").path)
+    policy = AgentPolicy(generate=fake_generate, prompt_path=get_prompt_spec("research_snip").path)
     traj = run_episode(policy, Task("t", "q"), _AnyToolWS(), units=[], max_steps=3, domain="code")
     assert traj.elicitation is None
     assert not fake_generate.client._calls           # the inline elicitation never fired at all
@@ -266,7 +266,7 @@ def test_run_episode_organic_answer_before_budget_has_no_elicitation_tag():
     def fake_generate(messages):
         return "<answer>Paris</answer>"
 
-    policy = AgentPolicy(generate=fake_generate, prompt_path=get_prompt_spec("research").path)
+    policy = AgentPolicy(generate=fake_generate, prompt_path=get_prompt_spec("research_snip").path)
     traj = run_episode(policy, Task("t", "q"), _AnyToolWS(), units=[], max_steps=10, domain="general")
     assert traj.stopped_reason == "answer"
     assert traj.final_answer == "Paris"
@@ -334,7 +334,7 @@ def test_run_episode_inline_elicitation_shrinks_on_context_overflow_then_recover
     fake_generate.client = client
     fake_generate.model = "m"
 
-    policy = AgentPolicy(generate=fake_generate, prompt_path=get_prompt_spec("research").path,
+    policy = AgentPolicy(generate=fake_generate, prompt_path=get_prompt_spec("research_snip").path,
                          ctx_chars=80_000)
     traj = run_episode(policy, Task("t", "q"), _BigObsWS(), units=[], max_steps=15, domain="general")
 
@@ -362,7 +362,7 @@ def test_run_episode_inline_elicitation_all_shrinks_still_overflow_stays_prefill
     fake_generate.client = client
     fake_generate.model = "m"
 
-    policy = AgentPolicy(generate=fake_generate, prompt_path=get_prompt_spec("research").path,
+    policy = AgentPolicy(generate=fake_generate, prompt_path=get_prompt_spec("research_snip").path,
                          ctx_chars=80_000)
     traj = run_episode(policy, Task("t", "q"), _BigObsWS(), units=[], max_steps=15, domain="general")
 
@@ -415,7 +415,7 @@ def test_run_episode_ctx_budget_early_stop_triggers_elicitation_before_max_steps
     fake_generate.client = _fake_client(["Paris"])
     fake_generate.model = "m"
 
-    policy = AgentPolicy(generate=fake_generate, prompt_path=get_prompt_spec("research").path)
+    policy = AgentPolicy(generate=fake_generate, prompt_path=get_prompt_spec("research_snip").path)
     traj = run_episode(policy, Task("t", "capital of France?"), _AnyToolWS(), units=[],
                        max_steps=20, usage_fn=usage_fn, domain="general")
 
@@ -440,7 +440,7 @@ def test_run_episode_ctx_budget_subthreshold_behaves_like_max_steps_today():
     fake_generate.client = _fake_client(["Paris"])
     fake_generate.model = "m"
 
-    policy = AgentPolicy(generate=fake_generate, prompt_path=get_prompt_spec("research").path)
+    policy = AgentPolicy(generate=fake_generate, prompt_path=get_prompt_spec("research_snip").path)
     traj = run_episode(policy, Task("t", "capital of France?"), _AnyToolWS(), units=[],
                        max_steps=3, usage_fn=usage_fn, domain="general")
 
@@ -463,7 +463,7 @@ def test_run_episode_ctx_stop_frac_ge_1_disables_early_stop(monkeypatch):
     fake_generate.client = _fake_client(["Paris"])
     fake_generate.model = "m"
 
-    policy = AgentPolicy(generate=fake_generate, prompt_path=get_prompt_spec("research").path)
+    policy = AgentPolicy(generate=fake_generate, prompt_path=get_prompt_spec("research_snip").path)
     traj = run_episode(policy, Task("t", "capital of France?"), _AnyToolWS(), units=[],
                        max_steps=3, usage_fn=usage_fn, domain="general")
 
@@ -486,7 +486,7 @@ def test_run_episode_ctx_threshold_scales_with_window(monkeypatch):
     fake_generate.client = _fake_client(["Paris"])
     fake_generate.model = "m"
 
-    policy = AgentPolicy(generate=fake_generate, prompt_path=get_prompt_spec("research").path)
+    policy = AgentPolicy(generate=fake_generate, prompt_path=get_prompt_spec("research_snip").path)
     traj = run_episode(policy, Task("t", "capital of France?"), _AnyToolWS(), units=[],
                        max_steps=20, usage_fn=usage_fn, domain="general")
     assert traj.stopped_reason == "ctx_budget"
@@ -501,7 +501,7 @@ def test_run_episode_ctx_threshold_scales_with_window(monkeypatch):
     fake_generate2.client = _fake_client(["Paris"])
     fake_generate2.model = "m"
 
-    policy2 = AgentPolicy(generate=fake_generate2, prompt_path=get_prompt_spec("research").path)
+    policy2 = AgentPolicy(generate=fake_generate2, prompt_path=get_prompt_spec("research_snip").path)
     traj2 = run_episode(policy2, Task("t", "capital of France?"), _AnyToolWS(), units=[],
                         max_steps=3, usage_fn=usage_fn2, domain="general")
     # the SAME reported values (1_000, 1_900) never approach 0.90*131072 -- no early trigger, so

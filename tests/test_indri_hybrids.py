@@ -106,36 +106,11 @@ def test_visit_v_aliases_visit_name(units):
 
 # --- 2. conditions load + retriever factory builds both new arms ------------------------
 
-def test_research_indri_visit_condition_loads():
-    p = load_condition("research_indri_visit")
-    assert p.toolset == "indri_visit"
-    assert p.tool_names == ("isearch_v", "visit_v")
-    assert "#combine" in p.system
-
-
 def test_research_indri_snip_condition_loads():
     p = load_condition("research_indri_snip")
     assert p.toolset == "indri_snip"
     assert p.tool_names == ("isearch_s", "fetch")
     assert "#combine" in p.system
-
-
-def test_existing_research_indri_condition_unaffected():
-    p = load_condition("research_indri")
-    assert p.toolset == "indri"
-    assert p.tool_names == ("isearch", "fetch")
-
-
-def test_research_indri_visit_resolves_via_registry():
-    from agent_search.agent.retriever import AgentRetriever
-
-    r = build_factory("agent_research_indri_visit", RetrieverConfig(policy="stub"))()
-    assert isinstance(r, AgentRetriever)
-    assert r.toolset == ("isearch_v", "visit_v")
-    assert r.tool == "agent_research_indri_visit"
-    assert r._arm == "indrivisit"
-    assert r.domain == "general"
-    assert not r.needs_files
 
 
 def test_research_indri_snip_resolves_via_registry():
@@ -148,19 +123,6 @@ def test_research_indri_snip_resolves_via_registry():
     assert r._arm == "indrisnip"
     assert r.domain == "general"
     assert not r.needs_files
-
-
-def test_research_indri_visit_workspace_builds_and_answers_via_stub(units, tmp_path):
-    from agent_search.agent.retriever import AgentRetriever
-
-    cfg = RetrieverConfig(policy="stub", index_root=str(tmp_path))
-    r = build_factory("agent_research_indri_visit", cfg)()
-    r.index(units, key="test-indri-hybrids-corpus")
-    ws = r._workspace(5, "bank management ceremony")
-    assert isinstance(ws, IndriVisitWorkspace)
-    assert ws.snippets is True
-    ranking = r.search("bank management ceremony", k=5)
-    assert isinstance(ranking, list)
 
 
 def test_research_indri_snip_workspace_builds_and_answers_via_stub(units, tmp_path):
@@ -312,7 +274,7 @@ def test_indri_dense_off_by_default_does_not_construct_dense_belief(units, tmp_p
     from agent_search.agent.retriever import AgentRetriever
 
     cfg = RetrieverConfig(policy="stub", index_root=str(tmp_path))
-    r = build_factory("agent_research_indri", cfg)()
+    r = build_factory("agent_research_indri_snip", cfg)()
     r.index(units, key="test-indri-hybrids-dense-off")     # would raise if DenseBelief() called
     assert r._indri.dense is None
 
@@ -326,7 +288,7 @@ def test_indri_dense_on_attaches_stub_dense_belief_to_executor(units, tmp_path, 
     from agent_search.agent.retriever import AgentRetriever
 
     cfg = RetrieverConfig(policy="stub", index_root=str(tmp_path))
-    r = build_factory("agent_research_indri", cfg)()
+    r = build_factory("agent_research_indri_snip", cfg)()
     r.index(units, key="test-indri-hybrids-dense-on")
 
     assert len(_StubDenseBelief.instances) == 1
@@ -348,7 +310,7 @@ def test_indri_dense_on_raising_dense_belief_degrades_with_warning(units, tmp_pa
     from agent_search.agent.retriever import AgentRetriever
 
     cfg = RetrieverConfig(policy="stub", index_root=str(tmp_path))
-    r = build_factory("agent_research_indri", cfg)()
+    r = build_factory("agent_research_indri_snip", cfg)()
     r.index(units, key="test-indri-hybrids-dense-raise")   # must NOT raise -> degrades
 
     assert r._indri.dense is None

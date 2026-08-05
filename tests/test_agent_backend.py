@@ -11,8 +11,6 @@ from agent_search.models.backends import openai_compat_generate, vllm_generate
 from agent_search.agent.loop import Task, run_episode
 from agent_search.agent.policies import AgentPolicy
 from agent_search.prompts import get_prompt_spec
-from evaluation.datasets import fixture_instances
-from agent_search.corpus.units import units_from_python_source
 
 
 def _fake_client(responses):
@@ -86,24 +84,6 @@ def test_vllm_backend_sampling_params(monkeypatch):
     assert "\n<tool_response>" in seen["stop"] and "<tool_response>" in seen["stop"]
 
 
-def test_full_agent_episode_with_real_backend_shape():
-    # the model "returns" a field-tagged search, fetches the gold function, then commits a <fix>.
-    from agent_search.agent.tools.code_fix import CodeFixWorkspace
-    gen = openai_compat_generate(model="x", client=_fake_client([
-        '<tool_call>{"name":"search","arguments":{"query":"create_session_token[def]"}}</tool_call>',
-        '<tool_call>{"name":"fetch","arguments":{"specs":[[1,"create_session_token"]]}}</tool_call>',
-        "<fix>\nfile: auth/session.py\nfunction: create_session_token\nchange: validate user\n</fix>",
-    ]))
-    inst = fixture_instances()[0]
-    units = [u for p, s in inst.files.items() for u in units_from_python_source(p, s)]
-    ws = CodeFixWorkspace(units, inst.files)
-    traj = run_episode(AgentPolicy(generate=gen, prompt_path=get_prompt_spec("codefix").path),
-                       Task(inst.instance_id, inst.problem_statement), ws, units)
-    assert traj.stopped_reason == "fix"
-    assert "auth/session.py" in traj.fix_text
-    assert [s.name for s in traj.steps][:2] == ["search", "fetch"]
-
-
 # --- cluster-readiness: the NEW baselines drive the SAME backend dispatch ---------------
 # Neither make_generate nor vllm_generate/AgentPolicy/run_episode branch on condition name —
 # so the two new baselines (codefix_grep, research_dci) exercise the identical vLLM/API
@@ -145,25 +125,6 @@ def test_make_generate_routes_backbone_through_vllm_for_any_condition(monkeypatc
     assert seen["llm_kwargs"]["model"] == "Alibaba-NLP/Tongyi-DeepResearch-30B-A3B"
     assert seen["llm_kwargs"]["tensor_parallel_size"] == 2      # TP flows through unmodified
     assert seen["sampling_params"].temperature == 0.6           # unchanged Tongyi-native default
-
-
-def test_codefix_grep_episode_drives_through_agentpolicy_and_run_episode():
-    """The grep baseline's full episode shape: grep -> read -> <fix>, through the SAME
-    AgentPolicy/run_episode chain as the method (only the workspace + toolset differ)."""
-    from agent_search.agent.tools.code_grep import GrepReadWorkspace
-    gen = openai_compat_generate(model="x", client=_fake_client([
-        '<tool_call>{"name":"grep","arguments":{"pattern":"create_session_token"}}</tool_call>',
-        '<tool_call>{"name":"read","arguments":{"path":"auth/session.py","start":1,"end":10}}</tool_call>',
-        "<fix>\nfile: auth/session.py\nfunction: create_session_token\nchange: validate user\n</fix>",
-    ]))
-    inst = fixture_instances()[0]
-    units = [u for p, s in inst.files.items() for u in units_from_python_source(p, s)]
-    ws = GrepReadWorkspace(units, inst.files)
-    traj = run_episode(AgentPolicy(generate=gen, prompt_path=get_prompt_spec("codefix_grep").path),
-                       Task(inst.instance_id, inst.problem_statement), ws, units)
-    assert traj.stopped_reason == "fix"
-    assert "auth/session.py" in traj.fix_text
-    assert [s.name for s in traj.steps][:2] == ["grep", "read"]
 
 
 def test_research_dci_episode_drives_through_agentpolicy_and_run_episode():

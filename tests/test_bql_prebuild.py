@@ -22,17 +22,14 @@ def _units(n=12):
 
 def test_prebuildable_for_lists_search_bql_for_search_fetch_conditions():
     from evaluation.build_indexes import prebuildable_for
-    # the search -> fetch arms (`search` tool) lower to the executor -> pre-build its index.
-    assert prebuildable_for("agent_codefix") == ["search_bql"]
-    assert prebuildable_for("agent_research") == ["search_bql"]
+    # the search -> fetch arms (`search_s` tool) lower to the executor -> pre-build its index.
+    assert prebuildable_for("agent_research_snip") == ["search_bql"]
     assert prebuildable_for("bql") == ["search_bql"]      # the direct BQL floor loads the same artifact
     # the retrieve-then-visit baseline uses in-memory BM25Local — no step 0.
     assert prebuildable_for("agent_research_bm25") == []
     assert prebuildable_for("grep") == []
-    # the two NEW baselines are also in-memory/index-free — no persistent step 0:
-    # codefix_grep re-scans the units live (like GrepBaseline); research_dci's flat-file
-    # export is its own per-corpus cache, not a retriever-level prebuild artifact.
-    assert prebuildable_for("agent_codefix_grep") == []
+    # research_dci's flat-file export is its own per-corpus cache, not a retriever-level
+    # prebuild artifact — no persistent step 0.
     assert prebuildable_for("agent_research_dci") == []
 
 

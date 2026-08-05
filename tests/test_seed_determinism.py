@@ -49,8 +49,8 @@ def test_seed_temperature_reach_the_registry_builder(monkeypatch):
     from evaluation.run_eval import make_factory_from_config
 
     config = RunConfig(
-        dataset=DatasetArgs(name="fixture"),
-        retriever=RetrieverArgs(name="agent_codefix"),
+        dataset=DatasetArgs(name="browsecomp_plus_fixture"),
+        retriever=RetrieverArgs(name="agent_research_snip"),
         agent=AgentArgs(policy="stub", temperature=0.25, seed=11),
     )
     make_factory_from_config(config)
@@ -67,7 +67,7 @@ def test_make_factory_threads_seed_temperature(monkeypatch):
     orig = reg.build_factory
     monkeypatch.setattr(reg, "build_factory",
                         lambda name, cfg=None: (seen.update(cfg=cfg), orig(name, cfg))[1])
-    _make_factory("agent_codefix", policy="stub", temperature=0.9, seed=3)
+    _make_factory("agent_research_snip", policy="stub", temperature=0.9, seed=3)
     assert seen["cfg"].temperature == 0.9 and seen["cfg"].seed == 3
 
 
@@ -99,19 +99,19 @@ def test_run_dir_has_no_seed_segment_seed_lives_in_config_json_instead():
 
 
 def _run_seed(seed, runs_dir=None, results_dir=None):
-    from evaluation.datasets import fixture_instances
+    from evaluation.datasets import load_dataset_by_name
     from evaluation.run_eval import evaluate, make_factory_from_config
 
     output = OutputArgs(runs_dir=runs_dir) if runs_dir else OutputArgs(results_dir=results_dir)
     config = RunConfig(
-        dataset=DatasetArgs(name="fixture"),
-        retriever=RetrieverArgs(name="agent_codefix"),
-        agent=AgentArgs(policy="stub", domain="code", seed=seed),
+        dataset=DatasetArgs(name="browsecomp_plus_fixture"),
+        retriever=RetrieverArgs(name="agent_research_snip"),
+        agent=AgentArgs(policy="stub", domain="general", seed=seed),
         evaluation=EvaluationArgs(level="function", k=(1, 10)),
         output=output,
     ).resolved()
     rd = results_dir_for(config)
-    evaluate(fixture_instances(), make_factory_from_config(config),
+    evaluate(load_dataset_by_name("browsecomp_plus_fixture"), make_factory_from_config(config),
              ks=[1, 10], level="function", results_dir=rd)
     return rd
 

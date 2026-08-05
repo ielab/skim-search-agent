@@ -430,34 +430,12 @@ def test_load_or_build_default_dense_none_and_attach_works(units, tmp_path, dens
 # 7. Conditions load/resolve
 # =============================================================================================
 
-def test_research_bql_dense_visit_condition_loads_and_mirrors_bql_visit():
-    from agent_search.prompts import load_condition
-
-    base = load_condition("research_bql_visit")
-    dense_p = load_condition("research_bql_dense_visit")
-    assert dense_p.toolset == "bql_dense_visit"
-    assert set(dense_p.tool_names) == {"search_bqld", "visit_bqld"}
-    # same skill manual as research_bql_visit (BQL_DENSE changes ranking, not coaching).
-    assert base.system == dense_p.system or "date[RANGE]" in dense_p.system
-
-
 def test_research_bql_dense_snip_condition_loads_and_mirrors_snip():
     from agent_search.prompts import load_condition
 
     p = load_condition("research_bql_dense_snip")
     assert p.toolset == "bql_dense_snip"
     assert set(p.tool_names) == {"search_bqlds", "fetch_bqlds"}
-
-
-def test_research_bql_dense_visit_resolves_via_registry_as_bqldensevisit_arm():
-    from agent_search.agent.retriever import AgentRetriever
-    from agent_search.retrievers.registry import RetrieverConfig, build_factory
-
-    r = build_factory("agent_research_bql_dense_visit", RetrieverConfig(policy="stub"))()
-    assert isinstance(r, AgentRetriever)
-    assert set(r.toolset) == {"search_bqld", "visit_bqld"}
-    assert r._arm == "bqldensevisit"
-    assert r.domain == "general"
 
 
 def test_research_bql_dense_snip_resolves_via_registry_as_bqldensesnip_arm():
@@ -469,15 +447,6 @@ def test_research_bql_dense_snip_resolves_via_registry_as_bqldensesnip_arm():
     assert set(r.toolset) == {"search_bqlds", "fetch_bqlds"}
     assert r._arm == "bqldensesnip"
     assert r.domain == "general"
-
-
-def test_bqldensevisit_index_raises_clear_error_when_cache_missing(tmp_path):
-    from agent_search.retrievers.registry import RetrieverConfig, build_factory
-
-    r = build_factory("agent_research_bql_dense_visit", RetrieverConfig(
-        policy="stub", index_root=str(tmp_path)))()
-    with pytest.raises(RuntimeError, match="dense doc-embedding cache"):
-        r.index(_corpus(), key="no_such_corpus_key")
 
 
 def test_bqldensesnip_index_raises_clear_error_when_cache_missing(tmp_path):
@@ -492,44 +461,6 @@ def test_bqldensesnip_index_raises_clear_error_when_cache_missing(tmp_path):
 # =============================================================================================
 # 8. Full AgentRetriever offline success-path smoke (stubbed encoder, no network)
 # =============================================================================================
-
-def test_agentretriever_bqldensevisit_end_to_end_offline_smoke(tmp_path, monkeypatch):
-    """Drives `AgentRetriever.index()` + `._workspace()` through the REAL production wiring
-    (not a hand-built StructuralExecutor) with the doc-embedding model name swapped to a stub
-    and the shared encoder cache pre-seeded — no network/model download. Confirms the whole
-    chain (cache validation -> DenseBelief.build_or_load -> build_bql_engine(dense=...) ->
-    BqlVisitWorkspace(tool_names=...)) works end to end and that dense fusion is actually
-    active (paraphrase promoted for a query with zero lexical overlap)."""
-    import agent_search.retrievers.structural.indri.dense_belief as dense_belief_mod
-    from agent_search.retrievers.dense import dense as dense_mod
-    from agent_search.retrievers.registry import RetrieverConfig, build_factory
-
-    stub_model = "stub/bqldensevisit-model"
-    monkeypatch.setattr(dense_belief_mod, "DEFAULT_MODEL", stub_model)
-    # pre-seed the shared encoder cache so ANY DenseRetriever(model=stub_model, ...) — incl.
-    # the one `agent/retriever.py` constructs internally with no `encoder=` kwarg — resolves to
-    # the stub instead of trying to download a real HF model.
-    monkeypatch.setitem(dense_mod._ENCODER_CACHE, (stub_model, "auto", 1024), StubEncoder())
-
-    corpus_units = _corpus()
-    # pre-build the persisted cache under the SAME index_root/model/key the production code
-    # will look for (probe.is_cached / DenseBelief.build_or_load's cache_dir resolution).
-    DenseBelief(model=stub_model, index_root=str(tmp_path),
-               encoder=StubEncoder()).build_or_load(corpus_units, key="offlinecorpus")
-
-    r = build_factory("agent_research_bql_dense_visit", RetrieverConfig(
-        policy="stub", index_root=str(tmp_path)))()
-    r.index(corpus_units, key="offlinecorpus")
-    assert r._bql is not None
-    assert r._bql.dense is not None
-
-    ws = r._workspace(k=5)
-    assert ws.tools == ("search_bqld", "visit_bqld")
-    out = ws.run("search_bqld", {"query": "zebra"})
-    assert "zebradoc" in out
-    out2 = ws.run("visit_bqld", {"rank": 1})
-    assert "ERROR" not in out2
-
 
 def test_agentretriever_bqldensesnip_end_to_end_offline_smoke(tmp_path, monkeypatch):
     import agent_search.retrievers.structural.indri.dense_belief as dense_belief_mod
@@ -561,12 +492,9 @@ def test_agentretriever_bqldensesnip_end_to_end_offline_smoke(tmp_path, monkeypa
 # 9. Existing conditions untouched (parity spot-check)
 # =============================================================================================
 
-def test_research_bql_visit_and_research_snip_conditions_unaffected():
+def test_research_snip_condition_unaffected():
     from agent_search.prompts import load_condition
 
-    bv = load_condition("research_bql_visit")
-    assert bv.toolset == "bql_visit"
-    assert set(bv.tool_names) == {"search_bv", "visit_bv"}
     snip = load_condition("research_snip")
     assert snip.toolset == "search_fetch_s"
     assert set(snip.tool_names) == {"search_s", "fetch_s"}
@@ -592,16 +520,14 @@ def test_research_bql_dense_fetch_condition_loads_and_mirrors_plain_doc():
     from agent_search.prompts import load_condition
     from agent_search.prompts.loader import render_manuals
 
-    base = load_condition("research")
     p = load_condition("research_bql_dense_fetch")
     assert p.toolset == "bql_dense_fetch"
     assert set(p.tool_names) == {"search_bqldf", "fetch_bqldf"}
-    # same skill manual BODY as the plain `research` condition (BQL_DENSE changes ranking, not
-    # coaching) — compare the rendered manual text directly rather than the full `.system` (which
-    # also embeds each tool's own NAME in its <tools> JSON schema, so it differs byte-for-byte
-    # from `research`'s even though the coaching content is identical — same reason
-    # `research_bql_dense_visit`'s own test below falls back to a substring check).
-    assert (render_manuals(("search", "fetch"), domain="general")
+    # same skill manual BODY as the plain BQL doc search+fetch condition (`research_snip`;
+    # BQL_DENSE changes ranking, not coaching) — compare the rendered manual text directly
+    # rather than the full `.system` (which also embeds each tool's own NAME in its <tools>
+    # JSON schema, so it differs byte-for-byte even though the coaching content is identical).
+    assert (render_manuals(("search_s", "fetch_s"), domain="general")
             == render_manuals(("search_bqldf", "fetch_bqldf"), domain="general"))
 
 
@@ -717,12 +643,9 @@ def test_bqldensefetch_workspace_hallucinated_tool_name_errors(tmp_path, monkeyp
 
 
 def test_research_bql_dense_snip_and_visit_conditions_unaffected_by_new_fetch_cell():
-    """Adding 'bqldensefetch' must not touch either pre-existing dense-BQL condition."""
+    """Adding 'bqldensefetch' must not touch the pre-existing dense-BQL snip condition."""
     from agent_search.prompts import load_condition
 
     snip = load_condition("research_bql_dense_snip")
     assert snip.toolset == "bql_dense_snip"
     assert set(snip.tool_names) == {"search_bqlds", "fetch_bqlds"}
-    visit = load_condition("research_bql_dense_visit")
-    assert visit.toolset == "bql_dense_visit"
-    assert set(visit.tool_names) == {"search_bqld", "visit_bqld"}

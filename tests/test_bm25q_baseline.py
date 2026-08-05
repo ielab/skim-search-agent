@@ -144,42 +144,9 @@ def test_engine_receives_the_raw_query_and_the_knob_depth():
     assert engine.calls == [("zephyrquokka marker", m.BM25_VISIT_TOPK)]
 
 
-# --- 7. condition wiring: research_bm25q loads uncoached + resolves via the retriever registry -
-
-def test_research_bm25q_condition_loads_uncoached():
-    from agent_search.prompts import load_condition, render_manuals
-
-    p = load_condition("research_bm25q")
-    assert p.toolset == "bm25q_visit"
-    assert set(p.tool_names) == {"bm25q_search", "visit_q"}
-    # UNCOACHED like research_bm25: no manual renders for this toolset.
-    assert render_manuals(p.tool_names, domain="general") == ""
-    assert "term[field]" not in p.system
-
-
-def test_research_bm25q_resolves_via_registry_as_bm25q_arm():
-    from agent_search.agent.retriever import AgentRetriever
-    from agent_search.retrievers.registry import RetrieverConfig, build_factory
-
-    r = build_factory("agent_research_bm25q", RetrieverConfig(policy="stub"))()
-    assert isinstance(r, AgentRetriever)
-    assert r.toolset == ("bm25q_search", "visit_q")
-    assert r.tool == "agent_research_bm25q"
-    assert r._arm == "bm25q"
-    assert r.domain == "general"
-    assert not r.needs_files
-
-
-def test_bm25q_workspace_builds_with_query_biased_true(tmp_path):
-    from agent_search.retrievers.registry import RetrieverConfig, build_factory
-
-    cfg = RetrieverConfig(policy="stub", index_root=str(tmp_path))
-    r = build_factory("agent_research_bm25q", cfg)()
-    r.index(_units(), key="bm25q_test_corpus")
-    ws = r._workspace(5, "zephyrquokka")
-    assert isinstance(ws, Bm25Visit)
-    assert ws.query_biased is True
-    assert ws.tools == ("bm25q_search", "visit_q")
+# --- 7. condition wiring: research_bm25q was pruned from conditions.yaml (paper's 15 kept
+# conditions) — the query_biased machinery above is still exercised directly, but the
+# condition/registry wiring tests for the removed `research_bm25q` arm are gone with it.
 
 
 def test_existing_research_bm25_condition_is_unaffected():

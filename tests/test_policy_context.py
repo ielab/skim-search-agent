@@ -6,7 +6,7 @@ from agent_search.agent.loop import Step, Task
 from agent_search.agent.policies import AgentPolicy
 from agent_search.prompts import get_prompt_spec
 
-PROMPT_PATH = get_prompt_spec("research").path
+PROMPT_PATH = get_prompt_spec("research_snip").path
 
 
 def _policy(**kw):

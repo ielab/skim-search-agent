@@ -19,19 +19,6 @@ def test_pipeline_file_level_runs():
     assert res["metrics"]["recall@5"] == 1.0
 
 
-def test_code_fix_agent_stub_pipeline_runs_without_model():
-    from evaluation.run_eval import _make_factory
-
-    # the code-fix arm drives search -> fetch -> <fix> with no model; the run completes
-    # with 0 errors and records fix_file_ok (its value depends on the stub's fix guess).
-    res = evaluate(fixture_instances(), _make_factory("agent_codefix", policy="stub"),
-                   ks=[1, 10], level="function")
-
-    assert res["n"] == 1
-    assert res["n_errors"] == 0
-    assert "fix_file_ok" in res["rows"][0]
-
-
 def test_workers_concurrent_matches_sequential():
     # the --workers thread-pool path must produce identical metrics to sequential
     seq = evaluate(fixture_instances(), lambda: BM25Local(), ks=[1, 10],

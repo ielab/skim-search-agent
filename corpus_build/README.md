@@ -109,7 +109,7 @@ Copy the resulting `data/*_flat/` and `data/*_structured/` to the GPU node after
    section/infobox) is the corpus-correct manual for the `browsecomp` profile. Selected per
    dataset by `field_profile` via `tools.yaml`'s `search.manual` map (a skill advertises EXACTLY
    the corpus's real fields).
-3. Run the method vs its baselines on **both** arms of each pair — `agent_research` (the method)
+3. Run the method vs its baselines on **both** arms of each pair — `agent_research_bql_dense_snip` (the method)
    vs `agent_research_bm25` (retrieve-then-visit) vs `agent_research_dci` (brute-force shell,
    `conditions.yaml`):
    - wikipedia: `<name>_flat` vs `<name>_structured`

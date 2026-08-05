@@ -12,8 +12,6 @@ import pytest
 from agent_search.agent.tools.doc_indri import IndriFetchWorkspace
 from agent_search.agent.tools.doc_research import DocSearchFetch
 from agent_search.corpus.units import CodeUnit
-from agent_search.prompts import load_condition
-from agent_search.retrievers.registry import RetrieverConfig, build_factory
 
 
 # --- shared ~25-doc corpus: dates + sections ------------------------------------------
@@ -60,31 +58,9 @@ def units() -> list[CodeUnit]:
     return _corpus()
 
 
-# --- 1. condition loading: new conditions carry their own skill; `research` is untouched ----
-
-def test_research_v2_condition_loads_with_v2_skill_content():
-    p = load_condition("research_v2")
-    assert p.toolset == "search_fetch_v2"
-    assert p.tool_names == ("search_v2", "fetch_v2")
-    assert "date[1980..1989]" in p.system
-    assert "CONSTRAINT COVERAGE" in p.system
-
-
-def test_research_indri_condition_loads_with_indri_skill_content():
-    p = load_condition("research_indri")
-    assert p.toolset == "indri"
-    assert p.tool_names == ("isearch", "fetch")
-    assert "#combine" in p.system
-
-
-def test_existing_research_condition_is_unaffected():
-    p = load_condition("research")
-    assert p.toolset == "research"
-    assert p.tool_names == ("search", "fetch")
-    # none of the NEW v2/indri coaching leaked into the untouched `research` condition
-    assert "CONSTRAINT COVERAGE" not in p.system
-    assert "date[1980..1989]" not in p.system
-    assert "#combine" not in p.system
+# --- 1. condition loading: `research_v2`/`research_indri` were pruned from conditions.yaml
+# (paper's 15 kept conditions) — the coverage/date-nudge/indri machinery they exercised is
+# still tested directly on the underlying classes below (sections 2/3/5/6).
 
 
 # --- 2. DocSearchFetch(coverage=True): constraint-coverage rendering --------------------
@@ -158,48 +134,6 @@ def test_isearch_aliases_search_name_too(units):
     assert "hits):" in out
 
 
-# --- 4. conditions registry: new conditions resolve through the retriever factory -------
-
-def test_research_v2_and_research_indri_resolve_via_registry():
-    from agent_search.agent.retriever import AgentRetriever
-
-    r1 = build_factory("agent_research_v2", RetrieverConfig(policy="stub"))()
-    assert isinstance(r1, AgentRetriever)
-    assert r1.toolset == ("search_v2", "fetch_v2")
-    assert r1.tool == "agent_research_v2"
-    assert r1._arm == "docv2"
-    assert r1.domain == "general"
-    assert not r1.needs_files
-
-    r2 = build_factory("agent_research_indri", RetrieverConfig(policy="stub"))()
-    assert isinstance(r2, AgentRetriever)
-    assert r2.toolset == ("isearch", "fetch")
-    assert r2.tool == "agent_research_indri"
-    assert r2._arm == "indri"
-    assert r2.domain == "general"
-    assert not r2.needs_files
-
-
-def test_research_v2_workspace_builds_and_answers_via_stub(units, tmp_path):
-    from agent_search.agent.retriever import AgentRetriever
-
-    cfg = RetrieverConfig(policy="stub", index_root=str(tmp_path))
-    r = build_factory("agent_research_v2", cfg)()
-    r.index(units, key="test-new-conditions-corpus")
-    ranking = r.search("foo bar baz history", k=5)
-    assert isinstance(ranking, list)
-
-
-def test_research_indri_workspace_builds_and_answers_via_stub(units, tmp_path):
-    from agent_search.agent.retriever import AgentRetriever
-
-    cfg = RetrieverConfig(policy="stub", index_root=str(tmp_path))
-    r = build_factory("agent_research_indri", cfg)()
-    r.index(units, key="test-new-conditions-corpus")
-    ranking = r.search("bank management ceremony", k=5)
-    assert isinstance(ranking, list)
-
-
 # --- 5. v2 date-nudge: mechanical, corpus-free mid-episode hint (DocSearchFetch.date_nudge) --
 
 _DATE_HINT = "hint: temporal clues match documents by METADATA date"
@@ -246,17 +180,6 @@ def test_date_nudge_false_explicit_never_hints_even_with_coverage(units):
     assert _DATE_HINT not in out
 
 
-def test_docv2_arm_workspace_has_date_nudge_enabled(units, tmp_path):
-    from agent_search.agent.retriever import AgentRetriever
-
-    cfg = RetrieverConfig(policy="stub", index_root=str(tmp_path))
-    r = build_factory("agent_research_v2", cfg)()
-    r.index(units, key="test-new-conditions-corpus")
-    ws = r._workspace(5, "founded 2018 ceremony")
-    assert isinstance(ws, DocSearchFetch)
-    assert ws.date_nudge is True
-
-
 # --- 6. indri operator-nudge: mechanical, corpus-free mid-episode hint (op_nudge) -------------
 
 _OP_HINT = "hint: bare keywords work, but structure is sharper"
@@ -294,19 +217,5 @@ def test_indri_op_nudge_false_never_hints(units):
     assert _OP_HINT not in out
 
 
-# --- 7. hardened skills: rendered system prompts carry the new imperative RULE content ---------
-
-def test_research_v2_prompt_contains_clue_to_query_table():
-    p = load_condition("research_v2")
-    assert "RULE: dates are metadata" in p.system
-    assert "as of December 2023" in p.system
-    assert "date[<=2023-12]" in p.system
-    assert "date[>=2019]" in p.system
-    assert "founded 2002" in p.system
-
-
-def test_research_indri_prompt_contains_rule_block():
-    p = load_condition("research_indri")
-    assert "RULE: prefer operators over bare keywords" in p.system
-    assert "#date:between" in p.system
-    assert "#combine" in p.system
+# --- 7. hardened skills: research_v2/research_indri were the only conditions carrying these
+# imperative RULE blocks, and both were pruned from conditions.yaml — nothing left to pin here.

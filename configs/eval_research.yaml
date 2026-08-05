@@ -11,11 +11,11 @@ level: function                   # metrics still computed; grounded EM/F1 + gol
 k: [1, 5, 10]
 
 # THE doc arm: search -> fetch a named section, then commit an <answer> (scored grounded EM/F1
-# + gold-doc coverage + tokens/steps/calls). `agent_research` is the method; `agent_research_bm25`
+# + gold-doc coverage + tokens/steps/calls). `agent_research_bql_dense_snip` is the method (Sieve); `agent_research_bm25`
 # is the retrieve-then-visit in-loop access baseline; `agent_research_dci` is the brute-force
 # baseline (bash + read over the raw corpus filesystem, no retriever at all — chen2026dci / RISE).
 agent_conditions:
-  - agent_research
+  - agent_research_bql_dense_snip
   - agent_research_bm25
   - agent_research_dci
 

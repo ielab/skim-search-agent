@@ -144,7 +144,7 @@ configurations.
 | Search–Visit | `agent_research_bm25`, `agent_research_dense`, `agent_research_hybrid` | inspect ranked results, then open whole documents |
 | Search–Fetch | `agent_research_bm25_fetch_snip`, `agent_research_dense_fetch`, `agent_research_hybrid_fetch_snip` | inspect result cards, then fetch named sections |
 | Sieve | `agent_research_snip`, `agent_research_bql_donly_snip`, `agent_research_bql_dense_snip` | BQL candidate selection, pluggable ranking, result cards, and section fetch |
-| Structured-retrieval controls | `agent_research_indri`, `agent_research_indri_snip`, `agent_research_indri_visit` | Indri-style structured retrieval with different reading surfaces |
+| Structured-retrieval control | `agent_research_indri_snip` | Indri-QL structured retrieval with result cards and section fetch |
 
 Run `python -m evaluation.run_eval --help` to see every registered strategy and dataset. The Sieve
 design, settings, and paper-specific ablations live in [`docs/SIEVE.md`](docs/SIEVE.md), separate

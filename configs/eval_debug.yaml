@@ -10,10 +10,9 @@ k: [1, 5, 10]
 runs_dir: runs/debug
 
 retrievers:
-  - agent_codefix
-  - agent_codefix_grep
-  - agent_research
+  - agent_research_snip
   - agent_research_bm25
+  - agent_research_bql_dense_snip
   - agent_research_dci
   - grep
   - bm25_local

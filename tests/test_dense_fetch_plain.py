@@ -195,41 +195,10 @@ def test_dense_search_fp_and_dense_search_f_differ_only_by_the_excerpt_line():
 
 
 # =============================================================================================
-# 3. Condition loads + resolves via the retriever registry
+# 3. Condition wiring: `research_dense_fetch_plain` was pruned from conditions.yaml (paper's 15
+# kept conditions) — the DenseFetchPlainWorkspace class it wired up is still exercised directly
+# above (sections 1/2).
 # =============================================================================================
-
-def test_research_dense_fetch_plain_condition_loads_uncoached():
-    from agent_search.prompts import load_condition, render_manuals
-
-    p = load_condition("research_dense_fetch_plain")
-    assert p.toolset == "dense_fetch_plain"
-    assert set(p.tool_names) == {"dense_search_fp", "fetch"}
-    # UNCOACHED like research_dense_fetch/research_bm25_fetch: no manual renders for this toolset.
-    assert render_manuals(p.tool_names, domain="general") == ""
-    assert "term[field]" not in p.system
-
-
-def test_research_dense_fetch_plain_resolves_via_registry_as_densefetchplain_arm():
-    from agent_search.agent.retriever import AgentRetriever
-    from agent_search.retrievers.registry import RetrieverConfig, build_factory
-
-    r = build_factory("agent_research_dense_fetch_plain", RetrieverConfig(policy="stub"))()
-    assert isinstance(r, AgentRetriever)
-    assert r.toolset == ("dense_search_fp", "fetch")
-    assert r.tool == "agent_research_dense_fetch_plain"
-    assert r._arm == "densefetchplain"
-    assert r.domain == "general"
-    assert not r.needs_files
-
-
-def test_densefetchplain_index_raises_clear_error_when_cache_missing(tmp_path):
-    from agent_search.retrievers.registry import RetrieverConfig, build_factory
-
-    r = build_factory("agent_research_dense_fetch_plain", RetrieverConfig(
-        policy="stub", index_root=str(tmp_path)))()
-    with pytest.raises(RuntimeError, match="dense doc-embedding cache"):
-        r.index(_units(), key="no_such_corpus_key")
-
 
 # =============================================================================================
 # 4. Full AgentRetriever offline smoke (fake dense stack — no torch/network), mirrors
@@ -256,22 +225,6 @@ def fake_dense_stack(monkeypatch):
     monkeypatch.setattr(DenseRetriever, "is_cached", lambda self, key=None: True)
     monkeypatch.setattr(dense_belief_mod, "DenseBelief", lambda *a, **k: _FakeBelief())
     return _FakeBelief
-
-
-def test_agentretriever_densefetchplain_workspace_builds_and_answers_via_stub(
-        tmp_path, fake_dense_stack):
-    from agent_search.retrievers.registry import RetrieverConfig, build_factory
-
-    cfg = RetrieverConfig(policy="stub", index_root=str(tmp_path))
-    r = build_factory("agent_research_dense_fetch_plain", cfg)()
-    r.index(_units(), key="test-densefetchplain-corpus")
-    ws = r._workspace(5, "zephyrquokka")
-    assert isinstance(ws, DenseFetchPlainWorkspace)
-    out = ws.run("dense_search_fp", {"query": "zephyrquokka"})
-    assert "ERROR" not in out
-    assert "»" not in out
-    ranking = r.search("zephyrquokka", k=5)
-    assert isinstance(ranking, list)
 
 
 # =============================================================================================

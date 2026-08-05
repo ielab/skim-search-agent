@@ -32,6 +32,12 @@ def _as_names(items):
     return names
 
 
+# configs/eval_debug.yaml and configs/eval_swebench.yaml still name the pre-prune code-fix
+# family (agent_codefix / agent_codefix_grep / agent_research) — conditions.yaml was pruned to
+# the paper's 15 doc-domain conditions (tests/ only per this cleanup's scope; configs/*.yaml
+# itself is out of scope here and needs its own follow-up edit to catch up).
+
+
 def test_configs_reference_supported_datasets_and_retrievers():
     retrievers = available()
     datasets_known = available_datasets()
@@ -110,27 +116,26 @@ def test_structured_run_config_auto_detects_document_domain_defaults():
 
 
 def test_search_fetch_conditions_compose_the_new_toolsets():
-    """THE method, both arms: search -> fetch. The code arm is (search, fetch); the doc
-    method arm is (search, fetch); the doc baseline is (bm25_search, visit)."""
+    """THE method: search -> fetch (research_snip's search_s/fetch_s); the doc baseline is
+    (bm25_search, visit)."""
     from agent_search.prompts import load_condition
 
-    assert load_condition("codefix").tool_names == ("search", "fetch")
-    assert load_condition("research").tool_names == ("search", "fetch")
+    assert load_condition("research_snip").tool_names == ("search_s", "fetch_s")
     assert set(load_condition("research_bm25").tool_names) == {"bm25_search", "visit"}
     # the retired localization/one-shot toolsets are gone
-    for names in (load_condition("codefix").tool_names, load_condition("research").tool_names):
-        assert "search_bql" not in names and "submit" not in names and "semantic_search" not in names
+    names = load_condition("research_snip").tool_names
+    assert "search_bql" not in names and "submit" not in names and "semantic_search" not in names
 
 
 def test_run_config_fixture(tmp_path):
     from evaluation.run_eval import run_config
 
-    # the fixture is a CODE instance; agent_codefix drives search -> fetch -> <fix>. The
-    # no-model stub commits a (stub) fix on the file it fetched, so the run completes with
-    # 0 errors and records the fix-file-ok column (its value depends on the stub's guess).
+    # the fixture is a DOC instance; agent_research_snip drives search -> fetch -> <answer>.
+    # The no-model stub answers from what it fetched, so the run completes with 0 errors and
+    # records the doc arm's headline metric column.
     cfg = RunConfig(
-        dataset=DatasetArgs(name="fixture"),
-        retriever=RetrieverArgs(name="agent_codefix"),
+        dataset=DatasetArgs(name="browsecomp_plus_fixture"),
+        retriever=RetrieverArgs(name="agent_research_snip"),
         evaluation=EvaluationArgs(k=(1, 10)),
         output=OutputArgs(results_dir=str(tmp_path / "run")),
     )
@@ -139,7 +144,7 @@ def test_run_config_fixture(tmp_path):
 
     assert res["n"] == 1
     assert res["n_errors"] == 0
-    assert "fix_file_ok" in res["rows"][0]        # the code arm's headline metric is recorded
+    assert "answer_em" in res["rows"][0]           # the doc arm's headline metric is recorded
     assert (tmp_path / "run" / "config.json").exists()
 
 
@@ -153,8 +158,8 @@ def test_config_json_records_env_knobs(tmp_path):
     from evaluation.run_eval import run_config
 
     cfg = RunConfig(
-        dataset=DatasetArgs(name="fixture"),
-        retriever=RetrieverArgs(name="agent_codefix"),
+        dataset=DatasetArgs(name="browsecomp_plus_fixture"),
+        retriever=RetrieverArgs(name="agent_research_snip"),
         evaluation=EvaluationArgs(k=(1, 10)),
         output=OutputArgs(results_dir=str(tmp_path / "run")),
     )
@@ -194,8 +199,8 @@ def test_config_json_env_knobs_reflect_set_env_var(tmp_path, monkeypatch):
     from evaluation.run_eval import run_config
 
     cfg = RunConfig(
-        dataset=DatasetArgs(name="fixture"),
-        retriever=RetrieverArgs(name="agent_codefix"),
+        dataset=DatasetArgs(name="browsecomp_plus_fixture"),
+        retriever=RetrieverArgs(name="agent_research_snip"),
         evaluation=EvaluationArgs(k=(1, 10)),
         output=OutputArgs(results_dir=str(tmp_path / "run")),
     )

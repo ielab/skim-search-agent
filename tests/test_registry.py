@@ -10,11 +10,10 @@ from agent_search.retrievers import registry as R
 from agent_search.retrievers.registry import RetrieverConfig, available, build_factory, register
 
 
-# standalone retriever floors (unchanged) + the agent conditions of the NEW design
-# (the method's two arms, plus their in-loop access baselines).
+# standalone retriever floors (unchanged) + the agent conditions of the paper's 15 kept,
+# doc-domain conditions (conditions.yaml was pruned to these; the code-domain arm is gone).
 BUILTINS = {"grep", "bm25_local", "bm25_pyserini", "dense", "bql",
-            "agent", "agent_codefix", "agent_codefix_grep",
-            "agent_research", "agent_research_bm25", "agent_research_dci"}
+            "agent_research_snip", "agent_research_bm25", "agent_research_dci"}
 
 
 def test_all_builtins_registered():
@@ -23,7 +22,8 @@ def test_all_builtins_registered():
 
 def test_retired_agent_conditions_are_gone():
     for gone in ("agent_bql", "agent_grep", "agent_bm25", "agent_dense",
-                 "agent_tools", "agent_tools_bql", "agent_research_bql"):
+                 "agent_tools", "agent_tools_bql", "agent_research_bql",
+                 "agent_codefix", "agent_codefix_grep", "agent_research", "agent_research_v2"):
         assert gone not in available()
 
 
@@ -46,18 +46,11 @@ def test_build_direct_bql_factory_no_model():
     assert isinstance(r, BQLRetriever) and r.name == "bql"
 
 
-def test_build_code_fix_agent_stub():
+def test_build_research_snip_agent_stub():
     from agent_search.agent.retriever import AgentRetriever
-    r = build_factory("agent_codefix", RetrieverConfig(policy="stub"))()
-    assert isinstance(r, AgentRetriever) and r.toolset == ("search", "fetch")
-    assert r._arm == "code" and r.domain == "code"
-
-
-def test_build_code_grep_baseline_stub():
-    from agent_search.agent.retriever import AgentRetriever
-    r = build_factory("agent_codefix_grep", RetrieverConfig(policy="stub"))()
-    assert isinstance(r, AgentRetriever) and r.toolset == ("grep", "read")
-    assert r._arm == "grep" and r.domain == "code" and r.needs_files
+    r = build_factory("agent_research_snip", RetrieverConfig(policy="stub"))()
+    assert isinstance(r, AgentRetriever) and r.toolset == ("search_s", "fetch_s")
+    assert r._arm == "docsnip" and r.domain == "general"
 
 
 def test_build_research_dci_baseline_stub():
@@ -69,9 +62,7 @@ def test_build_research_dci_baseline_stub():
 
 def test_one_builder_serves_several_names():
     # one AgentRetriever; the condition is entirely the toolset + domain (from the profile)
-    for name, want, arm in [("agent_codefix", "fetch", "code"),
-                            ("agent_codefix_grep", "read", "grep"),
-                            ("agent_research", "fetch", "doc"),
+    for name, want, arm in [("agent_research_snip", "fetch_s", "docsnip"),
                             ("agent_research_bm25", "visit", "bm25"),
                             ("agent_research_dci", "read", "dci")]:
         r = build_factory(name, RetrieverConfig(policy="stub"))()
@@ -80,18 +71,18 @@ def test_one_builder_serves_several_names():
 
 def test_build_search_fetch_agents_no_model():
     from agent_search.agent.retriever import AgentRetriever
-    for name in ("agent_codefix", "agent_research"):
+    for name in ("agent_research_snip",):
         r = build_factory(name, RetrieverConfig(policy="stub"))()
-        # both arms drive the search -> fetch instrument (no localization `submit`)
-        assert isinstance(r, AgentRetriever) and "search" in r.toolset and "fetch" in r.toolset
+        # the doc arm drives the search -> fetch instrument (no localization `submit`)
+        assert isinstance(r, AgentRetriever) and "search_s" in r.toolset and "fetch_s" in r.toolset
         assert "submit" not in r.toolset
 
 
 def test_doc_arm_and_its_two_baselines_share_the_answer_contract():
-    # research (search->fetch), research_bm25 (bm25_search->visit), research_dci (bash->read)
-    # are the three doc conditions; all general-domain, <answer>-terminal arms.
+    # research_snip (search_s->fetch_s), research_bm25 (bm25_search->visit), research_dci
+    # (bash->read) are three of the doc conditions; all general-domain, <answer>-terminal arms.
     from agent_search.agent.retriever import AgentRetriever
-    for name in ("agent_research", "agent_research_bm25", "agent_research_dci"):
+    for name in ("agent_research_snip", "agent_research_bm25", "agent_research_dci"):
         r = build_factory(name, RetrieverConfig(policy="stub"))()
         assert isinstance(r, AgentRetriever) and r.domain == "general"
 
@@ -128,8 +119,8 @@ def test_duplicate_registration_of_different_builder_raises():
 
 def test_prompt_profiles_discovered_from_disk():
     from agent_search.prompts import DOMAINS, get_prompt_spec
-    assert {"code", "general"} <= set(DOMAINS)
-    for name in ("codefix", "codefix_grep", "research", "research_bm25", "research_dci"):
+    assert {"general"} <= set(DOMAINS)
+    for name in ("research_snip", "research_bm25", "research_dci"):
         spec = get_prompt_spec(name)
         # path is now the condition name (loader composes task x toolset from it)
         assert spec.name == name and spec.path == name
