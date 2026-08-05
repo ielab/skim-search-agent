@@ -1,2 +1,25 @@
 .idea/easycode.ignore
 /.idea
+
+# Local environment / secrets
+envs/
+.env
+CLAUDE.md
+
+# Data, indexes, run outputs (large; pull or rebuild per corpus_build/README.md)
+data/
+indexes/
+runs/
+logs/
+slurm_logs/
+
+# Internal working files — never part of the public release
+docs/RELEASE_CHECKLIST.md
+_audit_tmp/
+*.premerge.bak
+
+# Python
+__pycache__/
+*.pyc
+*.egg-info/
+.pytest_cache/
