@@ -31,7 +31,7 @@ direct-corpus interaction, one-shot retrieval, lexical and dense retrieval, and 
 **Sieve is one included strategy built from these components; it is not the scope of the library.**
 
 <p align="center">
-  <img src="docs/assets/skimsearchagent-overview.png" width="100%" alt="SkimSearchAgent architecture: interchangeable corpora, models, strategies, retrievers, and evaluators around one research-agent [...]
+  <img src="docs/assets/skimsearchagent-overview.png" width="100%" alt="SkimSearchAgent architecture: interchangeable corpora, models, strategies, retrievers, and evaluators around one research-agent loop"/>
 </p>
 
 ## Why SkimSearchAgent?
