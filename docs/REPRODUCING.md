@@ -20,16 +20,22 @@ Contents:
 
 ## 1. Environment
 
-- Python 3.10, Java 11+ (Pyserini/Lucene), CUDA GPU for vLLM serving and dense encoding.
+- Python 3.10, Java 21+ (Pyserini 1.2 / Lucene needs the `jdk.incubator.vector` module; with an
+  older JVM the process aborts with no Python traceback — check `java -version` first), CUDA GPU
+  for vLLM serving and dense encoding. If you use conda, `conda install "openjdk>=21"` into the
+  environment works; set `JAVA_HOME=$CONDA_PREFIX/lib/jvm` if it isn't set by activation.
 - `pip install -r requirements.txt`. The BQL core and local scoring need only the standard
   library + pytest; Pyserini, sentence-transformers, FAISS, and vLLM are needed for the
   paper-scale runs.
-- Sanity check: `pytest tests/` (BQL parser/executor and scoring unit tests).
+- Sanity check: `python -m pytest tests/` (BQL parser/executor and scoring unit tests). Once the
+  Pyserini JVM starts it swallows pytest's terminal output; use `--junitxml=report.xml` when you
+  need the results programmatically.
 
 ## 2. Data
 
 Pull the published flat/structured twins from Hugging Face into `data/` (see the dataset table in
-the top-level README), or rebuild them from scratch with the pipelines in `corpus_build/`:
+[`corpus_build/README.md`](../corpus_build/README.md)), or rebuild them from scratch with the
+pipelines in `corpus_build/`:
 
 - `corpus_build/wikipedia/` builds the HotpotQA and MuSiQue twins by matching benchmark documents
   against `wikimedia/structured-wikipedia` (native sections; no LLM involved).

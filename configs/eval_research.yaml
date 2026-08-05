@@ -5,7 +5,7 @@ datasets:                         # shared-corpus deep-research benchmarks (doma
   - musique                       # classic multi-hop QA (stage: `python scripts/stage_multihop.py`)
   - browsecomp_plus                # BrowseComp-Plus — NOT auto-staged: place its BEIR files
                                     # (corpus.jsonl/queries.jsonl/qrels/test.tsv) under data/browsecomp_plus/
-                                    # yourself (see README.md "Stage data"); scripts/download_data.sh only
+                                    # yourself (see corpus_build/README.md); scripts/download_data.sh only
                                     # prints this reminder, it does not fetch the files.
 level: function                   # metrics still computed; grounded EM/F1 + gold_doc_coverage are the headline
 k: [1, 5, 10]

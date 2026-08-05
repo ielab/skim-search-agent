@@ -1,4 +1,4 @@
-"""Minimal SieveKit demo: index-free Boolean search over an in-memory structured corpus.
+"""Minimal SkimSearchAgent demo: index-free Boolean search over an in-memory structured corpus.
 
 Runs with zero heavy dependencies (no Java, no torch, no index build) — this is the
 pure-Python REFERENCE executor. At paper scale the same query language compiles to Lucene

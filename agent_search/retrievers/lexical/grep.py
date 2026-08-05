@@ -1,6 +1,6 @@
-"""Index-free grep baseline (GrepRAG-style) — the fair comparison for BoolAgent.
+"""Index-free grep baseline (GrepRAG-style) — the fair comparison for SkimSearchAgent.
 
-Both this and the structural BoolAgent method are
+Both this and the structural SkimSearchAgent method are
 **index-free**, so comparing them isolates the value of *structure* (Boolean + AST)
 rather than "index vs no-index".
 

@@ -5,7 +5,7 @@ k1=0.9/b=0.4 (their implicit Lucene defaults), same analyzer (Porter stemming, n
 identifier subtoken splitting), same adaptive query truncation. One deliberate
 difference, stated when citing their numbers: SWE-bench indexes WHOLE FILES
 (`relpath\\n + contents`) for context retrieval; we index function-level units
-(`qualname + code`) because the task is function localization and EVERY BoolAgent
+(`qualname + code`) because the task is function localization and EVERY SkimSearchAgent
 condition shares this corpus — uniformity across conditions is the controlled
 variable. Indexes are
 PERSISTED and structured under `index_root/`, keyed by corpus identity, so they are
@@ -18,7 +18,7 @@ built once and reused across runs (and across instances that share a base commit
 Efficiency: the build shards the corpus into one jsonl per thread and runs Anserini's
 JsonCollection indexer with `--threads` = all cores (env `BM25_PYSERINI_THREADS` overrides);
 stored fields (positions/docvectors/raw) are OFF by default (env `BM25_PYSERINI_STORE_RAW=1`
-restores them) since BoolAgent's tool layer renders from its own in-memory units, never from
+restores them) since SkimSearchAgent's tool layer renders from its own in-memory units, never from
 the index — see `_index_threads`/`_store_raw`. The searcher memory-maps the index (Lucene
 MMapDirectory) and sets BM25 params once at construction.
 
@@ -110,7 +110,7 @@ def _index_threads() -> int:
 
 def _store_raw() -> bool:
     """Whether to ALSO store positions/docvectors/raw contents in the Lucene index. DEFAULT
-    OFF — BoolAgent's tool layer maps returned doc_ids back to its own in-memory units for all
+    OFF — SkimSearchAgent's tool layer maps returned doc_ids back to its own in-memory units for all
     rendering (listings, best_line excerpts, whole-doc visits), so nothing ever reads a stored
     field back out of this index; storing them roughly triples the index size for zero
     consumer and slows the build. Env `BM25_PYSERINI_STORE_RAW=1` restores the old

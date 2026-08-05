@@ -3,7 +3,7 @@
 # Loosen pins at your own risk; these exact versions are what we verified.
 
 # --- Retrieval stack -------------------------------------------------------------
-pyserini==1.2.0               # BM25 via Lucene/Anserini (needs Java 11+); BM25_BACKEND=pyserini
+pyserini==1.2.0               # BM25 via Lucene/Anserini (needs Java 21+); BM25_BACKEND=pyserini
 sentence-transformers==5.5.1 # dense encoders (bge / Qwen3-Embedding); needs torch
 faiss-cpu==1.14.3             # ANN index past ~1M docs; below that an exact flat index is used
 transformers==5.10.2

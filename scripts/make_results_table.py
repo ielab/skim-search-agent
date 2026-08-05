@@ -64,7 +64,7 @@ def main(with_recovery=False):
             recovered_pct=(100 * n_recovered / len(rows)) if with_recovery else None)
 
     out = []
-    out.append("# BoolAgent — deep-research (doc arm) results")
+    out.append("# SkimSearchAgent — deep-research (doc arm) results")
     out.append("")
     out.append("_Tongyi-DeepResearch-30B-A3B, full clean re-run. EM/F1 = SQuAD-style canonical QA "
                "metrics (re-extracted with the fixed last-`<answer>` logic). browsecomp also reports "

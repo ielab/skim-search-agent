@@ -1,7 +1,7 @@
 # Sieve — the Boolean-filtered search–inspect–fetch setting
 
 Sieve is one interface setting in the SkimSearchAgent harness — the one proposed in
-*"Search, Inspect, Fetch: Revisiting Boolean Retrieval for Deep-Research Agents."* It composes
+*"Search, Inspect, Fetch: Exploiting Boolean Retrieval for Deep-Research Agents."* It composes
 four separable stages on top of the shared agent loop:
 
 <p align="center">

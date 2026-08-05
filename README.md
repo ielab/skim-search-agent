@@ -96,7 +96,10 @@ the exact Python 3.10 environment used for the paper. Use the requirements file 
 the released experiments end to end.
 
 After staging a document collection as described in
-[`corpus_build/`](corpus_build/README.md), a complete agent run against an OpenAI model looks like:
+[`corpus_build/`](corpus_build/README.md), a complete agent run against an OpenAI model looks like
+the following. API keys and the common configuration knobs are documented in
+[`.env.example`](.env.example) — copy it to `.env`, fill in what you need, and load it with
+`set -a; source .env; set +a` (nothing auto-loads it).
 
 ```bash
 export OPENAI_API_KEY=...
@@ -176,6 +179,11 @@ dispatch supports:
 Model choice is independent of retrieval choice. The same search strategy can therefore be tested
 across agent backbones without changing its tools, budget, corpus, or evaluator.
 
+For OpenAI, Gemini, and served OpenAI-compatible models, episodes are driven through the OpenAI
+Agents SDK when the optional `openai-agents` package is installed, and through the built-in
+text-parsed loop driver otherwise (in-process vLLM always uses the loop driver). Set
+`AGENT_DRIVER=loop|sdk` to override the choice explicitly.
+
 ## Build your own
 
 ### Add a retrieval method
@@ -229,13 +237,16 @@ Useful checks:
 
 ```bash
 python -m pip install -e ".[dev]"
-pytest -q --ignore=tests/test_sdk_forced_answer.py --ignore=tests/test_sdk_new_tools.py
+python -m pytest -q
 python -m evaluation.run_eval --help
 python scripts/summarize_runs.py --help
 ```
 
-The two ignored tests exercise the optional OpenAI Agents SDK adapter; run them as well when that
-SDK is installed in your environment.
+Two test modules exercise the optional OpenAI Agents SDK adapter and skip themselves when that
+SDK is not installed. With the full retrieval stack installed, the Pyserini/Lucene tests require
+Java 21+ (see [`docs/REPRODUCING.md`](docs/REPRODUCING.md)); note that once the JVM starts it
+swallows pytest's terminal output — pass `--junitxml=report.xml` if you need a machine-readable
+result.
 
 ## Sieve and the accompanying paper
 

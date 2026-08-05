@@ -1,6 +1,6 @@
 """Real AST structural scoping for a code unit.
 
-`IN(region, x)` is the operator that distinguishes BoolAgent from plain grep: it
+`IN(region, x)` is the operator that distinguishes SkimSearchAgent from plain grep: it
 restricts a match to a *structural region* (a definition, a call site, a comment, a
 string literal, a signature). This module extracts, per unit, the identifier tokens
 that occur in each region — so `IN(call, foo)` matches only where `foo` is CALLED,

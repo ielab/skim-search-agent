@@ -104,5 +104,3 @@ Copy the resulting `data/*_flat/` and `data/*_structured/` to the GPU node after
    `conditions.yaml`):
    - wikipedia: `<name>_flat` vs `<name>_structured`
    - browsecomp: `browsecomp_plus` (original flat) vs `browsecomp_plus_structured`
-
-See [`../reminder.md`](../reminder.md) for the full design rationale and corpus-structure findings.

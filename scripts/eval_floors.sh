@@ -121,7 +121,7 @@ floor_deps_ok () {  # one loud check per floor instead of one error per instance
       "$PYTHON" -c "import pyserini" 2>/dev/null || {
         echo "!! skipping bm25_pyserini: '$PYTHON' has no pyserini." >&2
         echo "   fix: activate the project env (conda activate ./envs) or" >&2
-        echo "        pip install -r requirements.txt   (needs Java 11+ too)" >&2
+        echo "        pip install -r requirements.txt   (needs Java 21+ too)" >&2
         return 1; } ;;
     dense)
       "$PYTHON" -c "import sentence_transformers" 2>/dev/null || {

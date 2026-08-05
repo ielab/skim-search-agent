@@ -1047,7 +1047,14 @@ def _build_agent(cfg: RetrieverConfig, name: str):
         # (it only talks HTTP). OpenAI, Gemini, and SERVED vLLM (`backend=api`, OpenAI-compatible,
         # incl. served Tongyi) all default to the SDK. `AGENT_DRIVER=loop|sdk` overrides.
         sdk_reachable = is_openai_model(mdl) or is_gemini_model(mdl) or cfg.backend == "api"
-        driver = "sdk" if sdk_reachable else "loop"
+        if sdk_reachable:
+            try:
+                import agents  # noqa: F401  (openai-agents, optional)
+                driver = "sdk"
+            except ImportError:
+                print("[agent] optional OpenAI Agents SDK not installed "
+                      "(`pip install openai-agents`) — falling back to the text-parsed "
+                      "loop driver. Set AGENT_DRIVER=sdk after installing it to silence this.")
 
     return lambda: AgentRetriever(
         policy_factory=policy_factory, toolset=toolset, max_steps=cfg.max_steps,

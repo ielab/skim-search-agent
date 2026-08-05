@@ -14,6 +14,10 @@ from __future__ import annotations
 import asyncio
 import json
 
+import pytest
+
+pytest.importorskip("agents", reason="optional OpenAI Agents SDK not installed")
+
 from agents.tool_context import ToolContext
 
 from agent_search.agent.sdk_driver import (

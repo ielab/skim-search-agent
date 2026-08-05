@@ -6,7 +6,7 @@ Defaults to CodeRankEmbed (137M, strong/compact). Swap `model` for a larger anch
 Protocol notes vs the CoRNStack paper's own SWE-bench eval (eval_swebench.py):
 - max_seq_length=1024 matches theirs (model default is 8192).
 - Document text is `qualname\ncode`, NOT bare code as in their eval: every
-  BoolAgent condition (structural executor, BM25, grep) sees the qualname, so
+  SkimSearchAgent condition (structural executor, BM25, grep) sees the qualname, so
   dense gets it too — cross-condition uniformity outranks external protocol
   fidelity for the four-way comparison. Flagged when citing their numbers.
 """

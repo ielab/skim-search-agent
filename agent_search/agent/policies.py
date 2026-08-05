@@ -23,6 +23,9 @@ _STOP_WORDS = {
     "if", "when", "then", "as", "at", "by", "from", "was", "were", "has", "have", "had",
     "def", "return", "self", "none", "true", "false", "class", "import", "you", "we",
     "never", "out", "time", "up", "down", "all", "any", "into", "over",
+    # interrogatives: a question's first token is otherwise picked as the "salient" query
+    # (e.g. "Which treaty ended ..." -> bm25_search("which") -> 0 hits on every doc fixture)
+    "which", "what", "who", "whom", "whose", "where", "why", "how",
 }
 
 
