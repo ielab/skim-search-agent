@@ -31,7 +31,7 @@ direct-corpus interaction, one-shot retrieval, lexical and dense retrieval, and 
 **Sieve is one included strategy built from these components; it is not the scope of the library.**
 
 <p align="center">
-  <img src="docs/assets/skimsearchagent-overview.png" width="100%" alt="SkimSearchAgent architecture: interchangeable corpora, models, strategies, retrievers, and evaluators around one research-agent loop"/>
+  <img src="docs/assets/skimsearchagent-overview.png" width="100%" alt="SkimSearchAgent architecture: interchangeable corpora, models, strategies, retrievers, and evaluators around one research-agent [...]
 </p>
 
 ## Why SkimSearchAgent?
@@ -249,11 +249,14 @@ If you use Sieve or its released evaluation resources, please cite:
 
 ```bibtex
 @misc{wang2026sieve,
-  title  = {Search, Inspect, Fetch: Exploiting Boolean Retrieval for Deep-Research Agents},
-  author = {Wang, Shuai and Chen, Haodong and Yin, Yu and Zhuang, Shengyao and
-            Koopman, Bevan and Zuccon, Guido},
-  year   = {2026},
-  note   = {arXiv preprint}
+  title         = {Search, Inspect, Fetch: Exploiting Boolean Retrieval for Deep-Research Agents},
+  author        = {Wang, Shuai and Chen, Haodong and Yin, Yu and Zhuang, Shengyao and
+                   Koopman, Bevan and Zuccon, Guido},
+  year          = {2026},
+  eprint        = {2608.02751},
+  archivePrefix = {arXiv},
+  primaryClass  = {cs.IR},
+  url           = {https://arxiv.org/abs/2608.02751}
 }
 ```
 
