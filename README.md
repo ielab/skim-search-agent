@@ -77,6 +77,10 @@ python run.py dataset=fixture strategy=sieve_bm25 model=gpt-4o-mini limit=1
 
 # swap ONE word to run a different strategy — same corpus, model, budgets, and scoring
 python run.py dataset=fixture strategy=search_visit model=gpt-4o-mini limit=1
+
+# or run an open-weight model in-process with vLLM (GPU required, no API key)
+python run.py dataset=fixture strategy=sieve_bm25 \
+    model=Qwen/Qwen2.5-1.5B-Instruct backend=vllm limit=1
 ```
 
 `strategy` accepts friendly names (`search_visit`, `search_fetch`, `autoread`, `dci`,

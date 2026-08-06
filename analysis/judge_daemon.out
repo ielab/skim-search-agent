@@ -1,1 +1,0 @@
-scripts/judge_daemon.sh: line 30:  5511 Bus error               (core dumped) PYTHONPATH=. envs/bin/python scripts/judge_cells.py --datasets all --workers 16 >> "$LOG" 2>&1
