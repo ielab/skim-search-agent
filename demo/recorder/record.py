@@ -23,7 +23,7 @@ SETTINGS = {
     "model": "gpt-4o-mini",
     "k": 5,                        # results per search (paper: k=5)
     "max_section_tokens": 12000,   # per-fetch read ceiling (paper: 12,000)
-    "max_steps": 12,               # demo budget (paper: 100)
+    "max_steps": 20,               # demo budget (paper: 100) — BrowseComp questions need headroom
     "snippets": True,              # result-card snippets on (the _snip arm)
     "engine": "BQL reference executor",
 }
@@ -43,7 +43,9 @@ fetch: <doc> :: <section>   — read ONE named section of a listed document (use
                               the result cards).
 answer: <final answer>      — a short answer span, only once you have read supporting text.
 
-Search first, skim the result cards, fetch only what you need, then answer."""
+Search first, skim the result cards, fetch only what you need, then answer.
+Prefer 2-4 plain keywords per search; add operators only to NARROW once plain terms work.
+If a search errors or returns nothing, SIMPLIFY the query — never repeat a failing query."""
 
 
 def run_episode(client, question: str, max_steps: int = SETTINGS["max_steps"]) -> dict:
@@ -76,7 +78,21 @@ def run_episode(client, question: str, max_steps: int = SETTINGS["max_steps"]) -
                              "observation": obs})
         msgs.append({"role": "assistant", "content": text})
         msgs.append({"role": "user", "content": f"Observation:\n{traj[-1]['observation']}"})
-    return {"question": question, "final_answer": "", "trajectory": traj, "llm_calls": len(traj)}
+    # Budget exhausted without an answer — mirror the library's own forced-answer nudge
+    # (agent_search/agent/loop.py's reserved-final-turn elicitation): one last call with the
+    # tools disabled, so a hard question ends with a best guess instead of an empty answer.
+    msgs.append({"role": "user", "content":
+                 "Observation:\nSTEP BUDGET REACHED — do NOT search or fetch again. Give your "
+                 "single best-effort answer NOW as: answer: <your answer>. A best guess scores "
+                 "better than an empty answer."})
+    out = client.chat.completions.create(model=SETTINGS["model"], messages=msgs,
+                                         temperature=0.2, max_tokens=300)
+    text = (out.choices[0].message.content or "").strip()
+    m = re.match(r"answer\s*:\s*(.+)", text, re.S | re.I)
+    final = (m.group(1) if m else text).strip()
+    traj.append({"action": "answer", "args": {"answer": final}, "observation": ""})
+    return {"question": question, "final_answer": final, "trajectory": traj,
+            "llm_calls": len(traj)}
 
 
 def main():
