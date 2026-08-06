@@ -23,5 +23,6 @@ __pycache__/
 *.pyc
 *.egg-info/
 .pytest_cache/
-/demo/web/node_modules
+/demo/app/node_modules
+/demo/app/dist
 .DS_Store
