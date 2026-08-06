@@ -18,6 +18,7 @@ from __future__ import annotations
 import asyncio
 import json
 import queue
+import re
 import sys
 import threading
 from pathlib import Path
@@ -60,7 +61,9 @@ STRATEGIES = {
 class RunRequest(BaseModel):
     question: str = Field(min_length=1, max_length=2000)
     api_key: str = Field(min_length=1)
-    model: str = "gpt-4o-mini"
+    # restricted to PRICES' keys so the cost meter never guesses AND an arbitrary model string
+    # can never route the user's key to the backend="api" localhost fallback.
+    model: Literal["gpt-4o-mini"] = "gpt-4o-mini"
     strategies: list[Literal["sieve", "search_visit"]] = Field(min_length=1, max_length=2)
 
 
@@ -129,8 +132,10 @@ def _run_strategy(strategy: str, req: RunRequest, out: queue.Queue) -> None:
                  "answer": traj.final_answer, "stopped": traj.stopped_reason,
                  "usage": {**_usage_snapshot(req.model), "steps": steps_seen["n"]}})
     except Exception as e:  # noqa: BLE001 — any failure becomes an error event, never a hang
-        out.put({"event": "error", "strategy": strategy,
-                 "message": f"{type(e).__name__}: {e}"})
+        # provider auth errors quote a (masked) copy of the offending key — redact any
+        # key-shaped token so the "never echoed back" invariant holds on error paths too.
+        message = re.sub(r"sk-[\w*-]+", "sk-***", f"{type(e).__name__}: {e}")[:300]
+        out.put({"event": "error", "strategy": strategy, "message": message})
     finally:
         out.put({"event": "_finished", "strategy": strategy})
 

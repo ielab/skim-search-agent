@@ -106,3 +106,22 @@ def test_unknown_strategy_rejected():
 def test_cost_table():
     assert server._cost("gpt-4o-mini", 1_000_000, 1_000_000) == pytest.approx(0.75)
     assert server._cost("unknown-model", 1000, 1000) == 0.0
+
+
+def test_error_event_redacts_key_shaped_tokens(monkeypatch):
+    """Provider auth errors quote a masked copy of the key — the error event must redact it."""
+    def factory(model, *, backend="vllm", api_key=None, **kw):
+        def generate(messages):
+            raise RuntimeError("Incorrect API key provided: sk-supers***cret")
+        return generate
+    monkeypatch.setattr(server, "_make_generate", factory)
+    r = _post(TestClient(server.app), api_key="sk-supersecret")
+    assert "sk-supers" not in r.text
+    events = _sse_events(r.text)
+    errs = [e for e in events if e["event"] == "error"]
+    assert errs and "sk-***" in errs[0]["message"]
+
+
+def test_unlisted_model_rejected():
+    r = _post(TestClient(server.app), model="mystery-model-9000")
+    assert r.status_code == 422
