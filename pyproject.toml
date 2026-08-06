@@ -19,6 +19,10 @@ classifiers = [
 # The BQL executor itself is dependency-free; PyYAML loads the shared agent/tool profiles.
 dependencies = ["pyyaml==6.0.3"]
 
+[project.urls]
+Homepage = "https://github.com/ielab/skim-search-agent"
+Repository = "https://github.com/ielab/skim-search-agent"
+
 [project.optional-dependencies]
 retrieval = [
     "pyserini==1.2.0",

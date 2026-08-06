@@ -56,63 +56,57 @@ interfaces and runs every configuration through the same harness.
 
 ## Quickstart
 
-SkimSearchAgent requires Python 3.10 or newer. The reference BQL engine and local BM25 smoke test
-do not require Java, a GPU, or an API key.
+SkimSearchAgent requires Python 3.10+. The commands below need no Java, GPU, staged dataset, or
+API key until you bring a model.
 
 ```bash
-git clone ielab/skim-search-agent
-cd skim-search-agent
-
-python3.10 -m venv .venv
-source .venv/bin/activate
+git clone https://github.com/ielab/skim-search-agent.git && cd skim-search-agent
+python3.10 -m venv .venv && source .venv/bin/activate
 python -m pip install -e .
 ```
 
-Try structured Boolean search over a tiny in-memory corpus:
+Run a complete research-agent experiment as one command — every knob is a `key=value`:
 
 ```bash
-python -m examples.quickstart_bql
+# a full agent episode on the built-in toy corpus (no model, no keys: scripted stub policy)
+python run.py dataset=fixture strategy=sieve_bm25
+
+# the same episode driven by a real model
+export OPENAI_API_KEY=...
+python run.py dataset=fixture strategy=sieve_bm25 model=gpt-4o-mini limit=1
+
+# swap ONE word to run a different strategy — same corpus, model, budgets, and scoring
+python run.py dataset=fixture strategy=search_visit model=gpt-4o-mini limit=1
 ```
 
-Then run the dependency-free evaluation smoke test:
+`strategy` accepts friendly names (`search_visit`, `search_fetch`, `autoread`, `dci`,
+`bounded_dci`, `sieve`, `sieve_bm25`, `sieve_dense`, `indri`, ... — `python run.py --help`
+lists them all) or any raw registered retriever name. Everything else
+(`model=`, `limit=`, `backend=`, `runs_dir=`, ...) is forwarded to the underlying
+`python -m evaluation.run_eval`, which remains the fully-flagged entry point.
 
-```bash
-python -m evaluation.run_eval \
-  --dataset fixture \
-  --retriever bm25_local \
-  --runs-dir runs/smoke
-```
-
-For document-scale retrieval, dense encoders, and local model serving, install the optional stack:
+Each run writes a resumable trace (`rows.jsonl` + `results.json`) with the answer, the agent's
+searches and fetches, tokens, and calls. Strategies with a dense channel (`sieve`,
+`search_visit_dense`, ...) additionally need a one-time embedding cache —
+`bash scripts/build_indexes.sh` after staging data — and for document-scale corpora install the
+full stack:
 
 ```bash
 python -m pip install -e ".[all]"
 ```
 
 The package extras use the same versions as [`requirements.txt`](requirements.txt), which records
-the exact Python 3.10 environment used for the paper. Use the requirements file when reproducing
-the released experiments end to end.
-
-After staging a document collection as described in
-[`corpus_build/`](corpus_build/README.md), a complete agent run against an OpenAI model looks like
-the following. API keys and the common configuration knobs are documented in
-[`.env.example`](.env.example) — copy it to `.env`, fill in what you need, and load it with
-`set -a; source .env; set +a` (nothing auto-loads it).
+the exact Python 3.10 environment used for the paper. After staging a real collection
+([`corpus_build/`](corpus_build/README.md)), the same one-liner scales up. For open models,
+`backend=vllm` loads small and mid-size models in-process; for large backbones (the paper's
+30B-A3B models), serve them with `vllm serve <model>` and point the same command at the server
+with `backend=api api_base=http://localhost:8000/v1` — this served path is how every paper
+experiment ran. API keys and common knobs are documented in [`.env.example`](.env.example) — copy to
+`.env`, fill in what you need, and load with `set -a; source .env; set +a`.
 
 ```bash
-export OPENAI_API_KEY=...
-
-python -m evaluation.run_eval \
-  --dataset hotpotqa_structured \
-  --retriever agent_research_bm25 \
-  --policy llm \
-  --model gpt-4o-mini \
-  --runs-dir runs/demo \
-  --limit 20
+python run.py dataset=hotpotqa_structured strategy=sieve model=gpt-4o-mini limit=20
 ```
-
-For an open model served by vLLM, use the same command with `--backend api`, the served model ID,
-and `--api-base http://localhost:8000/v1`. In-process vLLM is available with `--backend vllm`.
 
 ## What can be swapped?
 
