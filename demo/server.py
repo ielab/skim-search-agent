@@ -183,19 +183,27 @@ def _run_strategy(strategy: str, req: RunRequest, out: queue.Queue) -> None:
                              field_profile="wiki")
         policy.system += CORPUS_NOTE
         steps_seen = {"n": 0}
+        # Characters of DOCUMENT TEXT pulled into context — the axis the two strategies
+        # actually differ on (a named section vs a whole document). Token/cost totals alone
+        # are confounded when one strategy gives up early and the other keeps hopping.
+        read_chars = {"n": 0}
 
         def on_step(step) -> None:
             steps_seen["n"] += 1
-            out.put({"event": "step", "strategy": strategy,
-                     "step": _step_payload(step),
-                     "usage": {**_usage_snapshot(req.model), "steps": steps_seen["n"]}})
+            payload = _step_payload(step)
+            if payload["type"] in ("fetch", "visit") and not payload.get("error"):
+                read_chars["n"] += len(payload.get("text") or "")
+            out.put({"event": "step", "strategy": strategy, "step": payload,
+                     "usage": {**_usage_snapshot(req.model), "steps": steps_seen["n"],
+                               "read_chars": read_chars["n"]}})
 
         traj = run_episode(policy, Task("live", req.question), workspace, CORPUS,
                            max_steps=MAX_STEPS, usage_fn=backends.usage_events,
                            domain="general", on_step=on_step)
         out.put({"event": "done", "strategy": strategy,
                  "answer": traj.final_answer, "stopped": traj.stopped_reason,
-                 "usage": {**_usage_snapshot(req.model), "steps": steps_seen["n"]}})
+                 "usage": {**_usage_snapshot(req.model), "steps": steps_seen["n"],
+                           "read_chars": read_chars["n"]}})
     except Exception as e:  # noqa: BLE001 — any failure becomes an error event, never a hang
         # provider auth errors quote a (masked) copy of the offending key — redact any
         # key-shaped token so the "never echoed back" invariant holds on error paths too.

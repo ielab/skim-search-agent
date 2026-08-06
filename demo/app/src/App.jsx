@@ -357,6 +357,7 @@ function Compare({ cols }) {
     ['tokens', c => (c.usage.prompt_tokens || 0) + (c.usage.completion_tokens || 0), fmtTok],
     ['cost', c => c.usage.cost_usd || 0, v => `$${v.toFixed(5)}`],
     ['steps', c => c.usage.steps || 0, v => `${v}`],
+    ['text read', c => c.usage.read_chars || 0, v => `${fmtTok(v)} ch`],
     ['time', c => ((c.doneAt || Date.now()) - c.t0) / 1000, v => `${v.toFixed(1)}s`],
   ]
   return (
