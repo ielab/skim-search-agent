@@ -556,7 +556,7 @@ export default function App() {
             <div className="examples">
               {meta.questions.map(x => (
                 <button className="ex" key={x.question} onClick={() => setQuestion(x.question)}>
-                  <b>real BrowseComp-Plus question · gold answer known</b>
+                  <b>{x.label}</b>
                   {x.question.length > 150 ? x.question.slice(0, 150) + '…' : x.question}
                 </button>))}
             </div>

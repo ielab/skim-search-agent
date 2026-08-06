@@ -41,7 +41,10 @@ def test_generated_corpus_integrity():
     assert len(ids) == len(d["docs"])
     for gold in GOLD_DOCIDS:
         assert gold in ids, f"gold doc {gold} missing"
-    assert {q["query_id"] for q in d["questions"]} == set(QUERY_IDS)
+    # both benchmark queries, plus the demo-authored warm-up that leads the list
+    assert set(QUERY_IDS) <= {q["query_id"] for q in d["questions"]}
+    assert d["questions"][0]["query_id"] == "demo-warmup"
+    assert all(q.get("label") for q in d["questions"])
     for q in d["questions"]:
         assert q["question"] and q["answer"]
     assert DATA.stat().st_size < 8_000_000
@@ -53,5 +56,5 @@ def test_loader_exposes_corpus_and_questions():
     assert len(CORPUS) > 80
     assert all(u.body and u.title for u in CORPUS)
     assert all("## " in u.body for u in CORPUS)
-    assert len(QUESTIONS) == 2
-    assert all(q and gold for q, gold in QUESTIONS)
+    assert len(QUESTIONS) == 3                  # warm-up + the two benchmark questions
+    assert all(q and gold and label for q, gold, label in QUESTIONS)

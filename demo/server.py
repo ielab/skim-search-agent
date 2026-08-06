@@ -50,6 +50,37 @@ MAX_STEPS = 12                       # bounds every live run's cost and latency
 # restricted to these keys so the meter never guesses.
 PRICES: dict[str, tuple[float, float]] = {"gpt-4o-mini": (0.15, 0.60)}
 
+# Neither shipped manual variant matches this corpus exactly: `browsecomp` documents
+# title/author/date/body but denies that sections exist (so every named-section fetch fails),
+# while `wiki` documents title/section/infobox/body but omits author/date and advertises an
+# infobox these documents don't have. We use `wiki` (sections are load-bearing for fetch) and
+# correct the field list here rather than editing the library's manuals, which the paper's
+# experiments share.
+CORPUS_NOTE = """
+
+## This corpus (demo)
+
+Documents here have BOTH named sections AND bibliographic metadata. Usable fields:
+`title`, `section`, `body`, `author`, `date`. There is NO `infobox` on this corpus — scoping
+to it 0-hits every document; use `author`/`date` for who-wrote-it and when-published facts
+(e.g. `2014[date]`, `wilkinson[author]`).
+
+Documents are journal articles, encyclopedia entries and news pages. Near-duplicate titles
+occur: when two hits look like the same work, fetch both and prefer the one whose text
+matches every constraint in the question.
+
+Search entity NAMES, never the question's wording. Relation words (established, founded,
+authored, located) are what you look FOR in a fetched section — never what you search for.
+`established between 1949 and 1959 AND notable alumni` searches a sentence and finds nothing;
+`1956[body]` or `kamath[title]` finds the document. Start from the 1-2 tokens most likely to
+appear VERBATIM in the target document — a proper name, a domain term, an exact number.
+
+Each hop is its own search + fetch, not a longer query. A fetched section names the next
+entity; search THAT next. If a query returns "0 exact matches", your surface is wrong, not
+the document missing: drop to fewer, more distinctive words rather than rephrasing the
+sentence.
+"""
+
 STRATEGIES = {
     # name -> (workspace builder, prompt condition). The condition fixes the tool NAMES the
     # model calls (search_s/fetch_s vs bm25_search/visit) — see conditions.yaml.
@@ -115,8 +146,16 @@ def _run_strategy(strategy: str, req: RunRequest, out: queue.Queue) -> None:
         build_ws, condition = STRATEGIES[strategy]
         workspace = build_ws()
         generate = _make_generate(req.model, backend="api", api_key=req.api_key)
+        # "wiki", NOT "browsecomp", despite this being a BrowseComp-Plus corpus. The profile
+        # names a MANUAL VARIANT (an interface shape), not a dataset: the `browsecomp` manual
+        # describes the FLAT build — it states "there are no named sections", tells the agent
+        # `[section]` always 0-hits, and demonstrates fetch as `[[1, "body"]]`. Our corpus is
+        # the SECTIONED build (doc 51481 has 37 named sections), so that manual made every
+        # fetch fail with "no section 'body'". `wiki` (skills/bql_doc.md) is the named-section
+        # variant: "fetch a named section ... a name from that doc's list".
         policy = AgentPolicy(generate, prompt_path=get_prompt_spec(condition).path,
-                             field_profile="browsecomp")
+                             field_profile="wiki")
+        policy.system += CORPUS_NOTE
         steps_seen = {"n": 0}
 
         def on_step(step) -> None:
@@ -166,7 +205,8 @@ async def run(req: RunRequest) -> StreamingResponse:
 def meta() -> dict:
     """Everything the page needs before a run: the curated example questions, the collection
     shelf (id/title/section-count per doc), and the run parameters the UI displays."""
-    return {"questions": [{"question": q, "gold": gold} for q, gold in QUESTIONS],
+    return {"questions": [{"question": q, "gold": gold, "label": label}
+                          for q, gold, label in QUESTIONS],
             "corpus": [{"id": u.doc_id, "title": u.title,
                         "sections": len(u.sections or ())} for u in CORPUS],
             "model": "gpt-4o-mini", "max_steps": MAX_STEPS}

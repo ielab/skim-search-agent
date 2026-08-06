@@ -22,4 +22,5 @@ def _unit(d: dict) -> CodeUnit:
 
 
 CORPUS = [_unit(d) for d in _DATA["docs"]]
-QUESTIONS = [(q["question"], q["answer"]) for q in _DATA["questions"]]
+QUESTIONS = [(q["question"], q["answer"], q.get("label", "example question"))
+             for q in _DATA["questions"]]
