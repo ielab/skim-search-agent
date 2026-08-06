@@ -507,3 +507,36 @@ def test_run_episode_ctx_threshold_scales_with_window(monkeypatch):
     # the SAME reported values (1_000, 1_900) never approach 0.90*131072 -- no early trigger, so
     # the episode runs its normal reactive max_steps path instead.
     assert traj2.stopped_reason == "max_steps"
+
+
+# --- on_step streaming callback (live demo) ----------------------------------------------------
+
+def test_run_episode_on_step_fires_once_per_step_with_same_objects():
+    calls = {"n": 0}
+
+    def fake_generate(messages):
+        calls["n"] += 1
+        if calls["n"] < 3:
+            return '<tool_call>{"name":"search","arguments":{"query":"x"}}</tool_call>'
+        return "<answer>Paris</answer>"
+
+    seen = []
+    policy = AgentPolicy(generate=fake_generate, prompt_path=get_prompt_spec("research_snip").path)
+    traj = run_episode(policy, Task("t", "capital of France?"), _AnyToolWS(), units=[],
+                       max_steps=5, domain="general", on_step=seen.append)
+    assert len(seen) == len(traj.steps)
+    assert all(a is b for a, b in zip(seen, traj.steps))
+    assert [s.name for s in seen][-1] == "answer"
+
+
+def test_run_episode_broken_on_step_never_crashes_episode():
+    def fake_generate(messages):
+        return "<answer>Paris</answer>"
+
+    def boom(step):
+        raise RuntimeError("listener died")
+
+    policy = AgentPolicy(generate=fake_generate, prompt_path=get_prompt_spec("research_snip").path)
+    traj = run_episode(policy, Task("t", "q"), _AnyToolWS(), units=[],
+                       max_steps=3, domain="general", on_step=boom)
+    assert traj.final_answer == "Paris"

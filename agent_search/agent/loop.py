@@ -160,14 +160,28 @@ def run_episode(policy: Policy, task: Task, workspace: WorkspaceLike,
                 units: Sequence[CodeUnit], max_steps: int = 50,
                 usage_fn: Optional[Callable[[], list]] = None,
                 domain: str = "code",
-                fix_guard: Optional[Callable[[str, List["Step"]], tuple]] = None) -> Trajectory:
+                fix_guard: Optional[Callable[[str, List["Step"]], tuple]] = None,
+                on_step: Optional[Callable[[Step], None]] = None) -> Trajectory:
     """Drive one episode over the workspace's enabled toolset.
 
     `fix_guard` (code-fix task only) gates the terminal <fix> block: called with
     (fix_text, steps) it returns (ok, why); an un-ok fix is bounced back as a
     tool_response (so a guess never ends the episode) instead of terminating. When None,
-    a <fix> is accepted as-is (or there is no <fix> terminal at all for this task)."""
+    a <fix> is accepted as-is (or there is no <fix> terminal at all for this task).
+
+    `on_step`, when given, is called with the just-appended Step after every step the episode
+    records (tool/nudge/terminal) — the live-demo streaming hook. A raising listener is
+    swallowed (an episode must never die because a spectator did). None (the default) is
+    byte-identical to the pre-change loop."""
     steps: List[Step] = []
+
+    def _push(step: Step) -> None:
+        steps.append(step)
+        if on_step is not None:
+            try:
+                on_step(step)
+            except Exception:  # noqa: BLE001 — a broken listener must never kill the episode
+                pass
     reason = "max_steps"
     declared: List[str] = []
     final_answer = ""
@@ -207,7 +221,7 @@ def run_episode(policy: Policy, task: Task, workspace: WorkspaceLike,
                           and _last_prompt_tokens(usage_fn) >= ctx_threshold)
         is_forced_final_turn = (_step_i == max_steps - 1) or ctx_budget_hit
         if force_answer and is_forced_final_turn and steps and not nudge_injected:
-            steps.append(Step(
+            _push(Step(
                 name="budget", args={},
                 observation=("<tool_response>STEP BUDGET REACHED — this is your FINAL turn. Do NOT "
                              "search or fetch again. Give your single best-effort answer NOW based on "
@@ -234,16 +248,16 @@ def run_episode(policy: Policy, task: Task, workspace: WorkspaceLike,
                 cand = fm.group(1).strip()
                 ok, why = (fix_guard(cand, steps) if fix_guard is not None else (True, ""))
                 if not ok:
-                    steps.append(Step(name="fix_rejected", args={}, observation=why,
-                                      raw_output=raw or "", t_llm=t_llm))
-                    # feed the rejection back to the policy as its next observation
-                    steps[-1].observation = f"<tool_response>REJECTED: {why}</tool_response>"
+                    # the rejection is fed back to the policy as its next observation
+                    _push(Step(name="fix_rejected", args={},
+                               observation=f"<tool_response>REJECTED: {why}</tool_response>",
+                               raw_output=raw or "", t_llm=t_llm))
                     continue
                 reason = "fix"
                 fix_text = cand
                 final_answer = cand
-                steps.append(Step(name="fix", args={}, observation="(episode ended)",
-                                  raw_output=raw or "", t_llm=t_llm))
+                _push(Step(name="fix", args={}, observation="(episode ended)",
+                          raw_output=raw or "", t_llm=t_llm))
                 break
 
         finals = _final_locations(raw, name, args)
@@ -262,8 +276,8 @@ def run_episode(policy: Policy, task: Task, workspace: WorkspaceLike,
                 final_answer = ""
             else:                                   # <answer>...</answer>, ignoring <think>
                 final_answer = _extract_answer(_THINK.sub("", raw or ""))
-            steps.append(Step(name=reason, args=args, observation="(episode ended)",
-                              raw_output=raw or "", t_llm=t_llm))
+            _push(Step(name=reason, args=args, observation="(episode ended)",
+                      raw_output=raw or "", t_llm=t_llm))
             break
 
         t_tool = 0.0
@@ -274,8 +288,8 @@ def run_episode(policy: Policy, task: Task, workspace: WorkspaceLike,
             t1 = time.monotonic()
             obs = workspace.run(name, args)
             t_tool = time.monotonic() - t1
-        steps.append(Step(name=name or "none", args=args, observation=obs,
-                          raw_output=raw or "", t_llm=t_llm, t_tool=t_tool))
+        _push(Step(name=name or "none", args=args, observation=obs,
+                  raw_output=raw or "", t_llm=t_llm, t_tool=t_tool))
         if nudge_injected and is_forced_final_turn:
             # The forced final turn (max_steps- OR ctx_budget-triggered) did NOT terminate
             # organically — the model tool-called again instead of answering. On the pre-existing
