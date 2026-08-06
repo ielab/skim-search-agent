@@ -1,5 +1,5 @@
 """The curated BrowseComp-Plus demo corpus: the record->CodeUnit mapping and the outlier cap
-(demo/recorder/build_corpus.py helpers), plus integrity checks on the checked-in corpus
+(demo/build_corpus.py helpers), plus integrity checks on the checked-in corpus
 (gold docs present, GitHub-friendly size)."""
 import json
 import sys
@@ -9,7 +9,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from demo.recorder.build_corpus import GOLD_DOCIDS, QUERY_IDS, cap_body, record_to_doc
+from demo.build_corpus import GOLD_DOCIDS, QUERY_IDS, cap_body, record_to_doc
 
 REC = {"_id": "42", "title": "T", "author": "A", "date": "2020-01-01",
        "sections": [{"heading": "(intro)", "text": "intro text"},
@@ -31,7 +31,7 @@ def test_cap_body_truncates_only_past_80k_with_marker():
     assert len(capped) < 81_000 and capped.endswith("…(truncated for demo)")
 
 
-DATA = Path(__file__).resolve().parent.parent / "demo" / "recorder" / "browsecomp_data.json"
+DATA = Path(__file__).resolve().parent.parent / "demo" / "corpus_data.json"
 
 
 @pytest.mark.skipif(not DATA.exists(), reason="generated corpus not built yet")
@@ -49,7 +49,7 @@ def test_generated_corpus_integrity():
 
 @pytest.mark.skipif(not DATA.exists(), reason="generated corpus not built yet")
 def test_loader_exposes_corpus_and_questions():
-    from demo.recorder.browsecomp_corpus import CORPUS, QUESTIONS
+    from demo.corpus import CORPUS, QUESTIONS
     assert len(CORPUS) > 80
     assert all(u.body and u.title for u in CORPUS)
     assert all("## " in u.body for u in CORPUS)

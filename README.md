@@ -117,25 +117,23 @@ python run.py dataset=hotpotqa_structured strategy=sieve model=gpt-4o-mini limit
 
 ## Demo
 
-Open **[`demo/index.html`](demo/index.html)** in any browser — a single self-contained file, no
-install of any kind. It replays real recorded gpt-4o-mini episodes on a small collection where
-the answers are only findable by searching:
+**The live playground** — ask your own questions and watch the real agent loop work:
 
-<!-- TODO: capture a screenshot/GIF of the player and embed it here:
-<p align="center"><img src="docs/assets/demo.gif" width="85%" alt="the demo player"/></p> -->
+```bash
+pip install -e ".[demo-live]"
+python demo/server.py          # -> http://localhost:8008/
+```
 
-- the agent **types out** each Boolean search live;
-- **result cards** animate in — title, § section chips, matched fields, snippets with the query
-  terms highlighted;
-- every fetched section slides into the **Evidence Collected** panel, and the collection shelf
-  lights up as documents are surfaced and read;
-- the final answer is revealed and checked against gold, with play/pause (spacebar), a speed
-  slider, and one tab per question.
+A little agent hops between its tool stations (Search → Read → Answer) on a stage, the
+102-document collection wall lights up as documents are surfaced and read, and a live meter
+counts every token and fraction of a cent. Bring your own OpenAI key (a run is capped at 12
+steps — well under 1¢ on gpt-4o-mini; the key is used per-request and never stored or logged).
+**Race mode** runs Sieve vs the Search-Visit baseline side by side on the same question and ends
+in a head-to-head chart — the paper's claim, live. The collection is a curated subsample of real
+BrowseComp-Plus documents; see [`demo/`](demo/README.md) for how it was built.
 
-The player displays the exact pipeline settings each episode ran under (`k=5`,
-`max_section_tokens=12000`, snippets on — the paper's values); the recorder drives the
-**library's own** search/fetch workspace, so what you watch is the real mechanism, not a mockup.
-To hack on the player or record your own episodes, see [`demo/`](demo/README.md).
+There is also a **project page** at [`docs/index.html`](docs/index.html) (GitHub Pages-ready:
+Settings → Pages → deploy from `main` `/docs`).
 
 ## What can be swapped?
 

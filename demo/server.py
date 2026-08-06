@@ -1,7 +1,7 @@
 """The live demo server: bring-your-own-key, real-time agent runs over the curated corpus.
 
     pip install -e ".[demo-live]"
-    python demo/live/server.py            # -> http://localhost:8008/
+    python demo/server.py            # -> http://localhost:8008/
 
 Serves the built demo page and exposes POST /api/run — a Server-Sent-Events stream that drives
 one REAL `run_episode` (agent_search/agent/loop.py) per requested strategy, each in its own
@@ -25,7 +25,7 @@ from pathlib import Path
 from typing import Literal
 
 HERE = Path(__file__).resolve().parent
-sys.path.insert(0, str(HERE.parent.parent))
+sys.path.insert(0, str(HERE.parent))
 
 from fastapi import FastAPI                                    # noqa: E402
 from fastapi.middleware.cors import CORSMiddleware             # noqa: E402
@@ -37,9 +37,9 @@ from agent_search.agent.policies import AgentPolicy            # noqa: E402
 from agent_search.agent.tools.doc_research import Bm25Visit, DocSearchFetch  # noqa: E402
 from agent_search.models import backends                       # noqa: E402
 from agent_search.prompts import get_prompt_spec               # noqa: E402
-from demo.recorder.browsecomp_corpus import CORPUS             # noqa: E402
-from demo.recorder.parse import (parse_bm25_search, parse_fetch,  # noqa: E402
-                                 parse_search, parse_visit)
+from demo.corpus import CORPUS, QUESTIONS                      # noqa: E402
+from demo.parse import (parse_bm25_search, parse_fetch,        # noqa: E402
+                        parse_search, parse_visit)
 
 # Indirection so tests inject a scripted generate (monkeypatch server._make_generate) — the
 # ONLY seam between this server and a real API call.
@@ -86,7 +86,7 @@ def _usage_snapshot(model: str) -> dict:
 
 
 def _step_payload(step) -> dict:
-    """One loop Step -> the card dict the player renders (shared parsers from recorder/parse)."""
+    """One loop Step -> the card dict the player renders (shared parsers from demo/parse)."""
     name, obs = step.name, step.observation or ""
     if name in ("search", "search_s"):
         return {"type": "search", "query": (step.args or {}).get("query", ""),
@@ -162,8 +162,18 @@ async def run(req: RunRequest) -> StreamingResponse:
     return StreamingResponse(stream(), media_type="text/event-stream")
 
 
-_DIST = HERE.parent / "app" / "dist" / "index.html"
-_STATIC = HERE.parent / "index.html"
+@app.get("/api/meta")
+def meta() -> dict:
+    """Everything the page needs before a run: the curated example questions, the collection
+    shelf (id/title/section-count per doc), and the run parameters the UI displays."""
+    return {"questions": [{"question": q, "gold": gold} for q, gold in QUESTIONS],
+            "corpus": [{"id": u.doc_id, "title": u.title,
+                        "sections": len(u.sections or ())} for u in CORPUS],
+            "model": "gpt-4o-mini", "max_steps": MAX_STEPS}
+
+
+_DIST = HERE / "app" / "dist" / "index.html"
+_STATIC = HERE / "index.html"
 
 
 @app.get("/")

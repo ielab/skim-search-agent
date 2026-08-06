@@ -1,12 +1,11 @@
 """Shared demo observation parsers (demo/recorder/parse.py): the exact renderings of
-DocSearchFetch.search/.fetch and Bm25Visit.search/.visit -> the card dicts both the offline
-replay builder (build_web.py) and the live SSE server (demo/live/server.py) send the player."""
+DocSearchFetch.search/.fetch and Bm25Visit.search/.visit -> the card dicts the live SSE server (demo/server.py) sends the player."""
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from demo.recorder.parse import parse_bm25_search, parse_fetch, parse_search, parse_visit
+from demo.parse import parse_bm25_search, parse_fetch, parse_search, parse_visit
 
 
 def test_parse_search_structured_hit_line():
@@ -47,8 +46,3 @@ def test_parse_visit_error_observation():
     out = parse_visit("ERROR: no such doc 'zorp' — use a rank from the last search or a doc_id.")
     assert out["error"] and "no such doc" in out["text"]
 
-
-def test_build_web_still_imports_shared_parsers():
-    from demo.recorder import build_web
-    assert build_web.parse_search is parse_search
-    assert build_web.parse_fetch is parse_fetch

@@ -1,4 +1,4 @@
-"""The live-demo SSE server (demo/live/server.py): /api/run streams step -> done events per
+"""The live-demo SSE server (demo/server.py): /api/run streams step -> done events per
 strategy (fake generate injected — NO real API calls), errors surface as error events (never a
 hang), the api_key reaches make_generate and is never echoed back."""
 import json
@@ -12,7 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 fastapi = pytest.importorskip("fastapi")
 from fastapi.testclient import TestClient  # noqa: E402
 
-from demo.live import server  # noqa: E402
+from demo import server  # noqa: E402
 
 
 def _sse_events(text):

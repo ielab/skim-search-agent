@@ -1,29 +1,25 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
-import DATA from './data.json'
 
-/* ---------- playback engine: expands each episode into timed events ---------- */
+/* ================================================================================
+   SkimSearchAgent — the live playground.
+   The agent is a little magnifying-glass critter that hops between tool stations
+   (Search → Read → Answer) on a stage; every hop, packet and lit-up tile is driven
+   by the REAL agent loop's SSE stream. Strategy identities (validated palette on
+   the paper surface): Sieve = teal, Search-Visit = violet.
+   ================================================================================ */
 
-function toEvents(ep) {
-  const ev = []
-  let step = 0
-  for (const s of ep.steps) {
-    step += 1
-    if (s.type === 'search') {
-      ev.push({ kind: 'agent', step, op: 'search', text: s.query, dwell: 250 })
-      ev.push({ kind: 'results', step, status: s.status, hits: [], dwell: 150 })
-      s.hits.forEach((h, i) =>
-        ev.push({ kind: 'hit', step, hit: h, query: s.query, dwell: 300 }))
-      ev.push({ kind: 'pause', dwell: 600 })
-    } else if (s.type === 'fetch') {
-      ev.push({ kind: 'agent', step, op: 'fetch', text: s.ask, dwell: 250 })
-      ev.push({ kind: 'section', step, doc: s.doc, section: s.section, text: s.text, error: s.error, dwell: 850 })
-    }
-  }
-  ev.push({ kind: 'answer', dwell: 0 })
-  return ev
+const STRATS = {
+  sieve: { label: 'Sieve', sub: 'Boolean search · fetch sections', color: '#0e9384', soft: '#e2f1ee' },
+  search_visit: { label: 'Search-Visit', sub: 'BM25 · read whole documents', color: '#7c3aed', soft: '#efe9fb' },
 }
+const MODES = [
+  { id: 'sieve', name: 'Sieve' },
+  { id: 'search_visit', name: 'Search-Visit' },
+  { id: 'both', name: '⚔ Race both' },
+]
+const fmtTok = n => (n >= 10000 ? `${(n / 1000).toFixed(1)}K` : (n || 0).toLocaleString())
 
-/* ---------- live mode: SSE client + step -> event expansion ---------- */
+/* ---------- SSE client ---------- */
 
 async function streamRun(body, onEvent, onFail) {
   try {
@@ -46,47 +42,140 @@ async function streamRun(body, onEvent, onFail) {
         if (data) onEvent(JSON.parse(data.slice(6)))
       }
     }
-  } catch (e) {
-    onFail('cannot reach the live server — start it with: python demo/live/server.py')
+  } catch {
+    onFail('offline')
   }
 }
 
-// one incoming step -> the same event kinds the replay's toEvents emits (appended live,
-// no dwell pacing: real network/API latency provides the rhythm)
-function liveStepToEvents(step, n) {
+/* one incoming step -> { station, action, feed items } */
+function interpretStep(step, n) {
   if (step.type === 'search') {
-    return [
-      { kind: 'agent', step: n, op: 'search', text: step.query },
-      { kind: 'results', step: n, status: step.status, hits: [] },
-      ...step.hits.map(h => ({ kind: 'hit', step: n, hit: h, query: step.query })),
-    ]
+    return {
+      station: 'search', action: `search: ${step.query}`,
+      items: [
+        { kind: 'act', step: n, op: 'search', text: step.query },
+        ...step.hits.map(h => ({ kind: 'hit', step: n, hit: h, query: step.query })),
+        ...(step.hits.length === 0 ? [{ kind: 'zero', step: n, text: step.status || 'no matches' }] : []),
+      ],
+      seen: step.hits.map(h => h.id),
+    }
   }
   if (step.type === 'fetch') {
-    return [{ kind: 'agent', step: n, op: 'fetch', text: step.ask },
-            { kind: 'section', step: n, doc: step.doc, section: step.section,
-              text: step.text, error: step.error }]
+    return {
+      station: 'read', action: `fetch: ${step.ask || `${step.doc} § ${step.section}`}`,
+      items: [{ kind: 'act', step: n, op: 'fetch', text: step.ask },
+              { kind: 'read', step: n, doc: step.doc, part: `§ ${step.section}`,
+                text: step.text, error: step.error, whole: false }],
+      read: step.error ? [] : [step.doc],
+    }
   }
   if (step.type === 'visit') {
-    return [{ kind: 'agent', step: n, op: 'visit', text: `${step.doc} (whole document)` },
-            { kind: 'visit', step: n, doc: step.doc, title: step.title,
-              text: step.text, error: step.error }]
+    return {
+      station: 'read', action: `read: ${step.doc} (whole document)`,
+      items: [{ kind: 'act', step: n, op: 'read', text: `${step.doc} — whole document` },
+              { kind: 'read', step: n, doc: step.doc, part: step.title,
+                text: step.text, error: step.error, whole: true }],
+      read: step.error ? [] : [step.doc],
+    }
   }
-  return [{ kind: 'generic', step: n, name: step.name, text: step.observation }]
+  if (['answer', 'submit', 'stop'].includes(step.name)) {
+    return { station: 'answer', action: 'writing the answer…', items: [] }
+  }
+  if (step.name === 'budget') {
+    return { station: null, action: 'step budget reached — committing to an answer',
+             items: [{ kind: 'note', step: n, text: 'step budget reached — forcing a final answer' }] }
+  }
+  return { station: null, action: null,
+           items: [{ kind: 'note', step: n, text: `${step.name}: ${String(step.observation || '').slice(0, 200)}` }] }
 }
 
-function VisitCard({ doc, title, text, error }) {
-  const [open, setOpen] = useState(false)
-  const shown = open || text.length <= 900 ? text : text.slice(0, 900) + ' …'
+/* ---------- imperative stage effects (packets, tile flights, confetti) ---------- */
+
+function spawnPackets(strategy, station, color) {
+  const stage = document.getElementById(`stage-${strategy}`)
+  const st = document.getElementById(`st-${strategy}-${station}`)
+  if (!stage || !st) return
+  const base = st.offsetLeft + st.offsetWidth / 2 - 6
+  for (let i = 0; i < 5; i++) {
+    const p = document.createElement('div')
+    p.className = 'packet'
+    p.style.background = color
+    p.style.left = `${base}px`
+    p.style.top = '86px'
+    p.style.setProperty('--dx', `${(i - 2) * 26}px`)
+    stage.appendChild(p)
+    setTimeout(() => p.classList.add('fly'), i * 80)
+    setTimeout(() => p.remove(), 1100 + i * 80)
+  }
+}
+
+function flyTile(strategy, docId) {
+  const cell = document.getElementById(`cell-${docId}`)
+  const st = document.getElementById(`st-${strategy}-read`)
+  if (!cell || !st) return
+  const a = cell.getBoundingClientRect(), b = st.getBoundingClientRect()
+  const t = document.createElement('div')
+  t.className = 'flytile'
+  t.style.left = `${a.left}px`; t.style.top = `${a.top}px`
+  document.body.appendChild(t)
+  requestAnimationFrame(() => {
+    t.style.left = `${b.left + b.width / 2}px`; t.style.top = `${b.top + 14}px`
+    t.style.transform = 'scale(1.7) rotate(170deg)'; t.style.opacity = '0'
+  })
+  setTimeout(() => t.remove(), 950)
+}
+
+function confetti(strategy) {
+  const stage = document.getElementById(`stage-${strategy}`)
+  const st = document.getElementById(`st-${strategy}-answer`)
+  if (!stage || !st) return
+  const colors = ['#0e9384', '#7c3aed', '#d97706', '#317a31']
+  const base = st.offsetLeft + st.offsetWidth / 2
+  for (let i = 0; i < 14; i++) {
+    const p = document.createElement('div')
+    p.className = 'conf'
+    p.style.background = colors[i % 4]
+    p.style.left = `${base}px`; p.style.top = '46px'
+    p.style.setProperty('--cx', `${Math.random() * 130 - 65}px`)
+    p.style.setProperty('--cy', `${Math.random() * -75 - 18}px`)
+    stage.appendChild(p)
+    setTimeout(() => p.classList.add('go'), i * 30)
+    setTimeout(() => p.remove(), 1300)
+  }
+}
+
+/* ---------- the logo (custom mark: lens + skim line) ---------- */
+
+function Logo() {
   return (
-    <div className={`sect visit${error ? ' err' : ''}`} onClick={() => setOpen(!open)}>
-      <div className="from">{error ? '⚠' : '⤓'} {doc} · {title} · whole document</div>
-      <div className="body">{shown}</div>
-      {text.length > 900 && <div className="more">{open ? 'collapse' : 'expand'}</div>}
+    <svg className="logo-mark" viewBox="0 0 26 26" width="22" height="22" aria-hidden="true">
+      <circle cx="11" cy="11" r="7.2" fill="none" stroke="#0e9384" strokeWidth="2.6" />
+      <line x1="16.5" y1="16.5" x2="23" y2="23" stroke="#0e9384" strokeWidth="3" strokeLinecap="round" />
+      <line x1="7.4" y1="9.4" x2="14.6" y2="9.4" stroke="#0e9384" strokeWidth="1.7" strokeLinecap="round" opacity=".85" />
+      <line x1="7.4" y1="12.8" x2="12.2" y2="12.8" stroke="#0e9384" strokeWidth="1.7" strokeLinecap="round" opacity=".45" />
+    </svg>
+  )
+}
+
+/* ---------- the mascot ---------- */
+
+function Mascot({ color, thinking, sad, happy }) {
+  return (
+    <div className={`critter${thinking ? ' thinking' : ''}${sad ? ' sad' : ''}${happy ? ' happy' : ''}`}
+         style={{ '--ac': color }}>
+      <div className="lens">
+        <span className="eye l" /><span className="eye r" />
+        <span className="mouth" />
+        <div className="handle" />
+      </div>
+      <span className="bubble">{sad ? '💧' : '💭'}</span>
     </div>
   )
 }
 
-function CostMeter({ usage, t0, done }) {
+/* ---------- meter (stat strip) ---------- */
+
+function Meter({ usage, t0, done, color }) {
   const [, tick] = useState(0)
   useEffect(() => {
     if (done) return
@@ -97,171 +186,81 @@ function CostMeter({ usage, t0, done }) {
   const tok = (usage.prompt_tokens || 0) + (usage.completion_tokens || 0)
   return (
     <div className="meter">
-      <b>${(usage.cost_usd || 0).toFixed(5)}</b> · {tok.toLocaleString()} tok
-      · {usage.steps || 0} steps · {secs.toFixed(1)}s
+      <b style={{ color }}>${(usage.cost_usd || 0).toFixed(5)}</b>
+      <span>{fmtTok(tok)} tok</span>
+      <span>{usage.steps || 0} steps</span>
+      <span>{secs.toFixed(1)}s</span>
     </div>
   )
 }
 
-const STRAT_LABEL = { sieve: 'Sieve (search + fetch sections)',
-                      search_visit: 'Search-Visit (BM25 + whole docs)' }
+/* ---------- the stage ---------- */
 
-function LiveColumn({ col }) {
-  return (
-    <div className="livecol">
-      <div className="colhead">
-        <span className="colname">{STRAT_LABEL[col.strategy]}</span>
-        <CostMeter usage={col.usage} t0={col.t0} done={col.doneAt} />
-      </div>
-      {col.events.map((e, i) => {
-        if (e.kind === 'agent') return (
-          <div className="row" key={i}>
-            <div className="who agent"><span className="dot" />AGENT · step {e.step}</div>
-            <div className="say"><span className={e.op === 'search' ? 'op' : 'fop'}>
-              {e.op}:</span> {e.text}</div>
-          </div>)
-        if (e.kind === 'results') return (
-          <div className="row" key={i}>
-            <div className="who tool"><span className="dot" />SEARCH RESULTS</div>
-            {e.status && <div className="status">{e.status}</div>}
-          </div>)
-        if (e.kind === 'hit') return (
-          <div className="row" key={i}><div className="cards">
-            <HitCard hit={e.hit} query={e.query} /></div></div>)
-        if (e.kind === 'section') return (
-          <div className="row" key={i}><SectionCard {...e} /></div>)
-        if (e.kind === 'visit') return (
-          <div className="row" key={i}><VisitCard {...e} /></div>)
-        if (e.kind === 'generic') return (
-          <div className="row" key={i}>
-            <div className="who tool"><span className="dot" />{e.name.toUpperCase()}</div>
-            {e.text && <div className="status">{String(e.text).slice(0, 400)}</div>}
-          </div>)
-        return null
-      })}
-      {col.error && <div className="liveerr">⚠ {col.error}</div>}
-      {col.answer != null && (
-        <div className="ans"><div className="k">FINAL ANSWER</div>
-          <div className="t">{col.answer || '(no answer given)'}</div></div>)}
-    </div>
-  )
-}
+const STATIONS = [
+  { id: 'search', icon: '🔎', name: 'Search', left: '12%' },
+  { id: 'read', icon: '📖', name: 'Read', left: '44%' },
+  { id: 'answer', icon: '✍️', name: 'Answer', left: '76%' },
+]
+const AGENT_POS = { idle: '1%', search: '13%', read: '45%', answer: '77%' }
 
-function CompareBar({ cols }) {
-  const rows = [
-    ['tokens', c => (c.usage.prompt_tokens || 0) + (c.usage.completion_tokens || 0)],
-    ['cost $', c => c.usage.cost_usd || 0],
-    ['steps', c => c.usage.steps || 0],
-    ['seconds', c => ((c.doneAt || Date.now()) - c.t0) / 1000],
-  ]
-  return (
-    <div className="cmp">
-      <div className="k">HEAD TO HEAD</div>
-      {rows.map(([label, f]) => {
-        const vals = cols.map(f); const max = Math.max(...vals, 1e-9)
-        return (
-          <div className="cmprow" key={label}>
-            <span className="cmplabel">{label}</span>
-            {cols.map((c, i) => (
-              <span className="cmpcell" key={c.strategy}>
-                <span className="cmpbar" style={{ width: `${(vals[i] / max) * 100}%` }} />
-                <span className="cmpval">{label === 'cost $'
-                  ? vals[i].toFixed(5) : Math.round(vals[i] * 10) / 10}</span>
-              </span>))}
-          </div>)
-      })}
-    </div>
-  )
-}
-
-function LiveTab({ examples }) {
-  const [question, setQuestion] = useState('')
-  const [apiKey, setApiKey] = useState(() => sessionStorage.getItem('demo_key') || '')
-  const [strats, setStrats] = useState({ sieve: true, search_visit: false })
-  const [cols, setCols] = useState(null)
-  const [running, setRunning] = useState(false)
-  const [fail, setFail] = useState('')
-
-  const start = () => {
-    const strategies = Object.keys(strats).filter(s => strats[s])
-    if (!question.trim() || !apiKey.trim() || strategies.length === 0) {
-      setFail('need a question, an API key, and at least one strategy'); return
-    }
-    sessionStorage.setItem('demo_key', apiKey)
-    setFail(''); setRunning(true)
-    const t0 = Date.now()
-    const init = strategies.map(s => ({
-      strategy: s, events: [], usage: {}, steps: 0, answer: null, error: null, t0, doneAt: null,
-    }))
-    setCols(init)
-    const upd = (strategy, f) => setCols(cs =>
-      cs.map(c => (c.strategy === strategy ? f({ ...c }) : c)))
-    streamRun({ question, api_key: apiKey, model: 'gpt-4o-mini', strategies }, msg => {
-      if (msg.event === 'step') upd(msg.strategy, c => {
-        c.steps += 1
-        c.events = [...c.events, ...liveStepToEvents(msg.step, c.steps)]
-        c.usage = msg.usage; return c
-      })
-      if (msg.event === 'done') upd(msg.strategy, c => {
-        c.answer = msg.answer; c.usage = msg.usage; c.doneAt = Date.now(); return c
-      })
-      if (msg.event === 'error') upd(msg.strategy, c => {
-        c.error = msg.message; c.doneAt = Date.now(); return c
-      })
-    }, m => { setFail(m); setRunning(false) }).then(() => setRunning(false))
-  }
-
-  const allDone = cols && cols.every(c => c.doneAt)
-  return (
-    <div className="live">
-      <div className="liveform">
-        <textarea className="qbox" rows={2} value={question} placeholder="Ask anything about the collection…"
-                  onChange={e => setQuestion(e.target.value)} />
-        <div className="chipsrow">try:{examples.map(q => (
-          <button className="exchip" key={q} onClick={() => setQuestion(q)}
-                  title={q}>{q.slice(0, 70)}…</button>))}</div>
-        <div className="formrow">
-          <input className="keybox" type="password" value={apiKey} placeholder="OpenAI API key (sk-…)"
-                 onChange={e => setApiKey(e.target.value)} />
-          <span className="modeltag">gpt-4o-mini</span>
-          {Object.keys(STRAT_LABEL).map(s => (
-            <label className="stratpick" key={s}>
-              <input type="checkbox" checked={strats[s]}
-                     onChange={e => setStrats({ ...strats, [s]: e.target.checked })} />
-              {STRAT_LABEL[s]}
-            </label>))}
-          <button className="btn primary" disabled={running} onClick={start}>
-            {running ? '⏳ running' : '▶ run live'}</button>
-        </div>
-        <div className="keynote">Your key goes browser → this local server → OpenAI. Never stored or logged.</div>
-        {fail && <div className="liveerr">⚠ {fail}</div>}
-      </div>
-      {cols && (
-        <div className={`livecols${cols.length === 2 ? ' two' : ''}`}>
-          {cols.map(c => <LiveColumn col={c} key={c.strategy} />)}
-        </div>)}
-      {allDone && cols.length === 2 && <CompareBar cols={cols} />}
-    </div>
-  )
-}
-
-/* ---------- leaf components ---------- */
-
-function Typewriter({ prefix, prefixClass, text, cps = 40, speed, onDone }) {
-  const [n, setN] = useState(0)
-  const done = n >= text.length
+function Stage({ strategy, col, question, mini }) {
+  const s = STRATS[strategy]
+  const station = col ? col.station : 'idle'
+  const [landing, setLanding] = useState(false)
+  const prev = useRef(station)
   useEffect(() => {
-    if (done) { onDone && onDone(); return }
-    const t = setTimeout(() => setN(n + 1), 1000 / (cps * speed))
-    return () => clearTimeout(t)
-  }, [n, done, cps, speed])
+    if (prev.current !== station) {
+      prev.current = station
+      const t = setTimeout(() => { setLanding(true); setTimeout(() => setLanding(false), 500) }, 720)
+      return () => clearTimeout(t)
+    }
+  }, [station])
+  // pupils track the cursor a little
+  const stageRef = useRef(null)
+  const onMove = e => {
+    const r = stageRef.current?.getBoundingClientRect()
+    if (!r) return
+    stageRef.current.style.setProperty('--ex', `${((e.clientX - r.left) / r.width - .5) * 4}px`)
+    stageRef.current.style.setProperty('--ey', `${((e.clientY - r.top) / r.height - .5) * 3}px`)
+  }
+  const running = col && !col.doneAt && !col.error
+  const action = col?.action ||
+    (col ? 'warming up…' : 'give me a question and a key, then press ↑')
   return (
-    <div className="say">
-      <span className={prefixClass}>{prefix}</span> {text.slice(0, n)}
-      {!done && <span className="cur" />}
+    <div className={`stage-card${mini ? ' mini' : ''}`} style={{ '--ac': s.color, '--ac-soft': s.soft }}>
+      <div className="stage-head">
+        <div className="stage-who">
+          <span className="who-dot" />
+          <span className="who-name">{s.label}</span>
+          <span className="who-sub">{s.sub}</span>
+        </div>
+        {col && <Meter usage={col.usage} t0={col.t0} done={col.doneAt} color={s.color} />}
+      </div>
+      <div className={`ticker${running ? ' live' : ''}`}>{action}</div>
+      <div className="stage" id={`stage-${strategy}`} ref={stageRef} onMouseMove={onMove}>
+        <div className="floor" />
+        {STATIONS.map(st => (
+          <div key={st.id} id={`st-${strategy}-${st.id}`}
+               className={`station${station === st.id ? ' active' : ''}`}
+               style={{ left: st.left }}>
+            <div className="st-pad">{st.icon}</div>
+            <div className="st-name">{st.name}</div>
+          </div>
+        ))}
+        <div className="agent" style={{ left: AGENT_POS[station] || AGENT_POS.idle }}>
+          <div className={landing ? 'land' : ''}>
+            <Mascot color={s.color}
+                    thinking={running && station !== 'answer'}
+                    sad={!!col?.error}
+                    happy={!!col?.doneAt && !col?.error} />
+          </div>
+        </div>
+      </div>
     </div>
   )
 }
+
+/* ---------- feed cards ---------- */
 
 function Snip({ text, query }) {
   const terms = useMemo(
@@ -277,169 +276,322 @@ function Snip({ text, query }) {
 
 function HitCard({ hit, query }) {
   return (
-    <div className="card">
-      <div className="top">
-        <span className="rank">#{hit.rank}</span>
-        <span className="title">{hit.title}</span>
-        <span className="docid">{hit.id}</span>
-        {hit.matched && <span className="match">matched: {hit.matched}</span>}
+    <div className="hit">
+      <div className="hit-t">
+        <span className="rank">{hit.rank}</span>
+        <b>{hit.title}</b>
+        <span className="hid">{hit.id}</span>
+        {hit.matched && <span className="matched">matched: {hit.matched}</span>}
       </div>
-      <div className="chips">{hit.sections.map(s => <span className="chip" key={s}>§ {s}</span>)}</div>
-      <Snip text={hit.snippet} query={query} />
+      {hit.sections.length > 0 && (
+        <div className="secs">{hit.sections.map(x => <span className="sec" key={x}>§ {x}</span>)}</div>
+      )}
+      {hit.snippet && <Snip text={hit.snippet} query={query} />}
     </div>
   )
 }
 
-function SectionCard({ doc, section, text, error }) {
-  return (
-    <div className={`sect${error ? ' err' : ''}`}>
-      <div className="from">{error ? '⚠' : '§'} {doc} · {section}</div>
-      <div className="body">{text}</div>
-    </div>
-  )
-}
-
-function EvidenceCard({ e }) {
+function ReadCard({ doc, part, text, error, whole }) {
   const [open, setOpen] = useState(false)
+  const long = text.length > 550
+  const shown = open || !long ? text : text.slice(0, 550) + ' …'
   return (
-    <div className={`ecard${open ? ' open' : ''}`} onClick={() => setOpen(!open)}>
-      <div className="h">{e.doc} · §{e.section}</div>
-      <div className="b">{e.text}</div>
+    <div className={`read-card${error ? ' err' : ''}`}
+         onClick={() => long && setOpen(!open)} style={long ? { cursor: 'pointer' } : null}>
+      <div className="read-h">
+        <span>{error ? '⚠' : '📖'}</span> <b>{doc}{part ? ` · ${part}` : ''}</b>
+        {whole && !error && <span className="whole">whole document · {fmtTok(text.length)} chars</span>}
+      </div>
+      <div className="read-b">{shown}</div>
+      {long && <div className="more">{open ? 'collapse ▴' : 'expand ▾'}</div>}
     </div>
+  )
+}
+
+function Feed({ col, gold }) {
+  return (
+    <div className="feed">
+      {col.events.map((e, i) => {
+        if (e.kind === 'act') return (
+          <div className="act-line" key={i}>
+            <span className="n">{e.step}</span>
+            <b>{e.op}:</b>&nbsp;<span className="at">{e.text}</span>
+          </div>)
+        if (e.kind === 'hit') return <HitCard hit={e.hit} query={e.query} key={i} />
+        if (e.kind === 'read') return <ReadCard {...e} key={i} />
+        if (e.kind === 'zero') return <div className="note" key={i}>{e.text}</div>
+        if (e.kind === 'note') return <div className="note" key={i}>{e.text}</div>
+        return null
+      })}
+      {col.error && <div className="err-banner">⚠ {col.error}</div>}
+      {col.answer != null && <AnswerCard answer={col.answer} gold={gold} usage={col.usage}
+                                         secs={((col.doneAt || Date.now()) - col.t0) / 1000} />}
+    </div>
+  )
+}
+
+function AnswerCard({ answer, gold, usage, secs }) {
+  const ok = gold != null && answer && answer.toLowerCase().includes(gold.toLowerCase())
+  return (
+    <div className={`answer${gold != null ? (ok ? ' good' : ' miss') : ''}`}>
+      <div className="k">final answer</div>
+      <div className="t">{answer || 'no answer given'}</div>
+      <div className="g">
+        {gold != null && (ok
+          ? <span className="ok">✓ matches the gold answer</span>
+          : <span className="no">✗ gold: <i>{gold}</i></span>)}
+        <span className="stats"> ${(usage.cost_usd || 0).toFixed(5)} · {usage.steps || 0} steps · {secs.toFixed(1)}s</span>
+      </div>
+    </div>
+  )
+}
+
+/* ---------- head-to-head ---------- */
+
+function Compare({ cols }) {
+  const metrics = [
+    ['tokens', c => (c.usage.prompt_tokens || 0) + (c.usage.completion_tokens || 0), fmtTok],
+    ['cost', c => c.usage.cost_usd || 0, v => `$${v.toFixed(5)}`],
+    ['steps', c => c.usage.steps || 0, v => `${v}`],
+    ['time', c => ((c.doneAt || Date.now()) - c.t0) / 1000, v => `${v.toFixed(1)}s`],
+  ]
+  return (
+    <div className="compare">
+      <div className="cmp-head">
+        <span className="cmp-title">Head to head</span>
+        <span className="cmp-legend">
+          {cols.map(c => (
+            <span key={c.strategy}>
+              <span className="dot" style={{ background: STRATS[c.strategy].color }} />
+              {STRATS[c.strategy].label}
+            </span>))}
+        </span>
+      </div>
+      {metrics.map(([label, f, fmt]) => {
+        const vals = cols.map(f); const max = Math.max(...vals, 1e-9)
+        return (
+          <div className="cmp-metric" key={label}>
+            <span className="cmp-label">{label}</span>
+            <div className="cmp-bars">
+              {cols.map((c, i) => (
+                <div className="cmp-row" key={c.strategy}>
+                  <div className="track">
+                    <div className="fill" style={{
+                      width: `${Math.max((vals[i] / max) * 100, 2.5)}%`,
+                      background: STRATS[c.strategy].color,
+                    }} />
+                  </div>
+                  <span className="val">{fmt(vals[i])}</span>
+                </div>))}
+            </div>
+          </div>)
+      })}
+    </div>
+  )
+}
+
+/* ---------- the collection wall ---------- */
+
+function Wall({ corpus, seen, read }) {
+  const reading = [...read].slice(-1)[0]
+  const now = corpus.find(d => d.id === reading)
+  return (
+    <aside className="shelf">
+      <div className="sh-h">The collection <span>{corpus.length} docs</span></div>
+      <div className="sh-hint">watch it light up as the agent works</div>
+      <div className="wall">
+        {corpus.map(d => (
+          <div key={d.id} id={`cell-${d.id}`} title={d.title}
+               className={`cell${read.has(d.id) ? ' read' : seen.has(d.id) ? ' seen' : ''}`} />
+        ))}
+      </div>
+      <div className="legend">
+        <span><i className="sw seen" />surfaced</span>
+        <span><i className="sw read" />read</span>
+      </div>
+      <div className="sh-now">
+        {now ? <><b>last read</b>{now.title}</>
+             : seen.size > 0 ? <><b>{seen.size} docs surfaced</b>skimming the cards…</> : null}
+      </div>
+    </aside>
   )
 }
 
 /* ---------- the app ---------- */
 
 export default function App() {
-  const [ep, setEp] = useState(0)
-  const [cursor, setCursor] = useState(0)         // how many events are visible
-  const [playing, setPlaying] = useState(true)
-  const [speed, setSpeed] = useState(1)
-  const [typing, setTyping] = useState(false)     // gate: wait for typewriter
-  const [liveMode, setLiveMode] = useState(false)
-  const streamEnd = useRef(null)
+  const [meta, setMeta] = useState(null)          // null = loading, false = server offline
+  const [question, setQuestion] = useState('')
+  const [apiKey, setApiKey] = useState(() => sessionStorage.getItem('demo_key') || '')
+  const [mode, setMode] = useState('sieve')
+  const [cols, setCols] = useState(null)
+  const [running, setRunning] = useState(false)
+  const [fail, setFail] = useState('')
+  const askedQuestion = useRef('')
 
-  const examples = DATA.episodes.map(e => e.question)
-  const episode = DATA.episodes[ep]
-  const events = useMemo(() => toEvents(episode), [episode])
-  const visible = events.slice(0, cursor)
-
-  // advance the cursor on a timer (paused while a typewriter is running)
   useEffect(() => {
-    if (!playing || typing || cursor >= events.length) return
-    const cur = events[cursor - 1]
-    const t = setTimeout(() => {
-      const nxt = events[cursor]
-      if (nxt && nxt.kind === 'agent') setTyping(true)
-      setCursor(cursor + 1)
-    }, ((cur && cur.dwell) || 300) / speed)
-    return () => clearTimeout(t)
-  }, [playing, typing, cursor, events, speed])
-
-  useEffect(() => { streamEnd.current?.scrollIntoView({ behavior: 'smooth' }) }, [cursor, typing])
-  useEffect(() => {
-    const h = e => { if (e.code === 'Space') { e.preventDefault(); setPlaying(p => !p) } }
-    window.addEventListener('keydown', h); return () => window.removeEventListener('keydown', h)
+    fetch('/api/meta').then(r => r.json()).then(setMeta).catch(() => setMeta(false))
   }, [])
 
-  const pick = i => { setEp(i); setCursor(0); setTyping(false); setPlaying(true) }
-  const restart = () => { setCursor(0); setTyping(false); setPlaying(true) }
-
-  // derived state for sidebar + counters
-  const evidence = [], seen = new Set(), fetched = new Set()
-  let stepNow = 0, calls = 0
-  for (const e of visible) {
-    if (e.kind === 'agent') { stepNow = e.step; calls += 1 }
-    if (e.kind === 'hit') seen.add(e.hit.id)
-    if (e.kind === 'section' && !e.error) { evidence.push(e); fetched.add(e.doc) }
+  const start = () => {
+    const strategies = mode === 'both' ? ['sieve', 'search_visit'] : [mode]
+    if (!question.trim()) { setFail('type a question — or tap an example below'); return }
+    if (!apiKey.trim()) { setFail('paste your OpenAI API key — it never leaves your machine except to call OpenAI'); return }
+    sessionStorage.setItem('demo_key', apiKey)
+    setFail(''); setRunning(true)
+    askedQuestion.current = question
+    const t0 = Date.now()
+    setCols(strategies.map(s => ({
+      strategy: s, events: [], usage: {}, steps: 0, answer: null, error: null,
+      t0, doneAt: null, station: 'idle', action: null,
+    })))
+    const upd = (strategy, f) => setCols(cs =>
+      cs.map(c => (c.strategy === strategy ? f({ ...c }) : c)))
+    streamRun({ question, api_key: apiKey, model: 'gpt-4o-mini', strategies }, msg => {
+      if (msg.event === 'step') {
+        upd(msg.strategy, c => {
+          c.steps += 1
+          const it = interpretStep(msg.step, c.steps)
+          c.events = [...c.events, ...it.items]
+          if (it.station) c.station = it.station
+          if (it.action) c.action = it.action
+          c.usage = msg.usage
+          if (it.station === 'search') {
+            setTimeout(() => spawnPackets(msg.strategy, 'search', STRATS[msg.strategy].color), 780)
+          }
+          for (const d of it.read || []) setTimeout(() => flyTile(msg.strategy, d), 780)
+          return c
+        })
+      }
+      if (msg.event === 'done') upd(msg.strategy, c => {
+        c.answer = msg.answer; c.usage = msg.usage; c.doneAt = Date.now()
+        c.station = 'answer'; c.action = 'done'
+        setTimeout(() => confetti(msg.strategy), 760)
+        return c
+      })
+      if (msg.event === 'error') upd(msg.strategy, c => {
+        c.error = msg.message; c.doneAt = Date.now(); c.action = 'something went wrong'
+        return c
+      })
+    }, m => {
+      setFail(m === 'offline'
+        ? 'lost the connection to the local server — is it still running?' : m)
+      setRunning(false)
+    }).then(() => setRunning(false))
   }
-  const finished = cursor >= events.length
+
+  const { seen, read } = useMemo(() => {
+    const seen = new Set(), read = new Set()
+    for (const c of cols || []) for (const e of c.events) {
+      if (e.kind === 'hit') seen.add(e.hit.id)
+      if (e.kind === 'read' && !e.error) read.add(e.doc)
+    }
+    return { seen, read }
+  }, [cols])
+
+  const gold = useMemo(() => {
+    if (!meta || !meta.questions) return null
+    const hit = meta.questions.find(x => x.question === askedQuestion.current)
+    return hit ? hit.gold : null
+  }, [meta, cols])
+
+  const ran = cols != null
+  const duo = ran && cols.length === 2
+
+  const composer = meta && (
+    <div className="composer">
+      <textarea
+        className="q-input" rows={2} value={question}
+        placeholder="Ask the agent anything about the collection…"
+        onChange={e => setQuestion(e.target.value)}
+        onKeyDown={e => {
+          if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); start() }
+        }}
+      />
+      <div className="c-row">
+        <div className="pills">
+          {MODES.map(m => (
+            <button key={m.id} className={`pill${mode === m.id ? ' on' : ''}${m.id === 'both' ? ' vs' : ''}`}
+                    onClick={() => setMode(m.id)}>{m.name}</button>))}
+        </div>
+        <label className="key">🔑
+          <input type="password" value={apiKey} placeholder="OpenAI key (sk-…)"
+                 onChange={e => setApiKey(e.target.value)} />
+        </label>
+        <button className="send" disabled={running} onClick={start} title="run (⌘↩)">
+          {running ? '…' : '↑'}
+        </button>
+      </div>
+    </div>
+  )
 
   return (
-    <div className="app">
-      <header>
-        <div className="logo">⌕ SkimSearch<span>Agent</span></div>
-        <div className="tabs">
-          {DATA.episodes.map((e, i) => (
-            <button key={i} className={`tab${!liveMode && i === ep ? ' on' : ''}`}
-                    onClick={() => { setLiveMode(false); pick(i) }}>
-              Q{i + 1} · {e.question.slice(0, 44)}{e.question.length > 44 ? '…' : ''}
-            </button>
-          ))}
-          <button className={`tab${liveMode ? ' on' : ''}`}
-                  onClick={() => setLiveMode(true)}>▶ Live</button>
+    <div className="page">
+      <nav className="topbar">
+        <div className="logo"><Logo /> SkimSearch<b>Agent</b></div>
+        <div className="top-links">
+          <span className="tag">Sieve · live demo</span>
+          <a href="https://github.com/ielab/skim-search-agent" target="_blank" rel="noreferrer">GitHub ↗</a>
         </div>
-        <div className="controls">
-          <span className="counters">step <b>{stepNow}</b> · calls <b>{calls}</b></span>
-          <input className="speed" type="range" min="0.4" max="3" step="0.2"
-                 value={speed} onChange={e => setSpeed(parseFloat(e.target.value))} title="speed" />
-          <button className="btn" onClick={restart} title="restart">↺</button>
-          <button className="btn primary" onClick={() => finished ? restart() : setPlaying(!playing)}>
-            {finished ? '▶ replay' : playing ? '⏸ pause' : '▶ play'}
-          </button>
-        </div>
-      </header>
-      {liveMode ? (
-        <main className="livemain"><LiveTab examples={examples} /></main>
-      ) : (
-      <main>
-        <div className="stream">
-          <div className="q">
-            <div className="k">QUESTION</div>
-            <div className="t">{episode.question}</div>
-            {episode.settings && Object.keys(episode.settings).length > 0 &&
-              <div className="settings">
-                {Object.entries(episode.settings).map(([k, v]) =>
-                  <span className="set" key={k}><b>{k}</b> {String(v)}</span>)}
-              </div>}
-          </div>
-          {visible.map((e, i) => {
-            if (e.kind === 'agent') return (
-              <div className="row" key={i}>
-                <div className="who agent"><span className="dot" />AGENT · step {e.step}</div>
-                <Typewriter prefix={`${e.op}:`} prefixClass={e.op === 'search' ? 'op' : 'fop'}
-                            text={e.text} speed={speed}
-                            onDone={() => setTyping(false)} />
-              </div>)
-            if (e.kind === 'results') return (
-              <div className="row" key={i}>
-                <div className="who tool"><span className="dot" />SEARCH RESULTS</div>
-                {e.status && <div className="status">{e.status}</div>}
-              </div>)
-            if (e.kind === 'hit') return (
-              <div className="row" key={i}><div className="cards"><HitCard hit={e.hit} query={e.query} /></div></div>)
-            if (e.kind === 'section') return (
-              <div className="row" key={i}><SectionCard {...e} /></div>)
-            if (e.kind === 'answer') return (
-              <div className="ans" key={i}>
-                <div className="k">FINAL ANSWER</div>
-                <div className="t">{episode.answer}</div>
-                <div className="g">gold: <b>{episode.gold}</b> · {episode.correct
-                  ? <span className="ok">✓ correct</span> : '✗'} · {episode.calls} model calls</div>
-              </div>)
-            return null
-          })}
-          <div ref={streamEnd} />
-        </div>
-        <aside className="side">
-          <h3>EVIDENCE COLLECTED</h3>
-          <div className="evi">
-            {evidence.length === 0 && <div className="none">nothing fetched yet…</div>}
-            {evidence.map((e, i) => <EvidenceCard e={e} key={i} />)}
-          </div>
-          <h3>THE COLLECTION</h3>
-          <div className="shelf">
-            {DATA.corpus.map(d => (
-              <div key={d.id}
-                   className={`doc${fetched.has(d.id) ? ' fetched' : seen.has(d.id) ? ' seen' : ''}`}>
-                <span className="lamp" />{d.title}<span className="secs">{d.sections.length}§</span>
-              </div>
-            ))}
-          </div>
-        </aside>
-      </main>
-      )}
+      </nav>
+
+      <div className={`layout${meta ? ' with-shelf' : ''}`}>
+        <main className="content">
+          {!ran && (
+            <header className="hero">
+              <h1>What should the agent <span className="hi">find</span> for you?</h1>
+              <p>{meta ? `${meta.corpus.length} real documents` : '…'} · the real research loop · every token on the bill</p>
+            </header>
+          )}
+
+          {meta === false && (
+            <div className="offline">
+              This page needs its local server.<br />
+              Start it with <code>python demo/server.py</code> and reload.
+            </div>
+          )}
+
+          {!ran && composer}
+          {!ran && meta && (
+            <div className="examples">
+              {meta.questions.map(x => (
+                <button className="ex" key={x.question} onClick={() => setQuestion(x.question)}>
+                  <b>real BrowseComp-Plus question · gold answer known</b>
+                  {x.question.length > 150 ? x.question.slice(0, 150) + '…' : x.question}
+                </button>))}
+            </div>
+          )}
+          {!ran && meta && (
+            <div className="idle-stage"><Stage strategy={mode === 'both' ? 'sieve' : mode} col={null} /></div>
+          )}
+          {fail && <div className="err-banner center">⚠ {fail}</div>}
+
+          {ran && (
+            <div className="asked">
+              <span className="asked-k">Q</span>{askedQuestion.current}
+            </div>
+          )}
+          {ran && (
+            <div className={`arena${duo ? ' duo' : ''}`}>
+              {cols.map(c => (
+                <div className="lane" key={c.strategy}>
+                  <Stage strategy={c.strategy} col={c} mini={duo} />
+                  <Feed col={c} gold={gold} />
+                </div>))}
+            </div>
+          )}
+          {duo && cols.every(c => c.doneAt) && <Compare cols={cols} />}
+
+          <footer className="foot">
+            every run on this page is the real <code>agent_search</code> loop — nothing is recorded
+            or faked · “Search, Inspect, Fetch” (Sieve)
+          </footer>
+        </main>
+
+        {meta && <Wall corpus={meta.corpus} seen={seen} read={read} />}
+      </div>
+
+      {ran && <div className="dock">{composer}</div>}
     </div>
   )
 }

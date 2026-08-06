@@ -1,4 +1,4 @@
-"""One-time OFFLINE curation of the demo's BrowseComp-Plus subsample -> browsecomp_data.json.
+"""One-time OFFLINE curation of the demo's BrowseComp-Plus subsample -> corpus_data.json.
 
 Needs internet (Hugging Face) once; needs NO OpenAI key (the published structured corpus is
 already sectioned by the paper's own batch pass). Two sources, joined on docid (see
@@ -9,9 +9,9 @@ docs/superpowers/specs/2026-08-06-live-demo-design.md §2):
   - wshuai190/browsecomp-plus-structured-full structured/corpus.jsonl (stream-filtered over
     HTTP, early-stopped): the matching docs' title/author/date/sections.
 
-    python demo/recorder/build_corpus.py                       # full run (~10-50 min: streams
+    python demo/build_corpus.py                       # full run (~10-50 min: streams
                                                                #   through a 6.1GB remote file)
-    python demo/recorder/build_corpus.py --cache /tmp/bcp_subsample_structured.jsonl
+    python demo/build_corpus.py --cache /tmp/bcp_subsample_structured.jsonl
                                                                # reuse an already-filtered dump
 """
 from __future__ import annotations
@@ -22,7 +22,7 @@ import sys
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-sys.path.insert(0, str(HERE.parent.parent))
+sys.path.insert(0, str(HERE.parent))
 
 # The two curated queries (verified against the live dataset — spec §2):
 #   798 -> Lady Shri Ram College for Women (3 gold docs)
@@ -31,7 +31,7 @@ QUERY_IDS = ("798", "792")
 GOLD_DOCIDS = ("37133", "39666", "41817", "51481")
 STRUCTURED_URL = ("https://huggingface.co/datasets/wshuai190/browsecomp-plus-structured-full"
                   "/resolve/main/structured/corpus.jsonl")
-OUT = HERE / "browsecomp_data.json"
+OUT = HERE / "corpus_data.json"
 
 # Outlier cap: purely demo-UX/cost motivated (repo size does NOT require it — the whole
 # subsample is ~3.5MB). The 40K floor keeps every known gold section intact (largest:
@@ -49,7 +49,7 @@ def cap_body(body: str, cap: int = CAP_CHARS) -> str:
 
 
 def record_to_doc(rec: dict) -> dict:
-    """A structured/corpus.jsonl record -> the JSON doc shape browsecomp_corpus.py loads.
+    """A structured/corpus.jsonl record -> the JSON doc shape corpus.py loads.
     Body is built from `sections` (## heading markers — how DocSearchFetch/Bm25Visit and the
     demo UIs expect section boundaries), not the redundant flat `text` field."""
     sections = [[s.get("heading") or "(untitled)", s.get("text") or ""]

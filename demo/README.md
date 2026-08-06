@@ -1,37 +1,35 @@
 # Demo — watch a research agent think
 
-**Open [`index.html`](index.html).** That's it — one file, no key, no GPU, no server.
+One page, one command: ask any question over a curated collection of **102 real
+BrowseComp-Plus documents** and watch the real `agent_search` loop search, read, and answer —
+live, streamed step by step, with every token on a running cost meter.
 
-Want to ask your own questions? The **live mode** runs the real library against the same
-collection with your own OpenAI key — see [`live/README.md`](live/README.md).
+```bash
+pip install -e ".[demo-live]"
+python demo/server.py          # -> http://localhost:8008/
+```
 
-A React player of real recorded gpt-4o-mini episodes: the agent **types out** each Boolean
-search live, result cards animate in (title, § section chips, matched fields, query-highlighted
-snippets), every fetched section slides into the **Evidence Collected** panel, the collection
-shelf lights up as documents are surfaced and read, and the final answer is revealed and checked
-against gold. Play/pause (spacebar), speed slider, one tab per question. All three episodes are
-genuine unedited runs — including the step where the agent fumbles a section name and corrects
-itself.
+Bring your own OpenAI API key (typed into the page; a run is capped at 12 steps and costs
+well under a cent on gpt-4o-mini). The key travels browser → this local server → OpenAI, is
+used for that one request only, and is never stored or logged.
+
+**Compare mode** runs the same question through two strategies side by side — **Sieve**
+(Boolean search + fetch named sections, the paper's method) vs **Search-Visit** (BM25 + read
+whole documents, the classic baseline) — each with its own live meter, ending in a
+head-to-head chart of tokens / cost / steps / time. That contrast is the paper's headline
+claim, live on your screen.
 
 ```
 demo/
-├── index.html    ← the demo (prebuilt, self-contained — just open it)
-├── app/          the React source (Vite): npm install && npm run dev
-├── live/         bring-your-own-key live server (FastAPI SSE) — see live/README.md
-└── recorder/     how episodes are made
-    ├── browsecomp_corpus.py  loads the curated ~102-doc BrowseComp-Plus subsample + 2 questions
-    ├── browsecomp_data.json  the checked-in corpus data (generated once by build_corpus.py)
-    ├── build_corpus.py       one-time offline curation script (Hugging Face -> the JSON above)
-    ├── record.py        gpt-4o-mini drives the library's DocSearchFetch workspace
-    ├── episodes.jsonl   the recorded episodes (all correct, 3–6 steps)
-    └── build_web.py     episodes.jsonl → app/src/data.json
+├── server.py          the whole backend: FastAPI + SSE, wraps the real agent loop
+├── app/               React frontend (Vite): npm install && npm run build
+├── index.html         prebuilt single-file page (the server serves app/dist/ or this)
+├── corpus.py          loads the collection for the agent workspaces
+├── corpus_data.json   the curated 102-doc BrowseComp-Plus subsample (checked in)
+├── build_corpus.py    one-time offline curation script (documents the provenance)
+└── parse.py           tool-observation -> card parsers shared by server tests
 ```
 
-Record fresh episodes (a few cents of gpt-4o-mini), then rebuild:
-
-```bash
-export OPENAI_API_KEY=...
-python demo/recorder/record.py
-python demo/recorder/build_web.py
-cd demo/app && npm run build && cp dist/index.html ../index.html
-```
+The two example questions on the page are real BrowseComp-Plus queries with known gold
+answers (the page checks your run against gold when you use them). Free-text questions about
+anything in the collection work too.

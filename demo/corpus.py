@@ -1,9 +1,8 @@
 """The demo's curated BrowseComp-Plus collection: ~102 real docs (2 queries' gold + distractor
 pools from the paper's published structured corpus) + the 2 curated questions.
 
-Data lives in browsecomp_data.json (generated once, offline, by build_corpus.py — checked in so
-no demo run ever needs Hugging Face access). Same CORPUS/QUESTIONS surface the old hand-written
-corpus.py exposed; record.py, build_web.py, and demo/live/server.py all import from here."""
+Data lives in corpus_data.json (generated once, offline, by build_corpus.py — checked in so
+no demo run ever needs Hugging Face access). demo/server.py imports from here."""
 from __future__ import annotations
 
 import json
@@ -11,7 +10,7 @@ from pathlib import Path
 
 from agent_search.corpus.units import CodeUnit
 
-_DATA = json.loads((Path(__file__).resolve().parent / "browsecomp_data.json").read_text())
+_DATA = json.loads((Path(__file__).resolve().parent / "corpus_data.json").read_text())
 
 
 def _unit(d: dict) -> CodeUnit:
