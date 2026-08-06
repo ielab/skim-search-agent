@@ -17,35 +17,7 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent.parent))
 
-HIT = re.compile(r"^\s*(\d+)\s+(\S+)\s+'([^']*)'\s+§\[([^\]]*)\]\s+ib\[([^\]]*)\]"
-                 r"(?:\s+matched:\s+(\S+))?\s+»\s+(.*)$")
-FETCH = re.compile(r"^\s*\[(\S+)\s+§(.*?)\]\s+(.*)$", re.S)
-
-
-def parse_search(obs: str) -> dict:
-    lines = obs.split("\n")
-    m = re.match(r"search:\s*(.*?)\s+->\s+(.*?)(?:\s{2,}\((.*)\))?\s*$", lines[0])
-    out = {"compiled": m.group(2) if m else "", "status": (m.group(3) if m else "") or "",
-           "hits": []}
-    for ln in lines[1:]:
-        h = HIT.match(ln)
-        if h:
-            out["hits"].append({
-                "rank": int(h.group(1)), "id": h.group(2), "title": h.group(3),
-                "sections": [s for s in h.group(4).split("·") if s],
-                "infobox": [s for s in h.group(5).split("·") if s],
-                "matched": h.group(6) or "", "snippet": h.group(7).strip()})
-    return out
-
-
-def parse_fetch(obs: str) -> dict:
-    body = obs.split("fetch:", 1)[-1].strip()
-    m = FETCH.match(body)
-    if not m:
-        return {"doc": "?", "section": "?", "text": body, "error": body.startswith("ERROR")}
-    text = m.group(3).strip()
-    return {"doc": m.group(1), "section": m.group(2),
-            "text": text, "error": text.startswith("ERROR")}
+from demo.recorder.parse import parse_fetch, parse_search  # noqa: E402
 
 
 def build_episode(row: dict) -> dict:
