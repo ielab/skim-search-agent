@@ -39,7 +39,7 @@ def build_episode(row: dict) -> dict:
 
 
 def main():
-    from demo.recorder.corpus import CORPUS
+    from demo.recorder.browsecomp_corpus import CORPUS
     episodes = [build_episode(json.loads(l)) for l in open(HERE / "episodes.jsonl")]
     corpus = [{"id": u.doc_id, "title": u.title,
                "sections": re.findall(r"^## (.+)$", u.body, re.M)} for u in CORPUS]

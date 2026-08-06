@@ -15,7 +15,9 @@ demo/
 ├── index.html    ← the demo (prebuilt, self-contained — just open it)
 ├── app/          the React source (Vite): npm install && npm run dev
 └── recorder/     how episodes are made
-    ├── corpus.py        the 8-article demo collection + questions
+    ├── browsecomp_corpus.py  loads the curated ~102-doc BrowseComp-Plus subsample + 2 questions
+    ├── browsecomp_data.json  the checked-in corpus data (generated once by build_corpus.py)
+    ├── build_corpus.py       one-time offline curation script (Hugging Face -> the JSON above)
     ├── record.py        gpt-4o-mini drives the library's DocSearchFetch workspace
     ├── episodes.jsonl   the recorded episodes (all correct, 3–6 steps)
     └── build_web.py     episodes.jsonl → app/src/data.json

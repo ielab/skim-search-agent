@@ -31,7 +31,7 @@ import os                                              # noqa: E402
 os.environ.setdefault("MAX_VISIT_TOKENS", str(SETTINGS["max_section_tokens"]))
 os.environ.setdefault("MAX_SECTION_TOKENS", str(SETTINGS["max_section_tokens"]))
 
-from demo.recorder.corpus import CORPUS, QUESTIONS  # noqa: E402
+from demo.recorder.browsecomp_corpus import CORPUS, QUESTIONS  # noqa: E402
 from agent_search.agent.tools.doc_research import DocSearchFetch  # noqa: E402
 
 SYSTEM = """You are a research agent answering a question over a document collection you can
