@@ -85,3 +85,7 @@ main{display:grid;grid-template-columns:minmax(0,1fr) 320px;min-height:0}
 .doc .secs{margin-left:auto;font-family:var(--mono);font-size:9.5px;color:var(--faint)}
 ::-webkit-scrollbar{width:9px}
 ::-webkit-scrollbar-thumb{background:var(--line);border-radius:5px}
+
+.settings{display:flex;gap:6px;flex-wrap:wrap;margin-top:12px}
+.set{font-family:var(--mono);font-size:10px;color:var(--dim);border:1px solid var(--line);border-radius:5px;padding:2px 7px}
+.set b{color:var(--cyan);font-weight:600;margin-right:4px}

@@ -15,6 +15,22 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
+# THE PIPELINE SETTINGS — the same knobs (and values) the paper's `research_snip` condition
+# runs under; run.py exposes the same names. Change them here and they flow through
+# build_web.py into both demo UIs automatically.
+SETTINGS = {
+    "strategy": "sieve_bm25 (research_snip)",
+    "model": "gpt-4o-mini",
+    "k": 5,                        # results per search (paper: k=5)
+    "max_section_tokens": 12000,   # per-fetch read ceiling (paper: 12,000)
+    "max_steps": 12,               # demo budget (paper: 100)
+    "snippets": True,              # result-card snippets on (the _snip arm)
+    "engine": "BQL reference executor",
+}
+import os                                              # noqa: E402
+os.environ.setdefault("MAX_VISIT_TOKENS", str(SETTINGS["max_section_tokens"]))
+os.environ.setdefault("MAX_SECTION_TOKENS", str(SETTINGS["max_section_tokens"]))
+
 from demo.recorder.corpus import CORPUS, QUESTIONS  # noqa: E402
 from agent_search.agent.tools.doc_research import DocSearchFetch  # noqa: E402
 
@@ -30,13 +46,13 @@ answer: <final answer>      — a short answer span, only once you have read sup
 Search first, skim the result cards, fetch only what you need, then answer."""
 
 
-def run_episode(client, question: str, max_steps: int = 12) -> dict:
+def run_episode(client, question: str, max_steps: int = SETTINGS["max_steps"]) -> dict:
     ws = DocSearchFetch(CORPUS, snippets=True)
     msgs = [{"role": "system", "content": SYSTEM},
             {"role": "user", "content": f"Question: {question}"}]
     traj = []
     for _ in range(max_steps):
-        out = client.chat.completions.create(model="gpt-4o-mini", messages=msgs,
+        out = client.chat.completions.create(model=SETTINGS["model"], messages=msgs,
                                              temperature=0.2, max_tokens=200)
         text = (out.choices[0].message.content or "").strip()
         m = re.match(r"(search|fetch|answer)\s*:\s*(.+)", text, re.S | re.I)
@@ -50,7 +66,7 @@ def run_episode(client, question: str, max_steps: int = 12) -> dict:
                 return {"question": question, "final_answer": arg, "trajectory": traj,
                         "llm_calls": len(traj)}
             if act == "search":
-                obs = ws.search(arg, k=5)
+                obs = ws.search(arg, k=SETTINGS["k"])
                 traj.append({"action": "search", "args": {"query": arg}, "observation": obs})
             else:
                 doc, _, section = arg.partition("::")
@@ -72,6 +88,7 @@ def main():
             print(f">> {q}")
             row = run_episode(client, q)
             row["gold"] = gold
+            row["settings"] = SETTINGS
             row["correct"] = gold.lower() in row["final_answer"].lower()
             print(f"   -> {row['final_answer']!r}  correct={row['correct']}  "
                   f"steps={len(row['trajectory'])}")

@@ -62,7 +62,8 @@ def build_episode(row: dict) -> dict:
                           **parse_fetch(s.get("observation", ""))})
     return {"question": row.get("question", ""), "answer": row.get("final_answer", ""),
             "gold": row.get("gold", ""), "correct": bool(row.get("correct")),
-            "calls": row.get("llm_calls", len(steps)), "steps": steps}
+            "calls": row.get("llm_calls", len(steps)), "steps": steps,
+            "settings": row.get("settings") or {}}
 
 
 def main():

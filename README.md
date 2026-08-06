@@ -11,6 +11,7 @@ retrieval and reading primitives, reproducible evaluation, and the interfaces th
 [![Pluggable](https://img.shields.io/badge/corpora%20%7C%20models%20%7C%20methods-pluggable-00897B.svg)](#what-can-be-swapped)
 
 [Quickstart](#quickstart) ·
+[Demo](#demo) ·
 [Concepts](#what-can-be-swapped) ·
 [Strategies](#included-strategies) ·
 [Extend](#build-your-own) ·
@@ -65,6 +66,8 @@ python3.10 -m venv .venv && source .venv/bin/activate
 python -m pip install -e .
 ```
 
+Prefer to *watch* one first? See the [Demo](#demo) below — no key, no GPU, no server.
+
 Run a complete research-agent experiment as one command — every knob is a `key=value`:
 
 ```bash
@@ -80,7 +83,7 @@ python run.py dataset=fixture strategy=search_visit model=gpt-4o-mini limit=1
 
 # or run an open-weight model in-process with vLLM (GPU required, no API key)
 python run.py dataset=fixture strategy=sieve_bm25 \
-    model=Qwen/Qwen2.5-1.5B-Instruct backend=vllm limit=1
+    model=openai/gpt-oss-20b backend=vllm limit=1
 ```
 
 `strategy` accepts friendly names (`search_visit`, `search_fetch`, `autoread`, `dci`,
@@ -111,6 +114,28 @@ experiment ran. API keys and common knobs are documented in [`.env.example`](.en
 ```bash
 python run.py dataset=hotpotqa_structured strategy=sieve model=gpt-4o-mini limit=20
 ```
+
+## Demo
+
+Open **[`demo/index.html`](demo/index.html)** in any browser — a single self-contained file, no
+install of any kind. It replays real recorded gpt-4o-mini episodes on a small collection where
+the answers are only findable by searching:
+
+<!-- TODO: capture a screenshot/GIF of the player and embed it here:
+<p align="center"><img src="docs/assets/demo.gif" width="85%" alt="the demo player"/></p> -->
+
+- the agent **types out** each Boolean search live;
+- **result cards** animate in — title, § section chips, matched fields, snippets with the query
+  terms highlighted;
+- every fetched section slides into the **Evidence Collected** panel, and the collection shelf
+  lights up as documents are surfaced and read;
+- the final answer is revealed and checked against gold, with play/pause (spacebar), a speed
+  slider, and one tab per question.
+
+The player displays the exact pipeline settings each episode ran under (`k=5`,
+`max_section_tokens=12000`, snippets on — the paper's values); the recorder drives the
+**library's own** search/fetch workspace, so what you watch is the real mechanism, not a mockup.
+To hack on the player or record your own episodes, see [`demo/`](demo/README.md).
 
 ## What can be swapped?
 

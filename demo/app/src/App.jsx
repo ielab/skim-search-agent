@@ -155,7 +155,15 @@ export default function App() {
       </header>
       <main>
         <div className="stream">
-          <div className="q"><div className="k">QUESTION</div><div className="t">{episode.question}</div></div>
+          <div className="q">
+            <div className="k">QUESTION</div>
+            <div className="t">{episode.question}</div>
+            {episode.settings && Object.keys(episode.settings).length > 0 &&
+              <div className="settings">
+                {Object.entries(episode.settings).map(([k, v]) =>
+                  <span className="set" key={k}><b>{k}</b> {String(v)}</span>)}
+              </div>}
+          </div>
           {visible.map((e, i) => {
             if (e.kind === 'agent') return (
               <div className="row" key={i}>
