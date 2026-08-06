@@ -323,7 +323,7 @@ def gemini_generate(model: str, *, base_url: str = _GEMINI_BASE_URL,
 def make_generate(model: str = DEFAULT_MODEL, *, backend: str = "vllm",
                   api_base: str = "http://localhost:8000/v1", tp: int = 1,
                   temperature: float = 0.6, seed: int | None = 42,
-                  client=None) -> Callable[[str], str]:
+                  client=None, api_key: str | None = None) -> Callable[[str], str]:
     """The single agent-backend entry: route (backend, model) to the right generate callable.
 
     - An OpenAI model (gpt-*, o-series, chatgpt-*) ALWAYS routes to the OpenAI API
@@ -337,18 +337,25 @@ def make_generate(model: str = DEFAULT_MODEL, *, backend: str = "vllm",
     - backend="vllm" (default) loads the model in-process on the GPU.
 
     `client` is injectable (offline tests). Extensible: add a provider by adding a matcher
-    (is_<provider>_model) + a branch here."""
+    (is_<provider>_model) + a branch here.
+
+    `api_key` (optional) is forwarded to whichever HTTP-client branch is chosen, overriding the
+    env-var fallback — required by the live-demo server, where concurrent requests carry
+    DIFFERENT users' keys (env vars are process-global). None preserves today's env fallback."""
     if is_openai_model(model):
         if is_reasoning_model(model):
             return openai_reasoning_generate(model=model, base_url=_OPENAI_BASE_URL,
-                                             seed=seed, client=client)
+                                             seed=seed, client=client, api_key=api_key)
         return openai_compat_generate(model=model, base_url=_OPENAI_BASE_URL,
-                                      temperature=temperature, seed=seed, client=client)
+                                      temperature=temperature, seed=seed, client=client,
+                                      api_key=api_key)
     if is_gemini_model(model):
         return gemini_generate(model=model, base_url=_GEMINI_BASE_URL,
-                               temperature=temperature, seed=seed, client=client)
+                               temperature=temperature, seed=seed, client=client,
+                               api_key=api_key)
     if backend == "api":
         return openai_compat_generate(model=model, base_url=api_base,
-                                      temperature=temperature, seed=seed, client=client)
+                                      temperature=temperature, seed=seed, client=client,
+                                      api_key=api_key)
     return vllm_generate(model=model, tensor_parallel_size=tp,
                          temperature=temperature, seed=seed)

@@ -154,3 +154,32 @@ def test_gemini_usage_is_recorded_after_fallback():
     B.gemini_generate(model="gemini-2.5-flash-lite", client=client)("hi")
     totals = B.usage_totals()
     assert totals["llm_calls"] == 1 and totals["prompt_tokens"] == 5
+
+
+# --- api_key passthrough (live-demo server: per-request user keys, not process env) -------------
+
+def _capture_openai_ctor(monkeypatch):
+    seen = {}
+
+    class FakeOpenAI:
+        def __init__(self, *, base_url, api_key):
+            seen["base_url"] = base_url
+            seen["api_key"] = api_key
+
+    monkeypatch.setattr("openai.OpenAI", FakeOpenAI)
+    return seen
+
+
+def test_make_generate_forwards_explicit_api_key_over_env(monkeypatch):
+    seen = _capture_openai_ctor(monkeypatch)
+    monkeypatch.setenv("OPENAI_API_KEY", "env-key")
+    B.make_generate("gpt-4o-mini", api_key="user-key")
+    assert seen["api_key"] == "user-key"
+    assert seen["base_url"] == B._OPENAI_BASE_URL
+
+
+def test_make_generate_api_key_defaults_to_env(monkeypatch):
+    seen = _capture_openai_ctor(monkeypatch)
+    monkeypatch.setenv("OPENAI_API_KEY", "env-key")
+    B.make_generate("gpt-4o-mini")
+    assert seen["api_key"] == "env-key"
