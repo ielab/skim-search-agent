@@ -2,6 +2,9 @@
 
 **Open [`index.html`](index.html).** That's it — one file, no key, no GPU, no server.
 
+Want to ask your own questions? The **live mode** runs the real library against the same
+collection with your own OpenAI key — see [`live/README.md`](live/README.md).
+
 A React player of real recorded gpt-4o-mini episodes: the agent **types out** each Boolean
 search live, result cards animate in (title, § section chips, matched fields, query-highlighted
 snippets), every fetched section slides into the **Evidence Collected** panel, the collection
@@ -14,6 +17,7 @@ itself.
 demo/
 ├── index.html    ← the demo (prebuilt, self-contained — just open it)
 ├── app/          the React source (Vite): npm install && npm run dev
+├── live/         bring-your-own-key live server (FastAPI SSE) — see live/README.md
 └── recorder/     how episodes are made
     ├── browsecomp_corpus.py  loads the curated ~102-doc BrowseComp-Plus subsample + 2 questions
     ├── browsecomp_data.json  the checked-in corpus data (generated once by build_corpus.py)
