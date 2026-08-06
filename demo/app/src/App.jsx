@@ -184,10 +184,14 @@ function Meter({ usage, t0, done, color }) {
   }, [done])
   const secs = ((done || Date.now()) - t0) / 1000
   const tok = (usage.prompt_tokens || 0) + (usage.completion_tokens || 0)
+  // cached input is billed at half rate — show the share so the cost is auditable
+  const cachedPct = usage.prompt_tokens
+    ? Math.round((usage.cached_input_tokens || 0) / usage.prompt_tokens * 100) : 0
   return (
     <div className="meter">
       <b style={{ color }}>${(usage.cost_usd || 0).toFixed(5)}</b>
       <span>{fmtTok(tok)} tok</span>
+      {cachedPct > 0 && <span title="share of input tokens served from the provider's prompt cache, billed at half rate">{cachedPct}% cached</span>}
       <span>{usage.steps || 0} steps</span>
       <span>{secs.toFixed(1)}s</span>
     </div>

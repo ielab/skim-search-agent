@@ -125,3 +125,22 @@ def test_error_event_redacts_key_shaped_tokens(monkeypatch):
 def test_unlisted_model_rejected():
     r = _post(TestClient(server.app), model="mystery-model-9000")
     assert r.status_code == 422
+
+
+def test_cost_discounts_cached_input():
+    """Cached input is a SUBSET of prompt_tokens billed at the cached rate; the remainder
+    bills at the full input rate. 1M uncached @ $0.15 + 1M cached @ $0.075 + 1M out @ $0.60."""
+    assert server._cost("gpt-4o-mini", 2_000_000, 1_000_000, 1_000_000) == pytest.approx(0.825)
+    # fully cached input is exactly half the uncached price
+    full = server._cost("gpt-4o-mini", 1_000_000, 0, 0)
+    cached = server._cost("gpt-4o-mini", 1_000_000, 0, 1_000_000)
+    assert cached == pytest.approx(full / 2)
+    # a provider reporting more cached than prompt tokens must never produce a negative bill
+    assert server._cost("gpt-4o-mini", 1000, 0, 5000) >= 0
+
+
+def test_usage_snapshot_reports_cached_tokens(monkeypatch):
+    monkeypatch.setattr(server, "_make_generate", _scripted_generate(SIEVE_SCRIPT))
+    events = _sse_events(_post(TestClient(server.app)).text)
+    steps = [e for e in events if e["event"] == "step"]
+    assert steps and "cached_input_tokens" in steps[0]["usage"]

@@ -55,7 +55,11 @@ from demo.parse import (parse_bm25_search, parse_fetch,        # noqa: E402
 # ONLY seam between this server and a real API call.
 _make_generate = backends.make_generate
 
-MAX_STEPS = 12                       # bounds every live run's cost and latency
+MAX_STEPS = 20                       # bounds every live run's cost and latency. 20, not 12:
+                                     # a multi-hop BrowseComp question needs several
+                                     # search->read hops, and the fixed cost of an episode
+                                     # (the manual, re-sent each turn) only amortises over a
+                                     # run long enough to actually do the hops.
 # $ per 1M tokens (OpenAI published rates): (uncached input, CACHED input, output). The
 # frontend's model choice is restricted to these keys so the meter never guesses.
 # Cached input matters here and is not a rounding error: OpenAI caches any prompt over 1024
