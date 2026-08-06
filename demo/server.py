@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import queue
 import re
 import sys
@@ -26,6 +27,15 @@ from typing import Literal
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent))
+
+# THE PAPER'S READ BUDGET. Both caps are read at IMPORT time by
+# agent_search/agent/tools/doc_research.py, so they must be set BEFORE that import below.
+# The library default is 1200 tokens; the paper runs 12,000. That difference is not cosmetic
+# for this demo: it is the baseline's whole-document `visit` budget, so leaving it at 1200
+# silently truncated Search-Visit's reads ~10x and made the expensive-baseline contrast — the
+# whole point of the comparison — invisible (Sieve appeared to cost MORE per run).
+os.environ.setdefault("MAX_VISIT_TOKENS", "12000")     # whole-doc read ceiling (Search-Visit)
+os.environ.setdefault("MAX_SECTION_TOKENS", "12000")   # per-section read ceiling (Sieve)
 
 from fastapi import FastAPI                                    # noqa: E402
 from fastapi.middleware.cors import CORSMiddleware             # noqa: E402
@@ -46,9 +56,15 @@ from demo.parse import (parse_bm25_search, parse_fetch,        # noqa: E402
 _make_generate = backends.make_generate
 
 MAX_STEPS = 12                       # bounds every live run's cost and latency
-# $ per 1M prompt/completion tokens (OpenAI published rates). The frontend's model choice is
-# restricted to these keys so the meter never guesses.
-PRICES: dict[str, tuple[float, float]] = {"gpt-4o-mini": (0.15, 0.60)}
+# $ per 1M tokens (OpenAI published rates): (uncached input, CACHED input, output). The
+# frontend's model choice is restricted to these keys so the meter never guesses.
+# Cached input matters here and is not a rounding error: OpenAI caches any prompt over 1024
+# tokens automatically, and an agent episode re-sends a growing conversation with a STABLE
+# prefix (system manual + question) every turn, so most input tokens after turn 1 are cache
+# hits billed at half price. Ignoring that overstates cost — and overstates it unevenly,
+# since the two strategies carry very different fixed prefixes (Sieve's BQL manual is ~2K
+# tokens larger than the BM25 baseline's, and it is exactly the part that caches).
+PRICES: dict[str, tuple[float, float, float]] = {"gpt-4o-mini": (0.15, 0.075, 0.60)}
 
 # Neither shipped manual variant matches this corpus exactly: `browsecomp` documents
 # title/author/date/body but denies that sections exist (so every named-section fetch fails),
@@ -104,16 +120,22 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"],
                    allow_headers=["*"])
 
 
-def _cost(model: str, prompt_tokens: int, completion_tokens: int) -> float:
-    p_in, p_out = PRICES.get(model, (0.0, 0.0))
-    return prompt_tokens / 1e6 * p_in + completion_tokens / 1e6 * p_out
+def _cost(model: str, prompt_tokens: int, completion_tokens: int,
+          cached_tokens: int = 0) -> float:
+    """Billed cost. `cached_tokens` is the SUBSET of `prompt_tokens` that hit the provider's
+    prefix cache, billed at the discounted rate; the remainder bills at the full input rate."""
+    p_in, p_cached, p_out = PRICES.get(model, (0.0, 0.0, 0.0))
+    uncached = max(prompt_tokens - cached_tokens, 0)
+    return (uncached / 1e6 * p_in + cached_tokens / 1e6 * p_cached
+            + completion_tokens / 1e6 * p_out)
 
 
 def _usage_snapshot(model: str) -> dict:
     t = backends.usage_totals()      # thread-local: this worker's episode only
+    cached = t.get("cached_input_tokens", 0)
     return {"prompt_tokens": t["prompt_tokens"], "completion_tokens": t["completion_tokens"],
-            "llm_calls": t["llm_calls"],
-            "cost_usd": round(_cost(model, t["prompt_tokens"], t["completion_tokens"]), 6)}
+            "cached_input_tokens": cached, "llm_calls": t["llm_calls"],
+            "cost_usd": round(_cost(model, t["prompt_tokens"], t["completion_tokens"], cached), 6)}
 
 
 def _step_payload(step) -> dict:
