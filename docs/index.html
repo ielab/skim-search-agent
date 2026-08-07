@@ -153,6 +153,19 @@
   .cfill{height:100%;border-radius:0 5px 5px 0}
   .cval{font-family:var(--mono);font-size:11px;text-align:right;font-variant-numeric:tabular-nums}
 
+  .pv-chips{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:12px}
+  .pv-chip{font-size:11.5px;color:var(--ink-2);background:var(--bg);border:1px solid var(--line);border-radius:999px;padding:4px 11px;cursor:pointer;transition:.15s;max-width:330px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .pv-chip:hover{border-color:var(--teal);color:var(--ink)}
+  .pv-chip.on{background:var(--teal-soft);border-color:var(--teal);color:var(--teal);font-weight:700}
+  .pv-stage{height:150px;margin:10px 0 2px}
+  .pv-stage .st-pad{width:52px;height:52px;font-size:21px;border-radius:17px}
+  .pv-stage .station{top:14px}
+  .pv-item{opacity:0;transform:translateY(8px);animation:reveal .35s ease-out forwards}
+  @keyframes reveal{to{opacity:1;transform:none}}
+  .pv-replay{margin-top:14px;font-size:11.5px;font-weight:650;color:var(--ink-2);background:var(--bg);border:1px solid var(--line);border-radius:9px;padding:5px 13px;cursor:pointer}
+  .pv-replay:hover{border-color:var(--teal);color:var(--teal)}
+  .cfill{transition:width .8s cubic-bezier(.2,.8,.2,1)}
+
   /* sections */
   section{padding:56px 0 0}
   .sec-k{font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--teal);font-weight:700}
@@ -208,7 +221,8 @@
     SkimSearch<b>Agent</b>
   </div>
   <div class="nav">
-    <a class="opt" href="#results">Results</a>\n    <a class="opt" href="#method">Method</a>
+    <a class="opt" href="#results">Results</a>
+    <a class="opt" href="#method">Method</a>
     <a class="opt" href="#library">Library</a>
     <a class="opt" href="#demo">Demo</a>
     <a href="https://arxiv.org/abs/2608.02751">Paper</a>
@@ -345,61 +359,29 @@ python run.py dataset=fixture strategy=sieve_bm25   <span class="c"># one episod
       <div class="chrome">
         <span class="dots"><i></i><i></i><i></i></span>
         <span class="url">localhost:8008</span>
-        <span class="badge">preview — the real thing runs on your machine</span>
+        <span class="badge">pre-recorded replay — the real thing runs on your machine</span>
       </div>
       <div class="pv">
-        <div class="pv-q"><span class="k">Q</span>Which article discusses creatine supplementation
-          as an adjunct therapy for rheumatoid arthritis?</div>
+        <div class="pv-chips" id="pvChips"></div>
+        <div class="pv-q"><span class="k">Q</span><span id="pvQ"></span></div>
         <div class="pv-bar">
           <span class="pv-pill">Sieve</span>
           <span class="pv-pill off">Search-Visit</span>
-          <span class="pv-pill off">⚔ Race both</span>
-          <span class="pv-meter"><b>$0.00087</b> · 9.7K tok · 64% cached · 2.6K ch read</span>
+          <span class="pv-pill off">&#9876; Race both</span>
+          <span class="pv-meter" id="pvMeter"><b>$0.00000</b> &middot; 0 tok &middot; 0 ch read</span>
         </div>
 
-        <div class="pv-act"><span class="n">1</span><b>search:</b>&nbsp;creatine[title] AND arthritis[body]</div>
-        <div class="pv-note">IN(title, creatine) AND IN(body, arthritis) · 4 matches</div>
-
-        <div class="pv-hit">
-          <div class="t"><span class="pv-rank">1</span><b>Creatine supplementation: A potential adjunct therapy for rheumatoid arthritis patients</b><span class="pv-id">75582</span><span class="pv-m">matched: title,section,body</span></div>
-          <div class="pv-secs"><span class="pv-sec">§ Abstract summary</span><span class="pv-sec">§ Introduction</span><span class="pv-sec">§ Rheumatoid cachexia</span><span class="pv-sec">§ Muscle wasting treatments</span><span class="pv-sec">+20 more</span></div>
-          <div class="pv-snip">…Oral creatine supplementation … in healthy athletic populations via enhanced muscle mass…</div>
-        </div>
-        <div class="pv-hit">
-          <div class="t"><span class="pv-rank">2</span><b>Oral creatine supplementation: A potential adjunct therapy for rheumatoid arthritis patients</b><span class="pv-id">51481</span><span class="pv-m">matched: title,section,body</span></div>
-          <div class="pv-secs"><span class="pv-sec">§ Review aim and rationale</span><span class="pv-sec">§ RA muscle loss and need</span><span class="pv-sec">§ Mechanisms of cachexia</span><span class="pv-sec">+34 more</span></div>
-        </div>
-        <div class="pv-hit">
-          <div class="t"><span class="pv-rank">3</span><b>Can Creatine Supplementation Improve Body Composition and Objective Physical Function?</b><span class="pv-id">36568</span><span class="pv-m">matched: title,body</span></div>
-          <div class="pv-secs"><span class="pv-sec">§ Trial abstract</span><span class="pv-sec">§ Objectives</span><span class="pv-sec">§ Methods</span><span class="pv-sec">§ Results</span></div>
+        <div class="stage pv-stage" id="pvStage">
+          <div class="floor"></div>
+          <div class="station" id="pv-st-search" style="left:16%"><div class="st-pad">&#128270;</div><div class="st-name">Search</div></div>
+          <div class="station" id="pv-st-read" style="left:50%"><div class="st-pad">&#128214;</div><div class="st-name">Read</div></div>
+          <div class="station" id="pv-st-answer" style="left:84%"><div class="st-pad">&#9997;&#65039;</div><div class="st-name">Answer</div></div>
+          <div class="agent" id="pvAgent"><div class="lens"><span class="eye l"></span><span class="eye r"></span><span class="mouth"></span><div class="handle"></div></div><span class="bubble">&#128173;</span></div>
         </div>
 
-        <div class="pv-act"><span class="n">2</span><b>fetch:</b>&nbsp;1 § Abstract summary</div>
-        <div class="pv-read">
-          <div class="h">📖 <b>75582 · Abstract summary</b> — 2,569 characters</div>
-          <div class="b">Creatine is one of the most popular forms of protein supplements and is known to
-          improve performance in healthy athletic populations via enhanced muscle mass and adenosine
-          triphosphate energy regeneration. Clinical use of creatine may similarly…</div>
-        </div>
-
-        <div class="pv-ans">
-          <div class="k">Final answer</div>
-          <div class="t">“Creatine supplementation: A potential adjunct therapy for rheumatoid arthritis patients”</div>
-          <div class="g">✓ checked against the query's gold answer</div>
-        </div>
-
-        <div class="contrast">
-          <h4>Why it costs less</h4>
-          <p>Same question, same document, one read — measured with the library's own tools.</p>
-          <div class="crow"><span class="clabel">Sieve</span>
-            <span class="ctrack"><span class="cfill" style="width:3.3%;background:var(--teal)"></span></span>
-            <span class="cval">2,569 ch</span></div>
-          <div class="crow"><span class="clabel">Search-Visit</span>
-            <span class="ctrack"><span class="cfill" style="width:100%;background:var(--violet)"></span></span>
-            <span class="cval">78,200 ch</span></div>
-          <p style="margin-top:9px">A named section instead of the whole document — <b style="color:var(--teal)">3.3%</b>
-          of the text, for the same answer.</p>
-        </div>
+        <div id="pvFeed"></div>
+        <div id="pvContrast"></div>
+        <button class="pv-replay" id="pvReplay">&#8635; replay</button>
       </div>
     </div>
 
@@ -509,6 +491,137 @@ async function episode() {
   confetti(); await sleep(4200)
 }
 ;(async () => { for (;;) await episode() })()
+
+/* ---- playground: pre-recorded replays of real library output ---- */
+const SCEN = [
+  {
+    id: 'creatine',
+    chip: 'Which article discusses creatine supplementation for rheumatoid arthritis?',
+    q: 'Which article discusses creatine supplementation as an adjunct therapy for rheumatoid arthritis?',
+    steps: [
+      {station:'search', act:'search: creatine[title] AND arthritis[body]',
+       note:'IN(title, creatine) AND IN(body, arthritis) &middot; 4 matches', cost:0.00031, tok:'3.1K', read:0,
+       hits:[
+        {r:1,id:'75582',t:'Creatine supplementation: A potential adjunct therapy for rheumatoid arthritis patients',
+         secs:['Abstract summary','Introduction','Rheumatoid cachexia','+21 more'],m:'title,section,body',
+         snip:'&hellip;Oral creatine supplementation &hellip; improves performance in healthy athletic populations via enhanced muscle mass&hellip;'},
+        {r:2,id:'51481',t:'Oral creatine supplementation: A potential adjunct therapy for rheumatoid arthritis patients',
+         secs:['Review aim and rationale','RA muscle loss and need','+35 more'],m:'title,section,body',snip:''},
+        {r:3,id:'36568',t:'Can Creatine Supplementation Improve Body Composition and Objective Physical Function?',
+         secs:['Trial abstract','Objectives','Methods','Results'],m:'title,body',snip:''}]},
+      {station:'read', act:'fetch: 1 &sect; Abstract summary', cost:0.00058, tok:'6.2K', read:2569,
+       read_h:'75582 &middot; Abstract summary', read_n:'2,569 characters',
+       read_b:'Creatine is one of the most popular forms of protein supplements and is known to improve performance in healthy athletic populations via enhanced muscle mass and adenosine triphosphate energy regeneration. Clinical use of creatine may similarly&hellip;'},
+      {station:'answer', cost:0.00087, tok:'9.7K', read:2569,
+       answer:'&ldquo;Creatine supplementation: A potential adjunct therapy for rheumatoid arthritis patients&rdquo;',
+       gold:'&check; grounded in the fetched section'}
+    ],
+    contrast:{sieve:2569, base:78200, note:'the same document, read two ways'}
+  },
+  {
+    id: 'lsr',
+    chip: "Which women's college in Delhi was established in 1956?",
+    q: "Which women's college in Delhi was established in 1956, and what is it called today?",
+    steps: [
+      {station:'search', act:'search: college[title] AND 1956[body]',
+       note:'IN(title, college) AND IN(body, 1956) &middot; 3 matches', cost:0.00028, tok:'2.8K', read:0,
+       hits:[
+        {r:1,id:'37133',t:'Lady Shri Ram College &mdash; Wikipedia',
+         secs:['History and founding','Infrastructure and governance','Academics and programs'],m:'title,section,body',
+         snip:'name: Lady Shri Ram College &middot; other_name: LSR &middot; motto: S&#257; vidy&#257; y&#257; vimuktaye&hellip;'},
+        {r:2,id:'39666',t:'How Lala Shri Ram set up Lady Shri Ram College for Women',
+         secs:['Textile mill in Hissar','Need for LSR in Delhi','Establishing Lady Shri Ram College'],m:'title,section,body',snip:''}]},
+      {station:'read', act:'fetch: 1 &sect; History and founding', cost:0.00051, tok:'5.4K', read:397,
+       read_h:'37133 &middot; History and founding', read_n:'397 characters',
+       read_b:'Established in 1956 in New Delhi by the late Lala Shri Ram in memory of his wife Phoolan Devi (Lady Shri Ram), the college began in a school building in Daryaganj, Central Delhi with 299 students, nine faculty, and four staff&hellip;'},
+      {station:'answer', cost:0.00087, tok:'9.7K', read:397,
+       answer:'Lady Shri Ram College for Women, established 1956 in New Delhi.',
+       gold:'&check; matches the gold answer'}
+    ],
+    contrast:{sieve:397, base:7033, note:'the same document, read two ways'}
+  }
+];
+const POS = {idle:'1%', search:'13%', read:'47%', answer:'81%'};
+let pvTimers = [], pvActive = 0;
+
+function pvClear(){ pvTimers.forEach(clearTimeout); pvTimers = []; }
+function pvAt(ms, fn){ pvTimers.push(setTimeout(fn, ms)); }
+function pvStation(id){
+  ['search','read','answer'].forEach(k =>
+    document.getElementById('pv-st-'+k).classList.toggle('active', k===id));
+  document.getElementById('pvAgent').style.left = POS[id] || POS.idle;
+}
+function pvMeter(c, tok, read){
+  document.getElementById('pvMeter').innerHTML =
+    '<b>$' + c.toFixed(5) + '</b> &middot; ' + tok + ' tok &middot; ' + read.toLocaleString() + ' ch read';
+}
+function pvAdd(html){
+  const d = document.createElement('div'); d.className = 'pv-item'; d.innerHTML = html;
+  document.getElementById('pvFeed').appendChild(d);
+}
+function pvHit(h){
+  return '<div class="pv-hit"><div class="t"><span class="pv-rank">' + h.r + '</span><b>' + h.t +
+    '</b><span class="pv-id">' + h.id + '</span><span class="pv-m">matched: ' + h.m + '</span></div>' +
+    '<div class="pv-secs">' + h.secs.map(x => '<span class="pv-sec">&sect; ' + x + '</span>').join('') + '</div>' +
+    (h.snip ? '<div class="pv-snip">' + h.snip + '</div>' : '') + '</div>';
+}
+function pvPlay(i){
+  pvClear(); pvActive = i;
+  const sc = SCEN[i];
+  document.getElementById('pvQ').innerHTML = sc.q;
+  document.getElementById('pvFeed').innerHTML = '';
+  document.getElementById('pvContrast').innerHTML = '';
+  pvMeter(0, '0', 0);
+  pvStation(null);
+  [...document.querySelectorAll('.pv-chip')].forEach((c, k) => c.classList.toggle('on', k === i));
+
+  let t = 700, n = 0;
+  sc.steps.forEach(step => {
+    n += 1; const num = n;
+    pvAt(t, () => { pvStation(step.station); pvMeter(step.cost, step.tok, step.read); });
+    t += 620;
+    if (step.act) { pvAt(t, () => pvAdd('<div class="pv-act"><span class="n">' + num +
+      '</span><b>' + step.act.split(':')[0] + ':</b>&nbsp;' + step.act.split(':').slice(1).join(':') + '</div>' +
+      (step.note ? '<div class="pv-note">' + step.note + '</div>' : ''))); t += 520; }
+    (step.hits || []).forEach(h => { pvAt(t, () => pvAdd(pvHit(h))); t += 430; });
+    if (step.read_h) { pvAt(t, () => pvAdd('<div class="pv-read"><div class="h">&#128214; <b>' +
+      step.read_h + '</b> &mdash; ' + step.read_n + '</div><div class="b">' + step.read_b + '</div></div>')); t += 900; }
+    if (step.answer) { pvAt(t, () => pvAdd('<div class="pv-ans"><div class="k">Final answer</div><div class="t">' +
+      step.answer + '</div><div class="g">' + step.gold + '</div></div>')); t += 700; }
+  });
+  pvAt(t, () => {
+    const c = sc.contrast, pct = (c.sieve / c.base * 100);
+    document.getElementById('pvContrast').innerHTML =
+      '<div class="contrast"><h4>Why it costs less</h4><p>' + c.note +
+      ' &mdash; measured with the library&rsquo;s own tools.</p>' +
+      '<div class="crow"><span class="clabel">Sieve &sect; section</span><span class="ctrack">' +
+      '<span class="cfill" style="width:0;background:var(--teal)"></span></span><span class="cval">' +
+      c.sieve.toLocaleString() + ' ch</span></div>' +
+      '<div class="crow"><span class="clabel">Search-Visit doc</span><span class="ctrack">' +
+      '<span class="cfill" style="width:0;background:var(--violet)"></span></span><span class="cval">' +
+      c.base.toLocaleString() + ' ch</span></div>' +
+      '<p style="margin-top:9px"><b style="color:var(--teal)">' + pct.toFixed(1) +
+      '%</b> of the text, for the same answer.</p></div>';
+    const fills = document.querySelectorAll('#pvContrast .cfill');
+    requestAnimationFrame(() => { fills[0].style.width = Math.max(pct, 1.5) + '%'; fills[1].style.width = '100%'; });
+  });
+  pvAt(t + 5200, () => pvPlay((i + 1) % SCEN.length));
+}
+(function pvInit(){
+  const chips = document.getElementById('pvChips');
+  SCEN.forEach((sc, i) => {
+    const b = document.createElement('button');
+    b.className = 'pv-chip'; b.textContent = sc.chip; b.title = sc.q;
+    b.onclick = () => pvPlay(i);
+    chips.appendChild(b);
+  });
+  document.getElementById('pvReplay').onclick = () => pvPlay(pvActive);
+  const io = new IntersectionObserver(es => {
+    es.forEach(e => { if (e.isIntersecting) { pvPlay(0); io.disconnect(); } });
+  }, {threshold: .25});
+  io.observe(document.getElementById('pvStage'));
+})();
+
 </script>
 </body>
 </html>
