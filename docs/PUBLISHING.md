@@ -5,9 +5,14 @@ figures in `docs/assets/`. Any static host can serve it. Three routes, cheapest 
 
 ## 1. Project page on this repo — 2 minutes, no new accounts
 
-Repository → **Settings → Pages → Build and deployment → Source: GitHub Actions**.
+Nothing to click: the workflow enables Pages itself on first run
+(`configure-pages` with `enablement: true`, using the job's `pages: write` permission).
 
-That's the whole setup: `.github/workflows/pages.yml` publishes `docs/` on every push to
+If your organisation restricts that, do it by hand instead — Repository →
+**Settings → Pages → Build and deployment → Source: GitHub Actions** — and re-run the failed
+job from the Actions tab.
+
+Either way: `.github/workflows/pages.yml` publishes `docs/` on every push to
 `main`. The page appears at:
 
 ```

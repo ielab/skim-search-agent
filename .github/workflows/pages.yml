@@ -1,7 +1,7 @@
 # Publish the project page (docs/) to GitHub Pages on every push to main.
 #
-# One-time setup in the repository: Settings -> Pages -> Build and deployment ->
-# Source: "GitHub Actions". No branch selection is needed with this workflow.
+# No manual setup needed: configure-pages runs with enablement:true, so the first run
+# creates the Pages site itself (the job holds the pages:write permission below).
 # The page is then served at https://<owner>.github.io/<repo>/ — see docs/PUBLISHING.md
 # for the vanity skimsearchagent.github.io route.
 name: Deploy project page
@@ -29,7 +29,12 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
+      # enablement: create the Pages site on first run instead of failing when it does not
+      # exist yet. Without it the very first run dies at this step with "Get Pages site
+      # failed" until someone flips Settings -> Pages -> Source to GitHub Actions by hand.
       - uses: actions/configure-pages@v5
+        with:
+          enablement: true
       - uses: actions/upload-pages-artifact@v3
         with:
           path: docs
