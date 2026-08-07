@@ -28,6 +28,8 @@ from typing import Literal
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent))
 
+DEFAULT_SNIPPET_TOKENS = 32   # mirrors agent_search.agent.tools.doc_research.SNIPPET_TOKENS
+
 # THE PAPER'S READ BUDGET. Both caps are read at IMPORT time by
 # agent_search/agent/tools/doc_research.py, so they must be set BEFORE that import below.
 # The library default is 1200 tokens; the paper runs 12,000. That difference is not cosmetic
@@ -36,6 +38,10 @@ sys.path.insert(0, str(HERE.parent))
 # whole point of the comparison — invisible (Sieve appeared to cost MORE per run).
 os.environ.setdefault("MAX_VISIT_TOKENS", "12000")     # whole-doc read ceiling (Search-Visit)
 os.environ.setdefault("MAX_SECTION_TOKENS", "12000")   # per-section read ceiling (Sieve)
+# Query-biased snippet window. Left at the library default so the demo shows the same listing
+# the harness produces; set SNIPPET_TOKENS in the environment to demo a sweep value
+# (32 / 64 / 128 / 256 / 512) and the search cards widen accordingly.
+os.environ.setdefault("SNIPPET_TOKENS", str(DEFAULT_SNIPPET_TOKENS))
 
 from fastapi import FastAPI                                    # noqa: E402
 from fastapi.middleware.cors import CORSMiddleware             # noqa: E402
