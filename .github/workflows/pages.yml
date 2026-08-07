@@ -1,7 +1,10 @@
 # Publish the project page (docs/) to GitHub Pages on every push to main.
 #
-# No manual setup needed: configure-pages runs with enablement:true, so the first run
-# creates the Pages site itself (the job holds the pages:write permission below).
+# ONE-TIME SETUP, required in this org: Settings -> Pages -> Build and deployment ->
+# Source: "GitHub Actions". enablement:true below asks the workflow to create the Pages
+# site itself, but GITHUB_TOKEN is not permitted to create Pages sites under the ielab org
+# ("Create Pages site failed: Resource not accessible by integration"), so the site has to
+# exist before the first successful run. Once it does, enablement is a harmless no-op.
 # The page is then served at https://<owner>.github.io/<repo>/ — see docs/PUBLISHING.md
 # for the vanity skimsearchagent.github.io route.
 name: Deploy project page
@@ -29,9 +32,9 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
-      # enablement: create the Pages site on first run instead of failing when it does not
-      # exist yet. Without it the very first run dies at this step with "Get Pages site
-      # failed" until someone flips Settings -> Pages -> Source to GitHub Actions by hand.
+      # Creates the Pages site where the token is allowed to; where it is not (this org),
+      # the site must be created once by hand — see the header. Kept because it makes the
+      # workflow portable to repos that do permit it.
       - uses: actions/configure-pages@v5
         with:
           enablement: true

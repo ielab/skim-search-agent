@@ -5,14 +5,17 @@ figures in `docs/assets/`. Any static host can serve it. Three routes, cheapest 
 
 ## 1. Project page on this repo — 2 minutes, no new accounts
 
-Nothing to click: the workflow enables Pages itself on first run
-(`configure-pages` with `enablement: true`, using the job's `pages: write` permission).
+**Do this once** (needs admin on the repo): Repository →
+**Settings → Pages → Build and deployment → Source: `GitHub Actions`**.
+Then Actions tab → the failed *Deploy project page* run → **Re-run all jobs**.
 
-If your organisation restricts that, do it by hand instead — Repository →
-**Settings → Pages → Build and deployment → Source: GitHub Actions** — and re-run the failed
-job from the Actions tab.
+This step is not optional under the `ielab` org. The workflow asks to create the Pages site
+itself (`configure-pages` with `enablement: true`), but `GITHUB_TOKEN` is not permitted to
+create Pages sites here — the run fails with *"Create Pages site failed: Resource not
+accessible by integration"*. Creating the site by hand is the only way past it; after that
+the token's `pages: write` is enough to deploy, and every later push just works.
 
-Either way: `.github/workflows/pages.yml` publishes `docs/` on every push to
+Once the site exists: `.github/workflows/pages.yml` publishes `docs/` on every push to
 `main`. The page appears at:
 
 ```
