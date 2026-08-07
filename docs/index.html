@@ -81,6 +81,16 @@
   .conf.go{animation:confl 1s ease-out forwards}
   .caption{text-align:center;font-size:12px;color:var(--ink-3);margin-top:10px}
 
+  /* authors */
+  .authors-row{display:flex;flex-wrap:wrap;justify-content:center;gap:6px 22px;margin-top:22px}
+  .au{font-size:15px;font-weight:600;color:var(--ink)}
+  .au a{color:var(--ink);border-bottom:1.5px solid var(--teal-soft);transition:.15s}
+  .au a:hover{color:var(--teal);border-bottom-color:var(--teal)}
+  .au sup{font-size:10.5px;color:var(--teal);font-weight:700;margin-left:1px}
+  .affil{display:flex;flex-direction:column;align-items:center;gap:2px;margin-top:12px;font-size:12.5px;color:var(--ink-3)}
+  .affil span sup{color:var(--teal);font-weight:700;margin-right:3px}
+  .venue{margin-top:14px;font-size:13px;color:var(--ink-2)}
+
   /* results */
   .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:24px}
   @media(max-width:720px){.stats{grid-template-columns:1fr}}
@@ -171,6 +181,20 @@
     <p class="sub">A composable library for building and evaluating deep-research agents over
     your own corpus — and <b>Sieve</b>, the Boolean search–inspect–fetch method that lets an
     agent <i>skim before it reads</i>.</p>
+    <div class="authors-row">
+      <span class="au"><a href="https://shuaiwang.io" target="_blank" rel="noreferrer">Shuai Wang</a><sup>1</sup></span>
+      <span class="au"><a href="https://donovan0243.github.io/" target="_blank" rel="noreferrer">Haodong Chen</a><sup>1</sup></span>
+      <span class="au"><a href="https://yinyubb.github.io/" target="_blank" rel="noreferrer">Yu Yin</a><sup>1</sup></span>
+      <span class="au"><a href="https://arvinzhuang.github.io/" target="_blank" rel="noreferrer">Shengyao Zhuang</a><sup>2</sup></span>
+      <span class="au"><a href="https://bevankoopman.github.io/" target="_blank" rel="noreferrer">Bevan Koopman</a><sup>3,1</sup></span>
+      <span class="au"><a href="https://ielab.io/people/guido-zuccon.html" target="_blank" rel="noreferrer">Guido Zuccon</a><sup>1</sup></span>
+    </div>
+    <div class="affil">
+      <span><sup>1</sup><a href="https://ielab.io" target="_blank" rel="noreferrer">ielab</a>, The University of Queensland</span>
+      <span><sup>2</sup>Amazon AGI</span>
+      <span><sup>3</sup>Australian e-Health Research Centre, CSIRO</span>
+    </div>
+
     <div class="cta">
       <a class="btn primary" href="https://github.com/ielab/skim-search-agent">★ GitHub</a>
       <a class="btn" href="https://arxiv.org/abs/2608.02751">Read the paper</a>
@@ -314,7 +338,14 @@ python demo/server.py   <span class="c"># → http://localhost:8008</span></pre>
 </div>
 
 <footer>
-  <div class="authors">Shuai Wang · Haodong Chen · Yu Yin · Shengyao Zhuang · Bevan Koopman · Guido Zuccon</div>
+  <div class="authors">
+    <a href="https://shuaiwang.io">Shuai Wang</a> ·
+    <a href="https://donovan0243.github.io/">Haodong Chen</a> ·
+    <a href="https://yinyubb.github.io/">Yu Yin</a> ·
+    <a href="https://arvinzhuang.github.io/">Shengyao Zhuang</a> ·
+    <a href="https://bevankoopman.github.io/">Bevan Koopman</a> ·
+    <a href="https://ielab.io/people/guido-zuccon.html">Guido Zuccon</a>
+  </div>
   <div>SkimSearchAgent · Apache-2.0 · <a href="https://github.com/ielab/skim-search-agent">github.com/ielab/skim-search-agent</a></div>
 </footer>
 
