@@ -346,3 +346,19 @@ button { font-family: inherit; color: inherit }
 @media (prefers-reduced-motion: reduce) {
   * { animation: none !important; transition: none !important }
 }
+
+/* run hint + loading state */
+.hint {
+  font-family: var(--mono); font-size: 10.5px; color: var(--ink-3);
+  border: 1px solid var(--line); border-radius: 6px; padding: 2px 6px; white-space: nowrap;
+}
+.loading {
+  display: flex; align-items: center; gap: 5px; justify-content: center;
+  margin: 44px auto; font-family: var(--mono); font-size: 12px; color: var(--ink-3);
+}
+.loading span {
+  width: 5px; height: 5px; border-radius: 50%; background: var(--ink-3);
+  animation: pulse 1.2s ease-in-out infinite;
+}
+.loading span:nth-child(2) { animation-delay: .18s }
+.loading span:nth-child(3) { animation-delay: .36s; margin-right: 6px }

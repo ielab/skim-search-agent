@@ -32,7 +32,9 @@
   .nav a:hover{color:var(--teal)}
   @media(max-width:640px){.nav .opt{display:none}}
 
-  .wrap{max-width:880px;margin:0 auto;padding:0 24px}
+  .wrap{max-width:var(--shell,900px);margin:0 auto;padding:0 28px}
+  @media(min-width:1400px){:root{--shell:1040px}}
+  @media(min-width:1750px){:root{--shell:1140px}}
 
   /* hero */
   .hero{text-align:center;padding:64px 0 10px}
@@ -78,6 +80,26 @@
   .conf{position:absolute;width:7px;height:7px;border-radius:2px;z-index:6;opacity:0}
   .conf.go{animation:confl 1s ease-out forwards}
   .caption{text-align:center;font-size:12px;color:var(--ink-3);margin-top:10px}
+
+  /* results */
+  .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:24px}
+  @media(max-width:720px){.stats{grid-template-columns:1fr}}
+  .stat{background:var(--card);border:1px solid var(--line-soft);border-radius:16px;padding:16px 18px}
+  .stat .v{font-size:30px;font-weight:800;letter-spacing:-.03em;line-height:1.1;color:var(--teal)}
+  .stat .v small{font-size:15px;font-weight:700;color:var(--ink-3);margin-left:3px}
+  .stat .l{font-size:12.5px;color:var(--ink-2);margin-top:5px;line-height:1.45}
+  table.res{width:100%;border-collapse:collapse;margin-top:22px;font-size:13.5px}
+  table.res th{text-align:left;font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-3);font-weight:700;padding:0 10px 8px 0;border-bottom:1px solid var(--line)}
+  table.res td{padding:11px 10px 11px 0;border-bottom:1px solid var(--line-soft);vertical-align:baseline}
+  table.res td.c{font-weight:650}
+  .up{color:var(--good);font-weight:700}
+  .down{color:var(--teal);font-weight:700}
+  .arrow{color:var(--ink-3);margin:0 5px}
+  figure{margin-top:26px}
+  figure img{width:100%;border:1px solid var(--line-soft);border-radius:14px;background:var(--card)}
+  figcaption{margin-top:9px;font-size:12.5px;color:var(--ink-3);text-align:center}
+  .figs{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+  @media(max-width:760px){.figs{grid-template-columns:1fr}}
 
   /* sections */
   section{padding:56px 0 0}
@@ -134,7 +156,7 @@
     SkimSearch<b>Agent</b>
   </div>
   <div class="nav">
-    <a class="opt" href="#method">Method</a>
+    <a class="opt" href="#results">Results</a>\n    <a class="opt" href="#method">Method</a>
     <a class="opt" href="#library">Library</a>
     <a class="opt" href="#demo">Demo</a>
     <a href="https://arxiv.org/abs/2608.02751">Paper</a>
@@ -172,6 +194,53 @@
   </div>
   <div class="caption">the live demo drives this exact board from a real agent episode — nothing here is a video</div>
 
+  <section id="results">
+    <span class="sec-k">Headline results</span>
+    <h2>Higher accuracy, on a third to half the tokens</h2>
+    <p class="lead">Against the BM25 Search–Visit baseline under identical budgets (k=5,
+    12,000-token reads, 100 steps). Skimming structure before reading is not an
+    accuracy-for-cost trade — on all three collections it wins on both axes.</p>
+
+    <div class="stats">
+      <div class="stat"><div class="v">−32.4<small>%</small></div>
+        <div class="l">tokens per episode on BrowseComp-Plus, at <b>+2.5</b> judge points</div></div>
+      <div class="stat"><div class="v">−50.6<small>%</small></div>
+        <div class="l">tokens on MuSiQue, at <b>+3.1</b> EM — the biggest saving where the baseline reads most</div></div>
+      <div class="stat"><div class="v">3<small>/3</small></div>
+        <div class="l">collections where Sieve improves accuracy <i>and</i> cuts cost</div></div>
+    </div>
+
+    <table class="res">
+      <thead><tr><th>collection</th><th>accuracy (baseline → Sieve)</th><th>tokens / episode</th></tr></thead>
+      <tbody>
+        <tr><td class="c">HotpotQA <span style="color:var(--ink-3)">(7,343)</span></td>
+            <td>43.7 <span class="arrow">→</span> <span class="up">45.3 EM</span></td>
+            <td>19.9k <span class="arrow">→</span> <span class="down">13.9k (−30.4%)</span></td></tr>
+        <tr><td class="c">MuSiQue <span style="color:var(--ink-3)">(2,409)</span></td>
+            <td>26.1 <span class="arrow">→</span> <span class="up">29.2 EM</span></td>
+            <td>43.0k <span class="arrow">→</span> <span class="down">21.3k (−50.6%)</span></td></tr>
+        <tr><td class="c">BrowseComp-Plus <span style="color:var(--ink-3)">(830)</span></td>
+            <td>34.7 <span class="arrow">→</span> <span class="up">37.2 judge</span></td>
+            <td>68.1k <span class="arrow">→</span> <span class="down">46.0k (−32.4%)</span></td></tr>
+      </tbody>
+    </table>
+
+    <figure>
+      <img src="assets/pareto.png" alt="Accuracy against tokens for every method on BrowseComp-Plus-Structured; Sieve variants occupy the upper-left Pareto front." loading="lazy">
+      <figcaption>Accuracy vs tokens on BrowseComp-Plus-Structured — Sieve variants define the
+      upper-left (cheaper <i>and</i> more accurate) Pareto front.</figcaption>
+    </figure>
+    <div class="figs">
+      <figure><img src="assets/gainloss.png" alt="Per-query wins and losses with token deltas against Search-Visit." loading="lazy">
+        <figcaption>Per-query wins/losses and token change vs Search–Visit.</figcaption></figure>
+      <figure><img src="assets/retriever_sensitivity.png" alt="Dense encoder sweep from 33M to 8B parameters showing stable token savings." loading="lazy">
+        <figcaption>Encoder sweep (33M–8B): the saving is not an encoder artifact.</figcaption></figure>
+    </div>
+    <p class="lead" style="margin-top:20px">The effect transfers across agent backbones
+    (Qwen-AgentWorld, OpenResearcher), with the largest savings where the baseline burns the
+    most context. Full tables, ablations and statistics are in the paper.</p>
+  </section>
+
   <section id="method">
     <span class="sec-k">The method</span>
     <h2>Skim the structure, read only what matters</h2>
@@ -184,6 +253,10 @@
       <div class="st-card"><span class="n">03</span><h3>Inspect</h3><p>Each result is a <b>structure-rich card</b> — title, section headings, matched fields, a query-biased snippet — enough to judge a document without reading it.</p></div>
       <div class="st-card"><span class="n">04</span><h3>Fetch</h3><p>The agent reads <b>only the named section</b> it chose from the card — a slice, not the document — and answers from grounded evidence.</p></div>
     </div>
+    <figure>
+      <img src="assets/architecture.png" alt="Sieve architecture: filter, rank, inspect, fetch stages over one agent loop." loading="lazy">
+      <figcaption>The four stages compose over one shared agent loop — each is swappable on its own.</figcaption>
+    </figure>
   </section>
 
   <section id="library">

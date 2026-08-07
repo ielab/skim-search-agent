@@ -192,6 +192,7 @@ function Meter({ usage, t0, done, color }) {
       <b style={{ color }}>${(usage.cost_usd || 0).toFixed(5)}</b>
       <span>{fmtTok(tok)} tok</span>
       {cachedPct > 0 && <span title="share of input tokens served from the provider's prompt cache, billed at half rate">{cachedPct}% cached</span>}
+      {usage.read_chars > 0 && <span title="document text pulled into context — a named section vs a whole document">{fmtTok(usage.read_chars)} ch read</span>}
       <span>{usage.steps || 0} steps</span>
       <span>{secs.toFixed(1)}s</span>
     </div>
@@ -523,6 +524,7 @@ export default function App() {
           <input type="password" value={apiKey} placeholder="OpenAI key (sk-…)"
                  onChange={e => setApiKey(e.target.value)} />
         </label>
+        <span className="hint" title="keyboard shortcut">⌘↩</span>
         <button className="send" disabled={running} onClick={start} title="run (⌘↩)">
           {running ? '…' : '↑'}
         </button>
@@ -549,6 +551,9 @@ export default function App() {
             </header>
           )}
 
+          {meta === null && (
+            <div className="loading"><span /><span /><span /> connecting to the local server…</div>
+          )}
           {meta === false && (
             <div className="offline">
               This page needs its local server.<br />
