@@ -17,6 +17,12 @@
   --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   --shadow-card: 0 2px 16px rgba(32, 36, 31, .06);
   --r-lg: 22px; --r-md: 14px; --r-sm: 8px;
+  /* Layout measures, widened per breakpoint below. --col is the single-run reading column:
+     wide enough to stop the cards looking pinched on a desktop, still a comfortable measure
+     for prose. --shell is the whole page; --shelf is the collection wall. */
+  --col: 860px;
+  --shell: 1240px;
+  --shelf: 232px;
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0 }
@@ -48,8 +54,18 @@ button { font-family: inherit; color: inherit }
 .tag { font-family: var(--mono); font-size: 11px; color: var(--ink-3); border: 1px solid var(--line); border-radius: 999px; padding: 3px 10px }
 
 /* ---------- layout ---------- */
-.layout { max-width: 1040px; margin: 0 auto; padding: 0 24px; display: grid; grid-template-columns: 1fr; gap: 24px }
-.layout.with-shelf { grid-template-columns: minmax(0, 1fr) 212px }
+.layout { max-width: var(--shell); margin: 0 auto; padding: 0 32px; display: grid; grid-template-columns: 1fr; gap: 40px }
+.layout.with-shelf { grid-template-columns: minmax(0, 1fr) var(--shelf) }
+@media (min-width: 1500px) {
+  :root { --shell: 1480px; --col: 960px; --shelf: 268px }
+  .stage { height: 190px }
+  .read-b, .snip { font-size: 13.5px }
+  .hit-t b { font-size: 14px }
+}
+@media (min-width: 1850px) {
+  :root { --shell: 1680px; --col: 1040px; --shelf: 300px }
+  .stage { height: 205px }
+}
 .content { min-width: 0; padding: 8px 0 150px }
 @media (max-width: 920px) {
   .layout.with-shelf { grid-template-columns: 1fr }
@@ -66,19 +82,20 @@ button { font-family: inherit; color: inherit }
   background: var(--card); border: 1px solid var(--line); border-radius: var(--r-lg);
   padding: 28px; color: var(--ink-2); box-shadow: var(--shadow-card); line-height: 2;
 }
-.examples { margin: 16px auto 0; max-width: 620px; display: grid; gap: 9px }
+.examples { margin: 18px auto 0; max-width: var(--col); display: grid; gap: 9px }
 .ex {
   background: var(--card); border: 1px solid var(--line-soft); border-radius: var(--r-md);
+  max-width: none;
   padding: 11px 15px; font-size: 13px; color: var(--ink-2); text-align: left; cursor: pointer;
   transition: border-color .15s, transform .15s, box-shadow .15s; line-height: 1.5;
 }
 .ex:hover { border-color: var(--teal); transform: translateY(-1px); box-shadow: var(--shadow-card) }
 .ex b { display: block; font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--teal); margin-bottom: 3px }
-.idle-stage { margin: 22px auto 0; max-width: 680px }
+.idle-stage { margin: 26px auto 0; max-width: var(--col) }
 
 /* ---------- composer ---------- */
 .composer {
-  margin: 26px auto 0; max-width: 620px;
+  margin: 26px auto 0; max-width: min(var(--col), 780px);
   background: var(--card); border: 1.5px solid var(--line); border-radius: 20px;
   padding: 13px 15px 11px; box-shadow: 0 8px 30px rgba(32, 36, 31, .10);
   transition: border-color .15s;
@@ -122,8 +139,10 @@ button { font-family: inherit; color: inherit }
 /* ---------- asked question ---------- */
 .asked {
   display: flex; gap: 10px; align-items: baseline;
-  margin: 18px 0 14px; font-size: 15px; font-weight: 600; line-height: 1.5;
+  max-width: var(--col); margin: 18px auto 14px;
+  font-size: 16px; font-weight: 600; line-height: 1.5;
 }
+.arena.duo ~ .asked, .asked.wide { max-width: none }
 .asked-k {
   flex: none; font-family: var(--mono); font-size: 11px; font-weight: 700; color: var(--teal);
   border: 1.5px solid var(--teal); border-radius: 7px; padding: 0 7px; align-self: center;
@@ -215,7 +234,7 @@ button { font-family: inherit; color: inherit }
 /* ---------- arena / feed ---------- */
 .arena { display: grid; grid-template-columns: 1fr; gap: 18px }
 .arena .lane { min-width: 0 }
-.arena:not(.duo) .lane { max-width: 680px; margin: 0 auto; width: 100% }
+.arena:not(.duo) .lane { max-width: var(--col); margin: 0 auto; width: 100% }
 .arena.duo { grid-template-columns: 1fr 1fr }
 @media (max-width: 860px) { .arena.duo { grid-template-columns: 1fr } }
 
@@ -238,7 +257,7 @@ button { font-family: inherit; color: inherit }
 .matched { margin-left: auto; font-family: var(--mono); font-size: 10px; color: var(--good) }
 .secs { margin-top: 4px; display: flex; gap: 5px; flex-wrap: wrap }
 .sec { font-size: 11px; color: var(--ink-2); background: var(--teal-soft); border-radius: 5px; padding: 1px 7px }
-.snip { margin-top: 5px; font-size: 12.5px; color: var(--ink-2); line-height: 1.55 }
+.snip { margin-top: 5px; font-size: 12.5px; color: var(--ink-2); line-height: 1.55; max-width: 88ch }
 .snip mark { background: var(--amber-soft); color: inherit; border-radius: 2px; padding: 0 1px }
 
 .read-card {
@@ -249,7 +268,7 @@ button { font-family: inherit; color: inherit }
 .read-h { display: flex; gap: 6px; align-items: baseline; font-size: 12px; color: var(--ink-2); margin-bottom: 3px; flex-wrap: wrap }
 .read-h b { color: var(--ink) }
 .read-h .whole { margin-left: auto; font-family: var(--mono); font-size: 10px; color: var(--ink-3); border: 1px solid var(--line); border-radius: 999px; padding: 1px 8px }
-.read-b { font-size: 13px; color: var(--ink-2); line-height: 1.6; white-space: pre-line }
+.read-b { font-size: 13px; color: var(--ink-2); line-height: 1.6; white-space: pre-line; max-width: 82ch }
 .read-card.err .read-b { font-family: var(--mono); font-size: 12px }
 .more { margin-top: 6px; font-family: var(--mono); font-size: 10.5px; color: var(--ink-3) }
 
@@ -257,7 +276,7 @@ button { font-family: inherit; color: inherit }
   border: 1px solid rgba(181, 58, 58, .35); background: #fdf4f4; color: var(--bad);
   border-radius: var(--r-md); padding: 10px 14px; font-size: 13px;
 }
-.err-banner.center { max-width: 620px; margin: 14px auto 0 }
+.err-banner.center { max-width: var(--col); margin: 14px auto 0 }
 
 .answer {
   background: linear-gradient(180deg, #ffffff, #f2f8f6);
@@ -276,7 +295,7 @@ button { font-family: inherit; color: inherit }
 
 /* ---------- head-to-head ---------- */
 .compare {
-  margin: 24px auto 0; max-width: 680px;
+  margin: 26px auto 0; max-width: var(--col);
   background: var(--card); border: 1px solid var(--line); border-radius: var(--r-lg);
   padding: 16px 20px; box-shadow: var(--shadow-card); animation: pop .45s ease-out;
 }
