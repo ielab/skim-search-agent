@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import pytest
 
-from agent_search.agent.tools.doc_research import Bm25Visit, DenseVisit
+from agent_search.agent.tools.doc_research import Bm25Visit, DenseVisit, SNIPPET_TOKENS
 from agent_search.corpus.units import units_from_documents
 
 # the SAME fixture doc set test_doc_research_tools.py / test_doc_bm25_fetch_tools.py use, so
@@ -234,7 +234,8 @@ _PAD = "x"          # same padding trick as tests/test_snippet_listing.py — is
                     # MID-BODY window win" from "is the char/token cap doing something weird".
 
 
-def _padded_fetch_doc(doc_id, title, needle, pad_before=30, pad_after=30):
+def _padded_fetch_doc(doc_id, title, needle,
+                      pad_before=SNIPPET_TOKENS + 5, pad_after=SNIPPET_TOKENS + 5):
     before = " ".join([_PAD] * pad_before)
     after = " ".join([_PAD] * pad_after)
     return {"_id": doc_id, "title": title, "text": f"{before} {needle}\n\n## History\n{after}"}
@@ -282,7 +283,7 @@ def test_fetchws_search_lists_structure_plus_excerpt_not_full_text():
     hit_line = next(l for l in out.splitlines() if "d_mid" in l)
     excerpt = hit_line.split("»", 1)[1].strip()
     assert "zephyrquokka" in excerpt
-    assert len(excerpt.split()) <= 25             # a bounded window, not the whole padded body
+    assert len(excerpt.split()) <= SNIPPET_TOKENS  # a bounded window, not the whole padded body
 
 
 def test_fetchws_excerpt_is_mid_body_not_the_doc_opening():
@@ -290,7 +291,7 @@ def test_fetchws_excerpt_is_mid_body_not_the_doc_opening():
     out = ws.run("dense_search_f", {"query": "zephyrquokka"})
     hit_line = next(l for l in out.splitlines() if "d_mid" in l)
     excerpt = hit_line.split("»", 1)[1].strip()
-    opening = " ".join([_PAD] * 25)
+    opening = " ".join([_PAD] * SNIPPET_TOKENS)
     assert excerpt != opening
 
 
