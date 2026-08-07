@@ -108,8 +108,6 @@
   figure{margin-top:26px}
   figure img{width:100%;border:1px solid var(--line-soft);border-radius:14px;background:var(--card)}
   figcaption{margin-top:9px;font-size:12.5px;color:var(--ink-3);text-align:center}
-  .figs{display:grid;grid-template-columns:1fr 1fr;gap:18px}
-  @media(max-width:760px){.figs{grid-template-columns:1fr}}
 
   /* sections */
   section{padding:56px 0 0}
@@ -249,17 +247,6 @@
       </tbody>
     </table>
 
-    <figure>
-      <img src="assets/pareto.png" alt="Accuracy against tokens for every method on BrowseComp-Plus-Structured; Sieve variants occupy the upper-left Pareto front." loading="lazy">
-      <figcaption>Accuracy vs tokens on BrowseComp-Plus-Structured — Sieve variants define the
-      upper-left (cheaper <i>and</i> more accurate) Pareto front.</figcaption>
-    </figure>
-    <div class="figs">
-      <figure><img src="assets/gainloss.png" alt="Per-query wins and losses with token deltas against Search-Visit." loading="lazy">
-        <figcaption>Per-query wins/losses and token change vs Search–Visit.</figcaption></figure>
-      <figure><img src="assets/retriever_sensitivity.png" alt="Dense encoder sweep from 33M to 8B parameters showing stable token savings." loading="lazy">
-        <figcaption>Encoder sweep (33M–8B): the saving is not an encoder artifact.</figcaption></figure>
-    </div>
     <p class="lead" style="margin-top:20px">The effect transfers across agent backbones
     (Qwen-AgentWorld, OpenResearcher), with the largest savings where the baseline burns the
     most context. Full tables, ablations and statistics are in the paper.</p>
@@ -295,6 +282,13 @@
       <div class="feat"><span class="ic">🔎</span><h3>BQL: Boolean, forgiving</h3><p>A tiny structured query language with a reference executor and Lucene backend — parse errors come back as observations the agent can learn from, never crashes.</p></div>
       <div class="feat"><span class="ic">⚔️</span><h3>Baselines included</h3><p>Every control the paper compares against ships in the box — retrieve-then-read, whole-document visiting, dense retrieval, agentic grep — under the same loop.</p></div>
     </div>
+    <figure>
+      <img src="assets/skimsearchagent-overview.png" loading="lazy"
+           alt="SkimSearchAgent architecture: interchangeable corpora, models, strategies, retrievers and evaluators around one research-agent loop.">
+      <figcaption>One agent loop; corpora, models, strategies, retrievers and evaluators all
+      swap independently around it.</figcaption>
+    </figure>
+
     <pre><span class="c"># quickstart</span>
 pip install -e ".[api]"
 python run.py dataset=fixture strategy=sieve_bm25   <span class="c"># one episode, no GPU</span></pre>
