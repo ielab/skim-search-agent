@@ -51,7 +51,39 @@
   .nav{display:flex;gap:20px;font-size:13.5px;font-weight:550}
   .nav a{color:var(--ink-2)}
   .nav a:hover{color:var(--teal)}
-  @media(max-width:640px){.nav .opt{display:none}}
+  /* phone tiers: the bar carries logo + Paper + GitHub + two buttons, which overflows a
+     ~375px screen at desktop gaps. Shrink in two steps; never let it wrap to a second line. */
+  .topbar{flex-wrap:nowrap;padding-left:max(24px,env(safe-area-inset-left));padding-right:max(24px,env(safe-area-inset-right))}
+  .logo{white-space:nowrap;min-width:0}
+  .nav{flex-wrap:nowrap;white-space:nowrap}
+  @media(max-width:640px){
+    .nav .opt{display:none}
+    .topbar{padding-top:10px;padding-bottom:10px;padding-left:max(14px,env(safe-area-inset-left));padding-right:max(14px,env(safe-area-inset-right))}
+    .logo{font-size:14.5px;gap:5px}
+    .logo svg{width:19px;height:19px}
+    .nav{gap:11px;font-size:12.5px}
+    .lang-btn{padding:0 7px;font-size:11px}
+    .theme-btn{width:27px;height:27px;font-size:12.5px}
+  }
+  @media(max-width:400px){
+    .nav{gap:8px}
+    /* Paper stays reachable in the hero buttons and the citation section */
+    .nav a[href*="arxiv"]{display:none}
+  }
+  /* the boards: four 92px-wide stations overlap on a phone; shrink pads and labels */
+  @media(max-width:560px){
+    .station{width:64px;margin-left:-32px}
+    .st-pad{width:44px;height:44px;font-size:17px;border-radius:14px}
+    .st-name{font-size:8px;letter-spacing:.04em;margin-top:5px}
+    .stage{height:150px}
+    .agent{width:44px}
+    .lens{width:34px;height:34px;border-width:3px}
+    .eye.l{left:8px}.eye.r{left:19px}
+    .mouth{left:11px;top:20px}
+    .ticker{font-size:10.5px}
+    .pv-meter{width:100%;order:3}
+    .caption{padding:0 8px}
+  }
 
   .wrap{max-width:var(--shell,900px);margin:0 auto;padding:0 28px}
   @media(min-width:1400px){:root{--shell:1040px}}
