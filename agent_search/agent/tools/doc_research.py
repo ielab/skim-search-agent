@@ -113,6 +113,19 @@ from agent_search.retrievers.structural.bql.executor import (
 from agent_search.retrievers.structural.bql.parser import parse as bql_parse
 from agent_search.retrievers.structural.bql.surface import to_bql
 
+# Query-biased snippet width, in whitespace tokens — the size of the best-matching window
+# `best_line` picks for each search hit (research_snip / research_indri_snip / research_bm25q
+# and every *_fetch_snip cell). A sweepable knob: 32 (default), 64, 128, 256, 512 ... Larger
+# windows show the agent more context per hit before it decides what to fetch, at a
+# proportional cost in listing tokens.
+# NOTE: this default is 32; the pre-knob hardcoded value was 25, so a run that must reproduce
+# earlier numbers exactly needs SNIPPET_TOKENS=25.
+SNIPPET_TOKENS = int(os.environ.get("SNIPPET_TOKENS", "32"))
+# Belt-and-braces character cap on the same window. Scales with SNIPPET_TOKENS at the ratio the
+# hardcoded pair used (160 chars / 25 tokens = 6.4), so widening the window is not silently
+# undone by a cap sized for a small one. Independently overridable.
+SNIPPET_MAX_CHARS = int(os.environ.get("SNIPPET_MAX_CHARS", str(round(SNIPPET_TOKENS * 6.4))))
+
 MAX_VISIT_TOKENS = int(os.environ.get("MAX_VISIT_TOKENS", "1200"))
 # Parity fix (docs/bql_failure_forensics.md): fetch's per-section read budget defaults to the
 # SAME resolved value as visit's whole-doc budget — the factorial's READ axis is meant to differ
@@ -222,8 +235,10 @@ def sections_from_body(body: str) -> "dict[str, str]":
     return out
 
 
-def best_line(u: CodeUnit, terms: "list[str]", width: int = 25, max_chars: int = 160) -> str:
-    """The doc's best-matching ~`width`-token window for `terms` — a single pass over the
+def best_line(u: CodeUnit, terms: "list[str]", width: int = SNIPPET_TOKENS,
+              max_chars: int = SNIPPET_MAX_CHARS) -> str:
+    """The doc's best-matching ~`width`-token window for `terms` (`width` defaults to
+    `SNIPPET_TOKENS`, env-settable) — a single pass over the
     whitespace-tokenized body, incrementally tracking how many DISTINCT `terms` (`code_tokenize`
     'd, case-insensitive) the current window contains as it slides one token at a time (add the
     entering token, drop the leaving one); the highest-scoring window wins, ties -> earliest (a
@@ -383,8 +398,8 @@ class DocSearchFetch:
             out.append("body")
         return ",".join(out) or "-"
 
-    def _best_line(self, u: CodeUnit, leaf_toks: list, width: int = 25,
-                   max_chars: int = 160) -> str:
+    def _best_line(self, u: CodeUnit, leaf_toks: list, width: int = SNIPPET_TOKENS,
+                   max_chars: int = SNIPPET_MAX_CHARS) -> str:
         """research_snip (`snippets=True`): the doc's best-matching ~`width`-token window for
         `leaf_toks`. Thin wrapper over the module-level `best_line` (shared verbatim with
         `Bm25Visit`'s query-biased excerpt, research_bm25q) — kept as an instance method so

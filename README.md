@@ -66,7 +66,8 @@ python3.10 -m venv .venv && source .venv/bin/activate
 python -m pip install -e .
 ```
 
-Prefer to *watch* one first? See the [Demo](#demo) below — no key, no GPU, no server.
+Prefer to *watch* one first? See the [Demo](#demo) below — a local server and your own
+API key, no GPU.
 
 Run a complete research-agent experiment as one command — every knob is a `key=value`:
 
@@ -125,15 +126,16 @@ python demo/server.py          # -> http://localhost:8008/
 ```
 
 A little agent hops between its tool stations (Search → Read → Answer) on a stage, the
-102-document collection wall lights up as documents are surfaced and read, and a live meter
-counts every token and fraction of a cent. Bring your own OpenAI key (a run is capped at 12
-steps — well under 1¢ on gpt-4o-mini; the key is used per-request and never stored or logged).
+101-document collection wall lights up as documents are surfaced and read, and a live meter
+counts every token, cached-token discount and fraction of a cent. Bring your own OpenAI key (a
+run is capped at 20 steps — well under 1¢ on gpt-4o-mini; the key is used per-request and never
+stored or logged).
 **Race mode** runs Sieve vs the Search-Visit baseline side by side on the same question and ends
 in a head-to-head chart — the paper's claim, live. The collection is a curated subsample of real
 BrowseComp-Plus documents; see [`demo/`](demo/README.md) for how it was built.
 
-There is also a **project page** at [`docs/index.html`](docs/index.html) (GitHub Pages-ready:
-Settings → Pages → deploy from `main` `/docs`).
+There is also a **project page** at [`docs/index.html`](docs/index.html), published to
+<https://ielab.github.io/skim-search-agent/> — see [`docs/PUBLISHING.md`](docs/PUBLISHING.md).
 
 ## What can be swapped?
 
@@ -293,3 +295,27 @@ If you use Sieve or its released evaluation resources, please cite:
   url           = {https://arxiv.org/abs/2608.02751}
 }
 ```
+
+## The team
+
+<p align="center">
+  <img src="docs/assets/team.png" width="100%" alt="The six authors: Shuai Wang, Haodong Chen, Yu Yin, Shengyao Zhuang, Bevan Koopman and Guido Zuccon."/>
+</p>
+
+<div align="center">
+
+[Shuai Wang](https://shuaiwang.io)<sup>1</sup> ·
+[Haodong Chen](https://donovan0243.github.io/)<sup>1</sup> ·
+[Yu Yin](https://yinyubb.github.io/)<sup>1</sup> ·
+[Shengyao Zhuang](https://arvinzhuang.github.io/)<sup>2</sup> ·
+[Bevan Koopman](https://bevankoopman.github.io/)<sup>3,1</sup> ·
+[Guido Zuccon](https://ielab.io/people/guido-zuccon.html)<sup>1</sup>
+
+<sup>1</sup>[ielab](https://ielab.io), The University of Queensland ·
+<sup>2</sup>Amazon AGI ·
+<sup>3</sup>Australian e-Health Research Centre, CSIRO
+
+**[Project page](https://ielab.github.io/skim-search-agent/)** ·
+**[Paper](https://arxiv.org/abs/2608.02751)**
+
+</div>
