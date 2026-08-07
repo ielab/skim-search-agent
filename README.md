@@ -307,13 +307,12 @@ If you use Sieve or its released evaluation resources, please cite:
 [Shuai Wang](https://shuaiwang.io)<sup>1</sup> ·
 [Haodong Chen](https://donovan0243.github.io/)<sup>1</sup> ·
 [Yu Yin](https://yinyubb.github.io/)<sup>1</sup> ·
-[Shengyao Zhuang](https://arvinzhuang.github.io/)<sup>2</sup> ·
-[Bevan Koopman](https://bevankoopman.github.io/)<sup>3,1</sup> ·
+[Shengyao Zhuang](https://arvinzhuang.github.io/) ·
+[Bevan Koopman](https://bevankoopman.github.io/)<sup>2,1</sup> ·
 [Guido Zuccon](https://ielab.io/people/guido-zuccon.html)<sup>1</sup>
 
 <sup>1</sup>[ielab](https://ielab.io), The University of Queensland ·
-<sup>2</sup>Amazon AGI ·
-<sup>3</sup>Australian e-Health Research Centre, CSIRO
+<sup>2</sup>Australian e-Health Research Centre, CSIRO
 
 **[Project page](https://ielab.github.io/skim-search-agent/)** ·
 **[Paper](https://arxiv.org/abs/2608.02751)**
