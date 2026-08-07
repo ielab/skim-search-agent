@@ -10,6 +10,8 @@ retrieval and reading primitives, reproducible evaluation, and the interfaces th
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-3776AB.svg)](#quickstart)
 [![Pluggable](https://img.shields.io/badge/corpora%20%7C%20models%20%7C%20methods-pluggable-00897B.svg)](#what-can-be-swapped)
 
+**[🌐 Project page](https://ielab.github.io/skim-search-agent/)** ·
+[Paper](https://arxiv.org/abs/2608.02751) ·
 [Quickstart](#quickstart) ·
 [Demo](#demo) ·
 [Concepts](#what-can-be-swapped) ·
@@ -87,6 +89,17 @@ python run.py dataset=fixture strategy=sieve_bm25 \
     model=openai/gpt-oss-20b backend=vllm limit=1
 ```
 
+Tool-surface knobs — the snippet window, read budgets, listing depths, engine choice — are
+`key=value` too, and each is recorded in the run's `config.json`:
+
+```bash
+# widen the query-biased snippet the agent skims before choosing what to read
+python run.py dataset=fixture strategy=sieve_bm25 snippet_tokens=64
+
+# the paper's read budget, explicitly
+python run.py dataset=fixture strategy=search_visit max_visit_tokens=12000
+```
+
 `strategy` accepts friendly names (`search_visit`, `search_fetch`, `autoread`, `dci`,
 `bounded_dci`, `sieve`, `sieve_bm25`, `sieve_dense`, `indri`, ... — `python run.py --help`
 lists them all) or any raw registered retriever name. Everything else
@@ -125,7 +138,9 @@ pip install -e ".[demo-live]"
 python demo/server.py          # -> http://localhost:8008/
 ```
 
-A little agent hops between its tool stations (Search → Read → Answer) on a stage, the
+A little agent hops between its tool stations on a stage — and the two strategies have
+different boards: Sieve runs the paper's own pipeline (Search → Inspect → Fetch § → Answer)
+while the baseline has no inspect stage at all (Search → Visit doc → Answer), the
 101-document collection wall lights up as documents are surfaced and read, and a live meter
 counts every token, cached-token discount and fraction of a cent. Bring your own OpenAI key (a
 run is capped at 20 steps — well under 1¢ on gpt-4o-mini; the key is used per-request and never

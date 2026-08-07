@@ -158,14 +158,15 @@ def _resolve_env_knobs() -> dict:
 
     try:
         from agent_search.agent.tools.doc_research import (MAX_SECTION_TOKENS, MAX_VISIT_TOKENS,
-                                                            SNIPPET_MAX_CHARS, SNIPPET_TOKENS)
+                                                            SNIPPET_TOKENS)
         knobs["MAX_VISIT_TOKENS"] = MAX_VISIT_TOKENS
         knobs["MAX_SECTION_TOKENS"] = MAX_SECTION_TOKENS
-        # query-biased snippet window (research_snip / *_fetch_snip / research_bm25q). Recorded
-        # because it is a sweep axis: without it a SNIPPET_TOKENS=64 run is indistinguishable
-        # from a default one in config.json.
+        # listing-snippet window, BOTH arms: the method cells' query-biased excerpt
+        # (research_snip / *_fetch_snip / research_bm25q) AND the visit baselines' opening
+        # window (research_bm25/dense/hybrid, bm25_dci) — see doc_research.opening_line.
+        # Recorded because it is a sweep axis: without it a SNIPPET_TOKENS=64 run is
+        # indistinguishable from a default one in config.json.
         knobs["SNIPPET_TOKENS"] = SNIPPET_TOKENS
-        knobs["SNIPPET_MAX_CHARS"] = SNIPPET_MAX_CHARS
     except Exception:
         pass
 

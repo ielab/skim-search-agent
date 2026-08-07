@@ -10,8 +10,7 @@ from __future__ import annotations
 
 import os
 
-from agent_search.agent.tools.doc_research import (DocSearchFetch, SNIPPET_MAX_CHARS,
-                                                   SNIPPET_TOKENS, best_line)
+from agent_search.agent.tools.doc_research import DocSearchFetch, SNIPPET_TOKENS
 from agent_search.corpus.units import units_from_documents
 from agent_search.prompts import load_condition
 
@@ -128,20 +127,18 @@ def test_run_accepts_search_s_and_fetch_s_aliases():
 # Env-settable (read at import, like MAX_VISIT_TOKENS and the *_TOPK dials), so an ablation is
 # SNIPPET_TOKENS=64 python -m evaluation.run_eval ... with nothing else changed.
 
-def test_default_width_is_32_and_cap_scales_with_it():
+def test_default_width_is_32():
     # guarded: this file must also pass under a sweep (SNIPPET_TOKENS=64 pytest ...), where the
     # value is whatever the run configured — only the UNSET default is pinned to 32.
     if "SNIPPET_TOKENS" not in os.environ:
         assert SNIPPET_TOKENS == 32
-    if "SNIPPET_MAX_CHARS" not in os.environ:
-        assert SNIPPET_MAX_CHARS == round(SNIPPET_TOKENS * 6.4)  # the 160/25 ratio, preserved
 
 
 def test_width_argument_controls_window_length():
     ws = DocSearchFetch(_units(), snippets=True)
     u = ws.ubyid["d_mid"]
     for width in (32, 64, 128, 256, 512):
-        line = ws._best_line(u, [], width=width, max_chars=10 ** 6)
+        line = ws._best_line(u, [], width=width)
         # the doc is shorter than the larger widths, so the window saturates at the doc length
         assert len(line.split()) == min(width, len((u.body or "").split()))
 
@@ -149,18 +146,22 @@ def test_width_argument_controls_window_length():
 def test_env_override_is_picked_up_on_import(monkeypatch):
     import importlib, agent_search.agent.tools.doc_research as dr
     monkeypatch.setenv("SNIPPET_TOKENS", "128")
-    monkeypatch.delenv("SNIPPET_MAX_CHARS", raising=False)
     try:
         reloaded = importlib.reload(dr)
         assert reloaded.SNIPPET_TOKENS == 128
-        assert reloaded.SNIPPET_MAX_CHARS == round(128 * 6.4)
         assert reloaded.best_line.__defaults__[0] == 128       # the default really moved
     finally:
         monkeypatch.undo()
         importlib.reload(dr)                                   # restore for later tests
 
 
-def test_max_chars_still_caps_a_wide_window():
+def test_window_is_not_character_capped():
+    """The pre-knob implementation clipped every excerpt to 160 characters, which meant a
+    token-count setting did not really control the snippet (prose runs ~6.4 chars/token, so
+    the cap bound from about 25 tokens up). A window as wide as the whole body must come back
+    as EXACTLY the whole body — any character cap would break the equality."""
     ws = DocSearchFetch(_units(), snippets=True)
     u = ws.ubyid["d_mid"]
-    assert len(best_line(u, [], width=512, max_chars=40)) <= 40
+    whole = " ".join((u.body or "").split())
+    line = ws._best_line(u, [], width=len(whole.split()))
+    assert line == whole

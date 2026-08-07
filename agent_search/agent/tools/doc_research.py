@@ -113,19 +113,18 @@ from agent_search.retrievers.structural.bql.executor import (
 from agent_search.retrievers.structural.bql.parser import parse as bql_parse
 from agent_search.retrievers.structural.bql.surface import to_bql
 
-# Query-biased snippet width, in whitespace tokens — the size of the best-matching window
-# `best_line` picks for each search hit (research_snip / research_indri_snip / research_bm25q
-# and every *_fetch_snip cell). A sweepable knob: 32 (default), 64, 128, 256, 512 ... Larger
-# windows show the agent more context per hit before it decides what to fetch, at a
+# Listing-snippet width, in whitespace tokens — ONE knob for both arms of the paper's
+# comparison: the method cells' query-biased window (`best_line`: research_snip /
+# research_indri_snip / research_bm25q and every *_fetch_snip cell) AND the visit baselines'
+# opening window (`opening_line`: research_bm25/dense/hybrid, bm25_dci). Default 32 is the
+# paper's shared baseline setting; sweepable to 64 / 128 / 256 / 512 (run.py snippet_tokens=).
+# Larger windows show the agent more context per hit before it decides what to read, at a
 # proportional cost in listing tokens.
-# NOTE: this default is 32; the pre-knob hardcoded value was 25, so a run that must reproduce
-# earlier numbers exactly needs SNIPPET_TOKENS=25.
+# NOTE: this default is 32; the pre-knob implementation was 25 tokens AND a 160-character
+# clip (removed — see best_line's docstring), so old listings are approximated by
+# SNIPPET_TOKENS=25 but not reproduced byte-for-byte: the clip cut ~14% of an average
+# 25-token prose window.
 SNIPPET_TOKENS = int(os.environ.get("SNIPPET_TOKENS", "32"))
-# Belt-and-braces character cap on the same window. Scales with SNIPPET_TOKENS at the ratio the
-# hardcoded pair used (160 chars / 25 tokens = 6.4), so widening the window is not silently
-# undone by a cap sized for a small one. Independently overridable.
-SNIPPET_MAX_CHARS = int(os.environ.get("SNIPPET_MAX_CHARS", str(round(SNIPPET_TOKENS * 6.4))))
-
 MAX_VISIT_TOKENS = int(os.environ.get("MAX_VISIT_TOKENS", "1200"))
 # Parity fix (docs/bql_failure_forensics.md): fetch's per-section read budget defaults to the
 # SAME resolved value as visit's whole-doc budget — the factorial's READ axis is meant to differ
@@ -235,16 +234,19 @@ def sections_from_body(body: str) -> "dict[str, str]":
     return out
 
 
-def best_line(u: CodeUnit, terms: "list[str]", width: int = SNIPPET_TOKENS,
-              max_chars: int = SNIPPET_MAX_CHARS) -> str:
+def best_line(u: CodeUnit, terms: "list[str]", width: int = SNIPPET_TOKENS) -> str:
     """The doc's best-matching ~`width`-token window for `terms` (`width` defaults to
     `SNIPPET_TOKENS`, env-settable) — a single pass over the
     whitespace-tokenized body, incrementally tracking how many DISTINCT `terms` (`code_tokenize`
     'd, case-insensitive) the current window contains as it slides one token at a time (add the
     entering token, drop the leaving one); the highest-scoring window wins, ties -> earliest (a
     strict `>` keeps the first max). Empty `terms` (unparseable query) falls back to the doc's
-    opening `width` tokens. Capped at `max_chars` characters — belt and suspenders; a 25-token
-    window rarely needs it.
+    opening `width` tokens.
+
+    The window is defined by TOKENS ONLY. An earlier version also clipped the result to 160
+    characters, which meant a token-count knob did not actually control the snippet: on
+    ordinary prose (~6.4 chars/token) the cap bound at around 25 tokens, so any wider setting
+    was silently truncated. Removed, so `width` is the whole story.
 
     MODULE-LEVEL (not a method) so it's shared verbatim by `DocSearchFetch._best_line`
     (research_snip/research_indri_snip's leaf-token-driven excerpt) and `Bm25Visit`'s
@@ -255,7 +257,7 @@ def best_line(u: CodeUnit, terms: "list[str]", width: int = SNIPPET_TOKENS,
         return ""
     term_set = {t.lower() for t in (terms or [])}
     if not term_set:
-        return " ".join(toks[:width])[:max_chars]
+        return " ".join(toks[:width])
     tok_terms = [set(code_tokenize(t)) & term_set for t in toks]
     counts: dict = {}
     score = 0
@@ -286,7 +288,20 @@ def best_line(u: CodeUnit, terms: "list[str]", width: int = SNIPPET_TOKENS,
         _add(start + w - 1)
         if score > best_score:
             best_score, best_start = score, start
-    return " ".join(toks[best_start:best_start + w])[:max_chars]
+    return " ".join(toks[best_start:best_start + w])
+
+
+def opening_line(u: CodeUnit, width: int = SNIPPET_TOKENS) -> str:
+    """The doc's OPENING `width`-token window — the non-query-biased listing snippet the
+    visit-family baselines show (Bm25Visit, DenseVisit, HybridVisit, Bm25DciWorkspace).
+
+    Delegates to `best_line` with no terms (its documented opening fallback), so the two
+    snippet kinds share one window implementation and one knob. This replaces a fixed
+    120-CHARACTER slice: with the method arm measured in tokens and the baseline arm in
+    characters the two listings were not commensurable, and a snippet-width sweep moved only
+    one side of the comparison. Both are now governed by SNIPPET_TOKENS.
+    """
+    return best_line(u, [], width=width)
 
 
 def _infobox(u: CodeUnit) -> "dict[str, str]":
@@ -398,13 +413,12 @@ class DocSearchFetch:
             out.append("body")
         return ",".join(out) or "-"
 
-    def _best_line(self, u: CodeUnit, leaf_toks: list, width: int = SNIPPET_TOKENS,
-                   max_chars: int = SNIPPET_MAX_CHARS) -> str:
+    def _best_line(self, u: CodeUnit, leaf_toks: list, width: int = SNIPPET_TOKENS) -> str:
         """research_snip (`snippets=True`): the doc's best-matching ~`width`-token window for
         `leaf_toks`. Thin wrapper over the module-level `best_line` (shared verbatim with
         `Bm25Visit`'s query-biased excerpt, research_bm25q) — kept as an instance method so
         every existing caller (this class's `_render_hits`, doc_indri.py, tests) is unaffected."""
-        return best_line(u, leaf_toks, width=width, max_chars=max_chars)
+        return best_line(u, leaf_toks, width=width)
 
     def _render_hits(self, hit_ids: list, leaf_toks: list, header: str) -> str:
         """Render the structure TABLE (rank, doc_id, title, §section names, ib[infobox keys],
@@ -739,7 +753,8 @@ class Bm25Visit:
             return f"search: {query}   (0 matches){prior}"
         self.last_hits = list(ids)
         lines = [f"search: {query}   ({len(ids)} matches):"]
-        # query_biased=False (the default) keeps the OLD opening-char-slice snippet, byte-for-byte.
+        # query_biased=False (the default) shows the doc's OPENING window instead of a
+        # query-biased one; both are SNIPPET_TOKENS wide (see `opening_line`).
         terms = code_tokenize(query) if self.query_biased else None
         for rank, i in enumerate(ids, start=1):
             u = self.ubyid.get(i)
@@ -749,7 +764,7 @@ class Bm25Visit:
             if self.query_biased:
                 snip = best_line(u, terms)
             else:
-                snip = " ".join((u.body or u.code or "")[:120].split())
+                snip = opening_line(u)
             lines.append(f"  {rank}  {i}  {(u.title or u.qualname or '')!r}  {snip}…")
         return "\n".join(lines)
 
@@ -952,7 +967,7 @@ class DenseVisit(Bm25Visit):
             if u is None:
                 continue
             self.seen.add(i)
-            snip = " ".join((u.body or u.code or "")[:120].split())
+            snip = opening_line(u)
             lines.append(f"  {rank}  {i}  {(u.title or u.qualname or '')!r}  {snip}…")
         return "\n".join(lines)
 
@@ -1618,7 +1633,7 @@ class HybridVisit(Bm25Visit):
                      if self.last_hits else "")
             return f"search: {query}   (0 matches){prior}"
         self.last_hits = list(ids)
-        # IDENTICAL rendering to Bm25Visit.search's query_biased=False branch (opening slice,
+        # IDENTICAL rendering to Bm25Visit.search's query_biased=False branch (opening window,
         # not query-biased) — mirrors Bm25Visit's listing format byte-for-byte.
         lines = [f"search: {query}   ({len(ids)} matches):"]
         for rank, i in enumerate(ids, start=1):
@@ -1626,7 +1641,7 @@ class HybridVisit(Bm25Visit):
             if u is None:
                 continue
             self.seen.add(i)
-            snip = " ".join((u.body or u.code or "")[:120].split())
+            snip = opening_line(u)
             lines.append(f"  {rank}  {i}  {(u.title or u.qualname or '')!r}  {snip}…")
         return "\n".join(lines)
 

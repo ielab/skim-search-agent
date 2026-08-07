@@ -3,18 +3,39 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>SkimSearchAgent — Search, Inspect, Fetch</title>
-<meta name="description" content="A composable library for building and evaluating deep-research agents over your own corpus — and Sieve, the Boolean search–inspect–fetch method.">
+<title>SkimSearchAgent: Search, Inspect, Fetch</title>
+<meta name="description" content="A composable library for building and evaluating deep-research agents over your own corpus. Sieve is its Boolean search-inspect-fetch method.">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 26 26'%3E%3Ccircle cx='11' cy='11' r='7.2' fill='none' stroke='%230e9384' stroke-width='2.6'/%3E%3Cline x1='16.5' y1='16.5' x2='23' y2='23' stroke='%230e9384' stroke-width='3' stroke-linecap='round'/%3E%3Cline x1='7.4' y1='9.4' x2='14.6' y2='9.4' stroke='%230e9384' stroke-width='1.7' stroke-linecap='round' opacity='.85'/%3E%3Cline x1='7.4' y1='12.8' x2='12.2' y2='12.8' stroke='%230e9384' stroke-width='1.7' stroke-linecap='round' opacity='.45'/%3E%3C/svg%3E">
+<script>
+(function(){
+  var t = localStorage.getItem('sieve-theme');
+  if (!t) t = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  document.documentElement.dataset.theme = t;
+})();
+</script>
 <style>
   :root{
+    color-scheme:light;
     --bg:#f6f5f0; --bg-soft:#ecebe3; --card:#ffffff;
     --ink:#20241f; --ink-2:#5c6159; --ink-3:#989d93;
     --line:#dfded4; --line-soft:#e9e8df;
     --teal:#0e9384; --teal-soft:#e2f1ee; --teal-glow:rgba(14,147,132,.30);
-    --violet:#7c3aed; --amber:#d97706; --amber-soft:#f5e3c8; --good:#317a31;
+    --violet:#7c3aed; --violet-soft:#efe9fb;
+    --amber:#d97706; --amber-soft:#f5e3c8; --good:#317a31;
     --sans:system-ui,-apple-system,"Segoe UI",sans-serif;
     --mono:ui-monospace,'SF Mono',Menlo,Consolas,monospace;
+  }
+  /* dark theme — same roles, dark values. Teal/violet re-stepped for the dark surface and
+     validated as a pair (#16a795 / #8d6ee8 on #161715: all six checks pass). */
+  :root[data-theme="dark"]{
+    color-scheme:dark;
+    --bg:#161715; --bg-soft:#22231f; --card:#1d1e1b;
+    --ink:#eceae2; --ink-2:#b3b1a6; --ink-3:#82807a;
+    --line:#383931; --line-soft:#2b2c27;
+    --teal:#16a795; --teal-soft:#1c3531; --teal-glow:rgba(22,167,149,.35);
+    --violet:#8d6ee8; --violet-soft:#2b2440;
+    --amber:#e79b2e; --amber-soft:#3d321f;
+    --good:#5fae5f;
   }
   *{box-sizing:border-box;margin:0;padding:0}
   html{scroll-behavior:smooth}
@@ -120,7 +141,10 @@
   .pv-q .k{flex:none;font-family:var(--mono);font-size:10.5px;font-weight:700;color:var(--teal);border:1.5px solid var(--teal);border-radius:6px;padding:0 6px}
   .pv-bar{display:flex;align-items:center;gap:8px;margin:12px 0 4px;flex-wrap:wrap}
   .pv-pill{font-size:11.5px;font-weight:650;color:var(--teal);background:var(--teal-soft);border:1px solid var(--teal);border-radius:999px;padding:3px 11px}
-  .pv-pill.off{color:var(--ink-3);background:var(--bg);border-color:var(--line);font-weight:550}
+  .pv-pill{cursor:default}
+  .pv-strat{cursor:pointer;color:var(--ink-3);background:var(--bg);border-color:var(--line);font-weight:550;transition:.15s}
+  .pv-strat:hover{border-color:var(--teal);color:var(--ink)}
+  .pv-strat.on{color:var(--teal);background:var(--teal-soft);border-color:var(--teal);font-weight:700}
   .pv-meter{margin-left:auto;font-family:var(--mono);font-size:11px;color:var(--ink-3);font-variant-numeric:tabular-nums}
   .pv-meter b{color:var(--teal)}
   .pv-act{display:flex;gap:9px;align-items:baseline;font-family:var(--mono);font-size:12.5px;color:var(--ink-2);margin-top:14px}
@@ -160,11 +184,60 @@
   .pv-stage{height:150px;margin:10px 0 2px}
   .pv-stage .st-pad{width:52px;height:52px;font-size:21px;border-radius:17px}
   .pv-stage .station{top:14px}
+  .pv-scroll{height:330px;overflow-y:auto;scrollbar-width:thin;margin-top:8px;padding-right:8px;
+    border-top:1px solid var(--line-soft);
+    -webkit-mask-image:linear-gradient(180deg,transparent,#000 14px);
+            mask-image:linear-gradient(180deg,transparent,#000 14px)}
   .pv-item{opacity:0;transform:translateY(8px);animation:reveal .35s ease-out forwards}
   @keyframes reveal{to{opacity:1;transform:none}}
   .pv-replay{margin-top:14px;font-size:11.5px;font-weight:650;color:var(--ink-2);background:var(--bg);border:1px solid var(--line);border-radius:9px;padding:5px 13px;cursor:pointer}
   .pv-replay:hover{border-color:var(--teal);color:var(--teal)}
   .cfill{transition:width .8s cubic-bezier(.2,.8,.2,1)}
+
+  /* dark-mode component fixes: pieces whose colors were literal, not role vars */
+  .ticker{background:#20241f;color:#e8eae5}                  /* terminal look in BOTH themes */
+  :root[data-theme="dark"] .badge{background:var(--amber-soft)}
+  :root[data-theme="dark"] .pv-ans,
+  :root[data-theme="dark"] .answer{background:linear-gradient(180deg,var(--card),var(--teal-soft));border-color:#2c5a52}
+  :root[data-theme="dark"] .snip mark,
+  :root[data-theme="dark"] .pv-snip mark{background:var(--amber-soft)}
+  /* dark mascot: the night shift is a little SKULL. Bone lens, hollow eye sockets with
+     glowing pupils, a stitched grin. Same elements, restyled, so both stages get it. */
+  :root[data-theme="dark"] .lens{
+    background:radial-gradient(circle at 38% 30%, #f2efe2, #d6d2bf 68%, #b9b5a2);
+    border-color:var(--teal);
+    box-shadow:0 3px 12px var(--teal-glow), inset 0 -5px 9px rgba(0,0,0,.28);
+  }
+  :root[data-theme="dark"] .eye{
+    width:9px;height:10px;border-radius:50% 50% 46% 46%;background:#141511;top:11px;
+    box-shadow:inset 0 0 0 9px #141511;
+  }
+  :root[data-theme="dark"] .eye::after{
+    content:'';position:absolute;left:3px;top:3.5px;width:3px;height:3px;border-radius:50%;
+    background:var(--teal);box-shadow:0 0 6px var(--teal);
+  }
+  :root[data-theme="dark"] .eye.l{left:7px}
+  :root[data-theme="dark"] .eye.r{left:22px}
+  :root[data-theme="dark"] .mouth{
+    left:12px;top:26px;width:14px;height:4px;border-radius:2px;background:#141511;
+    /* tooth gaps: a stitched skeleton grin */
+    -webkit-mask-image:linear-gradient(90deg,#000 0 3px,transparent 3px 4.5px,#000 4.5px 7.5px,transparent 7.5px 9px,#000 9px 12px,transparent 12px 13.5px,#000 13.5px);
+            mask-image:linear-gradient(90deg,#000 0 3px,transparent 3px 4.5px,#000 4.5px 7.5px,transparent 7.5px 9px,#000 9px 12px,transparent 12px 13.5px,#000 13.5px);
+  }
+  :root[data-theme="dark"] .critter .bubble, :root[data-theme="dark"] .agent .bubble{filter:grayscale(1) brightness(1.4)}
+  :root[data-theme="dark"] .topbar{background:rgba(22,23,21,.85)}
+  :root[data-theme="dark"] .composer-dock, :root[data-theme="dark"] .dock{background:linear-gradient(180deg,transparent,var(--bg) 38%)}
+  :root[data-theme="dark"] .demo-band{background:linear-gradient(120deg,var(--teal-soft),var(--violet-soft))}
+  /* theme toggle */
+  .theme-btn{border:1px solid var(--line);background:var(--card);color:var(--ink-2);width:30px;height:30px;border-radius:9px;cursor:pointer;font-size:14px;line-height:1;transition:.15s}
+  .theme-btn:hover{border-color:var(--teal);color:var(--teal)}
+  .lang-btn{width:auto;padding:0 9px;font-size:11.5px;font-weight:700}
+  /* theme-scoped images */
+  /* NB: `.team img` sets display:block at higher specificity than a bare class, so these
+     selectors must include the img type to win regardless of rule order. */
+  img.only-dark, .team img.only-dark{display:none}
+  :root[data-theme="dark"] img.only-dark, :root[data-theme="dark"] .team img.only-dark{display:block}
+  :root[data-theme="dark"] img.only-light, :root[data-theme="dark"] .team img.only-light{display:none}
 
   /* team */
   .team{margin-top:26px}
@@ -200,7 +273,7 @@
   pre .c{color:#8b9187}
   pre .t{color:#7fd4c8}
 
-  .demo-band{margin-top:24px;background:linear-gradient(120deg,var(--teal-soft),#efe9fb);border:1px solid var(--line);border-radius:22px;padding:26px 28px;display:flex;gap:24px;align-items:center;flex-wrap:wrap}
+  .demo-band{margin-top:24px;background:linear-gradient(120deg,var(--teal-soft),var(--violet-soft));border:1px solid var(--line);border-radius:22px;padding:26px 28px;display:flex;gap:24px;align-items:center;flex-wrap:wrap}
   .demo-band .txt{flex:1;min-width:240px}
   .demo-band h3{font-size:19px;font-weight:800;letter-spacing:-.02em}
   .demo-band p{font-size:13.5px;color:var(--ink-2);margin-top:6px}
@@ -237,6 +310,8 @@
     <a class="opt" href="#team">Team</a>
     <a href="https://arxiv.org/abs/2608.02751">Paper</a>
     <a href="https://github.com/ielab/skim-search-agent">GitHub</a>
+    <button class="theme-btn lang-btn" id="langBtn" title="switch language" aria-label="switch language">中文</button>
+    <button class="theme-btn" id="themeBtn" title="toggle light/dark" aria-label="toggle color theme">&#9789;</button>
   </div>
 </nav>
 
@@ -245,8 +320,8 @@
     <span class="kicker">arXiv 2608.02751 · cs.IR</span>
     <h1><span class="a">Search.</span> <span class="b">Inspect.</span> <span class="c">Fetch.</span></h1>
     <p class="sub">A composable library for building and evaluating deep-research agents over
-    your own corpus — and <b>Sieve</b>, the Boolean search–inspect–fetch method that lets an
-    agent <i>skim before it reads</i>.</p>
+    your own corpus. <b>Sieve</b> is its Boolean search&ndash;inspect&ndash;fetch method: the
+    agent <i>skims before it reads</i>.</p>
     <div class="authors-row">
       <span class="au"><a href="https://shuaiwang.io" target="_blank" rel="noreferrer">Shuai Wang</a><sup>1</sup></span>
       <span class="au"><a href="https://donovan0243.github.io/" target="_blank" rel="noreferrer">Haodong Chen</a><sup>1</sup></span>
@@ -275,26 +350,27 @@
     <div class="ticker" id="ticker"><span class="dot"></span><span id="tick-text">warming up…</span></div>
     <div class="stage" id="stage">
       <div class="floor"></div>
-      <div class="station" id="st-search" style="left:16%"><div class="st-pad">🔎</div><div class="st-name">Search</div></div>
-      <div class="station" id="st-read" style="left:50%"><div class="st-pad">📖</div><div class="st-name">Read</div></div>
-      <div class="station" id="st-answer" style="left:84%"><div class="st-pad">✍️</div><div class="st-name">Answer</div></div>
+      <div class="station" id="st-search" style="left:12%"><div class="st-pad" data-icon="search">🔎</div><div class="st-name" data-station="search">Search</div></div>
+      <div class="station" id="st-inspect" style="left:37%"><div class="st-pad" data-icon="inspect">🗂️</div><div class="st-name" data-station="inspect">Inspect</div></div>
+      <div class="station" id="st-fetch" style="left:62%"><div class="st-pad" data-icon="fetch">📑</div><div class="st-name" data-station="fetch">Fetch §</div></div>
+      <div class="station" id="st-answer" style="left:87%"><div class="st-pad" data-icon="answer">✍️</div><div class="st-name" data-station="answer">Answer</div></div>
       <div class="agent" id="agent"><div class="lens"><span class="eye l"></span><span class="eye r"></span><span class="mouth"></span><div class="handle"></div></div><span class="bubble">💭</span></div>
     </div>
   </div>
-  <div class="caption">the live demo drives this exact board from a real agent episode — nothing here is a video</div>
+  <div class="caption">this board is driven by a real recorded agent run &middot; not a video</div>
 
   <section id="results">
     <span class="sec-k">Headline results</span>
     <h2>Higher accuracy, on a third to half the tokens</h2>
     <p class="lead">Against the BM25 Search–Visit baseline under identical budgets (k=5,
     12,000-token reads, 100 steps). Skimming structure before reading is not an
-    accuracy-for-cost trade — on all three collections it wins on both axes.</p>
+    accuracy-for-cost trade: on all three collections it wins on both axes.</p>
 
     <div class="stats">
       <div class="stat"><div class="v">−32.4<small>%</small></div>
         <div class="l">tokens per episode on BrowseComp-Plus, at <b>+2.5</b> judge points</div></div>
       <div class="stat"><div class="v">−50.6<small>%</small></div>
-        <div class="l">tokens on MuSiQue, at <b>+3.1</b> EM — the biggest saving where the baseline reads most</div></div>
+        <div class="l">tokens on MuSiQue, at <b>+3.1</b> EM. The saving grows where the baseline reads most</div></div>
       <div class="stat"><div class="v">3<small>/3</small></div>
         <div class="l">collections where Sieve improves accuracy <i>and</i> cuts cost</div></div>
     </div>
@@ -323,31 +399,31 @@
     <span class="sec-k">The method</span>
     <h2>Skim the structure, read only what matters</h2>
     <p class="lead">A deep-research agent that reads whole documents burns its context window on
-    text it never needed. Sieve composes four separable stages on top of one shared agent loop —
+    text it never needed. Sieve composes four separable stages on top of one shared agent loop,
     so the agent narrows <i>before</i> it spends.</p>
     <div class="stages">
-      <div class="st-card"><span class="n">01</span><h3>Filter</h3><p>The agent writes a <b>BQL</b> Boolean query — field-scoped terms (<code>title</code>, <code>section</code>, <code>date</code>…), <code>AND</code>/<code>OR</code>/<code>NOT</code>, phrases, prefixes — that carves the corpus down to candidates.</p></div>
+      <div class="st-card"><span class="n">01</span><h3>Filter</h3><p>The agent writes a <b>BQL</b> Boolean query: field-scoped terms (<code>title</code>, <code>section</code>, <code>date</code>…) with <code>AND</code>/<code>OR</code>/<code>NOT</code>, phrases and prefixes that carve the corpus down to candidates.</p></div>
       <div class="st-card"><span class="n">02</span><h3>Rank</h3><p>Candidates are ranked by relevance, with graceful soft fallback when a strict filter over-narrows to zero hits.</p></div>
-      <div class="st-card"><span class="n">03</span><h3>Inspect</h3><p>Each result is a <b>structure-rich card</b> — title, section headings, matched fields, a query-biased snippet — enough to judge a document without reading it.</p></div>
-      <div class="st-card"><span class="n">04</span><h3>Fetch</h3><p>The agent reads <b>only the named section</b> it chose from the card — a slice, not the document — and answers from grounded evidence.</p></div>
+      <div class="st-card"><span class="n">03</span><h3>Inspect</h3><p>Each result is a <b>structure-rich card</b>: title, section headings, matched fields, a query-biased snippet. Enough to judge a document without reading it.</p></div>
+      <div class="st-card"><span class="n">04</span><h3>Fetch</h3><p>The agent reads <b>only the named section</b> it chose from the card, a slice rather than the whole document, and answers from grounded evidence.</p></div>
     </div>
     <figure>
       <img src="assets/architecture.png" alt="Sieve architecture: filter, rank, inspect, fetch stages over one agent loop." loading="lazy">
-      <figcaption>The four stages compose over one shared agent loop — each is swappable on its own.</figcaption>
+      <figcaption>The four stages compose over one shared agent loop; each is swappable on its own.</figcaption>
     </figure>
   </section>
 
   <section id="library">
     <span class="sec-k">The library</span>
-    <h2>Bring the corpus, model, and strategy — the harness is done</h2>
+    <h2>Bring the corpus, model and strategy; the harness is done</h2>
     <p class="lead">One agent loop drives every condition. Corpora, models, retrievers, and
     toolsets are pluggable behind five small protocols; the paper's 15+ conditions (BM25, dense,
-    hybrid, Indri, DCI, BQL variants — over documents and code) are one registry line each.</p>
+    hybrid, Indri, DCI, BQL variants, over documents and code) are one registry line each.</p>
     <div class="feats">
-      <div class="feat"><span class="ic">🧩</span><h3>Add a method in one decorator</h3><p>Drop a file, decorate a builder with <code>@register("my_method")</code>, and the evaluation harness picks it up — no edits anywhere else.</p></div>
-      <div class="feat"><span class="ic">📚</span><h3>Real evaluation, reproducible</h3><p>A CLI harness with per-step token accounting, LLM-judge scoring, and released corpora — the paper's tables regenerate from one command.</p></div>
-      <div class="feat"><span class="ic">🔎</span><h3>BQL: Boolean, forgiving</h3><p>A tiny structured query language with a reference executor and Lucene backend — parse errors come back as observations the agent can learn from, never crashes.</p></div>
-      <div class="feat"><span class="ic">⚔️</span><h3>Baselines included</h3><p>Every control the paper compares against ships in the box — retrieve-then-read, whole-document visiting, dense retrieval, agentic grep — under the same loop.</p></div>
+      <div class="feat"><span class="ic">🧩</span><h3>Add a method in one decorator</h3><p>Drop a file, decorate a builder with <code>@register("my_method")</code>, and the evaluation harness picks it up with no edits anywhere else.</p></div>
+      <div class="feat"><span class="ic">📚</span><h3>Real evaluation, reproducible</h3><p>A CLI harness with per-step token accounting, LLM-judge scoring, and released corpora. The paper's tables regenerate from one command.</p></div>
+      <div class="feat"><span class="ic">🔎</span><h3>BQL: Boolean, forgiving</h3><p>A tiny structured query language with a reference executor and Lucene backend. Parse errors come back as observations the agent can learn from, never crashes.</p></div>
+      <div class="feat"><span class="ic">⚔️</span><h3>Baselines included</h3><p>Every control the paper compares against ships in the box (retrieve-then-read, whole-document visiting, dense retrieval, agentic grep), all under the same loop.</p></div>
     </div>
     <figure>
       <img src="assets/skimsearchagent-overview.png" loading="lazy"
@@ -363,33 +439,32 @@ python run.py dataset=fixture strategy=sieve_bm25   <span class="c"># one episod
 
   <section id="demo">
     <span class="sec-k">The playground</span>
-    <h2>Watch it think — with your own questions</h2>
+    <h2>Watch it think, with your own questions</h2>
     <div class="frame">
       <div class="chrome">
         <span class="dots"><i></i><i></i><i></i></span>
         <span class="url">localhost:8008</span>
-        <span class="badge">pre-recorded replay — the real thing runs on your machine</span>
+        <span class="badge">pre-recorded replay &middot; the real thing runs on your machine</span>
       </div>
       <div class="pv">
         <div class="pv-chips" id="pvChips"></div>
         <div class="pv-q"><span class="k">Q</span><span id="pvQ"></span></div>
         <div class="pv-bar">
-          <span class="pv-pill">Sieve</span>
-          <span class="pv-pill off">Search-Visit</span>
-          <span class="pv-pill off">&#9876; Race both</span>
+          <button class="pv-pill pv-strat on" data-strat="sieve">Sieve</button>
+          <button class="pv-pill pv-strat" data-strat="search_visit">Search-Visit</button>
           <span class="pv-meter" id="pvMeter"><b>$0.00000</b> &middot; 0 tok &middot; 0 ch read</span>
         </div>
 
         <div class="stage pv-stage" id="pvStage">
           <div class="floor"></div>
-          <div class="station" id="pv-st-search" style="left:16%"><div class="st-pad">&#128270;</div><div class="st-name">Search</div></div>
-          <div class="station" id="pv-st-read" style="left:50%"><div class="st-pad">&#128214;</div><div class="st-name">Read</div></div>
-          <div class="station" id="pv-st-answer" style="left:84%"><div class="st-pad">&#9997;&#65039;</div><div class="st-name">Answer</div></div>
+          <div id="pvStations"></div>
           <div class="agent" id="pvAgent"><div class="lens"><span class="eye l"></span><span class="eye r"></span><span class="mouth"></span><div class="handle"></div></div><span class="bubble">&#128173;</span></div>
         </div>
 
-        <div id="pvFeed"></div>
-        <div id="pvContrast"></div>
+        <div class="pv-scroll" id="pvScroll">
+          <div id="pvFeed"></div>
+          <div id="pvContrast"></div>
+        </div>
         <button class="pv-replay" id="pvReplay">&#8635; replay</button>
       </div>
     </div>
@@ -412,8 +487,10 @@ python demo/server.py   <span class="c"># → http://localhost:8008</span></pre>
     <span class="sec-k">The team</span>
     <h2>Built at ielab</h2>
     <div class="team">
-      <img src="assets/team.png" loading="lazy"
+      <img class="only-light" src="assets/team.png" loading="lazy"
            alt="Portraits of the six authors: Shuai Wang, Haodong Chen, Yu Yin, Shengyao Zhuang, Bevan Koopman and Guido Zuccon.">
+      <img class="only-dark" src="assets/teamdark.png" loading="lazy"
+           alt="Portraits of the six authors, night version: Shuai Wang, Haodong Chen, Yu Yin, Shengyao Zhuang, Bevan Koopman and Guido Zuccon.">
       <div class="team-names">
         <a href="https://shuaiwang.io" target="_blank" rel="noreferrer">Shuai Wang<sup>1</sup></a>
         <a href="https://donovan0243.github.io/" target="_blank" rel="noreferrer">Haodong Chen<sup>1</sup></a>
@@ -473,7 +550,7 @@ function bump(dc, dt) { cost += dc; tok += dt; stp += 1
   $('stp').textContent = stp }
 function say(t) { $('tick-text').textContent = t }
 async function goto(id, left) {
-  document.querySelectorAll('.station').forEach(s => s.classList.remove('active'))
+  document.querySelectorAll('#stage .station').forEach(s => s.classList.remove('active'))
   agent.style.left = left; await sleep(760)
   if (id) $(id).classList.add('active')
 }
@@ -505,138 +582,368 @@ async function episode() {
   agent.classList.add('thinking'); agent.style.left = '1%'
   say('Q: which article discussed creatine for rheumatoid arthritis?')
   await sleep(1600); agent.classList.remove('thinking')
-  await goto('st-search', '13%'); bump(.00045, 2886)
+  await goto('st-search', '8.5%'); bump(.00045, 2886)
   say('search: creatine supplementation AND rheumatoid arthritis[body]')
-  await sleep(400); packets('st-search'); await sleep(1500)
-  agent.classList.add('thinking'); await sleep(600); agent.classList.remove('thinking')
-  await goto('st-read', '47%'); bump(.00052, 3357)
+  await sleep(400); packets('st-search'); await sleep(1300)
+  await goto('st-inspect', '33.5%')
+  say(LBL().inspect(3))
+  await sleep(1500)
+  await goto('st-fetch', '58.5%'); bump(.00052, 3357)
   say('fetch: 51481 § Conclusions and recommendations')
   await sleep(1800)
-  await goto('st-read', '47%'); bump(.00054, 3472)
+  await goto('st-fetch', '58.5%'); bump(.00054, 3472)
   say('fetch: 51481 § Abstract summary')
-  await sleep(1700)
+  await sleep(1600)
   agent.classList.add('thinking'); await sleep(700); agent.classList.remove('thinking')
-  await goto('st-answer', '81%'); bump(.00064, 4059)
+  await goto('st-answer', '83.5%'); bump(.00064, 4059)
   say('answer: “Oral creatine supplementation: A potential adjunct therapy for rheumatoid arthritis patients” ✓')
   confetti(); await sleep(4200)
 }
 ;(async () => { for (;;) await episode() })()
 
-/* ---- playground: pre-recorded replays of real library output ---- */
+/* ---- playground: pre-recorded replays of real library output, both strategies ---- */
+const PV_BOARDS = {
+  sieve: [
+    {id:'search',  icon:'\u{1F50E}', name:'Search',  left:'12%'},
+    {id:'inspect', icon:'\u{1F5C2}\uFE0F', name:'Inspect', left:'37%'},
+    {id:'fetch',   icon:'\u{1F4D1}', name:'Fetch \u00A7', left:'62%'},
+    {id:'answer',  icon:'\u270D\uFE0F', name:'Answer',  left:'87%'},
+  ],
+  search_visit: [
+    {id:'search', icon:'\u{1F50E}', name:'Search', left:'15%'},
+    {id:'visit',  icon:'\u{1F4C4}', name:'Visit doc', left:'50%'},
+    {id:'answer', icon:'\u270D\uFE0F', name:'Answer', left:'85%'},
+  ],
+};
+/* every hit, snippet, section name and char count below is captured library output */
 const SCEN = [
   {
-    id: 'creatine',
     chip: 'Which article discusses creatine supplementation for rheumatoid arthritis?',
     q: 'Which article discusses creatine supplementation as an adjunct therapy for rheumatoid arthritis?',
-    steps: [
-      {station:'search', act:'search: creatine[title] AND arthritis[body]',
-       note:'IN(title, creatine) AND IN(body, arthritis) &middot; 4 matches', cost:0.00031, tok:'3.1K', read:0,
-       hits:[
-        {r:1,id:'75582',t:'Creatine supplementation: A potential adjunct therapy for rheumatoid arthritis patients',
-         secs:['Abstract summary','Introduction','Rheumatoid cachexia','+21 more'],m:'title,section,body',
-         snip:'&hellip;Oral creatine supplementation &hellip; improves performance in healthy athletic populations via enhanced muscle mass&hellip;'},
-        {r:2,id:'51481',t:'Oral creatine supplementation: A potential adjunct therapy for rheumatoid arthritis patients',
-         secs:['Review aim and rationale','RA muscle loss and need','+35 more'],m:'title,section,body',snip:''},
-        {r:3,id:'36568',t:'Can Creatine Supplementation Improve Body Composition and Objective Physical Function?',
-         secs:['Trial abstract','Objectives','Methods','Results'],m:'title,body',snip:''}]},
-      {station:'read', act:'fetch: 1 &sect; Abstract summary', cost:0.00058, tok:'6.2K', read:2569,
-       read_h:'75582 &middot; Abstract summary', read_n:'2,569 characters',
-       read_b:'Creatine is one of the most popular forms of protein supplements and is known to improve performance in healthy athletic populations via enhanced muscle mass and adenosine triphosphate energy regeneration. Clinical use of creatine may similarly&hellip;'},
-      {station:'answer', cost:0.00087, tok:'9.7K', read:2569,
-       answer:'&ldquo;Creatine supplementation: A potential adjunct therapy for rheumatoid arthritis patients&rdquo;',
-       gold:'&check; grounded in the fetched section'}
-    ],
-    contrast:{sieve:2569, base:78200, note:'the same document, read two ways'}
+    contrast: {sieve: 2569, base: 78200},
+    runs: {
+      sieve: [
+        {station:'search', act:'search: creatine[title] AND arthritis[body]',
+         note:'IN(title, creatine) AND IN(body, arthritis) &middot; 4 matches', cost:0.00031, tok:'3.1K', read:0,
+         hits:[
+          {r:1,id:'75582',t:'Creatine supplementation: A potential adjunct therapy for rheumatoid arthritis patients',
+           secs:['Abstract summary','Introduction','Rheumatoid cachexia','+21 more'],m:'title,section,body',
+           snip:'&hellip;Oral creatine supplementation &hellip; improves performance in healthy athletic populations via enhanced muscle mass&hellip;'},
+          {r:2,id:'51481',t:'Oral creatine supplementation: A potential adjunct therapy for rheumatoid arthritis patients',
+           secs:['Review aim and rationale','RA muscle loss and need','+35 more'],m:'title,section,body'},
+          {r:3,id:'36568',t:'Can Creatine Supplementation Improve Body Composition and Objective Physical Function?',
+           secs:['Trial abstract','Objectives','Methods','Results'],m:'title,body'}]},
+        {station:'inspect', inspecting:3, cost:0.00031, tok:'3.1K', read:0},
+        {station:'fetch', act:'fetch: 1 &sect; Abstract summary', cost:0.00058, tok:'6.2K', read:2569,
+         read_h:'75582 &middot; Abstract summary', read_n:'2,569 characters',
+         read_b:'Creatine is one of the most popular forms of protein supplements and is known to improve performance in healthy athletic populations via enhanced muscle mass and adenosine triphosphate energy regeneration. Clinical use of creatine may similarly&hellip;'},
+        {station:'answer', cost:0.00087, tok:'9.7K', read:2569,
+         answer:'&ldquo;Creatine supplementation: A potential adjunct therapy for rheumatoid arthritis patients&rdquo;',
+         gold:'grounded'}
+      ],
+      search_visit: [
+        {station:'search', act:'search: creatine supplementation rheumatoid arthritis',
+         note:'plain BM25 &middot; flat listing, no structure', cost:0.00014, tok:'0.9K', read:0,
+         hits:[
+          {r:1,id:'75582',t:'Creatine supplementation: A potential adjunct therapy for rheumatoid arthritis patients',
+           snip:'uploaded by Thomas J Wilkinson on Mar 01, 2018 Content may be subject to copyright. Oral creatine su&hellip;'},
+          {r:2,id:'51481',t:'Oral creatine supplementation: A potential adjunct therapy for rheumatoid arthritis patients'},
+          {r:3,id:'36568',t:'Can Creatine Supplementation Improve Body Composition and Objective Physical Function?'}]},
+        {station:'visit', act:'visit: 1', cost:0.00092, tok:'5.9K', read:78200,
+         read_h:'75582 &middot; whole document', read_n:'78,200 characters into the context window',
+         read_b:'Creatine is one of the most popular forms of protein supplements&hellip; (the ENTIRE document follows: every section, every reference, every table &mdash; 78,200 characters)'},
+        {station:'answer', cost:0.00118, tok:'7.7K', read:78200,
+         answer:'&ldquo;Creatine supplementation: A potential adjunct therapy for rheumatoid arthritis patients&rdquo;',
+         gold:'grounded'}
+      ],
+    },
   },
   {
-    id: 'lsr',
     chip: "Which women's college in Delhi was established in 1956?",
     q: "Which women's college in Delhi was established in 1956, and what is it called today?",
-    steps: [
-      {station:'search', act:'search: college[title] AND 1956[body]',
-       note:'IN(title, college) AND IN(body, 1956) &middot; 3 matches', cost:0.00028, tok:'2.8K', read:0,
-       hits:[
-        {r:1,id:'37133',t:'Lady Shri Ram College &mdash; Wikipedia',
-         secs:['History and founding','Infrastructure and governance','Academics and programs'],m:'title,section,body',
-         snip:'name: Lady Shri Ram College &middot; other_name: LSR &middot; motto: S&#257; vidy&#257; y&#257; vimuktaye&hellip;'},
-        {r:2,id:'39666',t:'How Lala Shri Ram set up Lady Shri Ram College for Women',
-         secs:['Textile mill in Hissar','Need for LSR in Delhi','Establishing Lady Shri Ram College'],m:'title,section,body',snip:''}]},
-      {station:'read', act:'fetch: 1 &sect; History and founding', cost:0.00051, tok:'5.4K', read:397,
-       read_h:'37133 &middot; History and founding', read_n:'397 characters',
-       read_b:'Established in 1956 in New Delhi by the late Lala Shri Ram in memory of his wife Phoolan Devi (Lady Shri Ram), the college began in a school building in Daryaganj, Central Delhi with 299 students, nine faculty, and four staff&hellip;'},
-      {station:'answer', cost:0.00087, tok:'9.7K', read:397,
-       answer:'Lady Shri Ram College for Women, established 1956 in New Delhi.',
-       gold:'&check; matches the gold answer'}
-    ],
-    contrast:{sieve:397, base:7033, note:'the same document, read two ways'}
-  }
+    contrast: {sieve: 397, base: 7033},
+    runs: {
+      sieve: [
+        {station:'search', act:'search: college[title] AND 1956[body]',
+         note:'IN(title, college) AND IN(body, 1956) &middot; 3 matches', cost:0.00028, tok:'2.8K', read:0,
+         hits:[
+          {r:1,id:'37133',t:'Lady Shri Ram College &mdash; Wikipedia',
+           secs:['History and founding','Infrastructure and governance','Academics and programs'],m:'title,section,body',
+           snip:'name: Lady Shri Ram College &middot; other_name: LSR &middot; motto: S&#257; vidy&#257; y&#257; vimuktaye&hellip;'},
+          {r:2,id:'39666',t:'How Lala Shri Ram set up Lady Shri Ram College for Women',
+           secs:['Textile mill in Hissar','Need for LSR in Delhi','Establishing Lady Shri Ram College'],m:'title,section,body'}]},
+        {station:'inspect', inspecting:2, cost:0.00028, tok:'2.8K', read:0},
+        {station:'fetch', act:'fetch: 1 &sect; History and founding', cost:0.00051, tok:'5.4K', read:397,
+         read_h:'37133 &middot; History and founding', read_n:'397 characters',
+         read_b:'Established in 1956 in New Delhi by the late Lala Shri Ram in memory of his wife Phoolan Devi (Lady Shri Ram), the college began in a school building in Daryaganj, Central Delhi with 299 students, nine faculty, and four staff&hellip;'},
+        {station:'answer', cost:0.00087, tok:'9.7K', read:397,
+         answer:'Lady Shri Ram College for Women, established 1956 in New Delhi.',
+         gold:'goldmatch'}
+      ],
+      search_visit: [
+        {station:'search', act:'search: lady shri ram college established 1956',
+         note:'plain BM25 &middot; flat listing, no structure', cost:0.00012, tok:'0.8K', read:0,
+         hits:[
+          {r:1,id:'37133',t:'Lady Shri Ram College &mdash; Wikipedia',
+           snip:'name: Lady Shri Ram College image_size: 150px other_name: LSR motto: S&#257; vidy&#257;&hellip;'},
+          {r:2,id:'39666',t:'How Lala Shri Ram set up Lady Shri Ram College for Women'}]},
+        {station:'visit', act:'visit: 1', cost:0.00042, tok:'3.9K', read:7033,
+         read_h:'37133 &middot; whole document', read_n:'7,033 characters into the context window',
+         read_b:'name: Lady Shri Ram College&hellip; (the whole page follows: infobox, history, governance, academics, rankings, alumni &mdash; 7,033 characters)'},
+        {station:'answer', cost:0.00065, tok:'5.9K', read:7033,
+         answer:'Lady Shri Ram College', gold:'goldmatch'}
+      ],
+    },
+  },
 ];
-const POS = {idle:'1%', search:'13%', read:'47%', answer:'81%'};
-let pvTimers = [], pvActive = 0;
-
+/* the night shift renames the stations. Light mode is the day job; dark is the noir job. */
+const STATION_NAMES = {
+  search:  { day:'Search',  night:'Hunt',        dayIcon:'\u{1F50E}', nightIcon:'\u{1F526}' },
+  inspect: { day:'Inspect', night:'Interrogate', dayIcon:'\u{1F5C2}\uFE0F', nightIcon:'\u{1F56F}\uFE0F' },
+  fetch:   { day:'Fetch \u00A7', night:'Extract \u00A7', dayIcon:'\u{1F4D1}', nightIcon:'\u{1FA78}' },
+  visit:   { day:'Visit doc', night:'Devour doc', dayIcon:'\u{1F4C4}', nightIcon:'\u{1F480}' },
+  answer:  { day:'Answer',  night:'Verdict',     dayIcon:'\u270D\uFE0F', nightIcon:'\u2696\uFE0F' },
+};
+function isNight(){ return document.documentElement.dataset.theme === 'dark'; }
+function stationLabel(id){ const n = STATION_NAMES[id]; return n ? (isNight() ? n.night : n.day) : id; }
+function stationIcon(id){ const n = STATION_NAMES[id]; return n ? (isNight() ? n.nightIcon : n.dayIcon) : ''; }
+function relabelHero(){
+  document.querySelectorAll('[data-station]').forEach(el => { el.textContent = stationLabel(el.dataset.station); });
+  document.querySelectorAll('[data-icon]').forEach(el => { el.textContent = stationIcon(el.dataset.icon); });
+}
+let pvTimers = [], pvActive = 0, pvStrat = 'sieve';
+const pvAgentEl = document.getElementById('pvAgent'), pvFrame = document.querySelector('.frame');
 function pvClear(){ pvTimers.forEach(clearTimeout); pvTimers = []; }
 function pvAt(ms, fn){ pvTimers.push(setTimeout(fn, ms)); }
+function pvBoard(){
+  const holder = document.getElementById('pvStations');
+  holder.innerHTML = PV_BOARDS[pvStrat].map(st =>
+    '<div class="station" id="pv-st-' + st.id + '" style="left:' + st.left + '">' +
+    '<div class="st-pad">' + stationIcon(st.id) + '</div><div class="st-name">' + stationLabel(st.id) + '</div></div>').join('');
+  /* the whole frame takes the strategy's accent: Sieve teal, Search-Visit violet */
+  if (pvStrat === 'search_visit') {
+    pvFrame.style.setProperty('--teal', 'var(--violet)');
+    pvFrame.style.setProperty('--teal-soft', 'var(--violet-soft)');
+    pvFrame.style.setProperty('--teal-glow', 'rgba(141,110,232,.35)');
+  } else {
+    ['--teal','--teal-soft','--teal-glow'].forEach(v => pvFrame.style.removeProperty(v));
+  }
+}
 function pvStation(id){
-  ['search','read','answer'].forEach(k =>
-    document.getElementById('pv-st-'+k).classList.toggle('active', k===id));
-  document.getElementById('pvAgent').style.left = POS[id] || POS.idle;
+  PV_BOARDS[pvStrat].forEach(st =>
+    document.getElementById('pv-st-' + st.id).classList.toggle('active', st.id === id));
+  const st = PV_BOARDS[pvStrat].find(x => x.id === id);
+  pvAgentEl.style.left = st ? 'calc(' + st.left + ' - 3.5%)' : '1%';
 }
 function pvMeter(c, tok, read){
   document.getElementById('pvMeter').innerHTML =
     '<b>$' + c.toFixed(5) + '</b> &middot; ' + tok + ' tok &middot; ' + read.toLocaleString() + ' ch read';
 }
+function pvFollow(){
+  const sc = document.getElementById('pvScroll');
+  const nearBottom = sc.scrollHeight - sc.scrollTop - sc.clientHeight < 90;
+  if (nearBottom) requestAnimationFrame(() => { sc.scrollTop = sc.scrollHeight; });
+}
 function pvAdd(html){
   const d = document.createElement('div'); d.className = 'pv-item'; d.innerHTML = html;
   document.getElementById('pvFeed').appendChild(d);
+  pvFollow();
 }
 function pvHit(h){
   return '<div class="pv-hit"><div class="t"><span class="pv-rank">' + h.r + '</span><b>' + h.t +
-    '</b><span class="pv-id">' + h.id + '</span><span class="pv-m">matched: ' + h.m + '</span></div>' +
-    '<div class="pv-secs">' + h.secs.map(x => '<span class="pv-sec">&sect; ' + x + '</span>').join('') + '</div>' +
+    '</b><span class="pv-id">' + h.id + '</span>' +
+    (h.m ? '<span class="pv-m">matched: ' + h.m + '</span>' : '') + '</div>' +
+    (h.secs ? '<div class="pv-secs">' + h.secs.map(x => '<span class="pv-sec">&sect; ' + x + '</span>').join('') + '</div>' : '') +
     (h.snip ? '<div class="pv-snip">' + h.snip + '</div>' : '') + '</div>';
 }
 function pvPlay(i){
   pvClear(); pvActive = i;
-  const sc = SCEN[i];
+  const sc = SCEN[i], steps = sc.runs[pvStrat];
+  pvBoard();
   document.getElementById('pvQ').innerHTML = sc.q;
   document.getElementById('pvFeed').innerHTML = '';
   document.getElementById('pvContrast').innerHTML = '';
+  document.getElementById('pvScroll').scrollTop = 0;
   pvMeter(0, '0', 0);
   pvStation(null);
   [...document.querySelectorAll('.pv-chip')].forEach((c, k) => c.classList.toggle('on', k === i));
 
   let t = 700, n = 0;
-  sc.steps.forEach(step => {
+  steps.forEach(step => {
     n += 1; const num = n;
     pvAt(t, () => { pvStation(step.station); pvMeter(step.cost, step.tok, step.read); });
     t += 620;
     if (step.act) { pvAt(t, () => pvAdd('<div class="pv-act"><span class="n">' + num +
       '</span><b>' + step.act.split(':')[0] + ':</b>&nbsp;' + step.act.split(':').slice(1).join(':') + '</div>' +
       (step.note ? '<div class="pv-note">' + step.note + '</div>' : ''))); t += 520; }
+    else if (step.inspecting) { pvAt(t, () => pvAdd('<div class="pv-note" style="padding-left:0">' +
+      LBL().inspect(step.inspecting) + '</div>')); t += 950; }
     (step.hits || []).forEach(h => { pvAt(t, () => pvAdd(pvHit(h))); t += 430; });
     if (step.read_h) { pvAt(t, () => pvAdd('<div class="pv-read"><div class="h">&#128214; <b>' +
       step.read_h + '</b> &mdash; ' + step.read_n + '</div><div class="b">' + step.read_b + '</div></div>')); t += 900; }
-    if (step.answer) { pvAt(t, () => pvAdd('<div class="pv-ans"><div class="k">Final answer</div><div class="t">' +
-      step.answer + '</div><div class="g">' + step.gold + '</div></div>')); t += 700; }
+    if (step.answer) { pvAt(t, () => pvAdd('<div class="pv-ans"><div class="k">' + LBL().final +
+      '</div><div class="t">' + step.answer + '</div><div class="g">' + LBL()[step.gold] + '</div></div>')); t += 700; }
   });
   pvAt(t, () => {
     const c = sc.contrast, pct = (c.sieve / c.base * 100);
     document.getElementById('pvContrast').innerHTML =
-      '<div class="contrast"><h4>Why it costs less</h4><p>' + c.note +
-      ' &mdash; measured with the library&rsquo;s own tools.</p>' +
-      '<div class="crow"><span class="clabel">Sieve &sect; section</span><span class="ctrack">' +
-      '<span class="cfill" style="width:0;background:var(--teal)"></span></span><span class="cval">' +
+      '<div class="contrast"><h4>' + LBL().why + '</h4><p>' + LBL().note + '</p>' +
+      '<div class="crow"><span class="clabel">Sieve &sect;</span><span class="ctrack">' +
+      '<span class="cfill" style="width:0;background:var(--pv-teal, #0e9384)"></span></span><span class="cval">' +
       c.sieve.toLocaleString() + ' ch</span></div>' +
-      '<div class="crow"><span class="clabel">Search-Visit doc</span><span class="ctrack">' +
-      '<span class="cfill" style="width:0;background:var(--violet)"></span></span><span class="cval">' +
+      '<div class="crow"><span class="clabel">Search-Visit</span><span class="ctrack">' +
+      '<span class="cfill" style="width:0;background:#8d6ee8"></span></span><span class="cval">' +
       c.base.toLocaleString() + ' ch</span></div>' +
-      '<p style="margin-top:9px"><b style="color:var(--teal)">' + pct.toFixed(1) +
-      '%</b> of the text, for the same answer.</p></div>';
+      '<p style="margin-top:9px">' + LBL().pct('<b style="color:#0e9384">' + pct.toFixed(1) + '%</b>') + '</p></div>';
     const fills = document.querySelectorAll('#pvContrast .cfill');
     requestAnimationFrame(() => { fills[0].style.width = Math.max(pct, 1.5) + '%'; fills[1].style.width = '100%'; });
+    pvFollow();
   });
   pvAt(t + 5200, () => pvPlay((i + 1) % SCEN.length));
 }
+(function pvInit(){
+  const chips = document.getElementById('pvChips');
+  SCEN.forEach((sc, i) => {
+    const b = document.createElement('button');
+    b.className = 'pv-chip'; b.textContent = sc.chip; b.title = sc.q;
+    b.onclick = () => pvPlay(i);
+    chips.appendChild(b);
+  });
+  [...document.querySelectorAll('.pv-strat')].forEach(btn => {
+    btn.onclick = () => {
+      pvStrat = btn.dataset.strat;
+      [...document.querySelectorAll('.pv-strat')].forEach(x => x.classList.toggle('on', x === btn));
+      pvPlay(pvActive);
+    };
+  });
+  document.getElementById('pvReplay').onclick = () => pvPlay(pvActive);
+  const io = new IntersectionObserver(es => {
+    es.forEach(e => { if (e.isIntersecting) { pvPlay(0); io.disconnect(); } });
+  }, {threshold: .25});
+  io.observe(document.getElementById('pvStage'));
+})();
+/* ---- i18n: EN is snapshotted from the DOM at load; ZH swaps in via stable selectors ---- */
+const I18N = [
+  ['.nav a.opt', 0, '结果'], ['.nav a.opt', 1, '方法'], ['.nav a.opt', 2, '代码库'],
+  ['.nav a.opt', 3, '演示'], ['.nav a.opt', 4, '团队'],
+  ['.nav a[href*="arxiv"]', 0, '论文'],
+  ['h1', 0, '<span class="a">Search.</span> <span class="b">Inspect.</span> <span class="c">Fetch.</span>',
+   '<span class="a">Hunt.</span> <span class="b">Interrogate.</span> <span class="c">Extract.</span>',
+   '<span class="a">Hunt.</span> <span class="b">Interrogate.</span> <span class="c">Extract.</span>'],
+  ['.sub', 0, '一个可组合的深度研究智能体库：带上你自己的语料，就能构建并评测智能体。<b>Sieve</b> 是其中的布尔式「搜索、检视、取读」方法，让智能体先略读、再细读。'],
+  ['.cta .btn', 1, '阅读论文'], ['.cta .btn', 2, '&#9654; 试试在线演示'],
+  ['.caption', 0, '这块面板由一次真实的智能体运行驱动，不是视频',
+   'the night shift runs this exact board. Still not a video', '夜班跑的也是真实运行，依然不是视频'],
+  ['#results .sec-k', 0, '主要结果'],
+  ['#results h2', 0, '准确率更高，token 最多省一半'],
+  ['#results .lead', 0, '与 BM25 Search&ndash;Visit 基线在完全相同的预算下对比（k=5，单次阅读上限 12,000 token，双方摘要均为 32 token，至多 100 步）。先略读结构并不是拿准确率换成本：三个数据集上，准确率和成本同时占优。'],
+  ['#results .stat .l', 0, 'BrowseComp-Plus 上每回合的 token 数，判分同时提高 <b>+2.5</b>'],
+  ['#results .stat .l', 1, 'MuSiQue 上的 token 数，EM 提高 <b>+3.1</b>。基线读得越多，省得越多'],
+  ['#results .stat .l', 2, '三个数据集全部做到准确率更高、成本更低'],
+  ['#results table.res th', 0, '数据集'], ['#results table.res th', 1, '准确率（基线 → Sieve）'],
+  ['#results table.res th', 2, '每回合 token'],
+  ['#results .lead', 1, '这一效果在不同的智能体底座上同样成立（Qwen-AgentWorld、OpenResearcher），基线消耗的上下文越多，节省越明显。完整表格、消融实验和统计检验见论文。'],
+  ['#method .sec-k', 0, '方法'],
+  ['#method h2', 0, '先略读结构，只读要紧的部分'],
+  ['#method .lead', 0, '把整篇文档读进上下文的智能体，大半个窗口都花在用不上的文字上。Sieve 在同一个智能体循环之上拆出四个独立阶段，让智能体先收窄范围，再花钱阅读。'],
+  ['#method .st-card h3', 0, '过滤'], ['#method .st-card h3', 1, '排序'],
+  ['#method .st-card h3', 2, '检视'], ['#method .st-card h3', 3, '取读'],
+  ['#method .st-card p', 0, '智能体写一条 <b>BQL</b> 布尔查询：字段限定（<code>title</code>、<code>section</code>、<code>date</code> 等）配上 <code>AND</code>/<code>OR</code>/<code>NOT</code>、短语和前缀，把整个语料筛成一小批候选。'],
+  ['#method .st-card p', 1, '候选按相关性排序；严格过滤一旦筛到零命中，会自动放宽兜底。'],
+  ['#method .st-card p', 2, '每条结果是一张<b>结构卡片</b>：标题、小节名、命中字段、贴合查询的摘要。不读全文，也能判断这篇文档值不值得读。'],
+  ['#method .st-card p', 3, '智能体只取卡片上选中的<b>那一小节</b>，而不是整篇文档，然后依据读到的证据作答。'],
+  ['#method figcaption', 0, '四个阶段都建立在同一个智能体循环上，每一个都能单独替换。'],
+  ['#library .sec-k', 0, '代码库'],
+  ['#library h2', 0, '带上语料、模型和策略，其余框架都是现成的'],
+  ['#library .lead', 0, '一个智能体循环跑遍所有实验条件。语料、模型、检索器和工具集通过五个小协议接入；论文里的十几种条件（BM25、稠密、混合、Indri、DCI 以及各类 BQL 变体，覆盖文档和代码）每种只占注册表一行。'],
+  ['#library .feat h3', 0, '加新方法，一个装饰器搞定'],
+  ['#library .feat h3', 1, '评测完整，结果可复现'],
+  ['#library .feat h3', 2, 'BQL：写错查询也不怕'],
+  ['#library .feat h3', 3, '基线一应俱全'],
+  ['#library .feat p', 0, '新建一个文件，给构建函数加上 <code>@register("my_method")</code>，评测框架就会自动发现它，其他地方一行都不用改。'],
+  ['#library .feat p', 1, '命令行评测框架自带逐步 token 记账、LLM 判分和公开语料，论文里的表格一条命令就能重新生成。'],
+  ['#library .feat p', 2, '一门小巧的结构化查询语言，带参考执行器和 Lucene 后端。查询解析出错时，错误会作为观察返回给智能体自己修正，程序绝不会崩溃。'],
+  ['#library .feat p', 3, '论文里对比过的所有对照方法，包括先检索后阅读、整篇访问、稠密检索和 agentic grep，都在同一个循环下开箱即用。'],
+  ['#library figcaption', 0, '一个智能体循环居中，语料、模型、策略、检索器和评测器都围绕它独立替换。'],
+  ['#demo .sec-k', 0, '演示', 'The crime scene', '案发现场'],
+  ['#demo h2', 0, '用你自己的问题，看它怎么想',
+   'Watch it prowl, with your own questions', '用你的问题，看它夜里怎么巡'],
+  ['.badge', 0, '预录回放。真正的演示在你自己的电脑上运行',
+   'pre-recorded s&eacute;ance &middot; the real thing haunts your machine', '预录的降灵回放。真家伙在你自己的电脑里出没'],
+  ['#pvReplay', 0, '&#8635; 重播'],
+  ['.demo-band h3', 0, '在线演示：两个策略，同一个问题，现场对决。'],
+  ['.demo-band p', 0, '在 101 篇真实的 BrowseComp-Plus 文档上随便提问。小侦探在工具站之间来回跳，文档墙随着检索和阅读一格格亮起，计费表实时累计每个 token、每一分钱。让 <b style="color:var(--teal)">Sieve</b> 和 <b style="color:var(--violet)">Search-Visit</b> 同场竞速，论文的结论就在你眼前发生。'],
+  ['#team .sec-k', 0, '团队'], ['#team h2', 0, '出自 ielab', 'The ielab night shift', 'ielab 夜班组'],
+  ['#cite .sec-k', 0, '引用'], ['#cite h2', 0, '如果你用到 Sieve 或这套代码库'],
+];
+const LBLS = {
+  en: { final:'Final answer', grounded:'&check; grounded in the fetched section',
+        goldmatch:'&check; matches the gold answer', why:'Why it costs less',
+        note:'the same document, read two ways. Measured with the library&rsquo;s own tools.',
+        inspect: n => 'inspecting ' + n + ' result cards: titles, section names, matched fields, snippets',
+        pct: x => x + ' of the text, for the same answer.' },
+  zh: { final:'最终答案', grounded:'&check; 答案出自刚读的小节',
+        goldmatch:'&check; 与标准答案一致', why:'为什么更省',
+        note:'同一篇文档的两种读法，用库里自带的工具实测。',
+        inspect: n => '正在检视 ' + n + ' 张结果卡片：标题、小节名、命中字段和摘要',
+        pct: x => '只读了 ' + x + ' 的文本，答案一样。' },
+};
+let LANG = localStorage.getItem('sieve-lang') || 'en';
+const LBLS_NIGHT = {
+  en: { final:'The verdict', grounded:'&check; dug out of the extracted section',
+        goldmatch:'&check; the gold answer, dead to rights', why:'Why the night shift runs cheaper',
+        note:'the same document, read two ways. Measured with the library&rsquo;s own tools.',
+        inspect: n => 'interrogating ' + n + ' suspects: titles, section names, matched fields, snippets',
+        pct: x => x + ' of the text, same verdict.' },
+  zh: { final:'判决', grounded:'&check; 从取读的小节里挖出来的',
+        goldmatch:'&check; 人赃并获，与标准答案一致', why:'为什么夜班更省',
+        note:'同一篇文档的两种读法，用库里自带的工具实测。',
+        inspect: n => '正在审讯 ' + n + ' 名嫌疑卡片：标题、小节名、命中字段和摘要',
+        pct: x => '只搜了 ' + x + ' 的文本，判决一样。' },
+};
+function LBL(){ return (isNight() ? LBLS_NIGHT : LBLS)[LANG]; }
+const EN_SNAP = [];
+function langInit(){
+  I18N.forEach(([sel, n]) => {
+    const el = document.querySelectorAll(sel)[n];
+    EN_SNAP.push(el ? el.innerHTML : null);
+  });
+  const btn = document.getElementById('langBtn');
+  function apply(){
+    document.documentElement.lang = LANG === 'zh' ? 'zh-CN' : 'en';
+    btn.textContent = LANG === 'zh' ? 'EN' : '中文';
+    I18N.forEach(([sel, n, zh, nightEn, nightZh], i) => {
+      const el = document.querySelectorAll(sel)[n];
+      if (!el || EN_SNAP[i] == null) return;
+      const day = LANG === 'zh' ? zh : EN_SNAP[i];
+      const night = LANG === 'zh' ? (nightZh || zh) : (nightEn || EN_SNAP[i]);
+      el.innerHTML = isNight() ? night : day;
+    });
+    relabelHero();
+  }
+  window.applyI18N = apply;
+  btn.onclick = () => {
+    LANG = LANG === 'zh' ? 'en' : 'zh';
+    localStorage.setItem('sieve-lang', LANG);
+    apply();
+    pvPlay(pvActive);           // re-render the replay so its labels follow the language
+  };
+  apply();
+}
+langInit();
+(function themeInit(){
+  const btn = document.getElementById('themeBtn');
+  function paint(){ btn.innerHTML = document.documentElement.dataset.theme === 'dark' ? '&#9788;' : '&#9789;'; }
+  btn.onclick = () => {
+    const next = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
+    document.documentElement.dataset.theme = next;
+    localStorage.setItem('sieve-theme', next);
+    paint();
+    if (window.applyI18N) window.applyI18N();   // night mode renames labels too
+    pvPlay(pvActive);
+  };
+  paint();
+})();
 (function pvInit(){
   const chips = document.getElementById('pvChips');
   SCEN.forEach((sc, i) => {

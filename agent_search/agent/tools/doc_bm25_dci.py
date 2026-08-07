@@ -52,6 +52,7 @@ from agent_search.agent.tools.doc_dci import (
     BASH_MAX_BYTES, BASH_MAX_LINES, READ_DEFAULT_LIMIT, READ_MAX_LINE_CHARS,
     _HARD_TIMEOUT_S, _run_bash, _run_read)
 from agent_search.corpus.flat_export import stage_units_into
+from agent_search.agent.tools.doc_research import opening_line
 from agent_search.corpus.units import CodeUnit
 
 # The retrieval-stage cutoff: how many bm25 hits a `bm25_search` call surfaces/stages by
@@ -135,7 +136,7 @@ class Bm25DciWorkspace:
             self.seen.add(doc_id)
             if doc_id not in self._staged:
                 new_units.append(u)
-            snip = " ".join((u.body or u.code or "")[:120].split())
+            snip = opening_line(u)
             lines.append(f"  {rank}  {doc_id}  {(u.title or u.qualname or '')!r}  {snip}…")
 
         # INCREMENTAL staging: only docs not already on disk get written, via the SAME writer

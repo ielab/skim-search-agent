@@ -16,7 +16,7 @@ four separable stages on top of the shared agent loop:
 2. **Rank.** An interchangeable ranker orders only the admitted candidates: BM25, dense, or
    reciprocal-rank fusion of both.
 3. **Inspect.** Each result is a structure-rich card — title, section headings, matched
-   fields, and a query-focused snippet (`SNIPPET_TOKENS`, default 32 tokens) — so the agent
+   fields, and a query-focused snippet (`SNIPPET_TOKENS`, default 32 tokens, no character cap) — so the agent
    chooses what to read before
    spending any reading budget.
 4. **Fetch.** The agent reads one named section, not the whole document.
@@ -45,7 +45,7 @@ python -m evaluation.run_eval --dataset browsecomp_plus_structured_full \
 |---|---|---|
 | Strict Boolean (no fallback) | `BQL_SOFT_FALLBACK=0` | accuracy drops well below the Search–Visit baseline — the fallback is load-bearing |
 | Without snippets | condition `agent_research_bql_dense_fetch` | 2.9–6.8 accuracy points lost, matched everything else |
-| Snippet width sweep | `SNIPPET_TOKENS=32 / 64 / 128 / 256 / 512` (default 32; the pre-knob hardcoded value was 25) | not yet run — listing size grows roughly linearly with the window |
+| Snippet width sweep | `snippet_tokens=32 / 64 / 128 / 256 / 512` on `run.py` (or `SNIPPET_TOKENS=` in the environment). Default 32. Governs BOTH arms' listing snippets — Sieve's query-biased window and the visit baselines' opening window — so a sweep moves the comparison, not one side of it | not yet run — listing size grows roughly linearly with the window |
 | Dense encoder sweep | `DENSE_MODEL=<hf-id>` (bge-small/base/large, Qwen3-Embedding 0.6B/4B/8B) | token saving stable across 33M–8B; accuracy varies within ~3 points |
 | Ranker swap | the three conditions above | fusion is best on BrowseComp-Plus; dense best on HotpotQA |
 | Engine swap | `agent_research_indri_snip` | Indri-QL executor comparison |
@@ -66,7 +66,7 @@ accuracy–cost Pareto front.</em></p>
 ## Headline results
 
 Against the BM25 Search–Visit baseline under identical budgets (k=5, 12,000-token reads,
-100 steps):
+32-token listing snippets on both arms, 100 steps):
 
 | collection | accuracy (baseline → Sieve) | tokens/episode |
 |---|---|---|

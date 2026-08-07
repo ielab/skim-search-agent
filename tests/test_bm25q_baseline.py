@@ -16,7 +16,7 @@ test_dense_baseline.py use for their stub retrieval engines.
 """
 from __future__ import annotations
 
-from agent_search.agent.tools.doc_research import Bm25Visit, DocSearchFetch, best_line
+from agent_search.agent.tools.doc_research import Bm25Visit, DocSearchFetch, best_line, SNIPPET_TOKENS
 from agent_search.corpus.units import units_from_documents
 
 _PAD = "x"          # a 1-char filler token; pad_before is chosen large enough that the doc's
@@ -24,8 +24,9 @@ _PAD = "x"          # a 1-char filler token; pad_before is chosen large enough t
                     # the needle, isolating "opening slice" from "query-biased window".
 
 
-def _padded_doc(doc_id: str, title: str, needle: str, pad_before: int = 80,
-                pad_after: int = 30) -> dict:
+def _padded_doc(doc_id: str, title: str, needle: str,
+                pad_before: int = SNIPPET_TOKENS + 5,
+                pad_after: int = SNIPPET_TOKENS + 5) -> dict:
     before = " ".join([_PAD] * pad_before)
     after = " ".join([_PAD] * pad_after)
     return {"_id": doc_id, "title": title, "text": f"{before} {needle} {after}"}
@@ -94,8 +95,9 @@ def test_query_biased_false_is_byte_identical_to_the_old_default():
 
 
 def test_query_biased_false_opening_snippet_misses_the_mid_body_needle():
-    """The OLD/default rendering is a fixed 120-CHARACTER opening slice — with pad_before=80
-    filler tokens, that slice never reaches the mid-body needle."""
+    """The default rendering is the doc's OPENING window (`opening_line`, SNIPPET_TOKENS
+    wide) — the fixture pads one full window of filler before the needle, so the opening
+    snippet never reaches it at any configured width."""
     ws = _ws(("d_mid",), query_biased=False)
     out = ws.run("bm25_search", {"query": "zephyrquokka marker"})
     hit_line = next(l for l in out.splitlines() if "d_mid" in l)

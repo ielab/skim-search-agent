@@ -62,7 +62,7 @@ function interpretStep(step, n) {
   }
   if (step.type === 'fetch') {
     return {
-      station: 'read', action: `fetch: ${step.ask || `${step.doc} § ${step.section}`}`,
+      station: 'fetch', action: `fetch: ${step.ask || `${step.doc} § ${step.section}`}`,
       items: [{ kind: 'act', step: n, op: 'fetch', text: step.ask },
               { kind: 'read', step: n, doc: step.doc, part: `§ ${step.section}`,
                 text: step.text, error: step.error, whole: false }],
@@ -71,7 +71,7 @@ function interpretStep(step, n) {
   }
   if (step.type === 'visit') {
     return {
-      station: 'read', action: `read: ${step.doc} (whole document)`,
+      station: 'visit', action: `visit: ${step.doc} (whole document)`,
       items: [{ kind: 'act', step: n, op: 'read', text: `${step.doc} — whole document` },
               { kind: 'read', step: n, doc: step.doc, part: step.title,
                 text: step.text, error: step.error, whole: true }],
@@ -111,7 +111,8 @@ function spawnPackets(strategy, station, color) {
 
 function flyTile(strategy, docId) {
   const cell = document.getElementById(`cell-${docId}`)
-  const st = document.getElementById(`st-${strategy}-read`)
+  const st = document.getElementById(`st-${strategy}-fetch`)
+        || document.getElementById(`st-${strategy}-visit`)
   if (!cell || !st) return
   const a = cell.getBoundingClientRect(), b = st.getBoundingClientRect()
   const t = document.createElement('div')
@@ -201,12 +202,27 @@ function Meter({ usage, t0, done, color }) {
 
 /* ---------- the stage ---------- */
 
-const STATIONS = [
-  { id: 'search', icon: '🔎', name: 'Search', left: '12%' },
-  { id: 'read', icon: '📖', name: 'Read', left: '44%' },
-  { id: 'answer', icon: '✍️', name: 'Answer', left: '76%' },
-]
-const AGENT_POS = { idle: '1%', search: '13%', read: '45%', answer: '77%' }
+// Each strategy has ITS OWN board — the stations are the paper's method decomposition, so
+// the difference between the two arms is structural, not a label. Sieve's pipeline is the
+// paper's title (Search → Inspect → Fetch a named section); the baseline has no inspect
+// stage and reads whole documents (Search → Visit).
+const BOARDS = {
+  sieve: [
+    { id: 'search', icon: '🔎', name: 'Search', left: '11%' },
+    { id: 'inspect', icon: '🗂️', name: 'Inspect', left: '36%' },
+    { id: 'fetch', icon: '📑', name: 'Fetch §', left: '61%' },
+    { id: 'answer', icon: '✍️', name: 'Answer', left: '86%' },
+  ],
+  search_visit: [
+    { id: 'search', icon: '🔎', name: 'Search', left: '14%' },
+    { id: 'visit', icon: '📄', name: 'Visit doc', left: '48%' },
+    { id: 'answer', icon: '✍️', name: 'Answer', left: '82%' },
+  ],
+}
+const agentPos = (strategy, station) => {
+  const st = BOARDS[strategy].find(x => x.id === station)
+  return st ? `calc(${st.left} - 1%)` : '1%'
+}
 
 function Stage({ strategy, col, question, mini }) {
   const s = STRATS[strategy]
@@ -244,7 +260,7 @@ function Stage({ strategy, col, question, mini }) {
       <div className={`ticker${running ? ' live' : ''}`}>{action}</div>
       <div className="stage" id={`stage-${strategy}`} ref={stageRef} onMouseMove={onMove}>
         <div className="floor" />
-        {STATIONS.map(st => (
+        {BOARDS[strategy].map(st => (
           <div key={st.id} id={`st-${strategy}-${st.id}`}
                className={`station${station === st.id ? ' active' : ''}`}
                style={{ left: st.left }}>
@@ -252,7 +268,7 @@ function Stage({ strategy, col, question, mini }) {
             <div className="st-name">{st.name}</div>
           </div>
         ))}
-        <div className="agent" style={{ left: AGENT_POS[station] || AGENT_POS.idle }}>
+        <div className="agent" style={{ left: agentPos(strategy, station) }}>
           <div className={landing ? 'land' : ''}>
             <Mascot color={s.color}
                     thinking={running && station !== 'answer'}
@@ -279,13 +295,14 @@ function Snip({ text, query }) {
   )
 }
 
-function HitCard({ hit, query }) {
+function HitCard({ hit, query, chosen }) {
   return (
-    <div className="hit">
+    <div className={`hit${chosen ? ' chosen' : ''}`}>
       <div className="hit-t">
         <span className="rank">{hit.rank}</span>
         <b>{hit.title}</b>
         <span className="hid">{hit.id}</span>
+        {chosen && <span className="pick">→ read</span>}
         {hit.matched && <span className="matched">matched: {hit.matched}</span>}
       </div>
       {hit.sections.length > 0 && (
@@ -314,15 +331,34 @@ function ReadCard({ doc, part, text, error, whole }) {
 }
 
 function Feed({ col, gold }) {
+  // The feed scrolls INSIDE its own fixed-height panel, so a streaming run never grows the
+  // page or shoves the compare chart / footer around. Stick to the newest card only while
+  // the reader is already near the bottom — scrolling back up is never fought.
+  const ref = useRef(null)
+  useEffect(() => {
+    const el = ref.current
+    if (!el || col.doneAt) return
+    if (el.scrollHeight - el.scrollTop - el.clientHeight < 120) {
+      requestAnimationFrame(() => { el.scrollTop = el.scrollHeight })
+    }
+  }, [col.events.length, col.doneAt])
+  // docs the agent went on to read — their result cards get a "→ read" mark, making the
+  // inspect→fetch decision visible in the feed
+  const readDocs = useMemo(() => {
+    const d = new Set()
+    for (const e of col.events) if (e.kind === 'read' && !e.error) d.add(e.doc)
+    return d
+  }, [col.events])
   return (
-    <div className="feed">
+    <div className="feed" ref={ref}>
       {col.events.map((e, i) => {
         if (e.kind === 'act') return (
           <div className="act-line" key={i}>
             <span className="n">{e.step}</span>
             <b>{e.op}:</b>&nbsp;<span className="at">{e.text}</span>
           </div>)
-        if (e.kind === 'hit') return <HitCard hit={e.hit} query={e.query} key={i} />
+        if (e.kind === 'hit') return <HitCard hit={e.hit} query={e.query} key={i}
+                                              chosen={readDocs.has(e.hit.id)} />
         if (e.kind === 'read') return <ReadCard {...e} key={i} />
         if (e.kind === 'zero') return <div className="note" key={i}>{e.text}</div>
         if (e.kind === 'note') return <div className="note" key={i}>{e.text}</div>
@@ -464,6 +500,19 @@ export default function App() {
           c.usage = msg.usage
           if (it.station === 'search') {
             setTimeout(() => spawnPackets(msg.strategy, 'search', STRATS[msg.strategy].color), 780)
+            // Sieve's middle stage: once the result cards are in, the agent INSPECTS them —
+            // titles, section names, matched fields, snippets — before deciding what to
+            // fetch. That skim is the paper's point, so it gets its own station and beat.
+            const hits = (it.seen || []).length
+            if (msg.strategy === 'sieve' && hits > 0) {
+              setTimeout(() => upd(msg.strategy, cc => {
+                if (cc.station === 'search' && !cc.doneAt) {
+                  cc.station = 'inspect'
+                  cc.action = `inspecting ${hits} result card${hits > 1 ? 's' : ''} — sections, matched fields, snippets`
+                }
+                return cc
+              }), 1900)
+            }
           }
           for (const d of it.read || []) setTimeout(() => flyTile(msg.strategy, d), 780)
           return c

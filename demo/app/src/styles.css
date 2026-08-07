@@ -238,7 +238,13 @@ button { font-family: inherit; color: inherit }
 .arena.duo { grid-template-columns: 1fr 1fr }
 @media (max-width: 860px) { .arena.duo { grid-template-columns: 1fr } }
 
-.feed { margin-top: 12px; display: flex; flex-direction: column; gap: 8px }
+.feed {
+  margin-top: 12px; display: flex; flex-direction: column; gap: 8px;
+  /* fixed-height internal scroller — the page itself stays put while steps stream in */
+  max-height: min(56vh, 600px); overflow-y: auto; scrollbar-width: thin; padding-right: 6px;
+  -webkit-mask-image: linear-gradient(180deg, transparent, #000 12px, #000 calc(100% - 10px), transparent);
+          mask-image: linear-gradient(180deg, transparent, #000 12px, #000 calc(100% - 10px), transparent);
+}
 .feed > * { animation: rise .35s ease-out }
 .act-line { display: flex; gap: 9px; align-items: baseline; font-family: var(--mono); font-size: 12.5px; color: var(--ink-2); padding-top: 4px }
 .act-line .n {
@@ -362,3 +368,10 @@ button { font-family: inherit; color: inherit }
 }
 .loading span:nth-child(2) { animation-delay: .18s }
 .loading span:nth-child(3) { animation-delay: .36s; margin-right: 6px }
+
+/* the card the agent chose to read, linked back from the fetch/visit step */
+.hit.chosen { border-color: var(--teal); box-shadow: 0 0 0 1px var(--teal-soft) }
+.hit .pick { font-family: var(--mono); font-size: 10px; font-weight: 700; color: var(--teal);
+  border: 1px solid var(--teal); border-radius: 999px; padding: 0 7px }
+/* four stations need slightly smaller pads in a race lane */
+.stage-card.mini .st-name { font-size: 9px; letter-spacing: .06em }
