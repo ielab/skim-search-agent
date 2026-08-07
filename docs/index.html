@@ -109,6 +109,50 @@
   figure img{width:100%;border:1px solid var(--line-soft);border-radius:14px;background:var(--card)}
   figcaption{margin-top:9px;font-size:12.5px;color:var(--ink-3);text-align:center}
 
+  /* demo preview — a static render of real library output */
+  .frame{margin-top:24px;border:1px solid var(--line);border-radius:18px;background:var(--card);overflow:hidden;box-shadow:0 2px 18px rgba(32,36,31,.07)}
+  .chrome{display:flex;align-items:center;gap:9px;padding:9px 14px;border-bottom:1px solid var(--line-soft);background:var(--bg)}
+  .dots{display:flex;gap:5px}.dots i{width:9px;height:9px;border-radius:50%;background:var(--line);display:block}
+  .url{font-family:var(--mono);font-size:11px;color:var(--ink-3)}
+  .badge{margin-left:auto;font-family:var(--mono);font-size:10px;color:var(--amber);border:1px solid var(--amber-soft);background:#fdf6ea;border-radius:999px;padding:2px 9px}
+  .pv{padding:16px 18px}
+  .pv-q{display:flex;gap:9px;align-items:baseline;font-size:14.5px;font-weight:600;line-height:1.45}
+  .pv-q .k{flex:none;font-family:var(--mono);font-size:10.5px;font-weight:700;color:var(--teal);border:1.5px solid var(--teal);border-radius:6px;padding:0 6px}
+  .pv-bar{display:flex;align-items:center;gap:8px;margin:12px 0 4px;flex-wrap:wrap}
+  .pv-pill{font-size:11.5px;font-weight:650;color:var(--teal);background:var(--teal-soft);border:1px solid var(--teal);border-radius:999px;padding:3px 11px}
+  .pv-pill.off{color:var(--ink-3);background:var(--bg);border-color:var(--line);font-weight:550}
+  .pv-meter{margin-left:auto;font-family:var(--mono);font-size:11px;color:var(--ink-3);font-variant-numeric:tabular-nums}
+  .pv-meter b{color:var(--teal)}
+  .pv-act{display:flex;gap:9px;align-items:baseline;font-family:var(--mono);font-size:12.5px;color:var(--ink-2);margin-top:14px}
+  .pv-act .n{flex:none;width:19px;height:19px;border-radius:6px;background:var(--bg-soft);display:grid;place-items:center;font-size:10px;color:var(--ink-3);align-self:center}
+  .pv-act b{color:var(--teal)}
+  .pv-note{font-family:var(--mono);font-size:11px;color:var(--ink-3);padding-left:28px;margin-top:3px}
+  .pv-hit{margin:8px 0 0 28px;border:1px solid var(--line-soft);border-radius:12px;padding:10px 13px}
+  .pv-hit .t{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap;font-size:13px}
+  .pv-hit .t b{font-weight:650}
+  .pv-rank{font-family:var(--mono);font-size:10px;color:var(--ink-3);border:1px solid var(--line);border-radius:5px;padding:0 5px}
+  .pv-id{font-family:var(--mono);font-size:10.5px;color:var(--ink-3)}
+  .pv-m{margin-left:auto;font-family:var(--mono);font-size:10px;color:var(--good)}
+  .pv-secs{display:flex;gap:5px;flex-wrap:wrap;margin-top:5px}
+  .pv-sec{font-size:10.5px;color:var(--ink-2);background:var(--teal-soft);border-radius:5px;padding:1px 7px}
+  .pv-snip{margin-top:5px;font-size:12px;color:var(--ink-3);line-height:1.5}
+  .pv-read{margin:8px 0 0 28px;border:1px solid var(--line-soft);border-left:3px solid var(--violet);border-radius:12px;padding:10px 13px}
+  .pv-read .h{font-size:11.5px;color:var(--ink-2);margin-bottom:4px}
+  .pv-read .h b{color:var(--ink)}
+  .pv-read .b{font-size:12.5px;color:var(--ink-2);line-height:1.55}
+  .pv-ans{margin-top:12px;background:linear-gradient(180deg,#fff,#f2f8f6);border:1.5px solid #bcded7;border-radius:14px;padding:13px 16px}
+  .pv-ans .k{font-family:var(--mono);font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--teal);font-weight:700;margin-bottom:5px}
+  .pv-ans .t{font-size:14.5px;font-weight:600;line-height:1.5}
+  .pv-ans .g{margin-top:6px;font-size:12px;color:var(--good);font-weight:650}
+  .contrast{margin-top:18px;border-top:1px solid var(--line-soft);padding-top:14px}
+  .contrast h4{font-size:12.5px;font-weight:800;letter-spacing:-.01em}
+  .contrast p{font-size:12px;color:var(--ink-3);margin:2px 0 10px}
+  .crow{display:grid;grid-template-columns:118px 1fr 96px;gap:10px;align-items:center;margin:6px 0;font-size:12px}
+  .clabel{color:var(--ink-2);font-weight:600}
+  .ctrack{height:11px;border-radius:6px;background:var(--bg-soft);overflow:hidden}
+  .cfill{height:100%;border-radius:0 5px 5px 0}
+  .cval{font-family:var(--mono);font-size:11px;text-align:right;font-variant-numeric:tabular-nums}
+
   /* sections */
   section{padding:56px 0 0}
   .sec-k{font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--teal);font-weight:700}
@@ -297,6 +341,68 @@ python run.py dataset=fixture strategy=sieve_bm25   <span class="c"># one episod
   <section id="demo">
     <span class="sec-k">The playground</span>
     <h2>Watch it think — with your own questions</h2>
+    <div class="frame">
+      <div class="chrome">
+        <span class="dots"><i></i><i></i><i></i></span>
+        <span class="url">localhost:8008</span>
+        <span class="badge">preview — the real thing runs on your machine</span>
+      </div>
+      <div class="pv">
+        <div class="pv-q"><span class="k">Q</span>Which article discusses creatine supplementation
+          as an adjunct therapy for rheumatoid arthritis?</div>
+        <div class="pv-bar">
+          <span class="pv-pill">Sieve</span>
+          <span class="pv-pill off">Search-Visit</span>
+          <span class="pv-pill off">⚔ Race both</span>
+          <span class="pv-meter"><b>$0.00087</b> · 9.7K tok · 64% cached · 2.6K ch read</span>
+        </div>
+
+        <div class="pv-act"><span class="n">1</span><b>search:</b>&nbsp;creatine[title] AND arthritis[body]</div>
+        <div class="pv-note">IN(title, creatine) AND IN(body, arthritis) · 4 matches</div>
+
+        <div class="pv-hit">
+          <div class="t"><span class="pv-rank">1</span><b>Creatine supplementation: A potential adjunct therapy for rheumatoid arthritis patients</b><span class="pv-id">75582</span><span class="pv-m">matched: title,section,body</span></div>
+          <div class="pv-secs"><span class="pv-sec">§ Abstract summary</span><span class="pv-sec">§ Introduction</span><span class="pv-sec">§ Rheumatoid cachexia</span><span class="pv-sec">§ Muscle wasting treatments</span><span class="pv-sec">+20 more</span></div>
+          <div class="pv-snip">…Oral creatine supplementation … in healthy athletic populations via enhanced muscle mass…</div>
+        </div>
+        <div class="pv-hit">
+          <div class="t"><span class="pv-rank">2</span><b>Oral creatine supplementation: A potential adjunct therapy for rheumatoid arthritis patients</b><span class="pv-id">51481</span><span class="pv-m">matched: title,section,body</span></div>
+          <div class="pv-secs"><span class="pv-sec">§ Review aim and rationale</span><span class="pv-sec">§ RA muscle loss and need</span><span class="pv-sec">§ Mechanisms of cachexia</span><span class="pv-sec">+34 more</span></div>
+        </div>
+        <div class="pv-hit">
+          <div class="t"><span class="pv-rank">3</span><b>Can Creatine Supplementation Improve Body Composition and Objective Physical Function?</b><span class="pv-id">36568</span><span class="pv-m">matched: title,body</span></div>
+          <div class="pv-secs"><span class="pv-sec">§ Trial abstract</span><span class="pv-sec">§ Objectives</span><span class="pv-sec">§ Methods</span><span class="pv-sec">§ Results</span></div>
+        </div>
+
+        <div class="pv-act"><span class="n">2</span><b>fetch:</b>&nbsp;1 § Abstract summary</div>
+        <div class="pv-read">
+          <div class="h">📖 <b>75582 · Abstract summary</b> — 2,569 characters</div>
+          <div class="b">Creatine is one of the most popular forms of protein supplements and is known to
+          improve performance in healthy athletic populations via enhanced muscle mass and adenosine
+          triphosphate energy regeneration. Clinical use of creatine may similarly…</div>
+        </div>
+
+        <div class="pv-ans">
+          <div class="k">Final answer</div>
+          <div class="t">“Creatine supplementation: A potential adjunct therapy for rheumatoid arthritis patients”</div>
+          <div class="g">✓ checked against the query's gold answer</div>
+        </div>
+
+        <div class="contrast">
+          <h4>Why it costs less</h4>
+          <p>Same question, same document, one read — measured with the library's own tools.</p>
+          <div class="crow"><span class="clabel">Sieve</span>
+            <span class="ctrack"><span class="cfill" style="width:3.3%;background:var(--teal)"></span></span>
+            <span class="cval">2,569 ch</span></div>
+          <div class="crow"><span class="clabel">Search-Visit</span>
+            <span class="ctrack"><span class="cfill" style="width:100%;background:var(--violet)"></span></span>
+            <span class="cval">78,200 ch</span></div>
+          <p style="margin-top:9px">A named section instead of the whole document — <b style="color:var(--teal)">3.3%</b>
+          of the text, for the same answer.</p>
+        </div>
+      </div>
+    </div>
+
     <div class="demo-band">
       <div class="txt">
         <h3>The live demo races two strategies on your question.</h3>
