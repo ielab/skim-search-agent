@@ -105,7 +105,8 @@ def test_unknown_strategy_rejected():
 
 def test_cost_table():
     assert server._cost("gpt-4o-mini", 1_000_000, 1_000_000) == pytest.approx(0.75)
-    assert server._cost("unknown-model", 1000, 1000) == 0.0
+    # unknown model: None, never a confidently wrong $0.00 — the meter shows tokens only
+    assert server._cost("unknown-model", 1000, 1000) is None
 
 
 def test_error_event_redacts_key_shaped_tokens(monkeypatch):
@@ -122,8 +123,25 @@ def test_error_event_redacts_key_shaped_tokens(monkeypatch):
     assert errs and "sk-***" in errs[0]["message"]
 
 
-def test_unlisted_model_rejected():
-    r = _post(TestClient(server.app), model="mystery-model-9000")
+def test_user_defined_model_accepted_and_endpoint_pinned(monkeypatch):
+    """Any model name is allowed (it runs on the user's own key) — but the endpoint must be
+    PINNED to OpenAI: an unrecognised name once fell through make_generate's backend="api"
+    branch to its localhost default, which would have sent the key to whatever listens there."""
+    factory = _scripted_generate(SIEVE_SCRIPT)
+    seen = {}
+
+    def spy(model, **kw):
+        seen.update(kw, model=model)
+        return factory(model, **{k: v for k, v in kw.items() if k in ("backend", "api_key")})
+    monkeypatch.setattr(server, "_make_generate", spy)
+    r = _post(TestClient(server.app), model="my-custom-ft-9000")
+    assert r.status_code == 200
+    assert seen["model"] == "my-custom-ft-9000"
+    assert seen["api_base"] == "https://api.openai.com/v1"
+
+
+def test_malformed_model_name_rejected():
+    r = _post(TestClient(server.app), model="bad name with spaces!")
     assert r.status_code == 422
 
 

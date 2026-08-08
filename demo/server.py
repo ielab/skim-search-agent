@@ -74,7 +74,34 @@ MAX_STEPS = 20                       # bounds every live run's cost and latency.
 # hits billed at half price. Ignoring that overstates cost — and overstates it unevenly,
 # since the two strategies carry very different fixed prefixes (Sieve's BQL manual is ~2K
 # tokens larger than the BM25 baseline's, and it is exactly the part that caches).
-PRICES: dict[str, tuple[float, float, float]] = {"gpt-4o-mini": (0.15, 0.075, 0.60)}
+# OpenAI's published per-1M rates, Standard tier. SOURCE (the official guideline the meter
+# implements): https://developers.openai.com/api/docs/pricing — every entry below verified
+# against that page on 2026-08-08. The billed-cost formula is OpenAI's own:
+#
+#   cost = (input_tokens - cached_input_tokens)/1e6 * input_rate
+#        +  cached_input_tokens/1e6              * cached_input_rate
+#        +  output_tokens/1e6                    * output_rate
+#
+# where cached_input_tokens is what the API itself reports in
+# usage.prompt_tokens_details.cached_tokens (see backends._cached_tokens) — the meter reads
+# the provider's numbers, it does not estimate them. Rates drift: an entry here only feeds
+# the meter, and a stale one is still closer than the "n/a" an unlisted model shows.
+# Reasoning-family names (gpt-5*, o3, o4-mini) route through the library's reasoning path.
+PRICES: dict[str, tuple[float, float, float]] = {
+    "gpt-5":        (1.25, 0.125, 10.00),
+    "gpt-5-mini":   (0.25, 0.025, 2.00),
+    "gpt-5-nano":   (0.05, 0.005, 0.40),
+    "gpt-4.1":      (2.00, 0.50, 8.00),
+    "gpt-4.1-mini": (0.40, 0.10, 1.60),
+    "gpt-4.1-nano": (0.10, 0.025, 0.40),
+    "gpt-4o":       (2.50, 1.25, 10.00),
+    "gpt-4o-mini":  (0.15, 0.075, 0.60),
+    "o3":           (2.00, 0.50, 8.00),
+    "o4-mini":      (1.10, 0.275, 4.40),
+}
+# dropdown order: the sensible default first, then cheap -> capable
+MODEL_MENU = ["gpt-4o-mini", "gpt-5-nano", "gpt-4.1-nano", "gpt-5-mini", "gpt-4.1-mini",
+              "o4-mini", "gpt-4o", "gpt-4.1", "o3", "gpt-5"]
 
 # Neither shipped manual variant matches this corpus exactly: `browsecomp` documents
 # title/author/date/body but denies that sections exist (so every named-section fetch fails),
@@ -118,9 +145,12 @@ STRATEGIES = {
 class RunRequest(BaseModel):
     question: str = Field(min_length=1, max_length=2000)
     api_key: str = Field(min_length=1)
-    # restricted to PRICES' keys so the cost meter never guesses AND an arbitrary model string
-    # can never route the user's key to the backend="api" localhost fallback.
-    model: Literal["gpt-4o-mini"] = "gpt-4o-mini"
+    # Free text: users bring their own model (it runs on THEIR key). Safety property kept a
+    # different way: the server pins api_base to OpenAI's endpoint when building the generate
+    # callable, so an arbitrary model name can never route the key to make_generate's
+    # localhost backend="api" fallback. Cost display degrades to tokens-only for models the
+    # PRICES table doesn't know.
+    model: str = Field(min_length=1, max_length=100, pattern=r"^[\w][\w\.\:/-]*$")
     strategies: list[Literal["sieve", "search_visit"]] = Field(min_length=1, max_length=2)
 
 
@@ -131,10 +161,14 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"],
 
 
 def _cost(model: str, prompt_tokens: int, completion_tokens: int,
-          cached_tokens: int = 0) -> float:
-    """Billed cost. `cached_tokens` is the SUBSET of `prompt_tokens` that hit the provider's
-    prefix cache, billed at the discounted rate; the remainder bills at the full input rate."""
-    p_in, p_cached, p_out = PRICES.get(model, (0.0, 0.0, 0.0))
+          cached_tokens: int = 0) -> float | None:
+    """Billed cost, or None for a model the PRICES table doesn't know (the meter then shows
+    tokens only, rather than a confidently wrong dollar figure). `cached_tokens` is the
+    SUBSET of `prompt_tokens` that hit the provider's prefix cache, billed at the discounted
+    rate; the remainder bills at the full input rate."""
+    if model not in PRICES:
+        return None
+    p_in, p_cached, p_out = PRICES[model]
     uncached = max(prompt_tokens - cached_tokens, 0)
     return (uncached / 1e6 * p_in + cached_tokens / 1e6 * p_cached
             + completion_tokens / 1e6 * p_out)
@@ -143,9 +177,10 @@ def _cost(model: str, prompt_tokens: int, completion_tokens: int,
 def _usage_snapshot(model: str) -> dict:
     t = backends.usage_totals()      # thread-local: this worker's episode only
     cached = t.get("cached_input_tokens", 0)
+    cost = _cost(model, t["prompt_tokens"], t["completion_tokens"], cached)
     return {"prompt_tokens": t["prompt_tokens"], "completion_tokens": t["completion_tokens"],
             "cached_input_tokens": cached, "llm_calls": t["llm_calls"],
-            "cost_usd": round(_cost(model, t["prompt_tokens"], t["completion_tokens"], cached), 6)}
+            "cost_usd": round(cost, 6) if cost is not None else None}
 
 
 def _step_payload(step) -> dict:
@@ -177,7 +212,11 @@ def _run_strategy(strategy: str, req: RunRequest, out: queue.Queue) -> None:
         backends.reset_usage()
         build_ws, condition = STRATEGIES[strategy]
         workspace = build_ws()
-        generate = _make_generate(req.model, backend="api", api_key=req.api_key)
+        # api_base pinned: even a model name make_generate doesn't recognise (custom
+        # fine-tunes, new releases) goes to OpenAI's endpoint with the user's key — never
+        # to the localhost fallback that api_base would otherwise default to.
+        generate = _make_generate(req.model.strip(), backend="api",
+                                  api_base=backends._OPENAI_BASE_URL, api_key=req.api_key)
         # "wiki", NOT "browsecomp", despite this being a BrowseComp-Plus corpus. The profile
         # names a MANUAL VARIANT (an interface shape), not a dataset: the `browsecomp` manual
         # describes the FLAT build — it states "there are no named sections", tells the agent
@@ -245,11 +284,13 @@ async def run(req: RunRequest) -> StreamingResponse:
 def meta() -> dict:
     """Everything the page needs before a run: the curated example questions, the collection
     shelf (id/title/section-count per doc), and the run parameters the UI displays."""
-    return {"questions": [{"question": q, "gold": gold, "label": label}
-                          for q, gold, label in QUESTIONS],
+    return {"questions": [{"question": q, "gold": gold, "label": label, "paper": paper}
+                          for q, gold, label, paper in QUESTIONS],
             "corpus": [{"id": u.doc_id, "title": u.title,
                         "sections": len(u.sections or ())} for u in CORPUS],
-            "model": "gpt-4o-mini", "max_steps": MAX_STEPS}
+            "model": "gpt-4o-mini", "priced_models": MODEL_MENU,
+            "pricing_url": "https://developers.openai.com/api/docs/pricing",
+            "max_steps": MAX_STEPS}
 
 
 _DIST = HERE / "app" / "dist" / "index.html"

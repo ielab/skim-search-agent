@@ -141,7 +141,7 @@ python demo/server.py          # -> http://localhost:8008/
 A little agent hops between its tool stations on a stage — and the two strategies have
 different boards: Sieve runs the paper's own pipeline (Search → Inspect → Fetch § → Answer)
 while the baseline has no inspect stage at all (Search → Visit doc → Answer), the
-101-document collection wall lights up as documents are surfaced and read, and a live meter
+250-document collection wall lights up as documents are surfaced and read, and a live meter
 counts every token, cached-token discount and fraction of a cent. Bring your own OpenAI key (a
 run is capped at 20 steps — well under 1¢ on gpt-4o-mini; the key is used per-request and never
 stored or logged).

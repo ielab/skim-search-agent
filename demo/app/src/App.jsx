@@ -189,9 +189,10 @@ function Meter({ usage, t0, done, color }) {
   const cachedPct = usage.prompt_tokens
     ? Math.round((usage.cached_input_tokens || 0) / usage.prompt_tokens * 100) : 0
   return (
-    <div className="meter">
-      <b style={{ color }}>${(usage.cost_usd || 0).toFixed(5)}</b>
-      <span>{fmtTok(tok)} tok</span>
+    <div className="meter"
+         title="billed cost = uncached input × input rate + cached input × cached rate + output × output rate, per 1M tokens — OpenAI's published Standard-tier rates; cached counts come from the API's own usage report">
+      <b style={{ color }}>{usage.cost_usd != null ? `$${usage.cost_usd.toFixed(5)}` : `${fmtTok(tok)} tok`}</b>
+      {usage.cost_usd != null && <span>{fmtTok(tok)} tok</span>}
       {cachedPct > 0 && <span title="share of input tokens served from the provider's prompt cache, billed at half rate">{cachedPct}% cached</span>}
       {usage.read_chars > 0 && <span title="document text pulled into context — a named section vs a whole document">{fmtTok(usage.read_chars)} ch read</span>}
       <span>{usage.steps || 0} steps</span>
@@ -465,6 +466,7 @@ export default function App() {
   const [meta, setMeta] = useState(null)          // null = loading, false = server offline
   const [question, setQuestion] = useState('')
   const [apiKey, setApiKey] = useState(() => sessionStorage.getItem('demo_key') || '')
+  const [model, setModel] = useState(() => sessionStorage.getItem('demo_model') || 'gpt-4o-mini')
   const [mode, setMode] = useState('sieve')
   const [cols, setCols] = useState(null)
   const [running, setRunning] = useState(false)
@@ -479,7 +481,9 @@ export default function App() {
     const strategies = mode === 'both' ? ['sieve', 'search_visit'] : [mode]
     if (!question.trim()) { setFail('type a question — or tap an example below'); return }
     if (!apiKey.trim()) { setFail('paste your OpenAI API key — it never leaves your machine except to call OpenAI'); return }
+    if (!model.trim()) { setFail('name a model (e.g. gpt-4o-mini)'); return }
     sessionStorage.setItem('demo_key', apiKey)
+    sessionStorage.setItem('demo_model', model.trim())
     setFail(''); setRunning(true)
     askedQuestion.current = question
     const t0 = Date.now()
@@ -489,7 +493,7 @@ export default function App() {
     })))
     const upd = (strategy, f) => setCols(cs =>
       cs.map(c => (c.strategy === strategy ? f({ ...c }) : c)))
-    streamRun({ question, api_key: apiKey, model: 'gpt-4o-mini', strategies }, msg => {
+    streamRun({ question, api_key: apiKey, model: model.trim(), strategies }, msg => {
       if (msg.event === 'step') {
         upd(msg.strategy, c => {
           c.steps += 1
@@ -573,6 +577,20 @@ export default function App() {
           <input type="password" value={apiKey} placeholder="OpenAI key (sk-…)"
                  onChange={e => setApiKey(e.target.value)} />
         </label>
+        <a className="rates-link" href={meta.pricing_url || 'https://developers.openai.com/api/docs/pricing'}
+           target="_blank" rel="noreferrer" title="the official rates the cost meter uses">rates ↗</a>
+        <select className="model-select" title="cost shows for known models; tokens always"
+                value={(meta.priced_models || []).includes(model) ? model : '__custom'}
+                onChange={e => setModel(e.target.value === '__custom' ? '' : e.target.value)}>
+          {(meta.priced_models || ['gpt-4o-mini']).map(m => <option value={m} key={m}>{m}</option>)}
+          <option value="__custom">custom model…</option>
+        </select>
+        {!(meta.priced_models || []).includes(model) && (
+          <input className="model-input" value={model} spellCheck={false} autoFocus
+                 placeholder="model id (uses your key)"
+                 title="any model your key can call — unpriced models show tokens instead of dollars"
+                 onChange={e => setModel(e.target.value)} />
+        )}
         <span className="hint" title="keyboard shortcut">⌘↩</span>
         <button className="send" disabled={running} onClick={start} title="run (⌘↩)">
           {running ? '…' : '↑'}

@@ -267,9 +267,11 @@
   /* theme-scoped images */
   /* NB: `.team img` sets display:block at higher specificity than a bare class, so these
      selectors must include the img type to win regardless of rule order. */
-  img.only-dark, .team img.only-dark{display:none}
-  :root[data-theme="dark"] img.only-dark, :root[data-theme="dark"] .team img.only-dark{display:block}
-  :root[data-theme="dark"] img.only-light, :root[data-theme="dark"] .team img.only-light{display:none}
+  img.only-dark, .team img.only-dark, figure img.only-dark{display:none}
+  :root[data-theme="dark"] img.only-dark, :root[data-theme="dark"] .team img.only-dark,
+  :root[data-theme="dark"] figure img.only-dark{display:block}
+  :root[data-theme="dark"] img.only-light, :root[data-theme="dark"] .team img.only-light,
+  :root[data-theme="dark"] figure img.only-light{display:none}
 
   /* team */
   .team{margin-top:26px}
@@ -440,7 +442,8 @@
       <div class="st-card"><span class="n">04</span><h3>Fetch</h3><p>The agent reads <b>only the named section</b> it chose from the card, a slice rather than the whole document, and answers from grounded evidence.</p></div>
     </div>
     <figure>
-      <img src="assets/architecture.png" alt="Sieve architecture: filter, rank, inspect, fetch stages over one agent loop." loading="lazy">
+      <img class="only-light" src="assets/architecture.png" alt="Sieve architecture: filter, rank, inspect, fetch stages over one agent loop." loading="lazy">
+      <img class="only-dark" src="assets/darkarchitecture.png" alt="Sieve architecture, dark version: filter, rank, inspect, fetch stages over one agent loop." loading="lazy">
       <figcaption>The four stages compose over one shared agent loop; each is swappable on its own.</figcaption>
     </figure>
   </section>
@@ -458,8 +461,10 @@
       <div class="feat"><span class="ic">⚔️</span><h3>Baselines included</h3><p>Every control the paper compares against ships in the box (retrieve-then-read, whole-document visiting, dense retrieval, agentic grep), all under the same loop.</p></div>
     </div>
     <figure>
-      <img src="assets/skimsearchagent-overview.png" loading="lazy"
+      <img class="only-light" src="assets/skimsearchagent-overview.png" loading="lazy"
            alt="SkimSearchAgent architecture: interchangeable corpora, models, strategies, retrievers and evaluators around one research-agent loop.">
+      <img class="only-dark" src="assets/darkskimsearchagent-overview.png" loading="lazy"
+           alt="SkimSearchAgent architecture, dark version.">
       <figcaption>One agent loop; corpora, models, strategies, retrievers and evaluators all
       swap independently around it.</figcaption>
     </figure>
@@ -504,7 +509,7 @@ python run.py dataset=fixture strategy=sieve_bm25   <span class="c"># one episod
     <div class="demo-band">
       <div class="txt">
         <h3>The live demo races two strategies on your question.</h3>
-        <p>Ask anything over 102 real BrowseComp-Plus documents. The little agent hops between
+        <p>Ask anything over 250 real BrowseComp-Plus documents. The little agent hops between
         its tools, the collection wall lights up as documents are surfaced and read, and a live
         meter counts every token and fraction of a cent. Race <b style="color:var(--teal)">Sieve</b>
         against <b style="color:var(--violet)">Search-Visit</b> and watch the paper's claim play
@@ -904,7 +909,7 @@ const I18N = [
    'pre-recorded s&eacute;ance &middot; the real thing haunts your machine', '深夜档回放，完整版在你电脑里出没'],
   ['#pvReplay', 0, '&#8635; 重播'],
   ['.demo-band h3', 0, '同一个问题，两种策略，现场对决。'],
-  ['.demo-band p', 0, '在 101 篇真实的 BrowseComp-Plus 文档上随便提问。小家伙在各个工具之间跑来跑去，右边的文档墙亮一格就代表读过一篇，计费器实时显示每个 token 花了多少钱。让 <b style="color:var(--teal)">Sieve</b> 和 <b style="color:var(--violet)">Search-Visit</b> 同时开跑，论文的结论当场验证。'],
+  ['.demo-band p', 0, '在 250 篇真实的 BrowseComp-Plus 文档上随便提问。小家伙在各个工具之间跑来跑去，右边的文档墙亮一格就代表读过一篇，计费器实时显示每个 token 花了多少钱。让 <b style="color:var(--teal)">Sieve</b> 和 <b style="color:var(--violet)">Search-Visit</b> 同时开跑，论文的结论当场验证。'],
   ['#team .sec-k', 0, '团队'],
   ['#team h2', 0, '我们来自 ielab', 'The ielab night shift', 'ielab 夜班组'],
   ['#cite .sec-k', 0, '引用'],
