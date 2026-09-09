@@ -50,7 +50,8 @@ def normalise_document(d: dict) -> dict:
 class JsonlDocStore:
     def __init__(self, path: str, *, build: bool = True):
         self.path = path
-        self._fh = None
+        import threading
+        self._tl = threading.local()
         self._offsets = None
         self._ids_int = None      # sorted int ids + positions when every id is an integer
         self._ids_pos = None
@@ -164,10 +165,13 @@ class JsonlDocStore:
         return [self.id_at(i) for i in range(self._n)]
 
     def raw_at(self, pos: int) -> dict:
-        if self._fh is None:
-            self._fh = open(self.path, "rb")
-        self._fh.seek(int(self._offsets[pos]))
-        return json.loads(self._fh.readline())
+        # one handle per thread: concurrent episodes share a store, and seek+readline on a
+        # shared handle interleave
+        fh = getattr(self._tl, "fh", None)
+        if fh is None:
+            fh = self._tl.fh = open(self.path, "rb")
+        fh.seek(int(self._offsets[pos]))
+        return json.loads(fh.readline())
 
     def get(self, doc_id) -> Optional[dict]:
         pos = self.position(doc_id)
@@ -252,4 +256,17 @@ def is_lazy(units) -> bool:
     return bool(getattr(units, "lazy", False))
 
 
-__all__ = ["JsonlDocStore", "LazyUnitMap", "LazyUnits", "normalise_document", "is_lazy"]
+def refuse_lazy(units, engine: str, knob: str) -> None:
+    """Raise SetupError when `units` is an on-disk corpus an in-memory engine would have to
+    load whole. `engine` names the engine, `knob` the setting that serves it from a prebuilt
+    index instead."""
+    if is_lazy(units):
+        from agent_search.core.errors import SetupError
+        raise SetupError(
+            f"the corpus is an on-disk document store ({len(units)} documents); {engine} would "
+            f"have to load all of it into memory. Use a prebuilt index instead ({knob}), or a "
+            f"strategy whose engines support prebuilt indexes (dedup_bm25, dedup_dense, search_visit "
+            f"with bm25_backend: pyserini).")
+
+
+__all__ = ["JsonlDocStore", "LazyUnitMap", "LazyUnits", "normalise_document", "is_lazy", "refuse_lazy"]

@@ -207,7 +207,7 @@ class DciWorkspace(_SeenMixin):
                 *, max_bash_lines: int = BASH_MAX_LINES, max_bash_tokens: int = BASH_MAX_TOKENS,
                 read_default_limit: int = READ_DEFAULT_LIMIT,
                 read_max_line_tokens: int = READ_MAX_LINE_TOKENS):
-        self.units = list(units)
+        self.units = units if getattr(units, "lazy", False) else list(units)
         self.corpus_dir, doc_to_rel = export_flat_corpus(self.units, key=corpus_key)
         self._rel_to_doc = {rel: doc_id for doc_id, rel in doc_to_rel.items()}
         self._max_bash_lines = max_bash_lines

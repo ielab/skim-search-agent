@@ -339,7 +339,7 @@ class DocSearchFetch(_SeenMixin):
                  coverage: bool = False,
                  date_nudge: bool = False,
                  snippets: bool = False):
-        self.units = list(units)
+        self.units = units if getattr(units, "lazy", False) else list(units)
         self.ubyid = ubyid if ubyid is not None else {u.doc_id: u for u in self.units}
         if executor is not None:
             self.ex = executor
@@ -572,7 +572,7 @@ class DocSearchFetch(_SeenMixin):
     # -- fetch: rank/doc_id + section name -> aggregated slices --------------
 
     def _resolve_doc(self, ref):
-        if isinstance(ref, int) or (isinstance(ref, str) and ref.strip().isdigit()):
+        if isinstance(ref, (int, float)) or (isinstance(ref, str) and ref.strip().isdigit()):
             rank = int(ref)
             if 1 <= rank <= len(self.last_hits):
                 return self.ubyid[self.last_hits[rank - 1]], None
@@ -733,7 +733,7 @@ class Bm25Visit(_SeenMixin):
 
     def __init__(self, units: Sequence[CodeUnit], engine=None, ubyid: Optional[dict] = None,
                  query_biased: bool = False):
-        self.units = list(units)
+        self.units = units if getattr(units, "lazy", False) else list(units)
         self.ubyid = ubyid if ubyid is not None else {u.doc_id: u for u in self.units}
         if engine is None:
             # env BM25_BACKEND-selectable (default 'local', unchanged) — see
@@ -777,7 +777,7 @@ class Bm25Visit(_SeenMixin):
         return "\n".join(lines)
 
     def _resolve(self, ref):
-        if isinstance(ref, int) or (isinstance(ref, str) and ref.strip().isdigit()):
+        if isinstance(ref, (int, float)) or (isinstance(ref, str) and ref.strip().isdigit()):
             rank = int(ref)
             if 1 <= rank <= len(self.last_hits):
                 return self.last_hits[rank - 1], None
@@ -949,7 +949,7 @@ class DenseVisit(Bm25Visit):
 
     def __init__(self, units: Sequence[CodeUnit], engine=None,
                  ubyid: Optional[dict] = None, corpus_key: Optional[str] = None):
-        self.units = list(units)
+        self.units = units if getattr(units, "lazy", False) else list(units)
         self.ubyid = ubyid if ubyid is not None else {u.doc_id: u for u in self.units}
         if engine is None:
             from agent_search.retrievers.structural.indri.dense_belief import DenseBelief
@@ -1112,7 +1112,7 @@ class Bm25FetchWorkspace(DocSearchFetch):
         # BQL StructuralExecutor (retrieval is bm25 here), so pass a lightweight executor stand-in
         # is avoided — instead call super() and simply never use self.ex. But super() would build
         # a StructuralExecutor over all units (O(N) postings) we never query, so set it up by hand.
-        self.units = list(units)
+        self.units = units if getattr(units, "lazy", False) else list(units)
         self.ubyid = ubyid if ubyid is not None else {u.doc_id: u for u in self.units}
         self.ex = None                                   # unused: retrieval is bm25, not BQL
         self._sections: dict[str, dict] = {}
@@ -1313,7 +1313,7 @@ class DenseFetchWorkspace(DocSearchFetch):
         # SAME construction shape as Bm25FetchWorkspace.__init__: DocSearchFetch.__init__ would
         # build a StructuralExecutor over all units (O(N) postings) we never query (retrieval is
         # dense, not BQL) — set the essentials up by hand instead of calling super().__init__.
-        self.units = list(units)
+        self.units = units if getattr(units, "lazy", False) else list(units)
         self.ubyid = ubyid if ubyid is not None else {u.doc_id: u for u in self.units}
         self.ex = None                                   # unused: retrieval is dense, not BQL
         self._sections: dict[str, dict] = {}
@@ -1509,7 +1509,7 @@ class BqlVisitWorkspace(DocSearchFetch):
         (int or numeric string) resolves against `self.last_hits`; a digit that is NOT a valid
         rank may itself be a real doc_id (numeric doc_ids do occur), so try that before
         erroring; otherwise fall back to a doc_id / title lookup."""
-        if isinstance(ref, int) or (isinstance(ref, str) and ref.strip().isdigit()):
+        if isinstance(ref, (int, float)) or (isinstance(ref, str) and ref.strip().isdigit()):
             rank = int(ref)
             if 1 <= rank <= len(self.last_hits):
                 return self.last_hits[rank - 1], None
@@ -1630,7 +1630,7 @@ class HybridVisit(Bm25Visit):
         # SAME manual-construction shape as DenseVisit.__init__ (not Bm25Visit.__init__'s
         # super() call — this workspace owns TWO engines, neither is "the" engine a bare
         # super().__init__ would wire to self.bm alone).
-        self.units = list(units)
+        self.units = units if getattr(units, "lazy", False) else list(units)
         self.ubyid = ubyid if ubyid is not None else {u.doc_id: u for u in self.units}
         if bm25_engine is None:
             from agent_search.retrievers.lexical import build_bm25_engine
@@ -1716,7 +1716,7 @@ class HybridFetchSnipWorkspace(DocSearchFetch):
         # SAME manual-construction shape as Bm25FetchWorkspace/DenseFetchWorkspace: skip
         # DocSearchFetch.__init__'s BQL StructuralExecutor build (retrieval here is bm25+dense
         # fusion, not BQL) and set the essentials up by hand.
-        self.units = list(units)
+        self.units = units if getattr(units, "lazy", False) else list(units)
         self.ubyid = ubyid if ubyid is not None else {u.doc_id: u for u in self.units}
         self.ex = None                                   # unused: retrieval is bm25+dense, not BQL
         self._sections: dict[str, dict] = {}

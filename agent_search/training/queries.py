@@ -148,9 +148,9 @@ def memory_query(question: str, current: str, notes: Sequence[str], *, per_visit
     return "\n".join(lines)
 
 
-def _title_of(text: str) -> str:
+def _title_of(text: str, max_tokens: int = 10) -> str:
     first = (text or "").split("\n")[0].strip()
-    return first if len(first) <= 50 else first[:50] + "..."
+    return truncate_tokens(first, max_tokens, tail="...") if count_tokens(first) > max_tokens else first
 
 
 def prevdoc_query(question: str, current: str, interactions: Sequence[dict], *,

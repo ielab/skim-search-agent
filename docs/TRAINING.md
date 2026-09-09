@@ -215,6 +215,21 @@ The job indexes both samples with the released ITER retriever, serves Tongyi, an
 `configs/iter/sample_*_iter06b_tongyi.yaml`. Judge the answer-only set afterwards where the API
 is reachable: `skimsearchagent-judge --results-dir runs/iter_sample/... --judge-model gpt-4o-mini`.
 
+### What was verified
+
+These runs were made on a SLURM cluster on 2026-09-09 with the launchers above (one GPU per
+job, express queue):
+
+| run | setting | result |
+|---|---|---|
+| smoke, stage 1 | 8 InfoSeek training questions, `dedup_dense`, Tongyi via vLLM, DIVER's i2 checkpoint and its HNSW index over all 11.2M wiki chunks | 8/8 scored, 0 errors, 23 steps per question, 49 min |
+| smoke, stage 2 | 9 triples (answer labeller), Qwen3-Embedding-0.6B, patched FlagEmbedding, 1 epoch | 4 steps, checkpoint with serving note |
+| smoke, stage 3 | trained vs base retriever on the triples, 3,010-document subset | recall@1 0.667 both; novelty@5 0.822 vs 0.844 (four steps do not move a retriever; the loop works) |
+| InfoSeek-Eval sample | 20 questions, released `ielabgroup/ITER-Qwen3-Embedding-0.6B`, Tongyi, 40 steps | judged accuracy 70% (14/20), 24 steps per question |
+| BrowseComp-Plus sample | 20 questions with qrels, the same retriever and backbone, 40 steps | judged accuracy 25% (5/20), hit@1 0.20, gold-document coverage 0.41; 90% of episodes used all 40 steps (the paper allows 100) |
+
+The sample numbers are smoke checks over 20 questions each, not paper results.
+
 ### Evaluate a retriever without an agent
 
 ```bash

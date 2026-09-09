@@ -107,6 +107,36 @@ def external_index_path() -> Optional[str]:
     return p or None
 
 
+def query_seq_length(model_id: str, default: int) -> int:
+    """The token length queries are encoded with: the checkpoint's `query_max_len` (history-
+    conditioned styles train with long queries) when its serving note has one, else `default`."""
+    try:
+        v = serving_note(model_id).get("query_max_len")
+        return int(v) if v else int(default)
+    except (TypeError, ValueError):
+        return int(default)
+
+
+def _encode_query(model, text: str, query_len: int):
+    """Encode one query under the shared lock with the query-side length, restoring the
+    document length afterwards (one encoder serves both sides)."""
+    lock = getattr(model, "_agent_search_lock", None)
+    if lock is not None:
+        lock.acquire()
+    try:
+        doc_len = getattr(model, "max_seq_length", None)
+        if doc_len is not None and query_len and query_len != doc_len:
+            try:
+                model.max_seq_length = query_len
+                return model.encode([text], convert_to_numpy=True, normalize_embeddings=True)[0]
+            finally:
+                model.max_seq_length = doc_len
+        return model.encode([text], convert_to_numpy=True, normalize_embeddings=True)[0]
+    finally:
+        if lock is not None:
+            lock.release()
+
+
 def query_prefix_for(model_id: str) -> str:
     """The query-side prefix for `model_id`, resolved ONCE for every dense arm: the
     `DENSE_QUERY_INSTRUCTION` env knob wins; then a trained checkpoint's serving note; then
@@ -150,10 +180,14 @@ def _shared_encoder(model_id: str, device, max_seq_length: int):
                 note = dict(note, pooling=pooling)
                 # a checkpoint from agent_search.training: a plain HF encoder dir; rebuild the
                 # sentence-transformers pipeline it was trained with (pooling + normalisation)
+                modes = {"last_token": "lasttoken", "mean": "mean", "cls": "cls"}
+                if note["pooling"] not in modes:
+                    raise ValueError(f"unknown pooling {note['pooling']!r} for {model_id}; choose one of "
+                                     f"{sorted(modes)} (DENSE_POOLING / the serving note)")
+                mode = modes[note["pooling"]]
                 from sentence_transformers import models as st_models
                 word = st_models.Transformer(snap or model_id, max_seq_length=int(note.get("max_seq_length") or max_seq_length),
                                              model_args={"trust_remote_code": True})
-                mode = {"last_token": "lasttoken", "mean": "mean", "cls": "cls"}.get(note["pooling"], "lasttoken")
                 pool = st_models.Pooling(word.get_word_embedding_dimension(), pooling_mode=mode)
                 mods = [word, pool] + ([st_models.Normalize()] if note.get("normalize", True) else [])
                 enc = SentenceTransformer(modules=mods, device=device)
@@ -204,6 +238,15 @@ class DenseRetriever(Retriever):
             # index.lookup.pkl): open it, never touch the units
             from agent_search.retrievers.dense.vector_index import load_external_index
             self._index = load_external_index(external)
+            built_with = (self._index.meta or {}).get("dense_model")
+            if built_with and built_with != self.model_id:
+                raise ValueError(
+                    f"DENSE_INDEX_PATH={external} was built with {built_with!r} but this run encodes "
+                    f"queries with {self.model_id!r}; point retrieval.dense_model at the model the index "
+                    f"was built with")
+            if not built_with:
+                print(f"  [dense] serving {external} (no record of the model that built it; make sure it "
+                      f"matches {self.model_id!r})", file=sys.stderr, flush=True)
             self._doc_ids = self._index.doc_ids
             return self
         if getattr(units, "lazy", False):
@@ -284,22 +327,14 @@ class DenseRetriever(Retriever):
             print(f"  [dense] built {self._index.backend} index for {len(texts)} units",
                   file=sys.stderr, flush=True)
         try:
-            save_index(self._index, cache_dir, extra_meta={"corpus_fingerprint": fp})
+            save_index(self._index, cache_dir, extra_meta={"corpus_fingerprint": fp, "dense_model": self.model_id})
         except Exception:
             pass                # best-effort persistence; the in-memory index still serves
         return self
 
     def search(self, query: str, k: int) -> list[str]:
         q = query_prefix_for(self.model_id) + query
-        model = self._encoder()
-        lock = getattr(model, "_agent_search_lock", None)
-        if lock is not None:
-            lock.acquire()
-        try:
-            qv = model.encode([q], convert_to_numpy=True, normalize_embeddings=True)[0]
-        finally:
-            if lock is not None:
-                lock.release()
+        qv = _encode_query(self._encoder(), q, query_seq_length(self.model_id, self.max_seq_length))
         return self._index.search(qv, k)              # backend-agnostic NN search
 
     def _cache_dir(self, key: Optional[str]) -> str:

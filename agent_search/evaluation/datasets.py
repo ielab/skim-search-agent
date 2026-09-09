@@ -367,6 +367,8 @@ def _load_topics_qrels(root: str, name: str, limit: int | None = None,
         with open(qrels_path, encoding="utf-8") as fh:
             for line in fh:
                 parts = line.split()
+                if parts and parts[0].lower() in ("query-id", "qid", "query_id", "id"):
+                    continue                                   # a header row
                 if len(parts) >= 4 and parts[3] != "0":
                     qrels.setdefault(parts[0], set()).add(parts[2])
                 elif len(parts) == 3:

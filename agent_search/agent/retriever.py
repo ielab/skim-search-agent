@@ -917,7 +917,8 @@ class AgentRetriever(Retriever):
                 "densefetchplain", "bm25q",
                 "bqlvisit", "bm25fetchsnip", "hybridvisit", "hybridfetchsnip",
                 "bqldensevisit", "bqldensesnip", "bqldensefetch", "bm25autoread",
-                "denseautoread", "hybridautoread", "bqldonlyvisit", "bqldonlysnip"):
+                "denseautoread", "hybridautoread", "bqldonlyvisit", "bqldonlysnip",
+                "dedup_bm25", "dedup_dense"):
             traj = self._run_sdk(ws, query)
             self._tl.traj = traj
             self._tl.meta = _trajectory_meta(traj, ws)
@@ -949,11 +950,15 @@ class AgentRetriever(Retriever):
             step.read_ids = read_ids({"args": step.args}, hits) if is_read_action(step.name) else []
             ctx.observe(step, hits)
 
+        def _before_tool(name, args, raw) -> None:
+            ctx.note(raw)
+
         token = CURRENT.set(ctx)
         try:
             traj = run_episode(policy, Task(task_id="q", query=query), ws,
                                self._units, max_steps=self.max_steps,
                                usage_fn=backends.usage_events, domain=self.domain,
+                               before_tool=_before_tool,
                                fix_guard=guard, on_step=_on_step)
         finally:
             CURRENT.reset(token)
@@ -1024,7 +1029,7 @@ def _code_fix_guard(ws):
         read_paths: set = set()
         import re as _re
         for s in steps:
-            if s.name != "fetch" or s.observation.lstrip().startswith("ERROR"):
+            if s.name != "fetch":
                 continue
             for block in _re.split(r"\n(?=\[\d+\] )", s.observation.strip()):
                 fm = _re.match(r"\[\d+\]\s+(\S+)\s+::[^\n]*\n?(.*)", block, _re.DOTALL)

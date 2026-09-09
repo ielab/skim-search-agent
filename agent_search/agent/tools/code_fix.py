@@ -52,7 +52,7 @@ class CodeFixWorkspace:
     def __init__(self, units: Sequence[CodeUnit], files: dict,
                  executor: Optional[StructuralExecutor] = None,
                  ubyid: Optional[dict] = None):
-        self.units = list(units)
+        self.units = units if getattr(units, "lazy", False) else list(units)
         self.files = files or {}                               # {path: source}, for L-range fetch
         self.ubyid = ubyid if ubyid is not None else {u.doc_id: u for u in self.units}
         self.by_file: dict[str, list] = defaultdict(list)

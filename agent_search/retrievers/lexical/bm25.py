@@ -15,6 +15,8 @@ class BM25Local(Retriever):
         self._bm = BM25(k1=k1, b=b)
 
     def index(self, units: Sequence[CodeUnit], key: Optional[str] = None) -> "BM25Local":
+        from agent_search.corpus.docstore import refuse_lazy
+        refuse_lazy(units, "the in-memory BM25", "BM25_BACKEND=pyserini with BM25_INDEX_PATH")
         self._bm.index({u.doc_id: f"{u.qualname} {u.code}" for u in units})
         return self
 

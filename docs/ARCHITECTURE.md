@@ -20,7 +20,7 @@ behind one set of contracts, one run record, and one evaluation layer.
 
 | # | module | what stays stable | what you swap | code |
 |---|---|---|---|---|
-| 01 | **Corpus & document representation** | `Unit` (`doc_id`, `title`, `body`, optional `sections`, `metadata`); one dataset registry | corpus builders, dataset loaders, field profiles | `agent_search/corpus/`, `agent_search/evaluation/datasets.py`, `corpus_build/` |
+| 01 | **Corpus & document representation** | `Unit` (`doc_id`, `title`, `body`, optional `sections`, `metadata`); one dataset registry; corpora too large for memory are served from an on-disk document store | corpus builders, dataset loaders, field profiles | `agent_search/corpus/`, `agent_search/evaluation/datasets.py`, `corpus_build/` |
 | 02 | **Retrieval & reranking** | `Retriever.index / search`; persistent indexes keyed by corpus identity and content fingerprint | BM25 (local or Lucene), dense encoders, RRF fusion, BQL fielded retrieval, Indri-style structured retrieval, your ranker | `agent_search/retrievers/` |
 | 03 | **Search strategy & tools** | a *condition* = task template x toolset; tools declared in YAML; a *workspace* answers tool calls | prompts, tools, toolsets, workspaces | `agent_search/prompts/`, `agent_search/agent/tools/` |
 | 04 | **Agent runtime** | `run_episode` (reason, act, observe), budgets in tokens, forced-answer handling; the Agents-SDK driver as an alternative runtime | policies, models, drivers | `agent_search/agent/loop.py`, `policies.py`, `sdk_driver.py`, `agent_search/models/` |
@@ -84,8 +84,10 @@ A structured search (BQL, Indri) picks candidates and one ranking model orders t
 matches nothing, the fallback ranks a wider pool with that same model over that same index
 (`docs/SIEVE.md`, "Ranking invariant"), so a zero-hit query cannot switch the ranker
 mid-episode. Dense similarity always comes from a persisted embedding cache built for the run's
-`dense_model`. A dense arm without its cache stops before the first episode rather than encoding
-the corpus on the clock.
+`dense_model`, or from a prebuilt index named in the file. A dense arm without either stops
+before the first episode rather than encoding the corpus on the clock. A run whose first questions
+all fail (an unreachable model endpoint, a broken index) stops after three of them instead of
+burning the retry budget on every question.
 
 ## Two runtimes
 
@@ -107,6 +109,7 @@ repositories (`--repo-cache`).
 
 ## Cluster launchers
 
-`scripts/slurm/` holds dual-mode launchers for the smoke suite, index builds, and serve-and-run
-experiments. Run one with `bash` and it executes in the current shell. Run it with `sbatch` and
-it submits. Model serving, corpus embedding, and training never run on a login node.
+`scripts/slurm/` holds launchers for the smoke suite, index builds, serve-and-run experiments,
+retriever training and the ITER smoke and sample pipelines. Run one with `bash` and it executes
+in the current shell. Run it with `sbatch` and it submits. Model serving, corpus embedding, and
+training never run on a login node.

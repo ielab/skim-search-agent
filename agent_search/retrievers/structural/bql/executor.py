@@ -115,6 +115,8 @@ def bql_index_path(index_root: str, key: str) -> str:
 
 class StructuralExecutor:
     def __init__(self, units: Sequence[CodeUnit]):
+        from agent_search.corpus.docstore import refuse_lazy
+        refuse_lazy(units, "the BQL structural engine", "STRUCTURED_BACKEND=lucene with a prebuilt index")
         self.units = list(units)
         self._ubyid: dict[str, CodeUnit] = {u.doc_id: u for u in self.units}
         # Guards the O(N) lazy region-vocab build so N concurrent episodes (shared executor,
@@ -376,6 +378,8 @@ class StructuralExecutor:
         return self
 
     def attach_units(self, units: Sequence["CodeUnit"]) -> "StructuralExecutor":
+        from agent_search.corpus.docstore import refuse_lazy
+        refuse_lazy(units, "the BQL structural engine", "STRUCTURED_BACKEND=lucene with a prebuilt index")
         """Rebuild units + doc-id map + token caches from the corpus after a slim-pkl load. The
         persisted postings reference unit INDICES, so `units` MUST be in the SAME order as at
         build time — validated against the stored doc-id order; a mismatch (corpus changed)

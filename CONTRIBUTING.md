@@ -11,8 +11,9 @@ python -m pip install -e ".[dev]"      # core plus pytest
 python -m pytest -q                    # the full suite; no Java, GPU or API key needed
 ```
 
-Optional: `.[retrieval]` for the Lucene and dense tests (requires a JDK 21+ on `JAVA_HOME`),
-`.[api]` for the OpenAI client tests. `python -m pytest -q -m slow` builds the wheel and checks
+Optional: `.[retrieval]` for the Lucene and dense tests. It needs a JDK 21 or newer on
+`JAVA_HOME` before you run the suite: Pyserini starts a JVM on import, and an older Java aborts
+the process without a message. `.[api]` adds the OpenAI client tests. `python -m pytest -q -m slow` builds the wheel and checks
 that the prompt files ship with it.
 
 ## Where things go
@@ -39,7 +40,9 @@ A component that lives outside this repository registers the same way from a plu
 - Anything that changes results goes into the experiment-file schema so it is recorded in
   `config.json` and counted in the run's identity.
 - Tests use `tmp_path` and never write into the repository. Name test files by subject.
-- Documentation is plain technical prose: short sentences, exact commands, no filler.
+- Documentation is plain technical prose: short sentences, exact commands, no filler. It is
+  checked against the code: `tests/test_docs_alignment.py` fails when a doc names a path, console
+  script, strategy, dataset or environment knob that does not exist.
 
 ## Submitting a change
 

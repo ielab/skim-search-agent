@@ -48,7 +48,9 @@ from agent_search.training.history import current_query_for
 # agent_search.agent.retriever's DENSE_BASELINE_MODEL import) — same knob, same rationale,
 # as agent_search.evaluation.datasets.default_dense_model (this package is always general-domain, so no
 # code-vs-general split is needed here). Unset -> unchanged default.
-DEFAULT_MODEL = os.environ.get("DENSE_MODEL") or "BAAI/bge-base-en-v1.5"
+from agent_search.evaluation.datasets import default_dense_model as _default_dense_model  # noqa: E402
+
+DEFAULT_MODEL = _default_dense_model("general")     # one source for the knob: agent_search.evaluation.datasets
 DEFAULT_TOP_K = 50
 
 # --- query text -> plain terms, stripping Indri operator syntax --------------
@@ -151,24 +153,15 @@ class DenseBelief:
     # --- internals -----------------------------------------------------------------
 
     def _encode_query_vector(self, plain_text: str):
-        """Mirrors `DenseRetriever.search`'s own encode block exactly (same query
-        prefix table, same shared-encoder lock) — the ONE minimal duplication this
-        wrapper needs, since `DenseRetriever.search` returns only ranked doc_ids,
-        never the raw query vector `score()` requires for arbitrary-pool cosine
-        similarity (see module docstring). Memoized on the last query text (see
+        """The query vector for `plain_text`, through the same prefix, shared encoder, lock and
+        query-side length as `DenseRetriever.search`. Memoized on the last query text (see
         `_q_cache`) so expansion + scoring within one search pass encode once."""
         if self._q_cache is not None and self._q_cache[0] == plain_text:
             return self._q_cache[1]
-        q = query_prefix_for(self._retriever.model_id) + plain_text
-        model = self._retriever._encoder()
-        lock = getattr(model, "_agent_search_lock", None)
-        if lock is not None:
-            lock.acquire()
-        try:
-            qv = model.encode([q], convert_to_numpy=True, normalize_embeddings=True)[0]
-        finally:
-            if lock is not None:
-                lock.release()
+        from agent_search.retrievers.dense.dense import _encode_query, query_seq_length
+        r = self._retriever
+        q = query_prefix_for(r.model_id) + plain_text
+        qv = _encode_query(r._encoder(), q, query_seq_length(r.model_id, r.max_seq_length))
         self._q_cache = (plain_text, qv)
         return qv
 

@@ -57,7 +57,7 @@ def _triple_doc_ids(triples: Sequence[dict]) -> list[str]:
     ids: list[str] = []
     seen: set = set()
     for t in triples:
-        for key in ("pos_id", "neg_diversity_id", "neg_hard_id", "neg_random_id"):
+        for key in ("pos_id", "neg_diversity_id", "neg_hard_id", "neg_weak_id"):
             for d in t.get(key) or []:
                 if str(d) not in seen:
                     seen.add(str(d))

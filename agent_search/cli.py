@@ -156,15 +156,19 @@ def _experiment_command(argv: list[str]) -> int:
     if not rest:
         print(f"error: {cmd} needs an experiment file (skimsearchagent {cmd} FILE)", file=sys.stderr)
         return 2
+    overrides: dict = {}
     try:
         exp = X.load(rest[0])
         if len(rest) > 1:
-            exp = X.apply_overrides(exp, parse_kv(rest[1:]))
+            overrides = parse_kv(rest[1:])
+            exp = X.apply_overrides(exp, overrides)
             exp = X.Experiment(path=rest[0], data=exp.data, sha256=exp.sha256)
     except (X.ExperimentError, OSError, ValueError) as e:
         print(f"error: {e}", file=sys.stderr)
         return 2
     args, env = X.to_invocation(exp)
+    for k, v in overrides.items():
+        args += ["--experiment-override", f"{k}={v}"]      # recorded in config.json
     if cmd == "validate":
         print(f"{rest[0]}: valid experiment {exp.name!r} (strategy={exp.strategy})")
         unused = X.unused_keys(exp.data)

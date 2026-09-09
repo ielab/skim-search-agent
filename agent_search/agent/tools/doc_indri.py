@@ -90,7 +90,7 @@ class IndriFetchWorkspace(DocSearchFetch):
                  ubyid: Optional[dict] = None,
                  op_nudge: bool = True,
                  snippets: bool = False):
-        self.units = list(units)
+        self.units = units if getattr(units, "lazy", False) else list(units)
         self.ubyid = ubyid if ubyid is not None else {u.doc_id: u for u in self.units}
         if executor is not None:
             self.iex = executor

@@ -374,17 +374,28 @@ RUN_IDENTITY_KEYS = (
 )
 
 
-def _attach_experiment(cfg: dict, exp_path: Optional[str]) -> None:
-    """Record the experiment file an invocation came from (path, content hash, parsed content)
-    so the run directory carries the whole setting, not only the flags it reduced to."""
+def _attach_experiment(cfg: dict, exp_path: Optional[str], overrides: Optional[list] = None) -> None:
+    """Record the experiment an invocation came from: the file's path and hash, the parsed
+    content with any `section.key=value` overrides applied, and the overrides themselves, so
+    the run directory carries the setting that actually ran."""
     cfg["experiment_file"] = exp_path
     if not exp_path:
         return
     try:
+        import hashlib as _hashlib
         from agent_search import experiment as _X
         exp = _X.load(exp_path)
+        cfg["experiment_file_sha256"] = exp.sha256
+        kv = {}
+        for item in overrides or []:
+            k, _, v = str(item).partition("=")
+            kv[k.strip()] = v
+        if kv:
+            exp = _X.apply_overrides(exp, kv)
         cfg["experiment"] = exp.data
-        cfg["experiment_sha256"] = exp.sha256
+        cfg["experiment_overrides"] = kv
+        cfg["experiment_sha256"] = (_hashlib.sha256(_X.render(exp.data).encode("utf-8")).hexdigest()
+                                    if kv else exp.sha256)
     except Exception as e:  # noqa: BLE001 — provenance must never block a run
         cfg["experiment_error"] = f"{type(e).__name__}: {e}"
 
@@ -865,7 +876,7 @@ def evaluate(instances: Sequence[Instance], retriever_factory: RetrieverFactory,
     units_lock = threading.Lock()
     retriever_cache: dict = {}
     retriever_lock = threading.Lock()
-    counters = {"err": 0, "streak": 0, "ok": 0}
+    counters = {"err": 0, "streak": 0, "ok": len(done)}   # rows already on disk count as successes
     todo = [inst for inst in instances if inst.instance_id not in done]
     # Fail fast when nothing works: N consecutive errors before a single success in this run
     # means the setting cannot run here (an unreachable model endpoint, a broken index), and
@@ -988,7 +999,10 @@ def run_config(config: RunConfig, progress: bool = False) -> dict:
         corpus_limit=config.dataset.corpus_limit,
     )
     rd = results_dir_for(config)
-    _write_run_config(rd, config.as_namespace(), config.agent.domain or "code")
+    ns = config.as_namespace()
+    cfg = _run_config_dict(ns, config.agent.domain or "code")
+    _check_run_identity(rd, cfg, allow_drift=bool(getattr(ns, "allow_config_drift", False)))
+    _write_run_config(rd, ns, config.agent.domain or "code")
     factory = make_factory_from_config(config)
     return evaluate(
         instances,
@@ -1076,6 +1090,9 @@ def main() -> None:
     ap.add_argument("--allow-config-drift", action="store_true", dest="allow_config_drift",
                     help="resume into a run dir even if its config.json describes a different "
                          "experiment (default: refuse — see RUN_IDENTITY_KEYS)")
+    ap.add_argument("--experiment-override", action="append", default=None, dest="experiment_override",
+                    metavar="SECTION.KEY=VALUE",
+                    help="an override applied to --experiment-file, recorded in config.json (repeatable)")
     ap.add_argument("--experiment-file", default=None, dest="experiment_file",
                     help="the experiment file this invocation was derived from (recorded in "
                          "config.json together with its content; see agent_search/experiment.py)")
@@ -1214,7 +1231,8 @@ def main() -> None:
             results_dir = os.path.join(results_dir, f"seed={seed}")
         label = args.retriever if seed is None else f"{args.retriever} (seed={seed})"
         cfg = _run_config_dict(run_cfg.as_namespace(), domain)
-        _attach_experiment(cfg, getattr(args, "experiment_file", None))
+        _attach_experiment(cfg, getattr(args, "experiment_file", None),
+                           getattr(args, "experiment_override", None))
         _check_run_identity(results_dir, cfg, allow_drift=args.allow_config_drift)
         pending = _pending_instances(instances, results_dir)
         if not pending:

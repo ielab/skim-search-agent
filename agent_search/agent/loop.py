@@ -167,7 +167,8 @@ def run_episode(policy: Policy, task: Task, workspace: WorkspaceLike,
                 usage_fn: Optional[Callable[[], list]] = None,
                 domain: str = "code",
                 fix_guard: Optional[Callable[[str, List["Step"]], tuple]] = None,
-                on_step: Optional[Callable[[Step], None]] = None) -> Trajectory:
+                on_step: Optional[Callable[[Step], None]] = None,
+                before_tool: Optional[Callable[[str, dict, str], None]] = None) -> Trajectory:
     """Drive one episode over the workspace's enabled toolset.
 
     `fix_guard` (code-fix task only) gates the terminal <fix> block: called with
@@ -175,6 +176,7 @@ def run_episode(policy: Policy, task: Task, workspace: WorkspaceLike,
     tool_response (so a guess never ends the episode) instead of terminating. When None,
     a <fix> is accepted as-is (or there is no <fix> terminal at all for this task).
 
+    `before_tool(name, args, raw_output)`, when given, is called right before a tool runs.
     `on_step`, when given, is called with the just-appended Step after every step the episode
     records (tool/nudge/terminal) — the live-demo streaming hook. A raising listener is
     swallowed (an episode must never die because a spectator did). None (the default) runs no
@@ -291,6 +293,10 @@ def run_episode(policy: Policy, task: Task, workspace: WorkspaceLike,
             obs = ('ERROR: no tool call found. Emit ONE <tool_call>{"name":...,'
                    '"arguments":{...}}</tool_call>, or submit your answer.')
         else:
+            if before_tool is not None:
+                # what the model said before this call (its notes on the last read) must be
+                # visible to a history-conditioned retriever while the tool runs
+                before_tool(name, args, raw or "")
             t1 = time.monotonic()
             obs = workspace.run(name, args)
             t_tool = time.monotonic() - t1

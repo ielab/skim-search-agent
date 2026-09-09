@@ -21,6 +21,7 @@ runs/<agent|retrieval_only>/<dataset>/<model>/<retriever>[/seed=N]/
 | `env_knobs` | every environment knob's resolved value (`SNIPPET_TOKENS`, `MAX_VISIT_TOKENS`, `STRUCTURED_BACKEND`, `BM25_BACKEND`, `AGENT_CTX_*`, ...). See [CONFIGURATION.md](CONFIGURATION.md) |
 | `prompt_task`, `prompt_toolset`, `prompt_profile`, `prompt_sha256` | the condition, plus a hash of the *composed* system prompt (task × tools × manuals) |
 | `package_version`, `token_ruler`, `git_rev`, `started_at` | code version, which token ruler measured this run, when it started |
+| `experiment_file`, `experiment_file_sha256`, `experiment`, `experiment_overrides`, `experiment_sha256` | the experiment file the run came from, its hash as written, the setting that actually ran (overrides applied), the overrides, and the hash of that setting |
 
 A run's **identity** is the subset of those keys listed in `RUN_IDENTITY_KEYS`
 (`agent_search/evaluation/run_eval.py`): dataset, retriever, model, policy, backend, budgets,

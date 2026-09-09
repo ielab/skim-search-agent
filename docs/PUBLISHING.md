@@ -81,7 +81,7 @@ Leave that job out until the secret exists. As shipped, the workflow only does r
 
 ## 3. A custom domain
 
-To own the name (for example `skimsearchagent.org`): buy the domain, add a `docs/CNAME` file
+To own the name (for example `skimsearchagent.org`): buy the domain, add a file named `CNAME` under the docs folder
 containing the bare domain, and point DNS at GitHub. That is four `A` records for the apex
 (`185.199.108-111.153`), or a `CNAME` for `www` pointing at `<owner>.github.io`. Then go to
 Settings → Pages → Custom domain, and tick *Enforce HTTPS* once the certificate is issued.

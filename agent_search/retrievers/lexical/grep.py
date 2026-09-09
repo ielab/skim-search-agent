@@ -48,6 +48,8 @@ class GrepBaseline(Retriever):
         self._bm: Optional[BM25] = None           # corpus-wide rerank scorer, built once
 
     def index(self, units: Sequence[CodeUnit], key: Optional[str] = None) -> "GrepBaseline":
+        from agent_search.corpus.docstore import refuse_lazy
+        refuse_lazy(units, "the grep baseline", "a retriever with prebuilt-index support")
         # NO retrieval index — but two things are STATIC across queries, so do them once:
         # (1) the per-unit searchable text, lowercased here instead of rebuilding
         #     `f"{qualname} {code}".lower()` for every unit on every query (the grep scan);

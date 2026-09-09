@@ -351,6 +351,12 @@ def _tools_for(ws):
             """Read the FULL text of one document (by its rank from the last search or its doc_id)."""
             return record("visit", {"rank": doc})
         out.append(visit)
+    if "get_document" in names:
+        @function_tool
+        def get_document(docid: str) -> str:
+            """Retrieve the full content of one document given its DocID from a search result."""
+            return record("get_document", {"docid": docid})
+        out.append(get_document)
     if "bash" in names:
         @function_tool
         def bash(command: str) -> str:

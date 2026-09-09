@@ -48,6 +48,10 @@ def corpus_fingerprint(units: Iterable) -> str:
         h.update((u.body or "").encode("utf-8", "surrogatepass"))
         h.update(_FIELD_SEP)
         h.update((u.section or "").encode("utf-8", "surrogatepass"))
+        meta = getattr(u, "metadata", None) or {}
+        if meta:
+            h.update(_FIELD_SEP)
+            h.update(repr(sorted((str(k), str(v)) for k, v in meta.items())).encode("utf-8", "surrogatepass"))
     return h.hexdigest()
 
 

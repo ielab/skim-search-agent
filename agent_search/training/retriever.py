@@ -179,12 +179,31 @@ def flagembedding_root() -> Optional[Path]:
     return Path(list(spec.submodule_search_locations)[0])
 
 
+def _patch_markers() -> dict[str, str]:
+    """For every file the patch touches, one added line that must be present afterwards."""
+    markers: dict[str, str] = {}
+    current = None
+    for line in PATCH_PATH.read_text(encoding="utf-8").splitlines():
+        if line.startswith("+++ b/FlagEmbedding/"):
+            current = line[len("+++ b/FlagEmbedding/"):]
+        elif current and current not in markers and line.startswith("+") and not line.startswith("+++"):
+            body = line[1:].strip()
+            if len(body) >= 12:
+                markers[current] = body
+    return markers
+
+
 def is_patched(root: Optional[Path] = None) -> bool:
+    """True only when every file the patch touches carries its change (a partial apply after
+    a FlagEmbedding point release would otherwise pass as patched)."""
     root = root or flagembedding_root()
     if root is None:
         return False
-    args = root / "abc" / "finetune" / "embedder" / "AbsArguments.py"
-    return args.exists() and "neg_w_div" in args.read_text(errors="ignore")
+    for rel, marker in _patch_markers().items():
+        f = root / rel
+        if not f.exists() or marker not in f.read_text(errors="ignore"):
+            return False
+    return True
 
 
 def check_environment() -> dict:

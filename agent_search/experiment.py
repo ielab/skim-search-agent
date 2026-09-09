@@ -191,10 +191,10 @@ _DOC_AGENTS = {"search_visit", "search_visit_dense", "search_visit_hybrid", "aut
                "sieve", "sieve_bm25", "sieve_dense", "sieve_nosnip", "indri", "dedup_bm25", "dedup_dense"}
 _CODE_AGENTS = {"codefix", "codefix_grep", "codefix_patch"}
 _AGENTS = _DOC_AGENTS | _CODE_AGENTS
-_DENSE = set(DENSE_STRATEGIES) | {"dense"}
+_DENSE = set(DENSE_STRATEGIES)
 _BM25_USERS = {"search_visit", "search_fetch", "autoread", "bounded_dci", "search_visit_hybrid",
-               "search_fetch_hybrid", "dedup_bm25", "bm25"}
-_BQL = {"sieve", "sieve_bm25", "sieve_dense", "sieve_nosnip", "codefix", "codefix_patch", "bql"}
+               "search_fetch_hybrid", "dedup_bm25", "bm25", "bm25_lucene"}
+_BQL = {"sieve", "sieve_bm25", "sieve_dense", "sieve_nosnip", "codefix", "codefix_patch"}
 _HYBRID = {"search_visit_hybrid", "search_fetch_hybrid"}
 _VISIT = {"search_visit", "search_visit_dense", "search_visit_hybrid", "autoread", "autoread_dense",
           "dedup_bm25", "dedup_dense"}
@@ -382,6 +382,14 @@ def _coerce(value: str, default: Any) -> Any:
         return float(value)
     if isinstance(default, list):
         return yaml.safe_load(value)
+    if default is None:
+        # no type to follow: numbers and booleans become numbers and booleans, anything else
+        # stays the string it was typed as (a model id, a path)
+        try:
+            parsed = yaml.safe_load(value)
+        except yaml.YAMLError:
+            return value
+        return parsed if isinstance(parsed, (int, float, bool)) else value
     return value
 
 

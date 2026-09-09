@@ -310,6 +310,8 @@ class IndriExecutor:
 
     def __init__(self, units: Sequence[CodeUnit], mu: Optional[float] = None,
                  dense: Optional["DenseBelief"] = None):
+        from agent_search.corpus.docstore import refuse_lazy
+        refuse_lazy(units, "the Indri engine", "a strategy with prebuilt-index support")
         self.units = list(units)
         self._ubyid = {u.doc_id: u for u in self.units}
         self.mu = float(mu) if mu is not None else DEFAULT_MU
@@ -349,6 +351,8 @@ class IndriExecutor:
         self._doc_id_to_idx = None
 
     def attach_units(self, units: Sequence[CodeUnit]) -> "IndriExecutor":
+        from agent_search.corpus.docstore import refuse_lazy
+        refuse_lazy(units, "the Indri engine", "a strategy with prebuilt-index support")
         """Rebuild units + per-doc caches from the corpus after a slim-pkl load.
         The persisted postings reference unit INDICES, so `units` must be in the
         SAME order as at build time — validated against the stored doc-id order."""

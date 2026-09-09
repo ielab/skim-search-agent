@@ -4,39 +4,6 @@
 
 Breaking changes are marked **[breaking]**.
 
-### ITER integration (search strategy, datasets, on-disk corpora, evaluation)
-- `strategy=dedup_bm25` / `dedup_dense`: ITER's tool setup (over-fetched search that hides
-  documents surfaced earlier, "Already-seen" list, `get_document` by id) with its task template.
-- Datasets in ITER's layout (`topics.tsv`, TREC `qrels.txt`, `corpus.jsonl`): `infoseek_eval`,
-  `infoseek_train`, `browsecomp_plus_chunks`. Answer-only sets (no qrels) run end to end and are
-  scored on the answer; rank metrics are omitted for those rows instead of skipping them.
-- Corpora above 1 GiB are served from disk (`agent_search.corpus.docstore`), also by the triple
-  builder and the retriever evaluation, and searched through prebuilt indexes: `retrieval.dense_index` (this library's cache or ITER's `index.faiss` +
-  `index.lookup.pkl`), `retrieval.bm25_index` (Lucene), `retrieval.ann_ef_search`.
-- Released decoder checkpoints without a sentence-transformers config (ITER, LRAT) load with
-  last-token pooling automatically, whether given as a local directory or a hub id (the cached
-  snapshot is inspected); `retrieval.dense_pooling` overrides.
-- Prebuilt FAISS indexes are read into RAM by default (`AGENT_SEARCH_FAISS_MMAP=1` memory-maps
-  instead): memory-mapping a 46 GB HNSW index from a network filesystem cost ~18 s per search.
-- `skimsearchagent-eval-retriever`: recall and novelty of a retriever on trajectory triples,
-  optionally over a subset corpus.
-- `skimsearchagent-sample-dataset`: a small dataset cut from a big one (topics, gold documents,
-  a BM25 pool, random chunks) in the topics layout; any `data/<name>/topics.tsv` folder is
-  discovered as a dataset without code. `scripts/slurm/iter_sample.sbatch` indexes the samples
-  with a retriever, serves the backbone and runs the ITER files on them.
-- Experiment files are scoped to their strategy: `template [preset] [STRATEGY]` lists only the
-  keys that strategy reads, `validate` requires only those and reports unused ones.
-- `configs/iter/`: InfoSeek and BrowseComp-Plus settings with the released ITER retriever and
-  Tongyi, trajectory generation, and the smoke pipeline; `scripts/slurm/iter_smoke_*.sbatch`.
-- A run stops early (SetupError) after 3 consecutive errors before any success, so an
-  unreachable model endpoint no longer burns the retry budget on every question
-  (`AGENT_SEARCH_MAX_CONSECUTIVE_ERRORS`).
-- The lazily built shared engines behind `WorkspaceContext` (`bm25()`, `bql()`, `dense()`) are
-  built under a per-retriever lock: with `--workers N` every concurrent episode used to load the
-  same index at once (two copies of a 49 GB index in the first ITER run).
-- Every SLURM launcher sources `_common.sh` through `SLURM_SUBMIT_DIR`; the old `dirname $0`
-  form broke under sbatch, which copies the script to a spool directory.
-
 ### Packaging and entry points
 - **[breaking]** `evaluation` now lives inside the package as `agent_search.evaluation`, so imports
   and `python -m` paths change: `python -m evaluation.run_eval` becomes
@@ -50,6 +17,12 @@ Breaking changes are marked **[breaking]**.
   3.x) and `tiktoken`, which was added to `api`, `eval` and `dev`.
 - Real author metadata, the Apache-2.0 copyright line filled in, and a CI workflow that runs the
   tests and checks the wheel.
+
+### Experiment files
+- `skimsearchagent run FILE.yaml`: one YAML file fully determines one setting, with a strict
+  schema, every knob spelled out, and the whole file recorded in `config.json`. There are also
+  `validate` and `template [paper]` commands, plus complete files for the smoke, quick and paper
+  settings under `configs/`. The old descriptive eval manifests are gone.
 
 ### Length limits are tokens only
 - **[breaking]** `AgentPolicy(ctx_chars=...)` is now `AgentPolicy(ctx_tokens=...)`
@@ -93,28 +66,6 @@ Breaking changes are marked **[breaking]**.
 - Importing the package no longer mutates the process environment or the working directory.
 - `--retriever agent` defaults to `research_snip`; the previous default no longer exists.
 
-### Training from the run record
-- `agent_search.training`: build ITER-style retriever triples from `rows.jsonl`
-  (`skimsearchagent-build-triples`; oracle / answer / LLM-judge labellers), train with the paper's
-  recipe (`skimsearchagent-train-retriever`; FlagEmbedding 1.3.5 plus ITER's patch, shipped),
-  and plug the checkpoint back in as the one dense model with the same query instruction and
-  history-conditioned query (`retrieval.dense_query_style`). Rows now record `hit_ids` and
-  `read_ids` per step. `scripts/slurm/train_retriever.sbatch`; docs/TRAINING.md.
-
-### Code-localization arm wired
-- `codefix`, `codefix_grep` and `codefix_patch` are registered conditions again: `tools.yaml`
-  declares the code `search` and `grep` tools, and `conditions.yaml` binds them to the `taskfix`
-  templates. `dataset=code_fixture` runs them with the scripted policy. The library's default read
-  caps are now the paper's 12,000 tokens.
-- `scripts/slurm/` holds site-neutral launchers for the smoke suite, index builds, and
-  serve-and-run experiments (vLLM inside the job, never on a login node).
-
-### Experiment files
-- `skimsearchagent run FILE.yaml`: one YAML file fully determines one setting, with a strict
-  schema, every knob spelled out, and the whole file recorded in `config.json`. There are also
-  `validate` and `template [paper]` commands, plus complete files for the smoke, quick and paper
-  settings under `configs/`. The old descriptive `configs/eval_*.yaml` manifests are gone.
-
 ### Extensibility
 - Contracts in `agent_search.core.interfaces`: `Retriever`, `Model`, `Policy`, `Workspace`.
 - A programmatic API: `agent_search.research()` and `build_agent()`.
@@ -125,9 +76,85 @@ Breaking changes are marked **[breaking]**.
   `docs/CONFIGURATION.md`, `docs/TRAINING.md` and `CONTRIBUTING.md`. The README was rewritten
   around the document fixture (`doc_fixture`).
 
+### Code-localization arm wired
+- `codefix`, `codefix_grep` and `codefix_patch` are registered conditions again: `tools.yaml`
+  declares the code `search` and `grep` tools, and `conditions.yaml` binds them to the `taskfix`
+  templates. `dataset=code_fixture` runs them with the scripted policy. The library's default read
+  caps are now the paper's 12,000 tokens.
+- `scripts/slurm/` holds site-neutral launchers for the smoke suite, index builds, and
+  serve-and-run experiments (vLLM inside the job, never on a login node).
+
+### Training from the run record
+- `agent_search.training`: build ITER-style retriever triples from `rows.jsonl`
+  (`skimsearchagent-build-triples`; oracle / answer / LLM-judge labellers), train with the paper's
+  recipe (`skimsearchagent-train-retriever`; FlagEmbedding 1.3.5 plus ITER's patch, shipped),
+  and plug the checkpoint back in as the one dense model with the same query instruction and
+  history-conditioned query (`retrieval.dense_query_style`). Rows now record `hit_ids` and
+  `read_ids` per step. `scripts/slurm/train_retriever.sbatch`; docs/TRAINING.md.
+
+### ITER integration (search strategy, datasets, on-disk corpora, evaluation)
+- `strategy=dedup_bm25` / `dedup_dense`: ITER's tool setup (over-fetched search that hides
+  documents surfaced earlier, "Already-seen" list, `get_document` by id) with its task template.
+- Datasets in ITER's layout (`topics.tsv`, TREC `qrels.txt`, `corpus.jsonl`): `infoseek_eval`,
+  `infoseek_train`, `browsecomp_plus_chunks`. Answer-only sets (no qrels) run end to end and are
+  scored on the answer; rank metrics are omitted for those rows instead of skipping them.
+- Corpora above 1 GiB are served from disk (`agent_search.corpus.docstore`), also by the triple
+  builder and the retriever evaluation, and searched through prebuilt indexes: `retrieval.dense_index` (this library's cache or ITER's `index.faiss` +
+  `index.lookup.pkl`), `retrieval.bm25_index` (Lucene), `retrieval.ann_ef_search`.
+- Released decoder checkpoints without a sentence-transformers config (ITER, LRAT) load with
+  last-token pooling automatically, whether given as a local directory or a hub id (the cached
+  snapshot is inspected); `retrieval.dense_pooling` overrides.
+- Prebuilt FAISS indexes are read into RAM by default (`AGENT_SEARCH_FAISS_MMAP=1` memory-maps
+  instead): memory-mapping a 46 GB HNSW index from a network filesystem cost ~18 s per search.
+- `skimsearchagent-eval-retriever`: recall and novelty of a retriever on trajectory triples,
+  optionally over a subset corpus.
+- `skimsearchagent-sample-dataset`: a small dataset cut from a big one (topics, gold documents,
+  a BM25 pool, random chunks) in the topics layout; any `data/<name>/topics.tsv` folder is
+  discovered as a dataset without code. `scripts/slurm/iter_sample.sbatch` indexes the samples
+  with a retriever, serves the backbone and runs the ITER files on them.
+- Experiment files are scoped to their strategy: `template [preset] [STRATEGY]` lists only the
+  keys that strategy reads, `validate` requires only those and reports unused ones.
+- `configs/iter/`: InfoSeek and BrowseComp-Plus settings with the released ITER retriever and
+  Tongyi, trajectory generation, and the smoke pipeline; `scripts/slurm/iter_smoke_*.sbatch`.
+- A run stops early (SetupError) after 3 consecutive errors before any success, so an
+  unreachable model endpoint no longer burns the retry budget on every question
+  (`AGENT_SEARCH_MAX_CONSECUTIVE_ERRORS`).
+- The lazily built shared engines behind `WorkspaceContext` (`bm25()`, `bql()`, `dense()`) are
+  built under a per-retriever lock: with `--workers N` every concurrent episode used to load the
+  same index at once (two copies of a 49 GB index in the first ITER run).
+- Every SLURM launcher sources `_common.sh` through `SLURM_SUBMIT_DIR`; the old `dirname $0`
+  form broke under sbatch, which copies the script to a spool directory.
+
+### Fixes from the review pass
+- `section.key=value` overrides on `skimsearchagent run FILE` are recorded in `config.json`
+  (`experiment` is the setting that ran, `experiment_overrides` lists them, `experiment_file_sha256`
+  is the file as written). Untyped overrides such as `dataset.limit=1` are stored as numbers.
+- The Python entry point `run_config()` refuses a different setting in an existing run
+  directory, like the command line does.
+- The fail-fast rule counts rows already on disk as successes, so a resumed run is not stopped
+  by a few transient errors.
+- The on-disk document store keeps one file handle per thread; concurrent episodes used to
+  interleave reads on a shared handle and could return the wrong document.
+- Every in-memory engine (BQL, Indri, local BM25, grep) refuses an on-disk corpus with a
+  message naming the prebuilt-index knob, and no workspace loads such a corpus per episode.
+- A note-conditioned query style (`i4`, `i5`, `i7`, `mem`) sees the model's note on the last
+  read at the moment the next search is encoded, exactly as the triple builder renders it. The
+  serving note's `query_max_len` is applied when queries are encoded (documents keep their own
+  length). `tiktoken` is part of the `retrieval` and `serve` extras so query truncation is the
+  same at training and serving time.
+- An unknown `DENSE_POOLING` value is an error instead of silently becoming last-token pooling;
+  a persisted vector index records the model that built it and refuses to serve another one;
+  corpus fingerprints include document metadata (BQL indexes author, date and infobox fields).
+- The subset retriever evaluation keeps weak negatives in its corpus; the title shortener in
+  the `docs` query style counts tokens; `is_patched` checks every file the FlagEmbedding patch
+  touches; a float `rank` in a tool call gives a clean error; the code-fix guard judges each
+  fetched block on its own.
+- The Tongyi ITER files set `agent.ctx_window` to the served 98,304-token window so the loop
+  stops before the server rejects an over-long prompt.
+
 ### Removed
 - Stale tests and configuration for conditions that no longer exist, the SLURM shell test, and the
-  internal planning documents under `docs/superpowers/`.
+  internal planning documents.
 
 ## 0.1.0
 

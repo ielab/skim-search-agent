@@ -181,10 +181,18 @@ class LuceneBqlAdapter:
 
     def __init__(self, engine: LuceneStructuredEngine, units: Sequence, dense=None):
         self._engine = engine
-        self._units = list(units)
+        self._units = units if getattr(units, "lazy", False) else list(units)
         self._fallback_ex = None
         self._fallback_lock = threading.Lock()
         self.dense = dense
+
+
+    def _units_for_fallback(self):
+        """The in-memory executor behind the 0-hit fallback needs every unit; refuse an on-disk
+        corpus instead of loading it."""
+        from agent_search.corpus.docstore import refuse_lazy
+        refuse_lazy(self._units, "the BQL fallback ranker", "a prebuilt fallback pool (not available for on-disk corpora yet)")
+        return self._units
 
     def _fallback(self):
         """Lazily build (once, thread-safe) an in-memory `StructuralExecutor` over the SAME
@@ -195,7 +203,7 @@ class LuceneBqlAdapter:
             with self._fallback_lock:
                 if self._fallback_ex is None:
                     from agent_search.retrievers.structural.bql.executor import StructuralExecutor
-                    self._fallback_ex = StructuralExecutor(self._units).prewarm().attach_dense(self.dense)
+                    self._fallback_ex = StructuralExecutor(self._units_for_fallback()).prewarm().attach_dense(self.dense)
         return self._fallback_ex
 
     def run_with_count(self, expr, k: int = 100) -> tuple:
@@ -264,7 +272,7 @@ class LuceneBqlDonlyAdapter(LuceneBqlAdapter):
                 if self._fallback_ex is None:
                     from agent_search.retrievers.structural.bql.executor import (
                         DenseOnlyStructuralExecutor, StructuralExecutor)
-                    ex = StructuralExecutor(self._units).prewarm().attach_dense(self.dense)
+                    ex = StructuralExecutor(self._units_for_fallback()).prewarm().attach_dense(self.dense)
                     ex.__class__ = DenseOnlyStructuralExecutor
                     self._fallback_ex = ex
         return self._fallback_ex

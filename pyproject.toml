@@ -56,9 +56,10 @@ retrieval = [
     "faiss-cpu==1.14.3",
     "transformers==5.10.2",
     "torch==2.11.0",
+    "tiktoken>=0.9",
 ]
 api = ["openai==2.41.0", "tiktoken>=0.9"]
-serve = ["vllm==0.22.1", "openai==2.41.0"]
+serve = ["vllm==0.22.1", "openai==2.41.0", "tiktoken>=0.9"]
 eval = ["datasets==5.0.0", "numpy==2.2.6", "scipy==1.15.3", "tqdm==4.68.1", "tiktoken>=0.9"]
 dev = ["pytest==9.0.3", "numpy==2.2.6", "openai==2.41.0", "tiktoken>=0.9", "build>=1.2"]
 demo-live = ["fastapi>=0.115", "uvicorn[standard]>=0.30", "httpx>=0.27", "openai==2.41.0"]

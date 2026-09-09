@@ -40,6 +40,10 @@ Other extras: `eval` (dataset staging, statistics), `serve` (vLLM), `demo-live`,
 (tests), `train` (retriever training, separate environment), `all`. Pins match
 [`requirements.txt`](requirements.txt), the environment used for the paper.
 
+With the `retrieval` extra installed, point `JAVA_HOME` at a JDK 21 or newer before running
+anything that touches Lucene, the test suite included. Pyserini starts a JVM on import, and an
+older Java aborts the process without a message.
+
 ## Run an experiment
 
 One YAML file is one complete setting. The file lists every knob its strategy reads: dataset,
@@ -50,8 +54,8 @@ has no dense-model keys; a `sieve` file has no listing depths.
 skimsearchagent run configs/smoke_doc_fixture_sieve_bm25.yaml        # scripted policy, no keys
 export OPENAI_API_KEY=...
 skimsearchagent run configs/doc_fixture_sieve_bm25_gpt4omini.yaml    # a real model
-skimsearchagent run configs/paper/hotpotqa_structured_sieve.yaml     # the paper's setting
-skimsearchagent run configs/paper/hotpotqa_structured_sieve.yaml model.name=gpt-4o output.runs_dir=runs/gpt4o
+skimsearchagent run configs/paper/hotpotqa_structured_sieve.yaml     # the paper's setting, scripted policy (no model named)
+skimsearchagent run configs/paper/hotpotqa_structured_sieve.yaml model.name=gpt-4o output.runs_dir=runs/gpt4o   # the same with a model
 skimsearchagent validate configs/paper/hotpotqa_structured_sieve.yaml   # what it needs, what it will run
 skimsearchagent template paper sieve > configs/mine.yaml              # a complete file for one strategy, to edit
 ```
@@ -292,7 +296,7 @@ section 5.
 
 ```bash
 python -m pip install -e ".[dev]"
-python -m pytest -q                            # about 1,200 tests, no Java or GPU needed
+python -m pytest -q                            # about 1,300 tests; no GPU or API key needed (Java 21 only with the retrieval extra)
 ```
 
 ## Demo

@@ -33,8 +33,10 @@ What each one does:
   and points at a training YAML. Training lives in its own environment because FlagEmbedding pins
   an older transformers than the eval env; pass it as `TRAIN_ENV`.
 
-All four source `_common.sh` first, which cds to the repo root, activates `envs/`, sets
-`HF_HUB_OFFLINE=1` and `HF_DATASETS_OFFLINE=1`, and creates `slurm_logs/`.
+Every launcher sources `_common.sh` first, which cds to the repo root, activates `envs/`, sets
+`HF_HUB_OFFLINE=1` and `HF_DATASETS_OFFLINE=1`, and creates `slurm_logs/`. `serve_and_run.sbatch`
+and `iter_sample.sbatch` start vLLM with `VLLM_PYTHON` (the interpreter that has vLLM installed)
+when it differs from the active env.
 
 Compute nodes have no internet. Models, tokenizers and data must be on the shared filesystem before
 the job starts. Logs land in `slurm_logs/`. The run record resumes, so a job that hits its time
@@ -57,3 +59,12 @@ sbatch --account=ACCT --export=ALL scripts/slurm/iter_smoke_eval.sbatch     # tr
 
 `iter_smoke_train.sbatch` uses `envs-train` (a venv over the main env with FlagEmbedding 1.3.5 and
 `skimsearchagent-train-retriever patch` applied); `TRAIN_PYTHON=` points it elsewhere.
+
+## ITER paper settings on samples
+
+`iter_sample.sbatch` indexes the sample datasets with a retriever, serves the backbone and runs
+the sample experiment files (see docs/TRAINING.md, "Sample a paper setting first"):
+
+```bash
+sbatch --account=ACCT --qos=express --export=ALL,VLLM_PYTHON=/path/to/vllm-env/bin/python scripts/slurm/iter_sample.sbatch
+```

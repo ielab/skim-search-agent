@@ -44,18 +44,26 @@ class QueryContext:
             return current
         return render_query(self.style, self.question, current, self.interactions)
 
-    def observe(self, step: Any, last_hits: list[str]) -> None:
-        """Record one finished step. `step` is a loop `Step` (name/args/raw_output); `last_hits`
-        the workspace's listing after the step."""
-        raw = getattr(step, "raw_output", "") or ""
-        # the model's generation at this step is the reasoning AFTER the previous step's reads
+    def note(self, raw_output: str) -> None:
+        """Attach the model's latest generation as the note on the documents read at the
+        previous step. Called before the next tool runs, so a search issued in this generation
+        already sees the note (the same order `triples.py` uses when it builds training data)."""
         if self._pending_reads and self.interactions:
-            note = reasoning_text(raw)
+            note = reasoning_text(raw_output or "")
             visits = self.interactions[-1]["visits"]
             for k, (d, t, _) in enumerate(visits):
                 if d in self._pending_reads and not _:
                     visits[k] = (d, t, note)
-            self._pending_reads = []
+        self._pending_reads = []
+
+    def observe(self, step: Any, last_hits: list[str]) -> None:
+        """Record one finished step. `step` is a loop `Step` (name/args/raw_output); `last_hits`
+        the workspace's listing after the step."""
+        raw = getattr(step, "raw_output", "") or ""
+        # the model's generation at this step is the reasoning AFTER the previous step's reads;
+        # `note()` normally handled it before the tool ran, this covers callers without the hook
+        if self._pending_reads and self.interactions:
+            self.note(raw)
         name = getattr(step, "name", "") or ""
         args = getattr(step, "args", {}) or {}
         if is_search_action(name):
