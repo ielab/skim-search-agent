@@ -3,20 +3,19 @@
 appendix token-columns table requested for browsecomp_plus_structured / hotpotqa_structured /
 musique_structured.
 
-Field semantics copied verbatim from analysis/token_efficiency.py's `stream_row_stats` (itself
-mirroring scripts/compare_cells.py's `_row_intrinsic`):
+Field semantics mirror scripts/compare_cells.py's `_row_intrinsic`:
     tok_once    = total_tokens_once, falling back to
                   initial_prompt_tokens + context_once_tokens + (output_tokens or
                   completion_tokens) on the rare row missing the field outright.
     tok_stepsum = prompt_tokens + completion_tokens (re-counts the growing prompt every step).
 
-Loading pattern copied from analysis/token_efficiency.py: rows.jsonl is streamed one line at a
+Loading pattern: rows.jsonl is streamed one line at a
 time (json.loads, pull scalar fields, discard) rather than loaded whole -- these files run
 190MB-1GB+. No recovery/judge overlay is applied (not needed: token fields are row-intrinsic and
 unaffected by answer recovery).
 
 Usage:
-    PYTHONPATH=. ./envs/bin/python analysis/appendix_token_columns.py
+    PYTHONPATH=. python analysis/appendix_token_columns.py
 """
 from __future__ import annotations
 
@@ -70,16 +69,15 @@ CELLS = {
     "indri_dense_visit":   lambda ds: agent_dir("_fullvisit_dense", ds, "agent_research_indri_visit") if ds == "browsecomp_plus_structured" else None,
     "indri_fetch":         lambda ds: agent_dir("_headline_validation", ds, "agent_research_indri_snip") if ds == "browsecomp_plus_structured" else None,
     "indri_dense_fetch":   lambda ds: agent_dir("_dense_validation", ds, "agent_research_indri_snip") if ds == "browsecomp_plus_structured" else None,
-    # "Indri without snippets" -- identified via Boolean_agent_paper/tables/main_results.tex:90
-    # ("Indri without snippets & 830 & 25.9 & 23.6* & 50.1 & 45k & 74.7") which is n=830 (bcp-only)
-    # and tok=45k: the _headline_validation "agent_research_indri" condition (no _snip suffix),
+    # "Indri without snippets" is identified by its paper-table row (n=830 bcp-only, tok=45k):
+    # the _headline_validation "agent_research_indri" condition (no _snip suffix),
     # sibling of agent_research_indri_snip ("Indri", with snippet excerpt) in the same tier.
     "indri_nosnip":        lambda ds: agent_dir("_headline_validation", ds, "agent_research_indri") if ds == "browsecomp_plus_structured" else None,
 }
 
 
 def stream_row_stats(path: Path):
-    """Mirrors analysis/token_efficiency.py's stream_row_stats: one line at a time, no whole-file
+    """Streams rows.jsonl one line at a time, no whole-file
     load. Returns (n, tok_once_values list, tok_stepsum_values list)."""
     tok_once_vals = []
     tok_stepsum_vals = []

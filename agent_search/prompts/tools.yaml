@@ -1,6 +1,18 @@
 # Toolsets (condition -> tool list) and tool definitions (description, arguments, and the
 # per-domain manual each tool surfaces to the agent). Manuals live in skills/*.md.
 toolsets:
+  dedup_bm25:
+  - bm25_search
+  - get_document
+  dedup_dense:
+  - search
+  - get_document
+  code_fix:
+  - search
+  - fetch
+  code_grep:
+  - grep
+  - read
   bm25_autoread:
   - bm25_read_search
   bm25_dci:
@@ -46,6 +58,45 @@ toolsets:
   - search_s
   - fetch_s
 tools:
+  search:
+    description: "Search the collection and return the top results with their DocID, title and\
+      \ snippet. Documents: a keyword query. Code repositories: a Boolean field-tagged query\
+      \ over code units (def, call, sig, comment, string, path, body; AND/OR/NOT, phrases,\
+      \ wildcards), returning ranked files with the matched function names."
+    parameters:
+      type: object
+      properties:
+        query:
+          type: string
+          description: The search query (plain keywords, or a Boolean query for code).
+        k:
+          type: integer
+          description: Number of results to list (code search only; default 5).
+      required:
+      - query
+    manual:
+      code: skills/bql_code.md
+  get_document:
+    description: "Retrieve the full content of one document given its DocID from a search result."
+    parameters:
+      type: object
+      properties:
+        docid:
+          type: string
+          description: The exact DocID shown in a search result.
+      required:
+      - docid
+  grep:
+    description: "Regex search over every source file in the repository (grep -rn); returns matching\
+      \ lines as path:line: text. Follow up with read on the interesting file."
+    parameters:
+      type: object
+      properties:
+        pattern:
+          type: string
+          description: A regular expression, e.g. def create_session_token or expir.
+      required:
+      - pattern
   bash:
     description: "Run a bash command (grep/rg/ls/find/wc) in the corpus directory to search for candidate\
       \ files. The corpus directory contains only the documents available to you this episode (with bm25_search:\

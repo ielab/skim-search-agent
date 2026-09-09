@@ -1,5 +1,4 @@
-"""Observation -> card-dict parsers shared by the offline replay builder (build_web.py) and the
-live SSE server (demo/live/server.py).
+"""Observation -> card-dict parsers used by the live SSE server (demo/server.py).
 
 Each function parses ONE workspace observation string — the exact text renderings of
 `DocSearchFetch.search`/`.fetch` and `Bm25Visit.search`/`.visit` (agent_search/agent/tools/
@@ -21,7 +20,7 @@ VISIT = re.compile(r"^(\S+)\s+(?:'([^']*)'|\"([^\"]*)\"):\n(.*)$", re.S)
 
 def parse_search(obs: str) -> dict:
     """DocSearchFetch.search observation -> {compiled, status, hits:[{rank,id,title,sections,
-    infobox,matched,snippet}]} (moved verbatim from build_web.py)."""
+    infobox,matched,snippet}]}, as rendered by demo/server.py."""
     lines = obs.split("\n")
     m = re.match(r"search:\s*(.*?)\s+->\s+(.*?)(?:\s{2,}\((.*)\))?\s*$", lines[0])
     out = {"compiled": m.group(2) if m else "", "status": (m.group(3) if m else "") or "",
@@ -38,8 +37,8 @@ def parse_search(obs: str) -> dict:
 
 
 def parse_fetch(obs: str) -> dict:
-    """DocSearchFetch.fetch observation -> {doc, section, text, error} (moved verbatim from
-    build_web.py)."""
+    """DocSearchFetch.fetch observation -> {doc, section, text, error}, as rendered by
+    demo/server.py."""
     body = obs.split("fetch:", 1)[-1].strip()
     m = FETCH.match(body)
     if not m:

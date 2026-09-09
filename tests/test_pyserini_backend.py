@@ -37,6 +37,7 @@ pyserini backend.
 """
 from __future__ import annotations
 
+import json
 import os
 import random
 import re
@@ -285,7 +286,7 @@ def test_search_makes_no_python_level_network_call(engines, monkeypatch):
 def test_import_succeeds_with_no_openai_api_key_in_a_clean_subprocess():
     """Regression for the transitive-import landmine pyserini.py's module docstring
     documents: `pyserini.search.lucene` transitively imports `pyserini.encode._openai`, which
-    used to raise at IMPORT time if OPENAI_API_KEY was unset — and only `evaluation/__init__.py`
+    used to raise at IMPORT time if OPENAI_API_KEY was unset — and only `agent_search/evaluation/__init__.py`
     (not pyserini.py itself) used to set the placeholder, so importing
     `agent_search.retrievers.lexical.pyserini` directly (bypassing `evaluation`) on a machine
     with no OPENAI_API_KEY in its environment used to crash before this module set its own
@@ -445,3 +446,30 @@ def test_is_built_rejects_stale_doc_count_and_rebuilds(tmp_path):
         "trigger a rebuild")
     assert not (hits & {u.doc_id for u in units_a}), (
         "old corpus_a doc_ids still present in results after the corpus changed")
+
+
+def test_is_built_rejects_stale_fingerprint_same_doc_count_and_rebuilds(tmp_path):
+    """A unit's CONTENT can change in place (same doc_id, same count) -- the doc-count check
+    alone can't see that. `index()` also writes a `corpus_fingerprint`
+    (agent_search.corpus.fingerprint.corpus_fingerprint) into meta.json and cross-checks it
+    on every subsequent `index()` for the same key; a same-count, different-CONTENT reuse
+    must still trigger a rebuild instead of silently serving the old text's postings."""
+    index_root = str(tmp_path)
+    key = "fingerprint_congruence_test"
+
+    units_a = units_from_documents([{"_id": "d0", "title": "d0", "text": "alpha content zero"}])
+    pys_a = BM25Pyserini(index_root=index_root, rebuild=True).index(units_a, key=key)
+    assert set(pys_a.search("alpha", k=10)) == {"d0"}
+    meta_path = os.path.join(index_root, "bm25_pyserini", key, "meta.json")
+    with open(meta_path) as fh:
+        meta = json.load(fh)
+    assert meta.get("corpus_fingerprint")          # the new key is actually being written
+
+    # SAME doc_id, SAME count, DIFFERENT text -- a doc-count check alone would trust this.
+    units_b = units_from_documents(
+        [{"_id": "d0", "title": "d0", "text": "totally different beta wording"}])
+    pys_b = BM25Pyserini(index_root=index_root, rebuild=False).index(units_b, key=key)
+    assert pys_b.search("alpha", k=10) == [], (
+        "stale content served after an in-place edit -- the fingerprint check did not "
+        "trigger a rebuild")
+    assert set(pys_b.search("beta", k=10)) == {"d0"}

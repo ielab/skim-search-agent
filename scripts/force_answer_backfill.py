@@ -1,6 +1,6 @@
 """Offline forced-terminal-elicitation backfill for empty-`final_answer` browsecomp rows.
 
-WHY (see docs/factorial_snapshot_20260710.md): `agent_search/agent/loop.py`'s
+WHY: `agent_search/agent/loop.py`'s
 `run_episode` reserves its LAST allowed turn to inject a "STEP BUDGET REACHED" nudge —
 a ONE-shot instruction to stop searching and commit an `<answer>` NOW. On long-episode
 browsecomp cells Tongyi ignores that nudge 60-78% of the time and keeps emitting tool
@@ -22,9 +22,8 @@ mechanism is deterministic, single-call FORCED DECODING: after the reconstructed
 conversation + the "STEP BUDGET REACHED / tools disabled" instruction, we append an
 `assistant`-role message whose content is already the open tag `"<answer>"`, and ask
 vLLM's OpenAI-compatible `/v1/chat/completions` to CONTINUE that message rather than
-start a new turn. vLLM's `ChatCompletionRequest` (see
-`envs/lib/python3.10/site-packages/vllm/entrypoints/openai/chat_completion/protocol.py`,
-this repo's vLLM 0.22.1) exposes exactly this as two request fields —
+start a new turn. vLLM's `ChatCompletionRequest` (part of
+vLLM's OpenAI-compatible server, this repo's vLLM 0.22.1) exposes exactly this as two request fields —
 `continue_final_message: bool` ("the chat will be formatted so that the final message
 ... is open-ended ... allows you to 'prefill' part of the model's response") and
 `add_generation_prompt: bool`, which the same protocol's validator requires be `False`
@@ -52,7 +51,7 @@ extracted with the rfind-last extractor (see EXTRACTION below). No further retri
 PROMPT RECONSTRUCTION — design choice (task spec allows the "acceptable
 simplification": system + question + a compacted transcript, documented here):
 
-  `rows.jsonl`'s `trajectory[i]["observation"]` is DISPLAY-CAPPED to 600 chars by
+  `rows.jsonl`'s `trajectory[i]["observation"]` was DISPLAY-CAPPED to 600 chars (rows written before 2026-09) by
   `agent_search/agent/retriever.py::_trajectory_meta` — never usable for a faithful
   replay. The FULL, uncapped observation for step `i` lives in the row's top-level
   `observations[i]` (same order, same length; see `_trajectory_meta`), which is what
@@ -66,7 +65,7 @@ simplification": system + question + a compacted transcript, documented here):
   `prompt_path` (`row["prompt_profile_path"]`, the condition name, e.g.
   `"research_indri"` — carried verbatim in every row) and the SAME `field_profile`
   (derived from the dataset name found in the condition-dir path via
-  `evaluation.datasets.dataset_field_profile`, since the row itself does not carry
+  `agent_search.evaluation.datasets.dataset_field_profile`, since the row itself does not carry
   the profile — see `_infer_field_profile`), then call `.build_messages(task, steps)`.
   This is the EXACT code path that built the system prompt + newest-first,
   whole-(assistant,tool_response)-pair, char-budget-windowed history the model
@@ -74,11 +73,11 @@ simplification": system + question + a compacted transcript, documented here):
   loop/policies wiring by construction, not by a parallel reimplementation that could
   drift from it.
 
-  CONTEXT CAP: `AgentPolicy`'s own default `ctx_chars=450_000` (~128k tokens by its
-  own `chars/3.5` heuristic, see `policies.py`) is already close to the ~120k-token
-  cap this task asks for. We pass a slightly tighter `ctx_chars=420_000`
-  (120_000 tokens * 3.5 chars/token, the SAME chars/3.5 heuristic, applied explicitly
-  here so the cap is visible and tunable via `--ctx-chars` rather than silently
+  CONTEXT CAP: `AgentPolicy`'s own default `ctx_tokens=450_000` (~128k tokens by its
+  own token ruler, see `policies.py`) is already close to the ~120k-token
+  cap this task asks for. We pass a slightly tighter `ctx_tokens=110_000`
+  (110_000 model tokens on the SAME ruler `AgentPolicy` uses, applied explicitly
+  here so the cap is visible and tunable via `--ctx-tokens` rather than silently
   inherited) — same whole-pair-drop-oldest-first algorithm, just a dedicated budget
   for recovery reconstruction. We do NOT attempt to recover the byte-exact window the
   live episode held at an EARLIER step; we want the window as of the point the episode
@@ -110,10 +109,10 @@ as coverage, so the row is re-attempted next pass and never overlaid downstream)
 append-only (one record flushed per row, so a killed job loses at most the in-flight
 row). `rows.jsonl` parsing tolerates
 a live-appended file (unparsable trailing line -> skipped, mirrors
-`evaluation.run_eval._load_rows`).
+`agent_search.evaluation.run_eval._load_rows`).
 
 PER-ROW RESILIENCE (added after job 28673993 crashed): a "maximum context length"
-error (the chars/3.5 heuristic can overshoot the model's true token window on
+error (the measurement ruler can overshoot the serving model's true tokenizer on
 token-dense rows) retries THAT ROW with the reconstructed window shrunk 15% at a
 time, up to 3 shrinks — the same loop `AgentPolicy.propose()` uses live
 (`agent_search/agent/policies.py`); a row that still overflows is SKIPPED with a log
@@ -123,8 +122,8 @@ nonzero only when >20% of processed rows failed (systemic breakage), never for
 isolated rows.
 
 INTEGRATION: `load_rows_with_recovery(cond_dir)` overlays `recovered_answers.jsonl`
-onto `rows.jsonl` for OPT-IN downstream scoring (`scripts/make_results_table.py
---with-recovery`); it never mutates `rows.jsonl` on disk.
+onto `rows.jsonl` for downstream scoring — `scripts/compare_cells.py` applies this
+overlay by default via `cell_rows`; it never mutates `rows.jsonl` on disk.
 
 WHAT COUNTS AS "NEEDS RECOVERY" (`needs_recovery`, single source of truth): a truly
 empty/whitespace-only `final_answer`, OR one of the placeholder strings the model
@@ -150,6 +149,7 @@ from typing import Callable, Optional, Sequence
 
 from agent_search.agent.loop import Step, Task, _extract_answer
 from agent_search.agent.policies import AgentPolicy
+from agent_search.core.tokens import count_tokens
 # The prefill-elicitation MECHANISM (call_prefill/call_plain_ask/prefill_messages_for +
 # FORCE_MSG/FALLBACK_MSG + the default tuning knobs) now lives in agent_search.agent.forced_answer,
 # shared with the LIVE inline elicitation in agent_search/agent/loop.py's terminal branch (see that
@@ -170,14 +170,14 @@ from agent_search.agent.forced_answer import (
 )
 
 METHOD = "forced_terminal_prefill_v1"
-DEFAULT_CTX_CHARS = 420_000              # ~120k tokens at the chars/3.5 heuristic (documented above)
+DEFAULT_CTX_TOKENS = 110_000              # model tokens (agent_search.core.tokens ruler; documented above)
 
 
 # --- tolerant rows.jsonl / recovered_answers.jsonl I/O -----------------------------------------
 
 def load_rows_tolerant(rows_path: str) -> list:
     """Parse `rows.jsonl`, skipping unparsable trailing lines (a run still appending). Mirrors
-    `evaluation.run_eval._load_rows`'s tolerance, but keeps duplicates as-is (rows.jsonl for a
+    `agent_search.evaluation.run_eval._load_rows`'s tolerance, but keeps duplicates as-is (rows.jsonl for a
     finished condition should have none; we don't second-guess a live one)."""
     rows: list = []
     if not rows_path or not os.path.exists(rows_path):
@@ -248,7 +248,7 @@ def infer_dataset_name(cond_dir: str) -> Optional[str]:
     """The registered dataset name found in the condition-dir path (e.g.
     `browsecomp_plus_structured`), by membership rather than a fixed path position — robust to the
     `<root>/agent/<dataset>/<model>/agent_<cond>` layout varying which `<root>` it sits under."""
-    from evaluation.datasets import available_datasets
+    from agent_search.evaluation.datasets import available_datasets
     names = available_datasets()
     parts = os.path.normpath(cond_dir).split(os.sep)
     for part in parts:
@@ -258,7 +258,7 @@ def infer_dataset_name(cond_dir: str) -> Optional[str]:
 
 
 def infer_field_profile(cond_dir: str) -> Optional[str]:
-    from evaluation.datasets import dataset_field_profile
+    from agent_search.evaluation.datasets import dataset_field_profile
     ds = infer_dataset_name(cond_dir)
     return dataset_field_profile(ds) if ds else None
 
@@ -274,7 +274,7 @@ def infer_model_name(cond_dir: str) -> Optional[str]:
 # --- prompt reconstruction (see module docstring) ---------------------------------------------
 
 def reconstruct_messages(row: dict, field_profile: Optional[str],
-                         ctx_chars: int = DEFAULT_CTX_CHARS) -> list:
+                         ctx_tokens: int = DEFAULT_CTX_TOKENS) -> list:
     """The message list `AgentPolicy.build_messages` would build TODAY over this row's full stored
     trajectory (FULL `observations`, never the 600-char-capped `trajectory[i]['observation']`),
     plus the forced-terminal-elicitation turn appended at the end. Raises KeyError if the row has
@@ -287,7 +287,7 @@ def reconstruct_messages(row: dict, field_profile: Optional[str],
     # generate is never called through this policy object — only .build_messages is used, so a
     # stub is fine (and keeps this function import-cheap / offline-safe for --dry-run).
     policy = AgentPolicy(generate=lambda _msgs: "", prompt_path=prompt_path,
-                         field_profile=field_profile, ctx_chars=ctx_chars)
+                         field_profile=field_profile, ctx_tokens=ctx_tokens)
     messages = policy.build_messages(task, steps)
     messages.append({"role": "user", "content": f"<tool_response>\n{FORCE_MSG}\n</tool_response>"})
     return messages
@@ -372,7 +372,7 @@ def load_rows_with_recovery(cond_dir: str) -> list:
     every other row gets `recovered=False`. A placeholder recovery never overlays — the row stays
     empty-ish (still shows in empty%, still a future recovery target) rather than becoming a fake
     non-empty answer. Never touches `rows.jsonl` on disk — this is a read-only, in-memory merge
-    for OPT-IN scoring (`scripts/make_results_table.py --with-recovery`)."""
+    used by `scripts/compare_cells.py` for scoring."""
     rows = load_rows_tolerant(os.path.join(cond_dir, "rows.jsonl"))
     for r in rows:
         r.setdefault("recovered", False)
@@ -408,7 +408,7 @@ def empty_answer_rows(cond_dir: str) -> list:
 
 
 def process_condition_dir(cond_dir: str, *, model: Optional[str], api_base: Optional[str],
-                          ctx_chars: int, prefill_max_tokens: int, fallback_max_tokens: int,
+                          ctx_tokens: int, prefill_max_tokens: int, fallback_max_tokens: int,
                           stamp: str, limit: Optional[int] = None, workers: int = 1,
                           dry_run: bool = False, log: Callable[[str], None] = print) -> dict:
     """Process one condition dir end to end; returns a small summary dict for reporting."""
@@ -437,8 +437,8 @@ def process_condition_dir(cond_dir: str, *, model: Optional[str], api_base: Opti
     def _work(row: dict) -> tuple:
         """Recover ONE row. Returns `(iid, status, payload)`: status `"ok"` with payload
         `(answer, n_attempts, raw)`, or `"overflow"` with payload the FINAL (smallest)
-        `ctx_chars` tried. Mirrors `AgentPolicy.propose()`'s overflow handling
-        (`agent_search/agent/policies.py`): the chars/3.5 budget can overshoot the model's
+        `ctx_tokens` tried. Mirrors `AgentPolicy.propose()`'s overflow handling
+        (`agent_search/agent/policies.py`): the token budget can overshoot the serving model's
         true token window on token-dense content, so on a "maximum context length" error
         shrink the reconstructed window 15% and retry, up to 3 shrinks (4 attempts total);
         a row that STILL overflows is skipped — no sidecar record, just a log line — so one
@@ -447,9 +447,9 @@ def process_condition_dir(cond_dir: str, *, model: Optional[str], api_base: Opti
         OTHER exception propagates to `_consume`, which logs it and counts it as a per-row
         failure without stopping the pass."""
         iid = row.get("instance_id")
-        ctx = ctx_chars
+        ctx = ctx_tokens
         for shrink in range(4):
-            messages = reconstruct_messages(row, field_profile, ctx_chars=ctx)
+            messages = reconstruct_messages(row, field_profile, ctx_tokens=ctx)
             try:
                 answer, n_attempts, raw = elicit_answer(
                     messages, client, resolved_model,
@@ -482,7 +482,7 @@ def process_condition_dir(cond_dir: str, *, model: Optional[str], api_base: Opti
         if status == "overflow":
             n_skipped_overflow += 1
             log(f"   [{cond_dir}] SKIPPED context-overflow-after-3-shrinks "
-                f"instance_id={iid!r} final_ctx_chars={payload}")
+                f"instance_id={iid!r} final_ctx_tokens={payload}")
             return
         _record(iid, *payload)   # always appended — audit trail of the attempt
         answer = payload[0]
@@ -531,7 +531,7 @@ def main(argv: Optional[list] = None) -> int:
                     help="max_tokens for the primary forced-continuation call")
     ap.add_argument("--fallback-max-tokens", type=int, default=DEFAULT_FALLBACK_MAX_TOKENS,
                     help="max_tokens for the ONE plain-ask fallback call")
-    ap.add_argument("--ctx-chars", type=int, default=DEFAULT_CTX_CHARS)
+    ap.add_argument("--ctx-tokens", type=int, default=DEFAULT_CTX_TOKENS)
     ap.add_argument("--limit", type=int, default=None, help="cap rows processed per cell (debug)")
     ap.add_argument("--workers", type=int, default=1)
     ap.add_argument("--dry-run", action="store_true",
@@ -550,7 +550,7 @@ def main(argv: Optional[list] = None) -> int:
     total_pending = 0
     for cond_dir in cond_dirs:
         summary = process_condition_dir(
-            cond_dir, model=args.model, api_base=args.api_base, ctx_chars=args.ctx_chars,
+            cond_dir, model=args.model, api_base=args.api_base, ctx_tokens=args.ctx_tokens,
             prefill_max_tokens=args.prefill_max_tokens, fallback_max_tokens=args.fallback_max_tokens,
             stamp=stamp, limit=args.limit, workers=args.workers, dry_run=args.dry_run,
             log=lambda m: print(m, file=sys.stderr))
@@ -568,12 +568,12 @@ def main(argv: Optional[list] = None) -> int:
             done_ids = load_recovered_ids(cond_dir)
             sample_row = next(r for r in empty if r.get("instance_id") not in done_ids)
             field_profile = summary["field_profile"]
-            base_messages = reconstruct_messages(sample_row, field_profile, ctx_chars=args.ctx_chars)
+            base_messages = reconstruct_messages(sample_row, field_profile, ctx_tokens=args.ctx_tokens)
             messages = prefill_messages_for(base_messages)
             print("\n=== DRY-RUN sample reconstructed prompt, INCLUDING the forced-prefill "
                  f"assistant turn (instance_id={sample_row.get('instance_id')!r}, cond_dir={cond_dir!r}) ===")
             for m in messages:
-                print(f"--- role={m['role']} ({len(m['content'])} chars) ---")
+                print(f"--- role={m['role']} ({count_tokens(m['content'])} tokens) ---")
                 print(m["content"][:2000])
             print("(primary call would pass extra_body={'add_generation_prompt': False, "
                  "'continue_final_message': True}, stop=['</answer>'] over the messages above)")

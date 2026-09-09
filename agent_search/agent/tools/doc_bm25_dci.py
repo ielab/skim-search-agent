@@ -1,4 +1,4 @@
-"""The bm25 -> DCI ACI: `bm25_search` is now a LIVE, per-call BM25 retrieval (identical in
+"""The bm25 -> DCI ACI: `bm25_search` is a LIVE, per-call BM25 retrieval (identical in
 shape to `Bm25Visit.search`), and `bash`/`read` (the DCI shell) are rooted at a staging dir
 that GROWS INCREMENTALLY as new docs are surfaced by search.
 
@@ -14,21 +14,17 @@ This is the missing controlled comparison between the doc arm's three baselines:
 Holding retrieval identical to `research_bm25` (same `BM25Local`, same live per-query search)
 and swapping only the READ strategy (shell-grep vs whole-doc-visit) isolates "given the same
 retrieval, how do you read?" — the other three baselines each change BOTH retrieval and read
-together.
+together. This requires retrieval to be genuinely LIVE per call, exactly like `Bm25Visit.search`,
+not a fixed ranking computed once and replayed — otherwise the agent's own queries would never
+affect retrieval and this arm would starve for documents a live searcher would find:
 
-BUGFIX (was one-shot): retrieval used to run ONCE in `__init__` on the raw episode question,
-and `bm25_search` tool calls just replayed that fixed ranking — the agent's own queries were
-silently ignored for retrieval, which starved this arm of documents a live searcher would find
-(measured: ~5% gold-doc surfacing on browsecomp vs ~59% for `Bm25Visit`, which DOES re-run bm25
-per call). Retrieval is now LIVE per call, exactly like `Bm25Visit.search`:
-
-  1. `__init__` still runs ONE bm25 call up front — `self.bm.search(query, k=topk)` on the
+  1. `__init__` runs ONE bm25 call up front — `self.bm.search(query, k=topk)` on the
      episode's question text — to seed a starting pool (some episodes' first bash/read call
      assumes a non-empty corpus_dir at t=0). This is not special-cased: it is implemented by
      calling `self.search(query)`, the SAME method a later tool call uses.
   2. Every `bm25_search` call (including that seed one) runs `self.bm.search(query, k)` LIVE
      against the agent's actual query text — the SAME `BM25Local` engine `Bm25Visit` uses, so
-     retrieval is byte-identical to `research_bm25` for the same query/engine/k.
+     retrieval matches `research_bm25` for the same query/engine/k.
   3. Any hit not already staged gets written into the SAME staging dir immediately, via
      `flat_export.stage_units_into` (the exact `<safe_doc_id>.txt` / `title\\n\\nbody` writer
      `export_flat_corpus` uses — factored out so there is ONE write path, not two). A doc that
@@ -44,15 +40,18 @@ exactly like `DciWorkspace._rel_to_doc`.
 from __future__ import annotations
 
 import os
+import shutil
 import tempfile
+import weakref
 from pathlib import Path
 from typing import Optional, Sequence
 
 from agent_search.agent.tools.doc_dci import (
-    BASH_MAX_BYTES, BASH_MAX_LINES, READ_DEFAULT_LIMIT, READ_MAX_LINE_CHARS,
+    BASH_MAX_TOKENS, BASH_MAX_LINES, READ_DEFAULT_LIMIT, READ_MAX_LINE_TOKENS,
     _HARD_TIMEOUT_S, _run_bash, _run_read)
+from agent_search.core.seen import OrderedSeen
 from agent_search.corpus.flat_export import stage_units_into
-from agent_search.agent.tools.doc_research import opening_line
+from agent_search.agent.tools.doc_research import _SeenMixin, opening_line
 from agent_search.corpus.units import CodeUnit
 
 # The retrieval-stage cutoff: how many bm25 hits a `bm25_search` call surfaces/stages by
@@ -62,7 +61,7 @@ from agent_search.corpus.units import CodeUnit
 BM25_DCI_TOPK = int(os.environ.get("BM25_DCI_TOPK", "10"))
 
 
-class Bm25DciWorkspace:
+class Bm25DciWorkspace(_SeenMixin):
     """`bm25_search` runs BM25 LIVE on every call (see module docstring) — a new query text
     genuinely re-retrieves, matching `Bm25Visit.search`'s observation shape exactly. `bash`/
     `read` are `DciWorkspace`'s shell, rooted at a staging dir that starts with the episode
@@ -80,9 +79,9 @@ class Bm25DciWorkspace:
 
     def __init__(self, units: Sequence[CodeUnit], query: str, engine=None,
                 ubyid: Optional[dict] = None, topk: int = BM25_DCI_TOPK,
-                *, max_bash_lines: int = BASH_MAX_LINES, max_bash_bytes: int = BASH_MAX_BYTES,
+                *, max_bash_lines: int = BASH_MAX_LINES, max_bash_tokens: int = BASH_MAX_TOKENS,
                 read_default_limit: int = READ_DEFAULT_LIMIT,
-                read_max_line_chars: int = READ_MAX_LINE_CHARS):
+                read_max_line_tokens: int = READ_MAX_LINE_TOKENS):
         self.units = list(units)
         self.ubyid = ubyid if ubyid is not None else {u.doc_id: u for u in self.units}
         if engine is None:
@@ -95,20 +94,26 @@ class Bm25DciWorkspace:
         self.bm = engine
         self.topk = topk
         self._max_bash_lines = max_bash_lines
-        self._max_bash_bytes = max_bash_bytes
+        self._max_bash_tokens = max_bash_tokens
         self._read_default_limit = read_default_limit
-        self._read_max_line_chars = read_max_line_chars
-        self.seen: set = set()
+        self._read_max_line_tokens = read_max_line_tokens
+        self.seen = OrderedSeen()
         self.query = ""
         self.last_hits: list[str] = []
 
-        # A fresh, EMPTY staging dir (no `key` -> always a brand-new tempdir per episode, same
-        # scheme `export_flat_corpus`'s un-keyed path used to use — never the corpus-wide cached
+        # A fresh, EMPTY staging dir (no `key` -> always a brand-new tempdir per episode, the
+        # same scheme `export_flat_corpus`'s un-keyed path uses — never the corpus-wide cached
         # export `DciWorkspace` reuses). Every search — this seed one AND every later live call —
         # stages into THIS SAME dir, so bash/read's view grows monotonically over the episode.
         self.corpus_dir = Path(tempfile.mkdtemp(prefix="agent_search_bm25dci_"))
         self._rel_to_doc: dict[str, str] = {}
         self._staged: set = set()
+        # The staging dir is per-episode scratch space (never the corpus-wide cached export
+        # DciWorkspace reuses) — nothing else can reclaim it, so it must be removed explicitly.
+        # `close()` covers an explicit teardown; `weakref.finalize` is the safety net for a
+        # workspace that just falls out of scope (test fixtures, an episode runner that never
+        # calls close()) so the tempdir doesn't leak across a long eval run.
+        weakref.finalize(self, shutil.rmtree, str(self.corpus_dir), True)
 
         # SEED: one live bm25 call on the episode's question text, via the SAME `search()` a
         # tool call uses — not special-cased staging logic. A blank question yields no seed hits
@@ -166,7 +171,7 @@ class Bm25DciWorkspace:
             timeout_s = _HARD_TIMEOUT_S
         timeout_s = max(1.0, min(timeout_s, _HARD_TIMEOUT_S))
         obs = _run_bash(self.corpus_dir, command, timeout_s,
-                        self._max_bash_lines, self._max_bash_bytes)
+                        self._max_bash_lines, self._max_bash_tokens)
         self._surface_from_text(command)
         self._surface_from_text(obs)
         return obs
@@ -175,7 +180,7 @@ class Bm25DciWorkspace:
         rel = (path or "").strip()
         self._surface_from_text(rel)
         obs = _run_read(self.corpus_dir, rel, offset, limit,
-                        self._read_default_limit, self._read_max_line_chars)
+                        self._read_default_limit, self._read_max_line_tokens)
         if not obs.startswith("Error"):
             self._surface_from_text(rel)
         return obs
@@ -198,3 +203,11 @@ class Bm25DciWorkspace:
         except Exception as e:  # noqa: BLE001 — a tool error is an observation, not a crash
             return f"ERROR: {type(e).__name__}: {e}"
         return f"ERROR: unknown tool {name!r}. Available tools: {', '.join(self.tools)}."
+
+    def close(self) -> None:
+        """Remove the per-episode staging dir. `__init__` never persisted anything the corpus-wide
+        export (`DciWorkspace`/`export_flat_corpus`) reuses — this tempdir is scratch space for
+        THIS episode alone — so an episode runner should call this once done with the workspace.
+        A `weakref.finalize` registered in `__init__` is the safety net for callers that don't
+        (e.g. a workspace that just falls out of scope), so the dir is removed either way."""
+        shutil.rmtree(self.corpus_dir, ignore_errors=True)

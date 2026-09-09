@@ -114,7 +114,7 @@ class LuceneStructuredEngine:
             if not os.path.isdir(self.index_path):
                 raise FileNotFoundError(
                     f"no lucene_structured index at {self.index_path!r}; build it with "
-                    f"`envs/bin/python -m agent_search.retrievers.structural.lucene."
+                    f"`python -m agent_search.retrievers.structural.lucene."
                     f"index_builder --dataset <name>`")
             MMapDirectory = J.J("MMapDirectory")
             Paths = J.J("Paths")

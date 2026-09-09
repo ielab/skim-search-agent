@@ -5,9 +5,10 @@ cache via `git archive` — **read-only**, so:
   * no `git checkout` -> no working-tree mutation -> safe under concurrent --workers,
   * works fully OFFLINE (the GPU node usually has no internet).
 
-Workflow on a cluster: pre-stage the repos once on a node WITH internet
-(`scripts/prefetch_repos.py --repo-cache <shared dir>`), then run the eval with
-`--repo-cache <shared dir>` on the GPU node — no cloning happens at eval time.
+Workflow on a cluster: pre-stage the repos once on a node WITH internet (a plain
+`git clone` of each repository into `<shared dir>/<owner>__<repo>`; this release ships no
+prefetch script — the code-localization arm is retained but not part of the document
+workflow), then run the eval with `--repo-cache <shared dir>` on the GPU node.
 """
 from __future__ import annotations
 
@@ -39,8 +40,8 @@ def ensure_repo(repo: str, cache_dir: str, allow_clone: bool = False) -> str:
         return dest
     if not allow_clone:
         raise RepoError(
-            f"repo {repo} not cached at {dest}. Pre-stage it on a node with internet:\n"
-            f"  python scripts/prefetch_repos.py --repo-cache {cache_dir}")
+            f"repo {repo} not cached at {dest}. Pre-stage it on a node with internet "
+            f"(git clone https://github.com/{repo} {dest}), or pass --allow-clone.")
     if os.path.isdir(dest):                       # exists but broken -> reclone
         subprocess.run(["rm", "-rf", dest], check=True)
     os.makedirs(cache_dir, exist_ok=True)
@@ -74,7 +75,7 @@ def _archive_py_files(clone: str, commit: str) -> dict:
             err = errf.read().decode("utf-8", "ignore").strip()
             raise RepoError(
                 f"git archive {commit[:12]} failed in {clone}: {err} "
-                f"(commit missing from cache? re-run prefetch_repos.py).")
+                f"(commit missing from the cached clone? re-clone or `git fetch` it).")
     return files
 
 

@@ -3,7 +3,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from evaluation.llm_judge import BCP_JUDGE_PROMPT, judge_answer_detail, make_judge
+from agent_search.evaluation.llm_judge import BCP_JUDGE_PROMPT, judge_answer_detail, make_judge
 
 
 def _stub(verdict: str):

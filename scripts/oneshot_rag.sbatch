@@ -78,7 +78,7 @@ fi
 # it here if missing (idempotent: an existing cache is a no-op load-check inside oneshot_rag.py
 # itself, this just materializes it up front so the GPU-heavy embed never races vLLM startup).
 echo ">> [step 0] ensuring the dense doc-embedding cache exists for $DATASET ..."
-"$PYTHON" -m evaluation.build_indexes --dataset "$DATASET" --retriever dense \
+"$PYTHON" -m agent_search.evaluation.build_indexes --dataset "$DATASET" --retriever dense \
   --index-root "$INDEX_ROOT" --model BAAI/bge-base-en-v1.5 ${LIMIT:+--limit "$LIMIT"} || {
   echo "ERROR: [step 0] dense index build failed — see error above." >&2
   exit 1

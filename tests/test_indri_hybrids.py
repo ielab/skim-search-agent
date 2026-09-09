@@ -51,7 +51,7 @@ def test_isearch_v_returns_ranked_hits_with_snippet(units):
     assert "ERROR" not in out
     assert "hits):" in out
     assert "weakest constraint for top hit:" in out
-    # SPEC AMENDMENT: content-bearing listing (fairness parity with the bm25 baseline).
+    # Content-bearing listing (fairness parity with the bm25 baseline).
     assert "»" in out
 
 

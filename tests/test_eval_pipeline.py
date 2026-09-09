@@ -1,8 +1,8 @@
 """End-to-end smoke: the eval pipeline runs on the fixture and localizes the gold
 function with the lexical baseline (no heavy deps)."""
-from evaluation.datasets import Instance, fixture_instances
+from agent_search.evaluation.datasets import Instance, fixture_instances
 from agent_search.retrievers.lexical.bm25 import BM25Local
-from evaluation.run_eval import _load_rows, evaluate
+from agent_search.evaluation.run_eval import _load_rows, evaluate
 
 
 def test_pipeline_runs_and_finds_gold_function():

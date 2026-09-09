@@ -12,12 +12,14 @@ Protocol notes vs the CoRNStack paper's own SWE-bench eval (eval_swebench.py):
 """
 from __future__ import annotations
 
+import json
 import os
 import re
 import sys
 import threading
 from typing import Optional, Sequence
 
+from agent_search.corpus.fingerprint import corpus_fingerprint
 from agent_search.corpus.units import CodeUnit
 from agent_search.core.interfaces import Retriever
 from agent_search.retrievers.dense.vector_index import (
@@ -46,6 +48,77 @@ _QUERY_PREFIX = {
 _ENCODER_CACHE: dict = {}
 _ENCODER_LOCK = threading.Lock()
 
+SERVING_NOTE = "skimsearchagent_dense.json"
+
+
+def _local_snapshot(model_id: str) -> Optional[str]:
+    """The directory holding `model_id`'s files: the path itself for a local checkpoint, the
+    cached hub snapshot for a hub id (no network), None when neither is available."""
+    if os.path.isdir(model_id):
+        return model_id
+    try:
+        from huggingface_hub import snapshot_download
+        return snapshot_download(model_id, local_files_only=True)
+    except Exception:  # noqa: BLE001 — not cached, or no hub library: let the caller decide
+        return None
+
+
+def serving_note(model_id: str) -> dict:
+    """The note a checkpoint trained by `agent_search.training` carries (query instruction,
+    pooling, normalisation, lengths); {} for a model without one."""
+    try:
+        d = _local_snapshot(model_id)
+        p = os.path.join(d, SERVING_NOTE) if d else None
+        if p and os.path.exists(p):
+            with open(p) as fh:
+                return json.load(fh) or {}
+    except Exception:  # noqa: BLE001 — a bad note must not break loading; the table applies
+        pass
+    return {}
+
+
+def resolve_pooling(model_id: str, note: Optional[dict] = None) -> Optional[str]:
+    """Pooling for a local checkpoint directory: `DENSE_POOLING` (last_token | mean | cls) wins;
+    then the serving note; then `last_token` for a decoder (Qwen) checkpoint whose config.json
+    says so, which covers ITER's and LRAT's released retrievers. None means "let
+    sentence-transformers decide" (hub models and directories with modules.json)."""
+    env = (os.environ.get("DENSE_POOLING") or "").strip().lower()
+    if env and env != "auto":
+        return env
+    note = note if note is not None else serving_note(model_id)
+    if note.get("pooling"):
+        return str(note["pooling"])
+    try:
+        d = _local_snapshot(model_id)
+        cfg_path = os.path.join(d, "config.json") if d else ""
+        if d and os.path.exists(cfg_path):
+            with open(cfg_path) as fh:
+                mtype = str((json.load(fh) or {}).get("model_type", "")).lower()
+            if mtype.startswith(("qwen", "llama", "mistral", "gemma")):
+                return "last_token"
+    except Exception:  # noqa: BLE001
+        pass
+    return None
+
+
+def external_index_path() -> Optional[str]:
+    """`DENSE_INDEX_PATH`: a prebuilt vector index to serve instead of the per-corpus cache."""
+    p = (os.environ.get("DENSE_INDEX_PATH") or "").strip()
+    return p or None
+
+
+def query_prefix_for(model_id: str) -> str:
+    """The query-side prefix for `model_id`, resolved ONCE for every dense arm: the
+    `DENSE_QUERY_INSTRUCTION` env knob wins; then a trained checkpoint's serving note; then
+    the built-in table for known hub models; else nothing."""
+    instr = os.environ.get("DENSE_QUERY_INSTRUCTION")
+    if instr:
+        return f"Instruct: {instr}\nQuery: "
+    note = serving_note(model_id)
+    if note.get("query_instruction"):
+        return f"Instruct: {note['query_instruction']}\nQuery: "
+    return _QUERY_PREFIX.get(model_id, "")
+
 
 def _model_max_positions(enc) -> Optional[int]:
     """The model's hard position-embedding limit, or None if it can't be read."""
@@ -67,7 +140,25 @@ def _shared_encoder(model_id: str, device, max_seq_length: int):
         enc = _ENCODER_CACHE.get(key)
         if enc is None:
             from sentence_transformers import SentenceTransformer  # heavy, cluster-only
-            enc = SentenceTransformer(model_id, trust_remote_code=True, device=device)
+            note = serving_note(model_id)
+            # a hub id resolves to its cached snapshot, so a released decoder checkpoint without a
+            # sentence-transformers config (ITER, LRAT) gets the same pooling rebuild as a local one
+            snap = _local_snapshot(model_id)
+            has_st_config = os.path.exists(os.path.join(snap, "modules.json")) if snap else True
+            pooling = resolve_pooling(model_id, note)
+            if pooling and not has_st_config:
+                note = dict(note, pooling=pooling)
+                # a checkpoint from agent_search.training: a plain HF encoder dir; rebuild the
+                # sentence-transformers pipeline it was trained with (pooling + normalisation)
+                from sentence_transformers import models as st_models
+                word = st_models.Transformer(snap or model_id, max_seq_length=int(note.get("max_seq_length") or max_seq_length),
+                                             model_args={"trust_remote_code": True})
+                mode = {"last_token": "lasttoken", "mean": "mean", "cls": "cls"}.get(note["pooling"], "lasttoken")
+                pool = st_models.Pooling(word.get_word_embedding_dimension(), pooling_mode=mode)
+                mods = [word, pool] + ([st_models.Normalize()] if note.get("normalize", True) else [])
+                enc = SentenceTransformer(modules=mods, device=device)
+            else:
+                enc = SentenceTransformer(model_id, trust_remote_code=True, device=device)
             # Clamp the requested length to the model's ACTUAL position capacity.
             # Forcing 1024 (the CoRNStack code protocol) onto a 512-position model
             # (e.g. bge-base for documents) overruns the position-embedding table ->
@@ -107,15 +198,31 @@ class DenseRetriever(Retriever):
         return self._model
 
     def index(self, units: Sequence[CodeUnit], key: Optional[str] = None) -> "DenseRetriever":
+        external = external_index_path()
+        if external:
+            # a prebuilt index on disk (this library's cache layout or ITER's index.faiss +
+            # index.lookup.pkl): open it, never touch the units
+            from agent_search.retrievers.dense.vector_index import load_external_index
+            self._index = load_external_index(external)
+            self._doc_ids = self._index.doc_ids
+            return self
+        if getattr(units, "lazy", False):
+            from agent_search.core.errors import SetupError
+            raise SetupError(
+                f"corpus key {key!r} is an on-disk document store; dense retrieval over it needs a "
+                f"prebuilt index: set DENSE_INDEX_PATH (retrieval.dense_index) to its directory")
         cache_dir = self._cache_dir(key)
         # The embeddings of a fixed corpus are a one-time artifact: load the persisted
         # vector index (any backend: flat / hnsw / ivfpq) and never re-encode.
+        fp = corpus_fingerprint(units)
         if not self.rebuild:
             try:
                 idx = load_index(cache_dir)
                 if idx is not None:
                     expected_ids = [u.doc_id for u in units]
-                    if list(idx.doc_ids) != expected_ids:
+                    cached_fp = (idx.meta or {}).get("corpus_fingerprint")
+                    fp_stale = cached_fp is not None and cached_fp != fp
+                    if list(idx.doc_ids) != expected_ids or fp_stale:
                         # Corpus congruence check -- mirrors StructuralExecutor.attach_units's
                         # doc-id-order validation for the BQL pickle path (bql/executor.py):
                         # a wrong-key collision or a stale cache from a since-changed corpus
@@ -123,11 +230,17 @@ class DenseRetriever(Retriever):
                         # identities (row i's vector no longer means what `expected_ids[i]`
                         # says it means) -- every downstream score/rank would be corrupted
                         # with no error anywhere. Fail LOUD and rebuild rather than trust it.
+                        # A present-but-different `corpus_fingerprint` catches the same-doc-
+                        # ids-different-CONTENT case (a unit edited in place) that the doc-id
+                        # list alone can't see; an OLD cache with no fingerprint key at all is
+                        # trusted as before (nothing to compare against).
+                        reason = ("content changed (corpus_fingerprint mismatch)" if fp_stale
+                                  else f"cached {len(idx.doc_ids)} doc_ids, expected "
+                                       f"{len(expected_ids)}")
                         print(
                             f"  [dense] WARNING: cached index at {cache_dir!r} is "
-                            f"INCONGRUENT with the current corpus (cached {len(idx.doc_ids)} "
-                            f"doc_ids, expected {len(expected_ids)} for key={key!r}) -- "
-                            f"discarding the stale/mismatched cache and rebuilding from "
+                            f"INCONGRUENT with the current corpus ({reason} for key={key!r}) "
+                            f"-- discarding the stale/mismatched cache and rebuilding from "
                             f"scratch (this is a correctness guard, not a perf hint: a "
                             f"silently-wrong cache would return embeddings for the wrong "
                             f"documents)", file=sys.stderr, flush=True)
@@ -139,16 +252,9 @@ class DenseRetriever(Retriever):
                 pass            # truncated/corrupt cache (killed writer): rebuild
 
         self._doc_ids = [u.doc_id for u in units]
-        # Cap input CHARS before tokenizing. The encoder truncates to max_seq_length
-        # TOKENS anyway, so a multi-MB web document (BrowseComp corpus) is tokenized in
-        # full and then thrown away — single-threaded, that stalls the encode with the
-        # GPU idle. ~16 chars/token is a safe upper bound for normal text/code (typical
-        # is 3-5), so the kept prefix still contains the first max_seq_length tokens =>
-        # identical embeddings for any realistic doc; the tokenizer never processes more
-        # than ~tens of KB. (A pathological <1-token-per-16-char blob could in theory
-        # lose a token at the boundary — not reachable for real qualname\ncode units.)
-        char_cap = max(2048, self.max_seq_length * 16)
-        texts = [f"{u.qualname}\n{u.code}"[:char_cap] for u in units]
+        # No character pre-truncation: the encoder's own `max_seq_length` truncates in
+        # TOKENS, which is the only length limit that applies here.
+        texts = [f"{u.qualname}\n{u.code}" for u in units]
         model = self._encoder()
         # A large shared corpus (e.g. BrowseComp-Plus ~100k docs) takes minutes to
         # embed; building it silently at eval time looks like a hang. Announce it and
@@ -178,13 +284,13 @@ class DenseRetriever(Retriever):
             print(f"  [dense] built {self._index.backend} index for {len(texts)} units",
                   file=sys.stderr, flush=True)
         try:
-            save_index(self._index, cache_dir)
+            save_index(self._index, cache_dir, extra_meta={"corpus_fingerprint": fp})
         except Exception:
             pass                # best-effort persistence; the in-memory index still serves
         return self
 
     def search(self, query: str, k: int) -> list[str]:
-        q = _QUERY_PREFIX.get(self.model_id, "") + query
+        q = query_prefix_for(self.model_id) + query
         model = self._encoder()
         lock = getattr(model, "_agent_search_lock", None)
         if lock is not None:
@@ -205,6 +311,9 @@ class DenseRetriever(Retriever):
     def is_cached(self, key: Optional[str] = None) -> bool:
         """True if a complete persisted index for `key` is already on disk (no load),
         so a pre-builder can skip re-parsing the corpus's units for it."""
+        external = external_index_path()
+        if external:
+            return os.path.exists(external)
         return index_exists(self._cache_dir(key))
 
 

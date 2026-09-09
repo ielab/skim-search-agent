@@ -39,7 +39,7 @@ out of scope here.
 
 | Region                    | Exact/boolean field                  | notes |
 |----------------------------|---------------------------------------|-------|
-| (unscoped leaf) / `DOC`    | `body_exact` OR `title_exact`          | mirrors the reference's `u.code` = title+body join (see `units.py`'s `units_from_documents`) |
+| (unscoped leaf) / `DOC`    | `body_exact` OR `title_exact`          | mirrors the reference's unscoped/DOC match, which checks the unit's own text -- title (`qualname`) and body (`code`) are SEPARATE fields on the Python side too (see `units.py`'s `units_from_documents`) |
 | `BODY`                     | `body_exact`                           | |
 | `TITLE`                    | `title_exact`                          | |
 | `SECTION`                  | `section_exact`                        | |
@@ -52,9 +52,9 @@ Ranking (`_score_leaves`) ALWAYS scores against `body`+`title` (stemmed, SHOULD-
 unioned) regardless of any enclosing `IN(region, ...)` -- this matches the Python
 reference exactly: `_rank_leaves` (bql/executor.py) walks straight through `In`
 nodes ignoring `.region`, because the underlying `_corpus_bm` is built once over
-each unit's whole `u.code` (title+body, NOT section -- see `units.py`'s fairness
-comment) and reused for every query regardless of which region the boolean match
-targeted.
+each unit's `qualname` (title) + `code` (body, NOT section -- see `units.py`'s
+fairness comment) and reused for every query regardless of which region the
+boolean match targeted.
 """
 from __future__ import annotations
 
@@ -156,8 +156,9 @@ def _prefix_query(field: str, stem: str):
 # --- field resolution --------------------------------------------------------
 
 def _default_exact_query(build_leaf) -> "Query":
-    """Unscoped/`Region.DOC` leaf: OR across body_exact and title_exact (mirrors
-    `u.code` = title+body join; see module docstring's field-mapping table)."""
+    """Unscoped/`Region.DOC` leaf: OR across body_exact and title_exact (mirrors the
+    Python reference's own unscoped/DOC match over `qualname`+`code`; see module
+    docstring's field-mapping table)."""
     return _should_of([build_leaf(F_BODY_EXACT), build_leaf(F_TITLE_EXACT)])
 
 

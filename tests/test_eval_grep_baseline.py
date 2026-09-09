@@ -1,7 +1,7 @@
 """The index-free grep baseline (GrepRAG-style): keyword grep -> BM25 rerank, no index."""
-from evaluation.datasets import fixture_instances
+from agent_search.evaluation.datasets import fixture_instances
 from agent_search.retrievers.lexical.grep import GrepBaseline
-from evaluation.run_eval import evaluate
+from agent_search.evaluation.run_eval import evaluate
 from agent_search.corpus.units import CodeUnit
 
 

@@ -29,7 +29,7 @@ DOCS = [
 ]
 
 # a 12-doc corpus where every doc matches "common topic"; d00 ALSO carries 1500 extra unique
-# filler tokens (word0..word1499) — well over MAX_VISIT_TOKENS's default (1200) — so the
+# filler tokens (word0..word1499) — well over MAX_VISIT_TOKENS's default (12000) — so the
 # per-doc cap is exercised on a doc that is otherwise a normal, relevant hit.
 _LONG_FILLER = " ".join(f"word{i}" for i in range(1500))
 SERP_DOCS = [{"_id": f"d{i:02d}", "title": f"Common Topic {i}",

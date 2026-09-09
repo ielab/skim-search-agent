@@ -6,7 +6,10 @@ Mirrors the dense/pyserini persistent-index contract: build_indexes.py writes it
 the agent's index() loads it, and a missing/corrupt artifact silently rebuilds so
 correctness never depends on the cache.
 """
+import dataclasses
 import tempfile
+
+import pytest
 
 from agent_search.corpus.units import CodeUnit
 from agent_search.retrievers.structural.bql.executor import (
@@ -21,7 +24,7 @@ def _units(n=12):
 
 
 def test_prebuildable_for_lists_search_bql_for_search_fetch_conditions():
-    from evaluation.build_indexes import prebuildable_for
+    from agent_search.evaluation.build_indexes import prebuildable_for
     # the search -> fetch arms (`search_s` tool) lower to the executor -> pre-build its index.
     assert prebuildable_for("agent_research_snip") == ["search_bql"]
     assert prebuildable_for("bql") == ["search_bql"]      # the direct BQL floor loads the same artifact
@@ -69,3 +72,40 @@ def test_saved_index_round_trips_identically():
     q = "OR(IN(body, treaty), IN(title, Title))"
     assert (execute_bql(q, loaded, loaded._ubyid, k=20).n_hits
             == execute_bql(q, live, live._ubyid, k=20).n_hits)
+
+
+# --- content fingerprint: same doc_ids/order, DIFFERENT text (agent_search.corpus.fingerprint) --
+
+def test_attach_units_raises_on_content_fingerprint_mismatch_same_doc_ids():
+    """Same doc_ids, SAME order, same COUNT -- but one unit's body edited in place. The
+    pre-existing doc-id-ORDER check can't see this (it's still an exact match); the content
+    fingerprint persisted alongside it must, so `attach_units` raises (and `load_or_build`
+    below rebuilds) instead of silently serving postings for text that no longer exists."""
+    us = _units()
+    path = bql_index_path(tempfile.mkdtemp(), "fp")
+    StructuralExecutor(us).save(path)
+    loaded = StructuralExecutor.load(path)
+
+    edited = list(us)
+    edited[0] = dataclasses.replace(edited[0], body="a totally different body now")
+    with pytest.raises(ValueError):
+        loaded.attach_units(edited)
+
+    # the ORDER check alone is untouched: identical units still attach cleanly.
+    loaded2 = StructuralExecutor.load(path)
+    loaded2.attach_units(us)
+
+
+def test_load_or_build_rebuilds_when_persisted_content_fingerprint_is_stale():
+    root = tempfile.mkdtemp()
+    key = "fpcorpus@v1"
+    us = _units()
+    BQLIndexBuilder(index_root=root).index(us, key=key)
+
+    edited = list(us)
+    edited[0] = dataclasses.replace(edited[0], body="a totally different body now")
+    # load_or_build must catch attach_units's ValueError and fall back to a fresh build
+    # over `edited`, never raise and never silently serve the stale postings.
+    ex = load_or_build(edited, index_root=root, key=key)
+    r = execute_bql("IN(body, different)", ex, ex._ubyid, k=5)
+    assert r.typecheck_ok and r.n_hits == 1

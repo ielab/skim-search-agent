@@ -21,31 +21,33 @@ is scored on its <fix>; the doc arm surfaces evidence). The condition is entirel
                                                     content-bearing listing, whole-doc visit read)
   docs (toolset indri_snip,   domain general)  -> IndriFetchWorkspace(snippets=True) (graded
                                                     Indri search + snippet listing, section fetch)
-  docs (toolset bm25q_visit,  domain general)  -> Bm25Visit(query_biased=True) (research_bm25q —
-                                                    the HARDENED bm25 baseline: SAME retrieve-
+  docs (toolset bm25q_visit,  domain general)  -> Bm25Visit(query_biased=True) (a hardened
+                                                    bm25 baseline: SAME retrieve-
                                                     then-visit shape as research_bm25, but the
                                                     listing's per-hit snippet is QUERY-BIASED —
                                                     fairness parity with research_snip/
                                                     research_indri_snip's excerpt)
-  docs (toolset bql_visit,   domain general)   -> BqlVisitWorkspace (research_bql_visit — the
-                                                    {BQL search} x {whole-doc visit} factorial
-                                                    cell: SAME BQL v2 search as research_v2,
+  docs (toolset bql_visit,   domain general)   -> BqlVisitWorkspace (the {BQL search} x
+                                                    {whole-doc visit} factorial
+                                                    cell: the SAME BQL v2 search as the
+                                                    search_fetch_v2 arm above,
                                                     content-bearing listing like the other visit
                                                     cells, whole-doc visit read)
   docs (toolset bm25_fetch_snip, domain general) -> Bm25FetchSnipWorkspace (research_bm25_fetch_snip
-                                                    — the fair-listing sibling of research_bm25_fetch:
+                                                    — the fair-listing sibling of the plain
+                                                    bm25_fetch arm above:
                                                     SAME bm25 retrieval + section fetch, WITH a
                                                     per-hit best-matching excerpt in the listing)
-  docs (toolset bql_dense_visit, domain general) -> BqlVisitWorkspace(tool_names=...) (research_
-                                                    bql_dense_visit — BYTE-FOR-BYTE research_bql_visit
-                                                    except the shared BQL executor has a DenseBelief
+  docs (toolset bql_dense_visit, domain general) -> BqlVisitWorkspace(tool_names=...) (the
+                                                    bql_visit arm above with the shared BQL
+                                                    executor's DenseBelief
                                                     attached: BQL_DENSE dense-fused ranking, RRF of
                                                     bm25 + dense similarity restricted to the SAME
                                                     filter-passing candidates — see
                                                     agent_search/retrievers/structural/bql/dense_fuse.py)
   docs (toolset bql_dense_snip,  domain general) -> DocSearchFetch(snippets=True) (research_
-                                                    bql_dense_snip — BYTE-FOR-BYTE research_snip
-                                                    except the SAME dense-attached BQL executor)
+                                                    bql_dense_snip — research_snip's search/fetch
+                                                    shape with the SAME dense-attached BQL executor)
   docs (toolset bm25_autoread, domain general)   -> Bm25AutoRead (research_bm25_autoread — the
                                                     "retrieve-and-read" baseline: SAME bm25
                                                     ranking as research_bm25, but search() itself
@@ -57,26 +59,26 @@ is scored on its <fix>; the doc arm surfaces evidence). The condition is entirel
                                                     MAX_VISIT_TOKENS, but dense embedding cosine
                                                     similarity instead of bm25 ranking; NO
                                                     visit/fetch tool exists in this condition)
-  docs (toolset hybrid_autoread, domain general) -> HybridAutoRead (research_hybrid_autoread —
-                                                    the BM25+DENSE HYBRID analog of
+  docs (toolset hybrid_autoread, domain general) -> HybridAutoRead (the BM25+DENSE HYBRID
+                                                    analog of
                                                     bm25_autoread/dense_autoread: SAME RRF-fused
                                                     retrieval as research_hybrid, but search()
                                                     itself returns the FULL TEXT of every top-k
                                                     hit; NO visit/fetch tool exists in this
-                                                    condition; NEW, additive)
-  docs (toolset bql_donly_visit, domain general) -> BqlDonlyVisitWorkspace (research_bql_donly_
-                                                    visit — the DENSE-ONLY sibling of research_
-                                                    bql_dense_visit: SAME BQL filter/listing/
+                                                    condition)
+  docs (toolset bql_donly_visit, domain general) -> BqlDonlyVisitWorkspace (the DENSE-ONLY
+                                                    sibling of the
+                                                    bql_dense_visit arm above: SAME BQL filter/listing/
                                                     whole-doc visit read, but the shared BQL
                                                     executor is a DenseOnlyStructuralExecutor —
                                                     candidates ordered by pure dense rank, not
-                                                    RRF; NEW, additive)
+                                                    RRF)
   docs (toolset bql_donly_snip,  domain general) -> DocSearchFetchDonlySnip (research_bql_donly_
-                                                    snip — the DENSE-ONLY sibling of research_
-                                                    bql_dense_snip: SAME BQL filter/snippet
+                                                    snip — the DENSE-ONLY sibling of the
+                                                    bql_dense_snip arm above: SAME BQL filter/snippet
                                                     listing/section-fetch read, coverage-tier
                                                     structure UNCHANGED, but within-tier ordering
-                                                    is pure dense rank, not RRF; NEW, additive)
+                                                    is pure dense rank, not RRF)
 
 So "which arm / which tools" is configuration, not code. The shared BQL executor is reused
 verbatim by both search->fetch arms; only the surface + tools + task differ.
@@ -84,6 +86,7 @@ verbatim by both search->fetch arms; only the surface + tools + task differ.
 from __future__ import annotations
 
 import threading
+from dataclasses import dataclass
 from typing import Callable, Optional, Sequence
 
 from agent_search.agent.loop import Task, run_episode
@@ -105,6 +108,117 @@ def register_tool_engine(name: str, builder=None):
         TOOL_ENGINES[name] = fn
         return fn
     return deco(builder) if builder is not None else deco
+
+
+# --- workspace registry: the extension point for a NEW tool surface --------------------
+# A condition's toolset selects a *workspace* (the object whose `run(name, args)` answers the
+# agent's tool calls). Built-in workspaces are matched by the marker tools in `_arm` below;
+# a plugin registers its own with `register_workspace` and never touches this module:
+#
+#     from agent_search.agent.retriever import register_workspace
+#
+#     @register_workspace("my_arm", tools=("my_search", "my_read"))
+#     def build_my_workspace(ctx):           # ctx: WorkspaceContext
+#         return MyWorkspace(ctx.units, engine=ctx.bm25(), ubyid=ctx.ubyid)
+#
+# A condition whose toolset contains ALL of `tools` then drives MyWorkspace. The most
+# specific registration (most marker tools) wins when several match.
+
+_ENGINE_LOCKS: dict = {}
+_ENGINE_LOCKS_GUARD = threading.Lock()
+
+
+def _engine_lock(retriever) -> threading.Lock:
+    """One lock per retriever for the lazily built shared engines. Concurrent episodes
+    (`--workers N`) must not each load the same index; the first builds, the rest wait."""
+    lock = getattr(retriever, "_engine_build_lock", None)
+    if lock is None:
+        with _ENGINE_LOCKS_GUARD:
+            lock = getattr(retriever, "_engine_build_lock", None)
+            if lock is None:
+                lock = threading.Lock()
+                try:
+                    retriever._engine_build_lock = lock
+                except Exception:  # noqa: BLE001 — a retriever without settable attributes
+                    lock = _ENGINE_LOCKS.setdefault(id(retriever), threading.Lock())
+    return lock
+
+
+@dataclass
+class WorkspaceContext:
+    """What a workspace builder gets: the indexed corpus plus lazily-built shared engines."""
+    units: list
+    ubyid: dict
+    corpus_key: Optional[str]
+    index_root: str
+    rebuild: bool
+    query: str
+    domain: str
+    retriever: "AgentRetriever"
+
+    def bm25(self):
+        """The local/Lucene BM25 engine over this corpus (built once, cached on the retriever)."""
+        r = self.retriever
+        with _engine_lock(r):
+            if getattr(r, "_bm25", None) is None:
+                r._bm25 = _build_bm25_engine(self.units, self.index_root, self.rebuild, self.corpus_key)
+        return r._bm25
+
+    def bql(self):
+        """The BQL structured executor over this corpus (persisted under index_root when keyed)."""
+        r = self.retriever
+        with _engine_lock(r):
+            if getattr(r, "_bql", None) is None:
+                from agent_search.retrievers.structural.backend import build_bql_engine
+                r._bql = build_bql_engine(self.units, self.index_root, self.corpus_key, self.rebuild)
+        return r._bql
+
+    def dense(self):
+        """The dense belief engine (requires a pre-built embedding cache for `corpus_key`)."""
+        r = self.retriever
+        with _engine_lock(r):
+            return self._dense_locked(r)
+
+    def _dense_locked(self, r):
+        if getattr(r, "_dense_belief", None) is None:
+            from agent_search.core.errors import SetupError
+            from agent_search.retrievers.dense.dense import DenseRetriever
+            from agent_search.retrievers.structural.indri.dense_belief import DenseBelief
+            probe = DenseRetriever(model=r.dense_model, index_root=self.index_root)
+            if not self.rebuild and not probe.is_cached(self.corpus_key):
+                raise SetupError(
+                    f"no persisted dense embedding cache for corpus key {self.corpus_key!r} and "
+                    f"model {r.dense_model!r} at {probe._cache_dir(self.corpus_key)!r}; build it "
+                    f"with: skimsearchagent-build-indexes --retriever dense --model {r.dense_model} "
+                    f"... (documents are never encoded online during a run)")
+            r._dense_belief = DenseBelief(model=r.dense_model, index_root=self.index_root
+                                          ).build_or_load(self.units, key=self.corpus_key)
+        return r._dense_belief
+
+
+WORKSPACES: dict[str, tuple[frozenset, Callable[[WorkspaceContext], object]]] = {}
+
+
+def register_workspace(arm: str, *, tools: Sequence[str], builder=None):
+    """Register (or decorate) `builder(ctx: WorkspaceContext) -> workspace` for the arm
+    selected by a toolset containing every name in `tools`."""
+    marker = frozenset(tools)
+    if not marker:
+        raise ValueError("register_workspace needs at least one marker tool name")
+
+    def deco(fn):
+        WORKSPACES[arm] = (marker, fn)
+        return fn
+    return deco(builder) if builder is not None else deco
+
+
+def _registered_arm(toolset: Sequence[str]) -> Optional[str]:
+    ts = set(toolset)
+    best = None
+    for arm, (marker, _) in WORKSPACES.items():
+        if marker <= ts and (best is None or len(marker) > len(WORKSPACES[best][0])):
+            best = arm
+    return best
 
 
 class AgentRetriever(Retriever):
@@ -141,7 +255,7 @@ class AgentRetriever(Retriever):
                                                   # see _build_bm25_engine) — the doc retrieve-
                                                   # then-visit baseline, and the bm25->dci arm's
                                                   # identical retrieval stage
-        self._indri = None                        # prewarmed IndriExecutor (research_indri arm)
+        self._indri = None                        # prewarmed IndriExecutor (the Indri-family arms)
         self._dense_belief = None                 # prewarmed DenseBelief (research_dense arm)
         self._ubyid: dict = {}                    # doc_id -> unit, built ONCE per corpus (reused
                                                   # by every per-query workspace — see search())
@@ -164,117 +278,120 @@ class AgentRetriever(Retriever):
                       section-fetch as 'doc'; checked BEFORE 'bm25' since its toolset also
                       carries bm25_search — the `fetch` marker distinguishes it)
           'docv2'   : search_v2->fetch_v2, articles->sections, <answer>            (BQL v2 —
-                      typed date[RANGE] ranges + constraint-coverage feedback; NEW, additive)
+                      typed date[RANGE] ranges + constraint-coverage feedback)
           'indri'   : isearch->fetch,     articles->sections, <answer>            (the Indri
-                      graded query-language backend; NEW, additive)
+                      graded query-language backend)
           'docsnip' : search_s->fetch_s,  articles->sections, <answer>            (research_snip
                       — SAME BQL search/fetch as 'doc', but each search hit gets an appended
-                      one-line best-matching excerpt; NEW, additive)
+                      one-line best-matching excerpt)
           'indrivisit': isearch_v->visit_v, content-bearing listing->whole doc, <answer>
-                      (research_indri_visit — graded Indri search LIKE 'indri', WITH a per-hit
+                      (graded Indri search LIKE 'indri', WITH a per-hit
                       snippet like 'bm25', but read is a whole-doc VISIT like 'bm25' instead of
-                      a section fetch; NEW, additive; checked BEFORE 'indri' since its toolset
+                      a section fetch; checked BEFORE 'indri' since its toolset
                       also carries an isearch-family marker)
           'indrisnip' : isearch_s->fetch,  articles->sections, <answer>            (research_indri_snip
                       — graded Indri search LIKE 'indri' WITH a per-hit snippet like 'docsnip',
-                      SAME section-fetch read as 'indri'; NEW, additive; checked BEFORE 'indri')
+                      SAME section-fetch read as 'indri'; checked BEFORE 'indri')
           'densevisit': dense_search->visit_d, whole-doc, <answer>          (research_dense —
                       the modern RAG default: SAME retrieve-then-visit shape as 'bm25', dense
-                      embedding cosine similarity instead of BM25; NEW, additive)
+                      embedding cosine similarity instead of BM25)
           'densefetch': dense_search_f->fetch a section, <answer>          (research_dense_fetch
                       — the {dense search} x {structure->parts read} cell: SAME dense retrieval
                       engine as 'densevisit', SAME structured section-fetch read as 'bm25fetch'/
-                      'doc'; NEW, additive; checked BEFORE 'densevisit' since its toolset also
+                      'doc'; checked BEFORE 'densevisit' since its toolset also
                       carries a dense_search-family marker)
           'densefetchplain': dense_search_fp->fetch a section, <answer>   (research_dense_fetch_
                       plain — the missing PLAIN (no-excerpt) dense fetch cell: SAME dense
                       retrieval engine + SAME structured section-fetch read as 'densefetch', minus
                       the per-hit excerpt in the listing — research_dense_fetch's SAME search
-                      minus the excerpt, mirroring 'bqldensefetch' over 'bqldensesnip'; NEW,
-                      additive; checked BEFORE 'densefetch' — its own unique toolset marker
+                      minus the excerpt, mirroring 'bqldensefetch' over 'bqldensesnip';
+                      checked BEFORE 'densefetch' — its own unique toolset marker
                       (dense_search_fp) resolves first, no ordering conflict)
-          'bm25q'   : bm25q_search->visit_q, whole-doc, <answer>            (research_bm25q —
-                      the HARDENED bm25 baseline: SAME bm25 retrieval + whole-doc visit read as
+          'bm25q'   : bm25q_search->visit_q, whole-doc, <answer>            (the
+                      HARDENED bm25 baseline: SAME bm25 retrieval + whole-doc visit read as
                       'bm25', but the listing's per-hit snippet is QUERY-BIASED (Bm25Visit
                       query_biased=True) instead of the doc opening — a fairness fix, not a new
-                      read/retrieval strategy; NEW, additive)
+                      read/retrieval strategy)
           'bqlvisit': search_bv->visit_bv, content-bearing listing->whole doc, <answer>
-                      (research_bql_visit — the {BQL search} x {whole-doc visit} factorial cell:
+                      (the {BQL search} x {whole-doc visit} factorial cell:
                       SAME BQL v2 search as 'docv2' (coverage_topk + date nudge), WITH a per-hit
                       snippet like 'indrivisit'/'bm25', but no fetch/structure tools — visit is
-                      the only read; NEW, additive; its own unique toolset marker (search_bv),
+                      the only read; its own unique toolset marker (search_bv),
                       no ordering conflict with any other arm)
           'bm25fetchsnip': bm25_search_snip->fetch a section, <answer>          (research_bm25_fetch_snip
                       — the FAIR-LISTING sibling of 'bm25fetch': SAME live bm25 retrieval + SAME
                       structured section-fetch read, but the listing carries a per-hit
-                      best-matching excerpt (like 'densefetch' over 'bm25fetch'); NEW, additive;
+                      best-matching excerpt (like 'densefetch' over 'bm25fetch');
                       checked BEFORE 'bm25fetch' since its toolset also carries a bm25_search-
                       family marker — its own unique marker (bm25_search_snip) resolves it first)
           'hybridvisit': hybrid_search->visit_h, whole-doc, <answer>          (research_hybrid —
                       the BM25+DENSE HYBRID baseline: Reciprocal Rank Fusion (RRF, k=60) over a
                       top-100 pyserini/Lucene BM25 pool and a top-100 FAISS/dense pool (SAME
                       embedder/cache 'densevisit' uses), rendered EXACTLY like 'bm25'/Bm25Visit's
-                      retrieve-then-visit listing; NEW, additive; its own unique toolset marker
+                      retrieve-then-visit listing; its own unique toolset marker
                       (hybrid_search), no ordering conflict with any other arm)
           'hybridfetchsnip': hybrid_search_snip->fetch a section, <answer>     (research_hybrid_
                       fetch_snip — the fetch-mode twin of 'hybridvisit': SAME RRF-fused bm25+dense
                       retrieval, SAME structured section-fetch read as 'bm25fetch'/'densefetch',
-                      WITH a per-hit best-matching excerpt in the listing; NEW, additive; checked
+                      WITH a per-hit best-matching excerpt in the listing; checked
                       BEFORE 'hybridvisit' since its toolset also carries a hybrid_search-family
                       marker — its own unique marker (hybrid_search_snip) resolves it first)
           'bqldensevisit': search_bqld->visit_bqld, content-bearing listing->whole doc, <answer>
-                      (research_bql_dense_visit — BQL_DENSE dense-fused ranking, see
+                      (BQL_DENSE dense-fused ranking, see
                       agent_search/retrievers/structural/bql/dense_fuse.py: BYTE-FOR-BYTE
                       'bqlvisit' EXCEPT the shared BQL executor has a DenseBelief attached, so
                       run_with_count/coverage_topk RRF-fuse bm25 with dense similarity
-                      restricted to the SAME filter-passing candidates; NEW, additive; its own
+                      restricted to the SAME filter-passing candidates; its own
                       unique toolset marker (search_bqld), no ordering conflict with any other arm)
           'bqldensesnip': search_bqlds->fetch_bqlds, articles->sections, <answer>
                       (research_bql_dense_snip — BQL_DENSE dense-fused ranking: BYTE-FOR-BYTE
                       'docsnip' EXCEPT the shared BQL executor has a DenseBelief attached, SAME
-                      mechanism as 'bqldensevisit'; NEW, additive; checked BEFORE 'docsnip' since
+                      mechanism as 'bqldensevisit'; checked BEFORE 'docsnip' since
                       it needs its own unique toolset marker, no ordering conflict)
           'bqldensefetch': search_bqldf->fetch_bqldf, articles->sections, <answer>
                       (research_bql_dense_fetch — BQL_DENSE dense-fused ranking: BYTE-FOR-BYTE
                       'doc' (the PLAIN search->fetch method, no per-hit excerpt) EXCEPT the
                       shared BQL executor has a DenseBelief attached, SAME mechanism as
                       'bqldensesnip'/'bqldensevisit' — this is research_bql_dense_snip's SAME
-                      search minus the excerpt; NEW, additive; its own unique toolset marker
+                      search minus the excerpt; its own unique toolset marker
                       (search_bqldf), no ordering conflict with any other arm)
           'bm25autoread': bm25_read_search (ONLY tool), <answer>                 (research_
                       bm25_autoread — the "retrieve-and-read" baseline: SAME bm25 ranking as
                       'bm25', but search() itself returns the FULL TEXT of every top-k hit; NO
-                      visit/fetch tool exists in this toolset at all; NEW, additive; its own
+                      visit/fetch tool exists in this toolset at all; its own
                       unique toolset marker (bm25_read_search), no ordering conflict with any
                       other arm — checked before 'bm25' purely for readability, not necessity)
           'denseautoread': dense_read_search (ONLY tool), <answer>               (research_
                       dense_autoread — the DENSE analog of 'bm25autoread': SAME dense-embedding
                       ranking as 'densevisit', but search() itself returns the FULL TEXT of
-                      every top-k hit; NO visit/fetch tool exists in this toolset at all; NEW,
-                      additive; its own unique toolset marker (dense_read_search), no ordering
+                      every top-k hit; NO visit/fetch tool exists in this toolset at all;
+                      its own unique toolset marker (dense_read_search), no ordering
                       conflict with any other arm — checked before 'densevisit' purely for
                       readability, not necessity)
           'hybridautoread': hybrid_read_search (ONLY tool), <answer>            (research_
                       hybrid_autoread — the BM25+DENSE HYBRID analog of 'bm25autoread'/
                       'denseautoread': SAME RRF-fused retrieval as 'hybridvisit', but search()
                       itself returns the FULL TEXT of every top-k hit; NO visit/fetch tool
-                      exists in this toolset at all; NEW, additive; its own unique toolset
+                      exists in this toolset at all; its own unique toolset
                       marker (hybrid_read_search), no ordering conflict with any other arm)
           'bqldonlyvisit': search_bqldo->visit_bqldo, content-bearing listing->whole doc,
-                      <answer>          (research_bql_donly_visit — the DENSE-ONLY sibling of
+                      <answer>          (the DENSE-ONLY sibling of
                       'bqldensevisit': BYTE-FOR-BYTE 'bqlvisit' EXCEPT the shared BQL executor is
                       a DenseOnlyStructuralExecutor (agent_search/retrievers/structural/bql/
                       dense_fuse.py) — filter-passing candidates ordered by pure dense rank, not
-                      RRF; NEW, additive; its own unique toolset marker (search_bqldo), no
+                      RRF; its own unique toolset marker (search_bqldo), no
                       ordering conflict with any other arm)
           'bqldonlysnip': search_bqldos->fetch_bqldos, articles->sections, <answer>
                       (research_bql_donly_snip — the DENSE-ONLY sibling of 'bqldensesnip':
                       BYTE-FOR-BYTE 'docsnip' EXCEPT the shared BQL executor is a
                       DenseOnlyStructuralExecutor, SAME mechanism as 'bqldonlyvisit' — coverage-
-                      tier structure unchanged, within-tier order is pure dense rank; NEW,
-                      additive; checked BEFORE 'docsnip' since it needs its own unique toolset
+                      tier structure unchanged, within-tier order is pure dense rank;
+                      checked BEFORE 'docsnip' since it needs its own unique toolset
                       marker, no ordering conflict)
         """
+        registered = _registered_arm(self.toolset)     # plugin workspaces win (most specific)
+        if registered is not None:
+            return registered
         ts = set(self.toolset)
         if "bm25_read_search" in ts:
             return "bm25autoread"
@@ -346,9 +463,15 @@ class AgentRetriever(Retriever):
         return getattr(self._tl, "meta", None)
 
     def index(self, units: Sequence[CodeUnit], key: Optional[str] = None) -> "AgentRetriever":
-        self._units = list(units)
+        if getattr(units, "lazy", False):
+            # an on-disk document store (agent_search.corpus.docstore): units are looked up by
+            # id on demand and retrieval goes through prebuilt indexes; never materialise it
+            self._units = units
+            self._ubyid = units.by_id
+        else:
+            self._units = list(units)
+            self._ubyid = {u.doc_id: u for u in self._units}   # once per corpus (not per query)
         self._key = key
-        self._ubyid = {u.doc_id: u for u in self._units}   # once per corpus (not per query)
         arm = self._arm
         if arm in ("code", "doc", "docv2", "docsnip", "bqlvisit",
                   "bqldensevisit", "bqldensesnip", "bqldensefetch"):
@@ -365,27 +488,25 @@ class AgentRetriever(Retriever):
             # the prebuilt indexes/lucene_structured/<key>/ index instead of the .pkl.
             #
             # BQL_DENSE dense-fused ranking (agent_search/retrievers/structural/bql/dense_fuse.py):
-            # 'bqldensevisit'/'bqldensesnip' (research_bql_dense_visit/research_bql_dense_snip)
-            # attach a DenseBelief to this SAME executor UNCONDITIONALLY (these two dedicated
-            # conditions don't need the env var at all, exactly like 'densevisit'/'densefetch'
-            # never need a toggle to use dense retrieval) — SAME fail-loud missing-cache contract
-            # as 'densevisit'/'densefetch'/'hybridvisit' below, since this ranking knob never
-            # live-encodes a whole corpus at eval time. The other arms sharing this SAME executor
-            # ('code'/'doc'/'docv2'/'docsnip'/'bqlvisit') instead RETROFIT dense fusion via the
-            # ambient env var `BQL_DENSE=1` (mirrors `INDRI_DENSE`'s retrofit-via-env pattern
-            # exactly, incl. graceful degradation on a missing cache — a WARNING, not a raise,
-            # since flipping this env var must never turn an EXISTING baseline condition's run
-            # into a hard failure): `BQL_DENSE` unset/0 (the default) means `dense_belief` stays
-            # None for every arm here except the two dedicated ones, so `research`/`research_v2`/
-            # `research_snip`/`research_bql_visit` are BYTE-IDENTICAL to before this knob existed.
-            # Built + forwarded to `build_bql_engine`'s `dense=` kwarg (not a post-hoc attach) so
-            # it also reaches the STRUCTURED_BACKEND=lucene path's LuceneBqlAdapter uniformly.
+            # 'bqldensevisit'/'bqldensesnip' attach a DenseBelief to this SAME executor
+            # UNCONDITIONALLY (these two dedicated arms don't need the env var at all, exactly
+            # like 'densevisit'/'densefetch' never need a toggle to use dense retrieval) — SAME
+            # fail-loud missing-cache contract as 'densevisit'/'densefetch'/'hybridvisit' below,
+            # since this ranking knob never live-encodes a whole corpus at eval time. The other
+            # arms sharing this SAME executor ('code'/'doc'/'docv2'/'docsnip'/'bqlvisit') instead
+            # RETROFIT dense fusion via the ambient env var `BQL_DENSE=1` (mirrors `INDRI_DENSE`'s
+            # retrofit-via-env pattern exactly, incl. graceful degradation on a missing cache — a
+            # WARNING, not a raise, since flipping this env var must never turn a baseline arm's
+            # run into a hard failure): `BQL_DENSE` unset/0 (the default) means `dense_belief`
+            # stays None for every arm here except the two dedicated ones, so the plain BQL arms
+            # (docv2, docsnip, bqlvisit) keep bm25-only ranking. Built + forwarded to
+            # `build_bql_engine`'s `dense=` kwarg (not a post-hoc attach) so it also reaches the
+            # STRUCTURED_BACKEND=lucene path's LuceneBqlAdapter uniformly.
             from agent_search.retrievers.dense.dense import DenseRetriever
-            from agent_search.retrievers.structural.indri.dense_belief import (
-                DenseBelief, DEFAULT_MODEL as DENSE_BASELINE_MODEL)
+            from agent_search.retrievers.structural.indri.dense_belief import DenseBelief
             dense_belief = None
             if arm in ("bqldensevisit", "bqldensesnip", "bqldensefetch"):
-                probe = DenseRetriever(model=DENSE_BASELINE_MODEL, index_root=self.index_root)
+                probe = DenseRetriever(model=self.dense_model, index_root=self.index_root)
                 cond_label = {"bqldensevisit": "research_bql_dense_visit",
                              "bqldensesnip": "research_bql_dense_snip",
                              "bqldensefetch": "research_bql_dense_fetch"}[arm]
@@ -393,12 +514,12 @@ class AgentRetriever(Retriever):
                     raise RuntimeError(
                         f"{cond_label} ({arm} arm) needs a persisted dense doc-embedding cache "
                         f"for corpus key {key!r} at {probe._cache_dir(key)!r} — none found. "
-                        f"Prebuild it with: python -m evaluation.build_indexes --retriever dense "
-                        f"--model {DENSE_BASELINE_MODEL} ... (this ranking knob does not "
+                        f"Prebuild it with: python -m agent_search.evaluation.build_indexes --retriever dense "
+                        f"--model {self.dense_model} ... (this ranking knob does not "
                         f"live-encode the corpus at eval time).")
                 try:
                     dense_belief = DenseBelief(
-                        model=DENSE_BASELINE_MODEL, index_root=self.index_root).build_or_load(
+                        model=self.dense_model, index_root=self.index_root).build_or_load(
                             self._units, key=key)
                 except Exception as e:  # noqa: BLE001
                     raise RuntimeError(
@@ -407,11 +528,11 @@ class AgentRetriever(Retriever):
             elif arm != "code":
                 from agent_search.retrievers.structural.bql.dense_fuse import bql_dense_enabled
                 if bql_dense_enabled():
-                    probe = DenseRetriever(model=DENSE_BASELINE_MODEL, index_root=self.index_root)
+                    probe = DenseRetriever(model=self.dense_model, index_root=self.index_root)
                     if self.rebuild or probe.is_cached(key):
                         try:
                             dense_belief = DenseBelief(
-                                model=DENSE_BASELINE_MODEL,
+                                model=self.dense_model,
                                 index_root=self.index_root).build_or_load(self._units, key=key)
                         except Exception as e:
                             import sys
@@ -422,42 +543,40 @@ class AgentRetriever(Retriever):
                         import sys
                         print(f"WARNING: BQL_DENSE=1 but no persisted dense doc-embedding cache "
                               f"for corpus key {key!r}; degrading to plain bm25 BQL ranking. "
-                              f"Prebuild with: python -m evaluation.build_indexes --retriever "
-                              f"dense --model {DENSE_BASELINE_MODEL} ...", file=sys.stderr)
+                              f"Prebuild with: python -m agent_search.evaluation.build_indexes --retriever "
+                              f"dense --model {self.dense_model} ...", file=sys.stderr)
             from agent_search.retrievers.structural.backend import build_bql_engine
             self._bql = build_bql_engine(self._units, self.index_root, key, self.rebuild,
                                          dense=dense_belief)
         if arm in ("bqldonlyvisit", "bqldonlysnip"):
-            # NEW, additive-only DENSE-ONLY BQL ranking (research_bql_donly_visit/research_bql_
-            # donly_snip — see agent_search/retrievers/structural/bql/dense_fuse.py's "dense-ONLY
-            # ordering" section and executor.py's DenseOnlyStructuralExecutor). Kept as its OWN
-            # block (NOT folded into the 'code'/'doc'/.../'bqldensefetch' block above) so the
-            # shared `build_bql_engine(...)` call at the end of that block — which builds the
-            # RRF-fusing engine every existing BQL_DENSE condition uses — is never reached for
-            # these two arms; instead `build_bql_engine_dense_only` (backend.py, additive sibling
-            # of `build_bql_engine`) resolves the SAME `STRUCTURED_BACKEND` env (python ->
+            # DENSE-ONLY BQL ranking (see agent_search/retrievers/structural/bql/dense_fuse.py's
+            # "dense-ONLY ordering" section and executor.py's DenseOnlyStructuralExecutor). Kept
+            # as its OWN block (NOT folded into the 'code'/'doc'/.../'bqldensefetch' block above)
+            # so the shared `build_bql_engine(...)` call at the end of that block — which builds
+            # the RRF-fusing engine the BQL_DENSE arms use — is never reached for these two arms;
+            # instead `build_bql_engine_dense_only` (backend.py, the dense-only sibling of
+            # `build_bql_engine`) resolves the SAME `STRUCTURED_BACKEND` env (python ->
             # `load_or_build_dense_only`'s DenseOnlyStructuralExecutor class-swap; lucene ->
-            # `LuceneBqlDonlyAdapter`, the dense-only sibling of `LuceneBqlAdapter` production
-            # BQL_DENSE cells actually run under — see docs/run_manifest.md's env_knobs). SAME
-            # persisted dense doc-embedding cache + SAME fail-loud missing-cache contract as
+            # `LuceneBqlDonlyAdapter`, the dense-only sibling of `LuceneBqlAdapter` — see
+            # docs/RUN_RECORD.md's env_knobs for how STRUCTURED_BACKEND/BQL_DENSE are recorded).
+            # SAME persisted dense doc-embedding cache + SAME fail-loud missing-cache contract as
             # 'bqldensevisit'/'bqldensesnip' above (this ranking knob never live-encodes a whole
             # corpus at eval time either).
             from agent_search.retrievers.dense.dense import DenseRetriever
-            from agent_search.retrievers.structural.indri.dense_belief import (
-                DenseBelief, DEFAULT_MODEL as DENSE_BASELINE_MODEL)
-            probe = DenseRetriever(model=DENSE_BASELINE_MODEL, index_root=self.index_root)
+            from agent_search.retrievers.structural.indri.dense_belief import DenseBelief
+            probe = DenseRetriever(model=self.dense_model, index_root=self.index_root)
             cond_label = {"bqldonlyvisit": "research_bql_donly_visit",
                          "bqldonlysnip": "research_bql_donly_snip"}[arm]
             if not self.rebuild and not probe.is_cached(key):
                 raise RuntimeError(
                     f"{cond_label} ({arm} arm) needs a persisted dense doc-embedding cache "
                     f"for corpus key {key!r} at {probe._cache_dir(key)!r} — none found. "
-                    f"Prebuild it with: python -m evaluation.build_indexes --retriever dense "
-                    f"--model {DENSE_BASELINE_MODEL} ... (this ranking knob does not "
+                    f"Prebuild it with: python -m agent_search.evaluation.build_indexes --retriever dense "
+                    f"--model {self.dense_model} ... (this ranking knob does not "
                     f"live-encode the corpus at eval time).")
             try:
                 dense_belief = DenseBelief(
-                    model=DENSE_BASELINE_MODEL, index_root=self.index_root).build_or_load(
+                    model=self.dense_model, index_root=self.index_root).build_or_load(
                         self._units, key=key)
             except Exception as e:  # noqa: BLE001
                 raise RuntimeError(
@@ -468,7 +587,7 @@ class AgentRetriever(Retriever):
                                                     self.rebuild, dense=dense_belief)
         if arm in ("bm25", "bm25dci", "bm25fetch", "bm25q", "bm25fetchsnip",
                    "hybridvisit", "hybridfetchsnip", "bm25autoread", "hybridautoread"):
-            # 'bm25q' (research_bm25q) reuses the SAME bm25 retrieval as 'bm25' — the
+            # 'bm25q' reuses the SAME bm25 retrieval as 'bm25' — the
             # hardened baseline's only difference is the listing's snippet render, not retrieval.
             # 'bm25fetchsnip' (research_bm25_fetch_snip) likewise reuses the SAME bm25
             # retrieval as 'bm25fetch' — the fair-listing sibling's only difference is the
@@ -477,13 +596,13 @@ class AgentRetriever(Retriever):
             # rankers RRF fuses (see doc_research.py's HybridVisit/HybridFetchSnipWorkspace); the
             # dense half is built separately below, alongside densevisit/densefetch's.
             # 'bm25autoread' (research_bm25_autoread) ALSO reuses this SAME bm25 engine — its
-            # ranking is byte-identical to 'bm25'; only the RENDER (full text vs a listing to
+            # ranking matches 'bm25'; only the RENDER (full text vs a listing to
             # visit) differs (see doc_research.py's Bm25AutoRead). The engine itself (BM25Local
             # vs canonical-Lucene BM25Pyserini) is env `BM25_BACKEND`-selectable — see
-            # `_build_bm25_engine` above; default 'local' keeps every one of these arms
-            # byte-identical to before this knob. 'hybridautoread' (research_hybrid_autoread)
+            # `_build_bm25_engine` above; default 'local' keeps every one of these arms on the
+            # same in-process engine. 'hybridautoread'
             # ALSO reuses this SAME bm25 engine — it's one of the two rankers RRF fuses, exactly
-            # like 'hybridvisit'/'hybridfetchsnip' (NEW, additive).
+            # like 'hybridvisit'/'hybridfetchsnip'.
             self._bm25 = _build_bm25_engine(self._units, self.index_root, self.rebuild, key)
         if arm in ("indri", "indrivisit", "indrisnip"):
             # SAME load_or_build pattern as the BQL executor above (prewarmed-if-cached, else
@@ -497,17 +616,16 @@ class AgentRetriever(Retriever):
             from agent_search.retrievers.structural.backend import build_indri_engine
             # INDRI_DENSE=1 attaches the dense-embedding belief (needs the bge doc-embedding
             # cache — built once by a GPU job; missing cache degrades to lexical-only with a
-            # warning). OFF by default (env unset) — byte-identical to before this block.
+            # warning). OFF by default (env unset), so Indri retrieval stays lexical-only.
             dense = None
             import os
             if os.environ.get("INDRI_DENSE") in ("1", "true", "yes"):
                 try:
-                    from agent_search.retrievers.structural.indri.dense_belief import (
-                        DenseBelief, DEFAULT_MODEL as _INDRI_DENSE_MODEL)
+                    from agent_search.retrievers.structural.indri.dense_belief import DenseBelief
                     # DEFAULT_MODEL (env `DENSE_MODEL`-overridable), passed explicitly — SAME
                     # doc embedder the densevisit/densefetch arms below use (DENSE_BASELINE_MODEL
                     # is this SAME import under a different local name).
-                    dense = DenseBelief(model=_INDRI_DENSE_MODEL).build_or_load(
+                    dense = DenseBelief(model=self.dense_model).build_or_load(
                         self._units, key=key)
                 except Exception as e:
                     import sys
@@ -518,28 +636,28 @@ class AgentRetriever(Retriever):
                                              dense=dense)
         if arm in ("densevisit", "densefetch", "densefetchplain", "hybridvisit",
                    "hybridfetchsnip", "denseautoread", "hybridautoread"):
-            # research_dense / research_dense_fetch / research_dense_fetch_plain / research_hybrid
-            # / research_hybrid_fetch_snip / research_dense_autoread / research_hybrid_autoread
-            # ALL need a persisted dense
+            # These seven dense/hybrid arms (research_dense, research_dense_fetch, its
+            # excerpt-free "plain" sibling, research_hybrid, research_hybrid_fetch_snip,
+            # research_dense_autoread, and its hybrid analog) ALL need a persisted dense
             # doc-embedding cache (this baseline does not live-encode a whole corpus at eval time
             # — that would silently turn a "read strategy" ablation into an "also pay an
             # embed-the-corpus tax" run, and for a corpus the size of browsecomp_plus/hotpotqa a
             # cold encode is minutes-to-hours on the agent's clock). Prebuild it with
-            # evaluation/build_indexes.py --retriever dense (same cache Indri's DenseBelief / the
+            # agent_search/evaluation/build_indexes.py --retriever dense (same cache Indri's DenseBelief / the
             # `dense` retriever condition already use). FAIL LOUD here — at index() time, before
             # any episode runs — rather than degrading, so a missing cache is never mistaken for
             # "the model just didn't find anything." SAME check/cache for all seven arms (only the
             # workspace built in _workspace() below differs; 'densefetchplain' reuses the SAME
-            # self._dense_belief as 'densefetch' — NEW, additive, no separate cache/model;
+            # self._dense_belief as 'densefetch', no separate cache/model;
             # 'hybridvisit'/'hybridfetchsnip'/'hybridautoread' also need self._bm25, built in the
             # block above — RRF fuses both; 'denseautoread' (research_dense_autoread) reuses the
-            # SAME self._dense_belief as 'densevisit' — its ranking is byte-identical, only the
+            # SAME self._dense_belief as 'densevisit' — its ranking matches, only the
             # RENDER differs, exactly like 'bm25autoread' reuses self._bm25 above; 'hybridautoread'
-            # (research_hybrid_autoread, NEW additive) reuses the SAME self._bm25/self._dense_belief
+            # reuses the SAME self._bm25/self._dense_belief
             # as 'hybridvisit' — same reasoning).
             from agent_search.retrievers.dense.dense import DenseRetriever
-            from agent_search.retrievers.structural.indri.dense_belief import DenseBelief, DEFAULT_MODEL as DENSE_BASELINE_MODEL
-            probe = DenseRetriever(model=DENSE_BASELINE_MODEL, index_root=self.index_root)
+            from agent_search.retrievers.structural.indri.dense_belief import DenseBelief
+            probe = DenseRetriever(model=self.dense_model, index_root=self.index_root)
             arm_label = arm    # "densevisit" | "densefetch" | "densefetchplain" | "hybridvisit" |
                                 # "hybridfetchsnip" | "denseautoread" | "hybridautoread"
             cond_label = {"densevisit": "research_dense", "densefetch": "research_dense_fetch",
@@ -552,12 +670,12 @@ class AgentRetriever(Retriever):
                 raise RuntimeError(
                     f"{cond_label} ({arm_label} arm) needs a persisted dense doc-embedding "
                     f"cache for corpus key {key!r} at {probe._cache_dir(key)!r} — none found. "
-                    f"Prebuild it with: python -m evaluation.build_indexes --retriever dense "
-                    f"--model {DENSE_BASELINE_MODEL} ... (this baseline does not live-encode the "
+                    f"Prebuild it with: python -m agent_search.evaluation.build_indexes --retriever dense "
+                    f"--model {self.dense_model} ... (this baseline does not live-encode the "
                     f"corpus at eval time).")
             try:
                 self._dense_belief = DenseBelief(
-                    model=DENSE_BASELINE_MODEL, index_root=self.index_root).build_or_load(
+                    model=self.dense_model, index_root=self.index_root).build_or_load(
                         self._units, key=key)
             except Exception as e:  # noqa: BLE001
                 raise RuntimeError(
@@ -567,7 +685,7 @@ class AgentRetriever(Retriever):
         # persistent here — grep re-scans the in-memory units per call (like GrepBaseline);
         # dci's flat-file export is itself cached by corpus key inside DciWorkspace/
         # flat_export.export_flat_corpus, not a retriever-level index. 'bm25dci' and 'bm25fetch'
-        # prewarm the SAME BM25Local as 'bm25' above (byte-identical retrieval); 'bm25dci' stages
+        # prewarm the SAME BM25Local as 'bm25' above (same retrieval); 'bm25dci' stages
         # a bounded flat export per query, and 'bm25fetch'/'densefetch' derive sections live (no
         # BQL executor) — 'densefetch' reuses the SAME self._dense_belief built above.
         # 'hybridvisit'/'hybridfetchsnip'/'hybridautoread' reuse BOTH self._bm25 (built above)
@@ -576,6 +694,13 @@ class AgentRetriever(Retriever):
         # block, not this one) — self._bql there is a DenseOnlyStructuralExecutor, not the plain
         # StructuralExecutor 'bqldensevisit'/'bqldensesnip' get.
         return self
+
+    def _doc_text(self, doc_id: str):
+        """'title\nbody' of a unit, for history-conditioned retrieval queries."""
+        u = self._ubyid.get(doc_id)
+        if u is None:
+            return None
+        return "\n".join(p for p in (u.title, u.body or u.code) if p)
 
     def set_files(self, files: dict) -> None:
         self._files = files or {}
@@ -590,6 +715,12 @@ class AgentRetriever(Retriever):
         query-agnostic at construction (their `search`/`bm25_search` tool takes the query per CALL
         instead), so they simply ignore the parameter."""
         arm = self._arm
+        if arm in WORKSPACES:
+            _, builder = WORKSPACES[arm]
+            return builder(WorkspaceContext(
+                units=self._units, ubyid=self._ubyid, corpus_key=self._key,
+                index_root=self.index_root, rebuild=self.rebuild, query=query,
+                domain=self.domain, retriever=self))
         if arm == "code":
             from agent_search.agent.tools.code_fix import CodeFixWorkspace
             return CodeFixWorkspace(self._units, self._files, executor=self._bql,
@@ -602,15 +733,15 @@ class AgentRetriever(Retriever):
             return Bm25Visit(self._units, engine=self._bm25, ubyid=self._ubyid)
         if arm == "bm25q":
             from agent_search.agent.tools.doc_research import Bm25Visit
-            # query_biased=True ONLY here (the bm25q/research_bm25q arm) — the SAME bm25
+            # query_biased=True ONLY here (the bm25q arm) — the SAME bm25
             # retrieval engine as 'bm25' above, just with the listing's snippet rendered
             # query-biased (see doc_research.py's Bm25Visit.search). The plain 'bm25' arm above
-            # keeps the constructor default (False), so `research_bm25` stays byte-identical.
+            # keeps the constructor default (False).
             return Bm25Visit(self._units, engine=self._bm25, ubyid=self._ubyid,
                              query_biased=True)
         if arm == "bm25autoread":
             from agent_search.agent.tools.doc_research import Bm25AutoRead
-            # SAME self._bm25 as 'bm25'/'bm25q' above (byte-identical ranking) — the
+            # SAME self._bm25 as 'bm25'/'bm25q' above (same ranking) — the
             # "retrieve-and-read" baseline's only difference is that `search` renders full text
             # instead of a listing to visit (see doc_research.py's Bm25AutoRead).
             return Bm25AutoRead(self._units, engine=self._bm25, ubyid=self._ubyid)
@@ -622,7 +753,7 @@ class AgentRetriever(Retriever):
                               corpus_key=self._key)
         if arm == "denseautoread":
             from agent_search.agent.tools.doc_research import DenseAutoRead
-            # SAME self._dense_belief as 'densevisit' above (byte-identical ranking) — the
+            # SAME self._dense_belief as 'densevisit' above (same ranking) — the
             # "retrieve-and-read" baseline's only difference is that `search` renders full text
             # instead of a listing to visit (see doc_research.py's DenseAutoRead), exactly
             # mirroring how 'bm25autoread' reuses self._bm25 over 'bm25'.
@@ -685,23 +816,22 @@ class AgentRetriever(Retriever):
             return Bm25FetchSnipWorkspace(self._units, query, engine=self._bm25, ubyid=self._ubyid)
         if arm == "docv2":
             from agent_search.agent.tools.doc_research import DocSearchFetch
-            # date_nudge=True ONLY here (the docv2/research_v2 arm) — a mechanical, corpus-free
+            # date_nudge=True ONLY here (the docv2 arm) — a mechanical, corpus-free
             # mid-episode hint toward the typed date[RANGE] surface its skill teaches (see
             # doc_research.py's `_has_bare_temporal_clue`). The plain 'doc' arm below keeps the
-            # constructor default (False), so `research` stays byte-identical.
+            # constructor default (False).
             return DocSearchFetch(self._units, executor=self._bql, ubyid=self._ubyid,
                                   coverage=True, date_nudge=True)
         if arm == "docsnip":
             from agent_search.agent.tools.doc_research import DocSearchFetch
             # snippets=True ONLY here (the docsnip/research_snip arm) — each search hit gets an
             # appended one-line best-matching excerpt (see doc_research.py's `_best_line`). The
-            # plain 'doc' arm above keeps the constructor default (False), so `research` stays
-            # byte-identical.
+            # plain 'doc' arm above keeps the constructor default (False).
             return DocSearchFetch(self._units, executor=self._bql, ubyid=self._ubyid,
                                   snippets=True)
         if arm == "bqlvisit":
             from agent_search.agent.tools.doc_research import BqlVisitWorkspace
-            # BqlVisitWorkspace forces coverage=True + date_nudge=True (research_v2's SAME BQL v2
+            # BqlVisitWorkspace forces coverage=True + date_nudge=True (the docv2 arm's SAME BQL v2
             # search) + snippets=True (fairness parity, forced inside the class itself — not a
             # caller knob, matching IndriVisitWorkspace's own pattern) — nothing extra to pass.
             return BqlVisitWorkspace(self._units, executor=self._bql, ubyid=self._ubyid)
@@ -729,7 +859,7 @@ class AgentRetriever(Retriever):
             # BYTE-FOR-BYTE the 'docsnip' construction below, EXCEPT `self._bql` is the
             # DENSE-ATTACHED executor built in index() (BQL_DENSE — see bql/dense_fuse.py).
             # `run()` already accepts search_bqlds/fetch_bqlds as aliases (see doc_research.py);
-            # `self.tools` stays the class default here, matching 'docsnip's own (pre-existing)
+            # `self.tools` stays the class default here, matching 'docsnip's own
             # pattern of not overriding it for its search_s/fetch_s tool names either.
             return DocSearchFetch(self._units, executor=self._bql, ubyid=self._ubyid,
                                   snippets=True)
@@ -757,7 +887,7 @@ class AgentRetriever(Retriever):
         if arm == "indrivisit":
             from agent_search.agent.tools.doc_indri import IndriVisitWorkspace
             # snippets=True is FORCED inside IndriVisitWorkspace itself (not a caller knob) —
-            # see doc_indri.py's IndriVisitWorkspace docstring (SPEC AMENDMENT: content-bearing
+            # see doc_indri.py's IndriVisitWorkspace docstring (content-bearing
             # listing for fairness parity with the bm25 baseline).
             return IndriVisitWorkspace(self._units, executor=self._indri, ubyid=self._ubyid)
         if arm == "indrisnip":
@@ -765,7 +895,7 @@ class AgentRetriever(Retriever):
             # snippets=True ONLY here (the indrisnip/research_indri_snip arm) — each isearch hit
             # gets an appended one-line best-matching excerpt (see doc_indri.py's
             # `_indri_query_terms`). The plain 'indri' arm above keeps the constructor default
-            # (False), so `research_indri` stays byte-identical.
+            # (False).
             return IndriFetchWorkspace(self._units, executor=self._indri, ubyid=self._ubyid,
                                        snippets=True)
         from agent_search.agent.tools.doc_research import DocSearchFetch
@@ -798,17 +928,35 @@ class AgentRetriever(Retriever):
         # a <fix>-terminal arm (code/grep) is gated by a grounding guard: the fix's file must
         # have been searched/grepped AND fetched/read this episode (never a blind guess). The
         # <answer>-terminal arms (doc/bm25/dci/bm25dci/bm25fetch) have no <fix>, no mid-episode gate —
-        # their grounding is scored post-hoc (evaluation.doc_scoring, against traj.observations).
+        # their grounding is scored post-hoc (agent_search.evaluation.doc_scoring, against traj.observations).
         if self._arm == "code":
             guard = _code_fix_guard(ws)
         elif self._arm == "grep":
             guard = _code_grep_guard(ws)
         else:
             guard = None
-        traj = run_episode(policy, Task(task_id="q", query=query), ws,
-                           self._units, max_steps=self.max_steps,
-                           usage_fn=backends.usage_events, domain=self.domain,
-                           fix_guard=guard)
+        # The episode's search history: (a) every step gets `hit_ids`/`read_ids` for the run
+        # record (training data needs to know what a search listed and what a read opened),
+        # (b) a history-conditioned dense retriever (DENSE_QUERY_STYLE != plain) renders its
+        # query from the same context, byte-identical to how training rendered it.
+        from agent_search.training.history import CURRENT, QueryContext, dense_query_style
+        from agent_search.training.triples import is_read_action, is_search_action, read_ids
+        ctx = QueryContext(question=query, text_of=self._doc_text, style=dense_query_style())
+
+        def _on_step(step) -> None:
+            hits = list(getattr(ws, "last_hits", []) or [])
+            step.hit_ids = hits if is_search_action(step.name) else []
+            step.read_ids = read_ids({"args": step.args}, hits) if is_read_action(step.name) else []
+            ctx.observe(step, hits)
+
+        token = CURRENT.set(ctx)
+        try:
+            traj = run_episode(policy, Task(task_id="q", query=query), ws,
+                               self._units, max_steps=self.max_steps,
+                               usage_fn=backends.usage_events, domain=self.domain,
+                               fix_guard=guard, on_step=_on_step)
+        finally:
+            CURRENT.reset(token)
         self._tl.traj = traj
         self._tl.meta = _trajectory_meta(traj, ws)
         return traj.located
@@ -843,7 +991,7 @@ class AgentRetriever(Retriever):
         located = list(getattr(ws, "last_hits", []) or []) or list(getattr(ws, "seen", []) or [])
         # code arm: ranking is resolved from the <fix>'s declared file (like the loop), else surfaced.
         if self._arm in ("code", "grep") and sdk.fix_text:
-            from evaluation.fix_scoring import fix_file
+            from agent_search.evaluation.fix_scoring import fix_file
             f = fix_file(sdk.fix_text)
             located = resolve_locations([f], self._units) if f else located
         return Trajectory(
@@ -851,7 +999,7 @@ class AgentRetriever(Retriever):
             llm_calls=sdk.requests, prompt_tokens=sdk.input_tokens,
             completion_tokens=sdk.output_tokens, cached_input_tokens=sdk.cached_input_tokens,
             reasoning_tokens=sdk.reasoning_tokens,
-            stopped_reason=("fix" if sdk.fix_text else "answer"),
+            stopped_reason=("fix" if sdk.fix_text else getattr(sdk, "stopped_reason", "answer")),
             final_answer=sdk.final_answer, fix_text=sdk.fix_text,
             elicitation=sdk.elicitation)
 
@@ -864,8 +1012,8 @@ def _code_fix_guard(ws):
     A <fix> is accepted only after the episode has (a) run a successful search and (b)
     fetched the exact file the fix names — otherwise it's a guess, bounced back with an
     actionable reason (same policy as the sandbox's probe_code grounding guard). Path
-    matching is suffix-lenient, matching evaluation.fix_scoring."""
-    from evaluation.fix_scoring import fix_file, is_grounded
+    matching is suffix-lenient, matching agent_search.evaluation.fix_scoring."""
+    from agent_search.evaluation.fix_scoring import fix_file, is_grounded
 
     def guard(fix_text: str, steps) -> tuple:
         searched = any(
@@ -906,8 +1054,8 @@ def _code_grep_guard(ws):
     """The grep baseline's fix_guard(fix_text, steps) -> (ok, why): a <fix> is accepted only
     after a successful `grep` (>=1 match) AND a `read` of the exact file named in `file:` —
     identical POLICY to `_code_fix_guard`, just reading `grep`/`read` observation shapes instead
-    of `search`/`fetch` ones (mirrors `bql_skill_construct/probe_code.py`'s grep-arm guard)."""
-    from evaluation.fix_scoring import fix_file, is_grounded
+    of `search`/`fetch` ones."""
+    from agent_search.evaluation.fix_scoring import fix_file, is_grounded
 
     def guard(fix_text: str, steps) -> tuple:
         searched = any(
@@ -958,7 +1106,9 @@ def _trajectory_meta(traj, ws=None) -> dict:
         steps.append({
             "action": s.name, "args": s.args,
             "query": (s.args.get("query") or s.args.get("q") or ""),
-            "observation": s.observation[:600], "raw_output": s.raw_output, "n_hits": n_hits,
+            "observation": s.observation, "raw_output": s.raw_output, "n_hits": n_hits,
+            "hit_ids": list(getattr(s, "hit_ids", []) or []),
+            "read_ids": list(getattr(s, "read_ids", []) or []),
             "t_llm_s": round(s.t_llm, 3), "t_tool_s": round(s.t_tool, 3),
             "prompt_tokens": s.prompt_tokens, "completion_tokens": s.completion_tokens,
         })
@@ -967,8 +1117,8 @@ def _trajectory_meta(traj, ws=None) -> dict:
         "actions": [s["action"] for s in steps],
         "hits_per_step": [s["n_hits"] for s in steps],
         "stopped": traj.stopped_reason, "final_answer": traj.final_answer,
-        # provenance of a non-empty final_answer on a force-answer-gated episode: None (pre-change
-        # rows / episode never reached the reserved final turn), "nudge" (model complied with the
+        # provenance of a non-empty final_answer on a force-answer-gated episode: None (the
+        # episode never reached the reserved final turn), "nudge" (model complied with the
         # inline budget nudge directly), "prefill_inline" (the shared forced-answer-elicitation call
         # filled it in — agent_search/agent/forced_answer.py), "prefill_failed" (that call fired but
         # produced nothing usable). SDK-driven episodes carry the analogous "ask_retry_inline"/
@@ -981,8 +1131,8 @@ def _trajectory_meta(traj, ws=None) -> dict:
         "fix_text": traj.fix_text,
         # docs surfaced this episode (search hits + fetch/visit targets), for gold-doc coverage.
         "surfaced_docs": sorted(getattr(ws, "seen", set()) or set()),
-        # every tool response the agent saw, for the doc arm's answer-grounding gate.
-        "observations": [s.observation for s in traj.steps],
+        # every tool response the agent saw lives, in full and uncapped, on
+        # `trajectory[i]["observation"]` (see agent_search.evaluation.rows.observations_of).
         "trajectory": steps,
     }
     return meta
@@ -999,7 +1149,7 @@ import os  # noqa: E402
 from agent_search.retrievers.registry import RetrieverConfig, register  # noqa: E402
 from agent_search.prompts.registry import PROMPTS  # noqa: E402
 
-AGENT_DEFAULT_CONDITION = os.environ.get("AGENT_DEFAULT_CONDITION", "codefix")
+AGENT_DEFAULT_CONDITION = os.environ.get("AGENT_DEFAULT_CONDITION", "research_snip")
 # PROMPTS is {domain: {condition_name: spec}}; gather every condition name across domains.
 _REGISTERED = {name for conds_in_domain in PROMPTS.values() for name in conds_in_domain}
 _AGENT_CONDITIONS = (tuple(sorted(f"agent_{name}" for name in _REGISTERED))
@@ -1015,6 +1165,10 @@ def _toolset_for(prompt_path: str) -> tuple:
     return tuple(load_prompt_profile(prompt_path).tool_names)
 
 
+# built-in workspaces registered through `register_workspace` live in their own modules
+from agent_search.agent.tools import doc_dedup as _doc_dedup  # noqa: E402,F401
+
+
 @register(*_AGENT_CONDITIONS)
 def _build_agent(cfg: RetrieverConfig, name: str):
     from agent_search.prompts import get_prompt_spec
@@ -1026,7 +1180,12 @@ def _build_agent(cfg: RetrieverConfig, name: str):
     domain = spec.domain
     prompt_path = cfg.prompt_override or spec.path
     toolset = _toolset_for(prompt_path)
-    dense_model = cfg.dense_model or "nomic-ai/CodeRankEmbed"
+    # ONE dense model per run: the configured `--dense-model` / `DENSE_MODEL`, else the domain's
+    # default (`BAAI/bge-base-en-v1.5` for documents, CodeRankEmbed for code). Every dense arm —
+    # Sieve's ranker and its fallback, the dense/hybrid baselines, Indri's dense belief — reads
+    # the persisted embedding cache built for exactly this model.
+    from agent_search.evaluation.datasets import default_dense_model
+    dense_model = cfg.dense_model or default_dense_model(domain)
 
     driver = "loop"                                  # stub/tests never touch the SDK
     if cfg.policy == "stub":

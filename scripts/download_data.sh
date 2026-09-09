@@ -49,13 +49,11 @@ for hf in names[choice]:
 PY
 
 echo ">> cloning repos into $DATA/repos (git archive reads these offline) ..."
-if [ "$DATASET" = "all" ]; then
-  "$PYTHON" scripts/prefetch_repos.py --dataset swebench_verified --repo-cache "$DATA/repos"
-  "$PYTHON" scripts/prefetch_repos.py --dataset swebench_lite --repo-cache "$DATA/repos"
-  "$PYTHON" scripts/prefetch_repos.py --dataset loc_bench --repo-cache "$DATA/repos"
-else
-  "$PYTHON" scripts/prefetch_repos.py --dataset "$DATASET" --repo-cache "$DATA/repos"
-fi
+# The code-localization arm (SWE-bench repositories) is retained in the package but is not
+# part of this release's document-research workflow; no repository prefetcher ships with it.
+echo "!! SWE-bench repository staging is not supported in this release (dataset=$DATASET)." >&2
+echo "   Stage a DOCUMENT corpus instead: see corpus_build/README.md." >&2
+exit 2
 
 echo ">> (optional) pre-download the model into your HF cache, e.g.:"
 echo "     hf download Alibaba-NLP/Tongyi-DeepResearch-30B-A3B   # the agent model"

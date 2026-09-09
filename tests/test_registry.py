@@ -4,16 +4,19 @@ These pin the contract that adding a method/condition needs NO harness edit: a
 builder registered with @register becomes selectable, and a YAML prompt profile
 dropped on disk becomes resolvable, without touching evaluation/ or this registry.
 """
+import sys
+
 import pytest
 
 from agent_search.retrievers import registry as R
 from agent_search.retrievers.registry import RetrieverConfig, available, build_factory, register
 
 
-# standalone retriever floors (unchanged) + the agent conditions of the paper's 15 kept,
-# doc-domain conditions (conditions.yaml was pruned to these; the code-domain arm is gone).
+# standalone retriever floors + a sample of the agent conditions: the paper's 15 document
+# conditions and the code-localization arm (codefix / codefix_grep / codefix_patch).
 BUILTINS = {"grep", "bm25_local", "bm25_pyserini", "dense", "bql",
-            "agent_research_snip", "agent_research_bm25", "agent_research_dci"}
+            "agent_research_snip", "agent_research_bm25", "agent_research_dci",
+            "agent_codefix", "agent_codefix_grep", "agent_codefix_patch"}
 
 
 def test_all_builtins_registered():
@@ -23,7 +26,7 @@ def test_all_builtins_registered():
 def test_retired_agent_conditions_are_gone():
     for gone in ("agent_bql", "agent_grep", "agent_bm25", "agent_dense",
                  "agent_tools", "agent_tools_bql", "agent_research_bql",
-                 "agent_codefix", "agent_codefix_grep", "agent_research", "agent_research_v2"):
+                 "agent_research", "agent_research_v2"):
         assert gone not in available()
 
 
@@ -113,6 +116,44 @@ def test_duplicate_registration_of_different_builder_raises():
             register(name)(lambda cfg, n: None)   # different fn, same name
     finally:
         R._REGISTRY.pop(name, None)
+
+
+# --- plugin discovery (SKIMSEARCHAGENT_PLUGINS + `skimsearchagent.plugins` entry points) -----
+
+def test_plugin_env_var_registers_retriever(tmp_path, monkeypatch):
+    """`SKIMSEARCHAGENT_PLUGINS` names a dotted module (put on `sys.path` here); the module
+    self-registers by calling `register(...)` at its own import time, exactly like a
+    built-in retriever module does — the out-of-tree extension point this module's
+    docstring documents."""
+    plugin_dir = tmp_path / "my_plugin_pkg"
+    plugin_dir.mkdir()
+    (plugin_dir / "__init__.py").write_text("")
+    (plugin_dir / "plugin_mod.py").write_text(
+        "from agent_search.retrievers.registry import register\n\n"
+        "@register('my_plugin_retriever')\n"
+        "def _build(cfg, name):\n"
+        "    from agent_search.retrievers.lexical.grep import GrepBaseline\n"
+        "    return lambda: GrepBaseline()\n"
+    )
+    monkeypatch.syspath_prepend(str(tmp_path))
+    monkeypatch.setenv("SKIMSEARCHAGENT_PLUGINS", "my_plugin_pkg.plugin_mod")
+    monkeypatch.setattr(R, "_loaded", False)      # force a fresh discovery pass to pick it up
+    try:
+        assert "my_plugin_retriever" in available()
+        assert build_factory("my_plugin_retriever")().name == "grep"
+    finally:
+        R._REGISTRY.pop("my_plugin_retriever", None)
+        sys.modules.pop("my_plugin_pkg.plugin_mod", None)
+        sys.modules.pop("my_plugin_pkg", None)
+
+
+def test_plugin_env_var_unknown_module_warns_but_does_not_crash_discovery(monkeypatch, capsys):
+    """A typo'd/missing plugin module name must not take down discovery of every OTHER
+    (built-in) retriever — logged as a warning, not raised."""
+    monkeypatch.setenv("SKIMSEARCHAGENT_PLUGINS", "no_such_plugin_module_at_all")
+    monkeypatch.setattr(R, "_loaded", False)
+    assert "grep" in available()                  # built-ins still discovered
+    assert "no_such_plugin_module_at_all" in capsys.readouterr().err
 
 
 # --- prompt auto-discovery ---------------------------------------------------

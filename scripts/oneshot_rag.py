@@ -3,9 +3,9 @@ ONE prompt with the question, ONE model call, parse <answer>. The simplest possi
 baseline: no search->fetch, no multi-turn tool use, just "retrieve then answer".
 
 Three retrieval variants (--retriever {bm25,dense,hybrid}), sharing the SAME corpus + `Instance`
-loading the agent harness uses (evaluation.datasets.load_dataset_by_name), so results are
+loading the agent harness uses (agent_search.evaluation.datasets.load_dataset_by_name), so results are
 comparable to the agent_research*/agent_research_bm25/agent_research_dense/agent_research_hybrid
-conditions run through evaluation/run_eval.py:
+conditions run through agent_search/evaluation/run_eval.py:
 
   bm25   Same text blob (title+body) agent_search.agent.tools.doc_research.Bm25Visit builds,
          through the SAME env `BM25_BACKEND`-selectable engine the agent harness's bm25-family
@@ -32,11 +32,11 @@ Each retrieved doc is capped at MAX_VISIT_TOKENS (the same whitespace-token cap 
 Bm25Visit/DenseVisit use for a whole-doc `visit`), so the k=5 stuffed docs are comparable in size
 to what the agent arms see per fetch/visit call.
 
-Usage (PYTHONPATH=${REPO_ROOT:-.}, the project's `envs/bin/python`):
-  envs/bin/python scripts/oneshot_rag.py --dataset hotpotqa_structured --retriever bm25 \\
+Usage (PYTHONPATH=${REPO_ROOT:-.}, the project's `python`):
+  python scripts/oneshot_rag.py --dataset hotpotqa_structured --retriever bm25 \\
       --model gpt-4o-mini --api-base https://api.openai.com/v1 --limit 50
 
-  envs/bin/python scripts/oneshot_rag.py --dataset browsecomp_plus_structured --retriever dense \\
+  python scripts/oneshot_rag.py --dataset browsecomp_plus_structured --retriever dense \\
       --model Alibaba-NLP/Tongyi-DeepResearch-30B-A3B --api-base http://127.0.0.1:8101/v1
 
 Writes runs/_oneshot/<dataset>/<retriever>/rows.jsonl, one row per instance:
@@ -62,9 +62,9 @@ from typing import Callable, Optional, Sequence
 from agent_search.agent.tools.doc_research import MAX_VISIT_TOKENS, _cap_tokens
 from agent_search.corpus.units import CodeUnit, units_from_documents
 from agent_search.retrievers.structural.indri.dense_belief import DEFAULT_MODEL as DENSE_MODEL
-from evaluation.datasets import Instance, load_dataset_by_name
-from evaluation.doc_scoring import extract_answer_span
-from evaluation.run_eval import _corpus_key
+from agent_search.evaluation.datasets import Instance, load_dataset_by_name
+from agent_search.evaluation.doc_scoring import extract_answer_span
+from agent_search.evaluation.run_eval import _corpus_key
 
 TOP_K = 5                          # fixed retrieval depth (not a CLI knob — see module docstring)
 DEFAULT_MODEL = "Alibaba-NLP/Tongyi-DeepResearch-30B-A3B"
@@ -110,8 +110,8 @@ SYSTEM_PROMPT = (
 
 def _units_and_key(instances: Sequence[Instance]) -> tuple[list[CodeUnit], str]:
     """The shared document corpus (one build for every instance in a doc dataset — same
-    `docs` list, same `corpus_id`) + its stable cache key (`evaluation.run_eval._corpus_key`,
-    the SAME key `evaluation/run_eval.py` and `evaluation/build_indexes.py` use, so the dense
+    `docs` list, same `corpus_id`) + its stable cache key (`agent_search.evaluation.run_eval._corpus_key`,
+    the SAME key `agent_search/evaluation/run_eval.py` and `agent_search/evaluation/build_indexes.py` use, so the dense
     variant resolves the SAME persisted embedding cache)."""
     inst0 = instances[0]
     units = units_from_documents(inst0.docs or [])
@@ -163,7 +163,7 @@ def _build_dense_engine(units: Sequence[CodeUnit], key: str, index_root: str = "
         raise RuntimeError(
             f"oneshot_rag --retriever dense needs a persisted dense doc-embedding cache for "
             f"corpus key {key!r} at {probe._cache_dir(key)!r} — none found. Prebuild it with: "
-            f"python -m evaluation.build_indexes --retriever dense --model {DENSE_MODEL} ... "
+            f"python -m agent_search.evaluation.build_indexes --retriever dense --model {DENSE_MODEL} ... "
             f"(this baseline does not live-encode the corpus at eval time).")
     return DenseBelief(model=DENSE_MODEL, index_root=index_root).build_or_load(units, key=key)
 
@@ -390,7 +390,7 @@ def build_messages(question: str, hits: Sequence[tuple]) -> list[dict]:
 
 def parse_answer(text: str) -> str:
     """The model's short answer span — reuses the SAME `<answer>...</answer>` extraction the
-    agent harness scores with (evaluation.doc_scoring.extract_answer_span), so a oneshot row's
+    agent harness scores with (agent_search.evaluation.doc_scoring.extract_answer_span), so a oneshot row's
     `final_answer` is graded identically to an agent row's."""
     return extract_answer_span(text or "")
 
@@ -451,7 +451,7 @@ def run_instance(inst: Instance, retriever: str, engine, ubyid: dict, generate: 
 
 def _load_resume_state(out_path: str) -> dict[str, dict]:
     """Existing COMPLETED rows from a prior run of `out_path`, keyed by instance_id — tolerant of
-    a truncated trailing line (a killed run, same convention as evaluation.run_eval._load_rows).
+    a truncated trailing line (a killed run, same convention as agent_search.evaluation.run_eval._load_rows).
 
     A row WITH an 'error' key is NOT considered done: it is dropped here, so its instance_id
     falls through to the caller's todo list and gets recomputed — this is what makes a resume
@@ -494,7 +494,7 @@ def main(argv: Optional[list] = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--dataset", required=True,
-                    help="a doc-domain dataset name (evaluation.datasets.available_datasets()), "
+                    help="a doc-domain dataset name (agent_search.evaluation.datasets.available_datasets()), "
                          "e.g. hotpotqa_structured, browsecomp_plus_structured.")
     ap.add_argument("--retriever", choices=["bm25", "dense", "hybrid"], required=True)
     ap.add_argument("--bm25-backend", choices=["local", "pyserini"], default=None,

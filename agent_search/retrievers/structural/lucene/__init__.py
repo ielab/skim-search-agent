@@ -6,7 +6,7 @@ queries, or `LMDirichletSimilarity`).
 
 This package is strictly ADDITIVE: a SIBLING of `structural/indri/` and
 `structural/bql/` (the pure-Python reference engines, which remain the semantics
-source of truth -- see `docs/indri_ql_reference.md` and `docs/bql_spec.md`), not a
+source of truth -- see `agent_search/prompts/skills/indri_doc.md` and `docs/bql_spec.md`), not a
 replacement. It reuses both engines' existing PARSERS (`indri.parser.parse`,
 `bql.parser.parse`) rather than re-parsing the query languages, and it never
 imports from or modifies `agent_search/retrievers/lexical/pyserini.py`.

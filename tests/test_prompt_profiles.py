@@ -20,14 +20,24 @@ from agent_search.retrievers.structural.bql.parser import parse
 from agent_search.retrievers.structural.bql.surface import to_bql
 from agent_search.retrievers.structural.bql.types import check
 
-# The code-domain arm (codefix/codefix_grep/taskfix) was pruned from conditions.yaml (paper's
-# 15 kept, doc-only conditions) — only the "general" domain remains.
+# Document conditions live in the "general" domain; the code-localization arm
+# (codefix / codefix_grep / codefix_patch over the taskfix templates) in "code".
 GEN_CONDS = ("research_snip", "research_bm25", "research_dci")
-ALL_CONDS = GEN_CONDS
+CODE_CONDS = ("codefix", "codefix_grep", "codefix_patch")
+ALL_CONDS = GEN_CONDS + CODE_CONDS
 
 
 def test_domains():
-    assert set(DOMAINS) == {"general"}
+    assert set(DOMAINS) == {"general", "code"}
+
+
+def test_code_conditions_compose_the_code_toolsets():
+    for name, tools in (("codefix", ("search", "fetch")), ("codefix_grep", ("grep", "read")),
+                        ("codefix_patch", ("search", "fetch"))):
+        prof = load_condition(name)
+        assert prof.domain == "code" and prof.tool_names == tools
+        assert '"name":"' + tools[0] + '"' in prof.system
+    assert "bql_code" not in load_condition("codefix_grep").system.lower()
 
 
 @pytest.mark.parametrize("cond", ALL_CONDS)
@@ -130,11 +140,12 @@ def test_only_search_family_tools_have_a_manual():
     BQL_DENSE dense-fused twins `search_bqld{f,os}`/`search_bqlds` (research_bql_dense_fetch/
     research_bql_donly_snip/research_bql_dense_snip — SAME bql_doc.md manual VALUES, only the
     ranking underneath differs, see agent_search/retrievers/structural/bql/dense_fuse.py).
-    `fetch`/`fetch_s`/`fetch_bqld{f,os,s}` carry none — they're plain reads, no new coaching."""
+    `fetch`/`fetch_s`/`fetch_bqld{f,os,s}` carry none — they're plain reads, no new coaching.
+    The code arm's `search` carries the code BQL manual (skills/bql_code.md)."""
     from agent_search.prompts.loader import _registry
     tools = _registry()["tools"]
-    with_manual = [n for n, s in tools.items() if s.get("manual")]
-    assert with_manual == ["isearch_s", "search_bqldf", "search_bqldos", "search_bqlds",
+    with_manual = sorted(n for n, s in tools.items() if s.get("manual"))
+    assert with_manual == ["isearch_s", "search", "search_bqldf", "search_bqldos", "search_bqlds",
                            "search_s"]
 
 

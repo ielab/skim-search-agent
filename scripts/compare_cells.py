@@ -1,9 +1,9 @@
 #!/usr/bin/env python
 """One-command comparison table across all experiment cells.
 
-    envs/bin/python scripts/compare_cells.py                 # full registry, markdown to stdout
-    envs/bin/python scripts/compare_cells.py --dataset browsecomp_plus_structured
-    envs/bin/python scripts/compare_cells.py --out docs/comparison_$(date +%Y%m%d_%H%M).md
+    python scripts/compare_cells.py                 # full registry, markdown to stdout
+    python scripts/compare_cells.py --dataset browsecomp_plus_structured
+    python scripts/compare_cells.py --out docs/comparison_$(date +%Y%m%d_%H%M).md
 
 Every run ALSO writes the full markdown output to comparison_result.md at the repo root
 (DEFAULT_OUT below — overwritten each run, regardless of --out; --out is an additional copy).
@@ -30,7 +30,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from evaluation.metrics import answer_em  # noqa: E402
+from agent_search.evaluation.metrics import answer_em  # noqa: E402
+from agent_search.evaluation.rows import observations_of  # noqa: E402
 from scripts.force_answer_backfill import (  # noqa: E402
     load_rows_tolerant, load_rows_with_recovery, needs_recovery,
 )
@@ -45,7 +46,7 @@ _DOCID_RE = None
 DEFAULT_OUT = Path(__file__).resolve().parent.parent / "comparison_result.md"
 
 # --- per-cell metrics cache: INCREMENTAL, append-aware -----------------------------------------
-# rows.jsonl is APPEND-ONLY with UNIQUE instance_ids (evaluation.run_eval.evaluate / _load_rows:
+# rows.jsonl is APPEND-ONLY with UNIQUE instance_ids (agent_search.evaluation.run_eval.evaluate / _load_rows:
 # each finished instance is appended once via `sink = open(rows_path, "a")`; a resumed run reads
 # `done` ids first and only appends NEW ones — earlier lines are never rewritten). ~20+ cells are
 # being appended to continuously by live SLURM jobs, so the OLD cache (keyed on whole-file
@@ -169,14 +170,14 @@ def _row_intrinsic(r: dict, gold_ids: set) -> dict:
     overlaying happens later in `_apply_overlay`), AND em_raw/lenient_raw/empty_raw — the
     em/lenient/empty a row would have IF NOT recovery-overlaid. These three are, strictly, a
     function of only ans_raw/gold (both already intrinsic), so they're safe to compute once here
-    and cache forever too: `answer_em` (evaluation/metrics.py, out of this script's scope to
+    and cache forever too: `answer_em` (agent_search/evaluation/metrics.py, out of this script's scope to
     change) normalizes both strings from scratch on every call — a real cost at 1000s of rows/cell
     — so `_apply_overlay` reuses these precomputed values for the (vast majority) of rows the
     recovery overlay never touches, and only re-derives em/lenient/empty from scratch for the
     small subset that actually got a genuine recovered answer."""
     gold = str(r.get("gold_answer") or "")
     ans_raw = str(r.get("final_answer") or "")
-    obs = " ".join(r.get("observations") or [])
+    obs = " ".join(observations_of(r))
     empty_raw = needs_recovery(ans_raw)
     return dict(
         gold=gold,
@@ -191,7 +192,7 @@ def _row_intrinsic(r: dict, gold_ids: set) -> dict:
         # OUTPUT (generated) — these two sum to `tok` (total_tokens_once). Split into columns.
         tok_in=(r.get("initial_prompt_tokens") or 0) + (r.get("context_once_tokens") or 0),
         tok_out=(r.get("output_tokens") or r.get("completion_tokens") or 0),
-        llm_calls=r.get("llm_calls") or r.get("n_steps") or len(r.get("observations") or []),
+        llm_calls=r.get("llm_calls") or r.get("n_steps") or len(observations_of(r)),
         em_raw=bool(answer_em(ans_raw, gold)),
         lenient_raw=bool(gold and gold.lower() in ans_raw.lower()),
         empty_raw=empty_raw,
@@ -284,7 +285,7 @@ def gold_doc_recall(row, gold_ids: set) -> bool:
     if not gold_ids:
         return False
     import re
-    blob = "\n".join(row.get("observations") or [])
+    blob = "\n".join(observations_of(row))
     for g in gold_ids:
         ge = re.escape(g)
         if g.isdigit():

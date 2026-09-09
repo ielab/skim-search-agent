@@ -60,7 +60,7 @@ def test_topk_marks_hits_as_seen_immediately():
     # the bm25 top-k are "surfaced" at construction, before any shell call — matching
     # Bm25Visit's search() which marks a hit seen the moment it is ranked.
     ws = _ws(topk=2)
-    assert set(ws.last_hits) <= ws.seen
+    assert set(ws.last_hits) <= set(ws.seen)
 
 
 def test_empty_query_yields_no_hits():

@@ -106,3 +106,28 @@ def test_invalid_region_is_error():
 def test_empty_input_is_error():
     r = parse("   ")
     assert not r.ok and r.error
+
+
+# --- Unicode + `+`/`#` identifiers (the ident class accepts \w, plus +/# after the first
+# char) -- a non-ASCII term used to hard-error ("unexpected character") once the tail
+# tokenizer ran out of ASCII characters to consume; `+`/`#`-bearing names (C++, C#) used to
+# split into multiple stray tokens with no operator between them. ------------------------
+
+def test_parses_unicode_term():
+    r = parse("café")
+    assert r.ok and r.expr == Term("café")
+
+
+def test_parses_cplusplus_term():
+    r = parse("C++")
+    assert r.ok and r.expr == Term("C++")
+
+
+def test_parses_csharp_term():
+    r = parse("C#")
+    assert r.ok and r.expr == Term("C#")
+
+
+def test_parses_unicode_term_in_region():
+    r = parse("IN(title, Zürich)")
+    assert r.ok and r.expr == In(Region.TITLE, Term("Zürich"))

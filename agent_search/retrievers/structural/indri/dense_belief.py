@@ -40,12 +40,13 @@ import re
 from typing import Optional, Sequence
 
 from agent_search.corpus.units import CodeUnit
-from agent_search.retrievers.dense.dense import DenseRetriever, _QUERY_PREFIX
+from agent_search.retrievers.dense.dense import DenseRetriever, query_prefix_for
+from agent_search.training.history import current_query_for
 
 # Env `DENSE_MODEL` overrides the default doc embedder for every DenseBelief-based arm
 # (Indri's INDRI_DENSE belief, and the densevisit/densefetch baselines via
 # agent_search.agent.retriever's DENSE_BASELINE_MODEL import) — same knob, same rationale,
-# as evaluation.datasets.default_dense_model (this package is always general-domain, so no
+# as agent_search.evaluation.datasets.default_dense_model (this package is always general-domain, so no
 # code-vs-general split is needed here). Unset -> unchanged default.
 DEFAULT_MODEL = os.environ.get("DENSE_MODEL") or "BAAI/bge-base-en-v1.5"
 DEFAULT_TOP_K = 50
@@ -113,7 +114,10 @@ class DenseBelief:
         `indexes/dense/<model>-sl<len>/<key>/`) — delegates the actual encode+cache
         work to `DenseRetriever.index` untouched."""
         self._retriever.index(units, key=key)
-        self._doc_id_to_row = {d: i for i, d in enumerate(self._retriever._doc_ids)}
+        ids = self._retriever._doc_ids
+        # `score()` needs doc_id -> row; skip the dict for corpora at the millions scale (only
+        # top_k_doc_ids is used there) and let `_similarities` build it on demand
+        self._doc_id_to_row = {d: i for i, d in enumerate(ids)} if len(ids) < 2_000_000 else None
         return self
 
     def is_ready(self) -> bool:
@@ -129,7 +133,7 @@ class DenseBelief:
         `IndriExecutor` search pass (expansion + `score`) encodes the query ONCE."""
         if self._retriever._index is None:
             return []
-        qv = self._encode_query_vector(_plain_text(query_text))
+        qv = self._encode_query_vector(current_query_for(_plain_text(query_text)))
         return self._retriever._index.search(qv, k or self.top_k)
 
     # --- belief combination (precision) -------------------------------------------
@@ -141,7 +145,7 @@ class DenseBelief:
         pool-relative min-max normalization, per `model.py`'s Deviations)."""
         if self._retriever._index is None:
             return {}
-        qv = self._encode_query_vector(_plain_text(query_text))
+        qv = self._encode_query_vector(current_query_for(_plain_text(query_text)))
         return self._similarities(qv, doc_ids)
 
     # --- internals -----------------------------------------------------------------
@@ -155,7 +159,7 @@ class DenseBelief:
         `_q_cache`) so expansion + scoring within one search pass encode once."""
         if self._q_cache is not None and self._q_cache[0] == plain_text:
             return self._q_cache[1]
-        q = _QUERY_PREFIX.get(self._retriever.model_id, "") + plain_text
+        q = query_prefix_for(self._retriever.model_id) + plain_text
         model = self._retriever._encoder()
         lock = getattr(model, "_agent_search_lock", None)
         if lock is not None:
@@ -191,7 +195,20 @@ class DenseBelief:
         rows = [row_of[d] for d in found]
         sub = np.asarray(emb[rows], dtype=np.float32)          # (m, d), one batched matmul
         scores = sub @ qv
-        return dict(zip(found, (float(s) for s in scores)))
+        sims = dict(zip(found, (float(s) for s in scores)))
+        # A requested id ABSENT from the dense index (e.g. a candidate the dense cache was
+        # never built for) must never be silently DROPPED from the returned map -- a caller
+        # ranking by this dict (`dense_fuse.dense_rank_for_candidates`) would otherwise lose
+        # it from the result entirely instead of merely ranking it last. Give it the POOL
+        # MINIMUM among the ids we DID score -- never a fabricated similarity value, the same
+        # "pool minimum, never fabricated" contract `lucene/adapters.py`'s `_combine_dense`
+        # already uses for exactly this case -- so it sorts to the back, never vanishes.
+        missing = [d for d in ids if d not in row_of]
+        if missing:
+            floor = min(sims.values())
+            for d in missing:
+                sims[d] = floor
+        return sims
 
     def _similarities_via_search(self, qv, doc_ids) -> dict:
         """ANN-backend fallback: a rank-based proxy score in `[0, 1]` (NOT a true

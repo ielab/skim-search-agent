@@ -1,28 +1,29 @@
 """IndriFetchWorkspace: `isearch` (the Indri graded query-language backend) + `fetch` (the
 SAME structured section-fetch DocSearchFetch/Bm25FetchWorkspace use).
 
-`research_indri` (conditions.yaml) x `indri` toolset (tools.yaml) drives this workspace. Like
-`Bm25FetchWorkspace` reuses `DocSearchFetch`'s section cache + `fetch` verbatim (see
-doc_research.py's module docstring), `IndriFetchWorkspace` subclasses `DocSearchFetch` and
-reuses everything EXCEPT retrieval: `isearch` queries an `IndriExecutor` (Dirichlet-smoothed
-belief scoring — a query NEVER hard-zeros; see skills/indri_doc.md) instead of the BQL
-executor. `self.ex` (the BQL executor DocSearchFetch's inherited methods never touch — fetch
-only needs `self.ubyid`/`self._secs`) is left None, matching Bm25FetchWorkspace's own pattern.
+The `indri` toolset (tools.yaml) drives this workspace. Like `Bm25FetchWorkspace` reuses
+`DocSearchFetch`'s section cache + `fetch` verbatim (see doc_research.py's module docstring),
+`IndriFetchWorkspace` subclasses `DocSearchFetch` and reuses everything EXCEPT retrieval:
+`isearch` queries an `IndriExecutor` (Dirichlet-smoothed belief scoring — a query NEVER
+hard-zeros; see skills/indri_doc.md) instead of the BQL executor. `self.ex` (the BQL executor
+DocSearchFetch's inherited methods never touch — fetch only needs `self.ubyid`/`self._secs`)
+is left None, matching Bm25FetchWorkspace's own pattern.
 
-Two NEW, additive hybrid conditions cross graded Indri search with the OTHER arms' READ
-strategies (disentangling "search interface" from "read granularity" — the existing cells
-conflate them):
+Two related workspaces cross graded Indri search with the OTHER arms' READ strategies
+(disentangling "search interface" from "read granularity" so the two axes can vary
+independently):
 
-  IndriVisitWorkspace (`research_indri_visit` x `indri_visit` toolset) — isearch_v/visit_v:
-    the SAME graded search as `isearch` (ranking, weakest-constraint diagnostic, op_nudge),
-    rendered WITH a per-hit content snippet (`snippets=True` — fairness parity with the bm25
-    baseline's opening-snippet listing), + a whole-doc VISIT read (mirroring Bm25Visit.visit
-    exactly). A strict single-axis swap vs research_bm25: same read, same content-bearing
-    listing, only the search ENGINE differs (graded Indri vs BM25 keyword).
+  IndriVisitWorkspace (`indri_visit` toolset) — isearch_v/visit_v: the SAME graded search as
+    `isearch` (ranking, weakest-constraint diagnostic, op_nudge), rendered WITH a per-hit
+    content snippet (`snippets=True` — fairness parity with the bm25 baseline's opening-snippet
+    listing), + a whole-doc VISIT read (mirroring Bm25Visit.visit exactly). A strict single-axis
+    swap vs research_bm25: same read, same content-bearing listing, only the search ENGINE
+    differs (graded Indri vs BM25 keyword).
 
-  IndriFetchWorkspace(snippets=True) (`research_indri_snip` x `indri_snip` toolset) —
-    isearch_s/fetch: the SAME graded search + snippet listing, but a structured SECTION fetch
-    read (the SAME `fetch` `research`/`research_indri` use) instead of a whole-doc visit.
+  IndriFetchWorkspace(snippets=True) (`research_indri_snip` x `indri_snip` toolset — the one of
+    these three registered in conditions.yaml) — isearch_s/fetch: the SAME graded search +
+    snippet listing, but a structured SECTION fetch read (the SAME `fetch` the plain `indri`
+    arm uses) instead of a whole-doc visit.
 """
 from __future__ import annotations
 
@@ -31,11 +32,12 @@ from typing import Optional, Sequence
 
 from agent_search.agent.tools.doc_research import (
     DocSearchFetch, MAX_VISIT_TOKENS, _cap_tokens, _INTRO, _infobox)
+from agent_search.core.seen import OrderedSeen
 from agent_search.corpus.units import CodeUnit
 from agent_search.retrievers.structural.indri.model import IndriExecutor
 
-# --- indri operator-nudge (research_indri condition; this workspace is NEW so on-by-default
-# is fine — no existing condition regresses): a mechanical, CORPUS-FREE mid-episode nudge —
+# --- indri operator-nudge (on by default for this workspace, which has no prior baseline to
+# preserve): a mechanical, CORPUS-FREE mid-episode nudge —
 # derived only from the agent's own raw query text — toward the `#combine`/`.field`/
 # `#date:between` operator surface the skill teaches, for a query that used none of it.
 _HASH_OP_RE = re.compile(r"#")
@@ -56,7 +58,7 @@ def _is_bare_keyword_query(query: str) -> bool:
     return not _HASH_OP_RE.search(query) and not _FIELD_SUFFIX_RE.search(query)
 
 
-# --- research_indri_visit / research_indri_snip: plain word terms from a raw Indri query ----
+# --- IndriVisitWorkspace / research_indri_snip: plain word terms from a raw Indri query ----
 # (`snippets=True`): the query surface text stripped of `#operator` names and `.field` suffixes,
 # leaving the plain content words `DocSearchFetch._best_line` scores a doc's best-matching
 # window against — e.g. '#combine( #1(bank management) treaty.title )' -> ['bank', 'management',
@@ -102,20 +104,24 @@ class IndriFetchWorkspace(DocSearchFetch):
             self.iex = build_indri_engine(self.units)
         self.ex = None                                   # unused: retrieval is Indri, not BQL
         self._sections: dict[str, dict] = {}
-        self.seen: set = set()
+        self.seen = OrderedSeen()
         self.last_hits: list[str] = []
         self.coverage = False                             # inherited attr; irrelevant here
-        # op_nudge DEFAULT TRUE: unlike DocSearchFetch's date_nudge (which must default False to
-        # keep the pre-existing `research`/`research_v2` conditions byte-identical),
-        # IndriFetchWorkspace is itself a brand-new, additive condition (`research_indri`) with
-        # no prior baseline to preserve — on-by-default is safe here.
+        # DocSearchFetch's own date_nudge default (this workspace's own `search`/`_search_impl`
+        # never reads it — isearch has its own op_nudge below — but the attribute must still
+        # exist so an inherited method that DOES check it (`DocSearchFetch.search`) never raises
+        # AttributeError if reached on this class or a subclass of it).
+        self.date_nudge = False
+        self._date_nudge_emitted = 0
+        # op_nudge DEFAULT TRUE: DocSearchFetch's date_nudge defaults False because the
+        # `research` condition's behavior depends on it staying off; IndriFetchWorkspace has no
+        # such condition depending on op_nudge, so it can default on.
         self.op_nudge = op_nudge
         self._op_nudge_emitted = 0
-        # research_indri_snip (DEFAULT OFF, `snippets=True`): `_search_impl` appends a one-line
-        # best-matching excerpt (DocSearchFetch._best_line, reused verbatim) to every isearch hit
-        # — see `_indri_query_terms` above. False (the default) reproduces `_search_impl`'s
-        # output byte-for-byte, so the plain `research_indri` condition is unaffected.
-        # IndriVisitWorkspace (research_indri_visit) forces this True unconditionally (see below).
+        # `snippets` (DEFAULT OFF; `research_indri_snip` sets it True): `_search_impl` appends a
+        # one-line best-matching excerpt (DocSearchFetch._best_line, reused verbatim) to every
+        # isearch hit — see `_indri_query_terms` above. `IndriVisitWorkspace` forces this True
+        # unconditionally (see below), since its listing is always content-bearing.
         self.snippets = snippets
 
     # -- isearch: Indri belief ranking -> STRUCTURE table (no bodies) --------------------
@@ -206,17 +212,17 @@ class IndriFetchWorkspace(DocSearchFetch):
 class IndriVisitWorkspace(IndriFetchWorkspace):
     """isearch_v(query, k) -> the SAME graded Indri ranking `IndriFetchWorkspace.search` renders
     (structure table + weakest-constraint diagnostic + op_nudge), ALWAYS with a per-hit content
-    snippet (`snippets=True`, forced — SPEC AMENDMENT: a content-blind listing would handicap
-    this cell vs the bm25 baseline's opening-snippet listing on the search-axis comparison).
+    snippet (`snippets=True`, forced — a content-blind listing would handicap this cell vs the
+    bm25 baseline's opening-snippet listing on the search-axis comparison).
     visit_v(rank_or_id) -> the FULL text of a ranked document (capped), mirroring
     `Bm25Visit.visit`/`Bm25Visit._resolve` exactly (rank-or-doc_id resolution, numeric-doc_id
     handling, whole-doc token cap).
 
-    So `research_indri_visit` (conditions.yaml) x `indri_visit` toolset (tools.yaml) is a strict
-    single-axis swap vs `research_bm25`: SAME read (whole-doc visit), SAME content-bearing
+    So `IndriVisitWorkspace` (the `indri_visit` toolset) is a strict single-axis swap vs
+    `research_bm25`: SAME read (whole-doc visit), SAME content-bearing
     listing shape, only the search ENGINE differs (graded Indri vs BM25 keyword) — disentangling
-    "search interface" from "read granularity" (the existing `research_bm25`/`research_indri`
-    cells conflate the two: bm25 = keyword search + whole-doc read; indri = graded search +
+    "search interface" from "read granularity" (`research_bm25` and the plain `indri` arm
+    conflate the two: bm25 = keyword search + whole-doc read; indri = graded search +
     section read)."""
 
     tools = ("isearch_v", "visit_v")

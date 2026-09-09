@@ -155,6 +155,20 @@ def test_seen_tracks_surfaced_docs():
     assert "d_harbor" in ws.seen
 
 
+def test_surfaced_is_first_seen_order_across_two_searches():
+    """`workspace.surfaced` (agent/loop.py's retrieval ranking, read via `getattr(workspace,
+    "surfaced", [])`) must list doc_ids in FIRST-SEEN order — the order a `search`/`fetch`
+    call actually surfaced them in, not set iteration order. A second search that resurfaces
+    an already-seen doc must not move it: `surfaced` is append-only, `OrderedSeen`-backed."""
+    ws = _ws()
+    ws.search("treaty[title]", k=5)                 # surfaces d_flat first
+    ws.search("harbor[title]", k=5)                 # then d_harbor
+    assert ws.surfaced == ["d_flat", "d_harbor"]
+    # re-surfacing d_flat via fetch must not reorder it to the end.
+    ws.fetch([["d_flat", "(intro)"]])
+    assert ws.surfaced == ["d_flat", "d_harbor"]
+
+
 # --- bm25 baseline: search + visit the whole doc ----------------------------
 
 def test_bm25_search_then_visit_whole_doc():
@@ -173,8 +187,8 @@ def test_bm25_visit_integer_doc_id_not_mistaken_for_rank():
 
 
 # =============================================================================================
-# FAIRNESS FIX (docs/bql_failure_forensics.md): MAX_SECTION_TOKENS defaulted to 180 while
-# MAX_VISIT_TOKENS defaulted to 1200 — a 6.7x read-budget gap on the exact same module's two
+# FAIRNESS: MAX_SECTION_TOKENS defaulted to 180 while
+# MAX_VISIT_TOKENS defaulted to 12000 — a 6.7x read-budget gap on the exact same module's two
 # read modes (a bigger gap still, 66x, against runs that raised MAX_VISIT_TOKENS to 12000
 # without touching MAX_SECTION_TOKENS). 96.6% of real BQL `fetch` calls truncated as a result.
 # The factorial's design intent is that fetch vs visit differ in WHAT is read (a named part vs
@@ -190,9 +204,9 @@ def test_max_section_tokens_env_resolution_fresh_process():
     test_default_max_tokens_env_knob_in_a_fresh_process).
 
     Three cases:
-      1. neither var set -> both resolve to the code default, 1200 (parity).
+      1. neither var set -> both resolve to the code default, 12000 (parity).
       2. only MAX_VISIT_TOKENS overridden -> MAX_SECTION_TOKENS tracks it (still parity) —
-         this is the "resolved value" behavior the fix requires, not a second hardcoded 1200.
+         this is the "resolved value" behavior the fix requires, not a second hardcoded 12000.
       3. both vars independently overridden -> MAX_SECTION_TOKENS keeps ITS OWN value, proving
          the env override is not simply squashed by the parity default.
     """
@@ -214,7 +228,7 @@ def test_max_section_tokens_env_resolution_fresh_process():
 
     # 1. both unset -> code defaults, and parity holds.
     section, visit = _run({})
-    assert (section, visit) == (1200, 1200)
+    assert (section, visit) == (12000, 12000)
 
     # 2. only MAX_VISIT_TOKENS overridden -> MAX_SECTION_TOKENS follows the RESOLVED value.
     section, visit = _run({"MAX_VISIT_TOKENS": "500"})
@@ -226,11 +240,11 @@ def test_max_section_tokens_env_resolution_fresh_process():
 
 
 def test_fetch_of_a_long_flat_section_is_not_truncated_at_the_old_180_cap():
-    """REGRESSION for the fairness fix: browsecomp-style flat docs (one `(intro)` section,
-    docs/structure_integrity_check.md) with a body well over the OLD 180-token cap but under
-    the parity-scale (1200-token) budget must now come back whole, not truncated — otherwise a
+    """REGRESSION for the fairness fix: browsecomp-style flat docs (one `(intro)` section)
+    with a body well over the OLD 180-token cap but under
+    the parity-scale (12000-token) budget must now come back whole, not truncated — otherwise a
     `fetch("")` on a flat doc is silently still a lossy whole-doc read, defeating the fix."""
-    long_body = " ".join(f"word{i}" for i in range(300))     # > 180, < 1200
+    long_body = " ".join(f"word{i}" for i in range(300))     # > 180, < 12000
     ws = DocSearchFetch(units_from_documents(
         [{"_id": "d_long_flat", "title": "Long Flat Doc", "text": long_body}]))
     ws.search("word0[title]", k=5)

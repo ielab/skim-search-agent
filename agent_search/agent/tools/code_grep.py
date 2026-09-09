@@ -7,14 +7,20 @@ real regular expression over live source (not the field-tagged Boolean surface),
 a plain line-range slice (not a structural part fetch). No skill/manual: models already know
 regex; the fair baseline is grep-as-used.
 
-Ported from bql_skill_construct/proto/grep_rx.py (RegexGrep) + proto/code_tools.py (GrepWorkspace).
+Ported from an internal prototype (RegexGrep + GrepWorkspace), not part of this release.
 """
 from __future__ import annotations
 
+import os
 import re
 from typing import Optional, Sequence
 
+from agent_search.core.tokens import cap_tokens
 from agent_search.corpus.units import CodeUnit
+
+# per-line cap on a grep hit's shown text, in whitespace tokens (agent_search.core.tokens) —
+# SkimSearchAgent caps text in tokens everywhere, never characters.
+GREP_LINE_TOKENS = int(os.environ.get("GREP_LINE_TOKENS", "24"))
 
 
 class RegexGrep:
@@ -40,7 +46,7 @@ class RegexGrep:
             rx = re.compile(re.escape(pattern), re.IGNORECASE)   # grep -F fallback
         per_unit: list[tuple[object, list[tuple[int, str]]]] = []
         for u, lines in self._lines:
-            m = [(u.start_line + i, ln.strip()[:120])
+            m = [(u.start_line + i, cap_tokens(ln.strip(), GREP_LINE_TOKENS))
                  for i, ln in enumerate(lines) if rx.search(ln)]
             if m:
                 per_unit.append((u, m))

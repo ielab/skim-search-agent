@@ -144,3 +144,19 @@ def test_unknown_field_is_passed_through_and_rejected():
 def test_empty_query_lowers_to_empty_string():
     assert to_bql("", "code") == ""
     assert to_bql("   ", "doc") == ""
+
+
+# --- Unicode words: the tokenizer must not silently DROP a non-ASCII letter mid-word -----
+#
+# `munoz[title] OR muñoz[title]` above only checks that the lowering still PARSES/TYPECHECKS
+# -- it would pass even if `muñoz` silently split into two stray words ("mu"/"oz", the `ñ`
+# dropped) since `AND(IN(title, mu), IN(title, oz))` is still valid BQL, just semantically
+# WRONG. These pin the exact shape: one field-tagged term, not several.
+
+def test_unicode_word_lowers_to_a_single_title_term():
+    assert to_bql("Zürich[title]", domain="doc") == "IN(title, Zürich)"
+
+
+def test_unicode_word_survives_a_multiword_run():
+    assert to_bql("café culture[title]", domain="doc") == \
+        "AND(IN(title, café), IN(title, culture))"

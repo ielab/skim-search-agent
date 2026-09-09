@@ -1,8 +1,8 @@
 # Reproducing the paper end-to-end
 
-This walks from a clean checkout to every table and figure in the paper. Stages are independent —
-you can stop after any of them. Commands assume the repo root as the working directory and the
-`envs/` virtualenv activated.
+This document goes from a fresh clone to every table and figure in the paper. The stages are
+independent, so stop after any one of them. Every command assumes the repository root as the
+working directory, with the `envs/` virtualenv activated.
 
 Contents:
 1. [Environment](#1-environment)
@@ -18,39 +18,65 @@ Contents:
 
 ---
 
+> **The short version.** Every paper setting already exists as a complete experiment file under
+> [`configs/paper/`](../configs/paper/), with every knob spelled out.
+> `skimsearchagent run configs/paper/hotpotqa_structured_sieve.yaml` does in one command what the
+> longer invocations below do by hand, and the file's contents land in the run's `config.json`.
+> Run `skimsearchagent validate configs/paper/hotpotqa_structured_sieve.yaml` first. It reports
+> what is missing (dense cache, Lucene index, Java, API keys) before any GPU time is spent.
+> `skimsearchagent` is the installed launcher; `python run.py` is the same entry point from a
+> source checkout.
+
 ## 1. Environment
 
-- Python 3.10, Java 21+ (Pyserini 1.2 / Lucene needs the `jdk.incubator.vector` module; with an
-  older JVM the process aborts with no Python traceback — check `java -version` first), CUDA GPU
-  for vLLM serving and dense encoding. If you use conda, `conda install "openjdk>=21"` into the
-  environment works; set `JAVA_HOME=$CONDA_PREFIX/lib/jvm` if it isn't set by activation.
-- `pip install -r requirements.txt`. The BQL core and local scoring need only the standard
-  library + pytest; Pyserini, sentence-transformers, FAISS, and vLLM are needed for the
-  paper-scale runs.
-- API keys and every knob referenced below are templated in [`.env.example`](../.env.example)
-  (copy to `.env`, fill in, `set -a; source .env; set +a`; never commit a filled-in `.env`).
-- Sanity check: `python -m pytest tests/` (BQL parser/executor and scoring unit tests). Once the
-  Pyserini JVM starts it swallows pytest's terminal output; use `--junitxml=report.xml` when you
-  need the results programmatically.
+Python 3.10, a JDK 21 or newer, and a CUDA GPU for vLLM serving and dense encoding.
+
+The Java version matters. Pyserini 1.2 and Lucene require the `jdk.incubator.vector` module, and
+on an older JVM the process dies with no Python traceback. Check `java -version` first. Under
+conda, `conda install "openjdk>=21"` into the environment works; set
+`JAVA_HOME=$CONDA_PREFIX/lib/jvm` if activation does not set it.
+
+```bash
+pip install -r requirements.txt
+```
+
+The BQL core and the local scoring path need only the standard library plus pytest. Pyserini,
+sentence-transformers, FAISS and vLLM are required for the paper-scale runs.
+
+API keys and every knob mentioned below are templated in [`.env.example`](../.env.example). Copy
+it to `.env`, fill in the values in use, then `set -a; source .env; set +a`. Do not commit the
+filled-in copy.
+
+Quick sanity check:
+
+```bash
+python -m pytest tests/
+```
+
+That covers the BQL parser, the executor and the scoring units. Once the Pyserini JVM starts it
+swallows pytest's terminal output, so pass `--junitxml=report.xml` to read the results.
 
 ## 2. Data
 
-Pull the published flat/structured twins from Hugging Face into `data/` — the paper's corpora are
-released as `wshuai190/browsecomp-plus-structured-full`, `wshuai190/hotpotqa-structured`, and
-`wshuai190/musique-structured` (staging commands in
-[`corpus_build/README.md`](../corpus_build/README.md)) — or rebuild them from scratch with the
-pipelines in `corpus_build/`:
+The paper's corpora are published on Hugging Face as `wshuai190/browsecomp-plus-structured-full`,
+`wshuai190/hotpotqa-structured` and `wshuai190/musique-structured`. Pulling them into `data/` is
+faster than rebuilding. [`corpus_build/README.md`](../corpus_build/README.md) has the
+download-and-stage commands.
+
+To rebuild from scratch, `corpus_build/` has both pipelines:
 
 - `corpus_build/wikipedia/` builds the HotpotQA and MuSiQue twins by matching benchmark documents
-  against `wikimedia/structured-wikipedia` (native sections; no LLM involved).
-- `corpus_build/browsecomp_plus/` builds the BrowseComp-Plus twin from the shipped frontmatter
-  plus a one-time LLM sectioning batch; the published `sections.jsonl` lets you re-assemble the
-  corpus **without** re-running that batch.
+  against `wikimedia/structured-wikipedia`. The sections are native to that mirror, so no model is
+  involved.
+- `corpus_build/browsecomp_plus/` builds the BrowseComp-Plus twin from each document's own
+  frontmatter plus one LLM sectioning batch. The published `sections.jsonl` re-assembles the
+  corpus without repeating that batch.
 
-Each folder's README has the exact commands. Dataset names used throughout the harness are
-registered in `evaluation/datasets.py`; the paper's BrowseComp-Plus experiments use
-`browsecomp_plus_structured_full` / `browsecomp_plus_flat_full` (the complete 100,195-document
-collection).
+Each folder's README has the exact commands. Dataset names are registered in
+`agent_search/evaluation/datasets.py`. The paper's BrowseComp-Plus experiments use
+`browsecomp_plus_structured_full` and `browsecomp_plus_flat_full`, which is the complete
+100,195-document collection (the plain `browsecomp_plus_structured` / `_flat` pair is the smaller
+67,707-document pooled corpus the local builder produces).
 
 ## 3. Indexes
 
@@ -58,58 +84,73 @@ collection).
 bash scripts/build_indexes.sh
 ```
 
-builds, per dataset: the Lucene structured index (BQL executor + structured backend), the
-Pyserini BM25 index, and the dense embedding cache (default encoder `BAAI/bge-base-en-v1.5`,
-1024-token sequence length). Alternative dense encoders for the sensitivity study are built with
-`scripts/embed_full.sbatch` (`EMBED_MODEL=<hf-id>`); each lands in its own cache under
+For each dataset that builds three things: the Lucene structured index that the BQL executor and
+the structured backend read, the Pyserini BM25 index, and the dense embedding cache. The default
+encoder is `BAAI/bge-base-en-v1.5` at a 1024-token sequence length. Select a dataset and retriever
+with `DATASET=` and `RETRIEVER=`; the script's header comment lists the rest.
+
+The alternative encoders for the sensitivity study go through `scripts/embed_full.sbatch` with
+`EMBED_MODEL=<hf-id>`. Each one lands in its own cache at
 `indexes/dense/<model>-sl1024/<dataset>/`, so encoders never overwrite each other.
 
 ## 4. Serving the backbone
 
-All paper runs use local vLLM serving. The primary backbone is
-`Alibaba-NLP/Tongyi-DeepResearch-30B-A3B` at a 131,072-token context window; transfer backbones
-(`Qwen-AgentWorld-35B-A3B`, `OpenResearcher/OpenResearcher-30B-A3B`) serve at 262,144. The
-launchers in `scripts/` (`run.sh`, `shard_cell.sh`) start their own server per job on a distinct
-port; for interactive use, any OpenAI-compatible endpoint works via the standard vLLM flags.
+Every paper run serves its model locally with vLLM. The primary backbone is
+`Alibaba-NLP/Tongyi-DeepResearch-30B-A3B` at a 131,072-token context window. The transfer
+backbones (`Qwen-AgentWorld-35B-A3B`, `OpenResearcher/OpenResearcher-30B-A3B`) serve at 262,144.
+
+`scripts/run.sh` and `scripts/shard_cell.sh` start their own server per job on a distinct port, so
+no manual server management is needed. For interactive work, any OpenAI-compatible endpoint works:
+point `--api-base` at it and pass `--backend api`.
 
 ## 5. Running evaluation cells
 
-A **cell** = (dataset, model, condition). Conditions are the interface variants from Table 1;
-the ones used in the paper:
+A **cell** is one (dataset, model, condition) triple. Conditions are the interface variants from
+Table 1. The paper uses these:
 
 | condition | interface |
 |---|---|
-| `agent_research_bm25` / `_dense` / `_hybrid` | Search–Visit (whole-document reading), 3 rankers |
-| `agent_research_bm25_autoread` / `_dense_autoread` | Search–AutoRead |
+| `agent_research_bm25` / `_dense` / `_hybrid` | Search-Visit (whole-document reading), 3 rankers |
+| `agent_research_bm25_autoread` / `_dense_autoread` | Search-AutoRead |
 | `agent_research_dci` / `agent_research_bm25_dci` | DCI / BM25-bounded DCI (RISE-style) |
-| `agent_research_bm25_fetch_snip` / `_dense_fetch` / `_hybrid_fetch_snip` | Search–Fetch (section reading), 3 rankers |
+| `agent_research_bm25_fetch_snip` / `_dense_fetch` / `_hybrid_fetch_snip` | Search-Fetch (section reading), 3 rankers |
 | `agent_research_snip` / `_bql_donly_snip` / `_bql_dense_snip` | **Sieve** (Boolean-filtered BM25 / Dense / BM25+Dense) |
 | `agent_research_bql_dense_fetch` | Sieve without snippets (ablation) |
 | `agent_research_indri_snip` | Indri-executor comparison |
 | one-shot floors | `scripts/oneshot_rag.py` (`runs/_oneshot/...`) |
 
-Single cell, locally:
+To run one cell locally:
 
 ```bash
-python -m evaluation.run_eval \
+python -m agent_search.evaluation.run_eval \
   --dataset browsecomp_plus_structured_full \
   --retriever agent_research_bql_dense_snip \
   --runs-dir runs/<tier> [--limit N] [--only-instances ids.txt]
 ```
 
-Rows append to `runs/<tier>/agent/<dataset>/<model>/<condition>/rows.jsonl`; re-running resumes
-(already-scored instance ids are skipped). The strict-Boolean ablation is the same Sieve
-condition with `BQL_SOFT_FALLBACK=0`; the dense-encoder ladder swaps `DENSE_MODEL=<hf-id>`.
+The alias form does the same thing (`sieve` resolves to `agent_research_bql_dense_snip`;
+`skimsearchagent --help` lists every alias):
 
-**Base configuration guard.** Every paper cell runs `MAX_VISIT_TOKENS=12000
-MAX_SECTION_TOKENS=12000 BM25_BACKEND=pyserini STRUCTURED_BACKEND=lucene MAX_STEPS=100` with
-`k=5` results per search, temperature 0.6, seed 42. The launchers pin these; if you launch
-another way, export them explicitly and verify the first rows' recorded `env_knobs`/`max_steps`
-before scaling up.
+```bash
+skimsearchagent dataset=browsecomp_plus_structured_full strategy=sieve runs_dir=runs/<tier>
+```
+
+Rows append to `runs/<tier>/agent/<dataset>/<model>/<condition>/rows.jsonl` as they finish, so
+re-running the same command resumes and skips the instance ids that already scored. The
+strict-Boolean ablation is the same Sieve condition with `BQL_SOFT_FALLBACK=0`. The dense-encoder
+ladder swaps `DENSE_MODEL=<hf-id>`.
+
+**Base configuration guard.** Every paper cell runs with `MAX_VISIT_TOKENS=12000
+MAX_SECTION_TOKENS=12000 BM25_BACKEND=pyserini STRUCTURED_BACKEND=lucene` in the environment, plus
+`--max-steps 100` on the command line (`max_steps=100` with the key=value launcher), `k=5` results
+per search, temperature 0.6 and seed 42. Note `--max-steps`: `run_eval` defaults to 50, so a paper
+run that omits the flag halves its step budget. The launchers and the `configs/paper/` files pin
+all of this. When launching another way, export the knobs explicitly and check the first rows'
+recorded `env_knobs` and `max_steps` before scaling up.
 
 ## 6. Sharded cluster runs
 
-Full collections are run as SLURM arrays with per-shard vLLM servers:
+Full collections run as SLURM arrays with one vLLM server per shard:
 
 ```bash
 DATASET=browsecomp_plus_structured_full RUNS_DIR=runs/<tier> \
@@ -118,31 +159,40 @@ MODEL=Alibaba-NLP/Tongyi-DeepResearch-30B-A3B \
 bash scripts/shard_cell.sh          # submitter: splits remaining ids, submits itself as an array
 ```
 
-then, when all shards finish:
+When every shard has finished:
 
 ```bash
 python scripts/merge_shards.py --runs-dir runs/<tier> --dataset <ds> \
   --condition <cond> --num-shards N [--model <model-id>]
 ```
 
-Merging dedups by instance id into the canonical `rows.jsonl`. Verify after every merge: exact
-n, unique ids, uniform `max_steps` across rows. `WORKERS` (vLLM concurrency) only affects
-throughput, not results; long-context datasets want fewer workers.
+The merge dedups by instance id into the canonical `rows.jsonl`. Check three things after every
+merge: the exact `n`, that ids are unique, and that `max_steps` is the same across all rows.
+`WORKERS` is vLLM concurrency and only changes throughput, never results. Long-context datasets
+need fewer workers.
 
 ## 7. Forced-answer recovery
 
-Long BrowseComp episodes can exhaust their step budget without emitting an `<answer>`. The
-recovery pass (`scripts/force_answer_backfill.py`, launcher
-`scripts/force_answer_backfill.sbatch`) replays each empty-answer row's terminal context with an
-assistant-prefill forced decode and writes `recovered_answers.jsonl` **next to** (never into)
-`rows.jsonl`. It is idempotent and append-only; all downstream scoring overlays it
-automatically. Run it after a BCP cell lands and before judging.
+Long BrowseComp episodes sometimes spend their whole step budget without emitting an `<answer>`.
+The recovery pass replays each empty-answer row's terminal context with an assistant-prefill
+forced decode:
+
+```bash
+python scripts/force_answer_backfill.py runs/<tier>/agent/<ds>/<model>/<cond>
+```
+
+It takes one or more cell directories as positional arguments, so a whole batch can be passed at
+once. Add `--dry-run` to list what it would recover without spending anything.
+
+The SLURM form is `scripts/force_answer_backfill.sbatch`. It writes `recovered_answers.jsonl`
+**next to** `rows.jsonl`, never into it. It is idempotent and append-only, and everything
+downstream overlays it automatically. Run it after a BrowseComp cell lands and before judging.
 
 ## 8. LLM-as-judge scoring
 
-BrowseComp-Plus accuracy is the benchmark's LLM-judge verdict with an exact-match short circuit
-(judge model configured in `evaluation/llm_judge.py`; wiki collections are exact-match only and
-are never judged):
+BrowseComp-Plus accuracy is the benchmark's own LLM-judge verdict with an exact-match short
+circuit. The judge model defaults to `gpt-4o-mini` (`agent_search/evaluation/llm_judge.py`, or set
+`LLM_JUDGE_MODEL`). The wiki collections are exact-match only and never get judged.
 
 ```bash
 export OPENAI_API_KEY=...
@@ -150,34 +200,41 @@ python scripts/judge_cells.py --datasets browsecomp                 # registry c
 python scripts/judge_cells.py --datasets browsecomp --extra-cell runs/<tier>/agent/<ds>/<model>/<cond>   # non-registry (e.g. transfer backbones)
 ```
 
-Judgments cache per cell as sidecar files; re-running only fills gaps. `scripts/judge_daemon.sh`
-wraps this in a periodic loop for long campaigns.
+Judgments cache per cell as sidecar files, so re-running only fills the gaps. For a long campaign,
+`scripts/judge_daemon.sh` wraps this in a loop that re-judges every 20 minutes by default.
 
 ## 9. Tables, statistics, figures
 
-Statistics: paired exact McNemar for accuracy, paired t-tests for tokens/calls, implemented in
-`scripts/compare_cells.py` and reused everywhere — no metric logic is duplicated.
+The statistics are paired exact McNemar for accuracy and paired t-tests for tokens and calls. Both
+live in `scripts/compare_cells.py` and everything else calls into it, so no metric logic is
+duplicated anywhere.
 
-`analysis/make_paper_tables.py` recomputes every numeric table cell of the paper from `runs/`
-(`--check` diffs against the paper's LaTeX tables, `--emit` regenerates them, `--selftest`
-cross-checks the metric path). It reads the paper's table sources from `Boolean_agent_paper/tables/`
-at the repo root; that tree is not part of this code release, so run these commands with the
-paper's table files in place (released with the camera-ready). The paper's figure scripts draw
-from the identical loaders.
+`analysis/make_paper_tables.py` recomputes every numeric table cell from `runs/`:
+
+```bash
+python analysis/make_paper_tables.py --check          # recompute and diff against the live .tex
+python analysis/make_paper_tables.py --emit OUTDIR    # regenerate the tables into OUTDIR
+python analysis/make_paper_tables.py --selftest       # cross-check the metric path
+```
+
+It reads the paper's table sources from `Boolean_agent_paper/tables/` at the repo root, and that
+tree is not part of this code release. Run these with the paper's table files in place; they ship
+with the camera-ready. The figure scripts read through the identical loaders.
 
 ## 10. Configuration reference
 
 | knob | paper value | where |
 |---|---|---|
-| results per search (`k`) | 5 | run config |
-| read ceiling (visit & section) | 12,000 tokens | `MAX_VISIT_TOKENS` / `MAX_SECTION_TOKENS` |
-| step cap | 100 | `MAX_STEPS` |
-| temperature / seed | 0.6 / 42 | run config |
+| results per search | 5 | the `listing:` knobs, e.g. `BM25_VISIT_TOPK` / `DENSE_VISIT_TOPK` (the Search-Fetch baselines default to 10 via `BM25_FETCH_TOPK` / `DENSE_FETCH_TOPK`) |
+| rank-metric cutoffs | 1, 3, 5, 10 | `--k` (report cutoffs only; it does not change what the agent sees) |
+| read ceiling (visit and section) | 12,000 tokens | `MAX_VISIT_TOKENS` / `MAX_SECTION_TOKENS` |
+| step cap | 100 | `--max-steps` (a run_eval flag, `max_steps=` in the launcher; there's no environment variable for it, and the default is 50) |
+| temperature / seed | 0.6 / 42 | `--temperature` / `--seed` |
 | BM25 backend | `pyserini` (Lucene) | `BM25_BACKEND` |
 | structured/BQL backend | `lucene` | `STRUCTURED_BACKEND` |
 | default dense encoder | `BAAI/bge-base-en-v1.5` | `DENSE_MODEL` |
-| Boolean soft fallback | on (paper default) | `BQL_SOFT_FALLBACK` (0 = strict ablation) |
-| snippet length | 25 tokens | condition config |
+| Boolean soft fallback | on | `BQL_SOFT_FALLBACK` (0 = strict ablation) |
+| snippet length | 32 whitespace tokens | `SNIPPET_TOKENS` (the pre-release value was 25 tokens with a character clip) |
 
-Every run directory records its resolved configuration (`config.json`, per-row `env_knobs`) —
-trust what the worker recorded over what you intended to launch.
+Every run directory records what it resolved, in `config.json` and the per-row
+`env_knobs`. When those disagree with the intended invocation, the recorded values are correct.

@@ -1,6 +1,6 @@
 """Indri retrieval model: Dirichlet-smoothed scoring over the `indri` backend's index.
 
-Source of truth: `docs/indri_ql_reference.md` (belief-combination math, Dirichlet
+Source of truth: `agent_search/prompts/skills/indri_doc.md` (belief-combination math, Dirichlet
 formula, operator semantics). See `parser.py` for the AST and its own Deviations
 section (parsing-only divergences). This module implements the SCORER: leaf beliefs
 via Dirichlet-smoothed query likelihood, belief operators combining child log-beliefs
@@ -8,7 +8,7 @@ per the reference's formulas, field-scoped counting/smoothing, filters (`#filreq
 `#filrej`/date operators) as per-document hard gates, and a bounded candidate-pool
 ranking pass.
 
-## Deviations (from docs/indri_ql_reference.md)
+## Deviations (from agent_search/prompts/skills/indri_doc.md)
 - **Unseen-term smoothing epsilon**: official Indri discounts collection probability
   for OOV terms via its own scheme; we use `P(t|C) = max(cf, 0.5) / total` — i.e. an
   unseen term (`cf == 0`) is treated as if it occurred exactly 0.5 times in the
@@ -1110,7 +1110,7 @@ def load_or_build(units: Sequence[CodeUnit], index_root: Optional[str] = None,
 
 
 class IndriIndexBuilder:
-    """Offline persister for the Indri index, so `evaluation/build_indexes.py` can pre-build
+    """Offline persister for the Indri index, so `agent_search/evaluation/build_indexes.py` can pre-build
     it exactly like BQL's `BQLIndexBuilder`: `.index(units, key)` writes a prewarmed executor
     to disk; `.is_cached(key)` reports whether it already exists (skip the corpus parse). The
     agent (research_indri) loads it back via `load_or_build`."""

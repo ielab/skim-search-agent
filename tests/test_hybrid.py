@@ -255,7 +255,7 @@ def test_hybridvisit_zero_hits_after_prior_search_notes_previous_results():
 def test_hybridvisit_marks_hits_seen():
     ws = _hybrid_visit(bm25_ranking=("d_harbor", "d_flat"))
     ws.run("hybrid_search", {"query": "harbor"})
-    assert {"d_harbor", "d_flat"} <= ws.seen
+    assert {"d_harbor", "d_flat"} <= set(ws.seen)
 
 
 def test_hybridvisit_run_aliases_search_and_visit_names():
@@ -376,7 +376,7 @@ def test_hybridfetchsnip_topk_marks_hits_seen_immediately():
     assert ws.last_hits == []
     ws.run("hybrid_search_snip", {"query": "harbor festival annual event history"})
     assert ws.last_hits
-    assert set(ws.last_hits) <= ws.seen
+    assert set(ws.last_hits) <= set(ws.seen)
 
 
 def test_hybridfetchsnip_empty_query_yields_no_hits():
@@ -572,8 +572,8 @@ def test_research_hybrid_fetch_snip_workspace_builds_and_answers_via_stub(tmp_pa
 # =============================================================================================
 
 def test_research_hybrid_fetch_snip_smoke_via_fixture_dataset(tmp_path, fake_dense_stack):
-    from evaluation.config import DatasetArgs, EvaluationArgs, OutputArgs, RetrieverArgs, RunConfig
-    from evaluation.run_eval import run_config
+    from agent_search.evaluation.config import DatasetArgs, EvaluationArgs, OutputArgs, RetrieverArgs, RunConfig
+    from agent_search.evaluation.run_eval import run_config
 
     cfg = RunConfig(
         dataset=DatasetArgs(name="browsecomp_plus_fixture"),
@@ -593,8 +593,8 @@ def test_research_hybrid_smoke_via_fixture_dataset(tmp_path, fake_dense_stack):
     """SAME offline fixture smoke as above, for the plain visit-mode condition — asserts only
     that the episode completes cleanly (see section 8's docstring for why KeywordPolicy never
     exercises visit_h here)."""
-    from evaluation.config import DatasetArgs, EvaluationArgs, OutputArgs, RetrieverArgs, RunConfig
-    from evaluation.run_eval import run_config
+    from agent_search.evaluation.config import DatasetArgs, EvaluationArgs, OutputArgs, RetrieverArgs, RunConfig
+    from agent_search.evaluation.run_eval import run_config
 
     cfg = RunConfig(
         dataset=DatasetArgs(name="browsecomp_plus_fixture"),

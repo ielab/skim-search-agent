@@ -13,11 +13,11 @@
 # INSTANCE-SHARDING: split ONE evaluation cell's remaining (not-yet-scored) episodes
 # across NUM_SHARDS parallel SLURM jobs, each serving its own vLLM on its own GPU, then
 # merge back with scripts/merge_shards.py. Purely ADDITIVE: relies only on the new
-# `--only-instances` flag on evaluation/run_eval.py (evaluation/run_eval.py's normal,
+# `--only-instances` flag on agent_search/evaluation/run_eval.py (agent_search/evaluation/run_eval.py's normal,
 # non-sharded call path is untouched) and on distinct per-shard run-dirs so appends
 # never collide with the canonical cell or with each other while shards are in flight.
 #
-# Dual-mode, same pattern as scripts/eval_agent_suite.sh + scripts/run.sh:
+# Dual-mode, same pattern as scripts/run.sh:
 #   `bash scripts/shard_cell.sh`  (or a plain `sbatch scripts/shard_cell.sh`, no --array)
 #       = SUBMITTER: locates the cell, computes remaining = all_ids - done_ids, writes
 #         NUM_SHARDS id-files, and submits itself as a SLURM array (one GPU task/shard).
@@ -115,7 +115,7 @@ TEMPERATURE="${TEMPERATURE:-0.6}"
 # MAX_STEPS (all deleted after repair). Pass 50 explicitly if a
 # non-paper pilot ever wants it.
 MAX_STEPS="${MAX_STEPS:-100}"
-DOMAIN=$("$PYTHON" -c "from evaluation.datasets import dataset_domain; print(dataset_domain('$DATASET'))" 2>/dev/null || echo code)
+DOMAIN=$("$PYTHON" -c "from agent_search.evaluation.datasets import dataset_domain; print(dataset_domain('$DATASET'))" 2>/dev/null || echo code)
 if [ "$DOMAIN" = "general" ]; then
   WORKERS="${WORKERS:-8}"; JOB_MEM="${JOB_MEM:-256g}"
 else
@@ -131,7 +131,7 @@ JOB_CPUS="${JOB_CPUS:-4}"
 EXCLUDE_NODES="${EXCLUDE_NODES:-g047}"
 
 MODEL_TAG="${MODEL##*/}"
-# CANONICAL cell dir — the SAME layout evaluation/config.py:results_dir_for computes
+# CANONICAL cell dir — the SAME layout agent_search/evaluation/config.py:results_dir_for computes
 # (kind=agent, since CONDITION is an agent_* condition here): <RUNS_DIR>/agent/<DATASET>/<MODEL_TAG>/<CONDITION>
 CANONICAL_DIR="$RUNS_DIR/agent/$DATASET/$MODEL_TAG/$CONDITION"
 CANONICAL_ROWS="$CANONICAL_DIR/rows.jsonl"
@@ -164,7 +164,7 @@ if [ -n "${SLURM_ARRAY_TASK_ID:-}" ]; then
   run_eval_shard () {
     # NEVER pass --limit here (see the NOTE at the top of this file) — --only-instances
     # already carries the exact shard partition of `remaining`.
-    "$PYTHON" -m evaluation.run_eval \
+    "$PYTHON" -m agent_search.evaluation.run_eval \
       --dataset "$DATASET" --retriever "$CONDITION" --level "$LEVEL" \
       --policy llm --backend api --api-base "$API_BASE" \
       --model "$MODEL" ${DENSE_MODEL:+--dense-model "$DENSE_MODEL"} \
@@ -187,7 +187,7 @@ if [ -n "${SLURM_ARRAY_TASK_ID:-}" ]; then
   fi
 
   # STEP 0 (mirrors run.sh): materialize this run's PERSISTENT indexes before vLLM.
-  # Idempotent/resumable (evaluation/build_indexes.py skips already-built work), and in
+  # Idempotent/resumable (agent_search/evaluation/build_indexes.py skips already-built work), and in
   # the intended sharding use case the canonical cell already built whatever persistent
   # index its condition needs (it has SOME scored rows already) — so this is normally a
   # fast no-op. Residual risk: sharding a condition/dataset pair with NO prior scored
@@ -196,12 +196,12 @@ if [ -n "${SLURM_ARRAY_TASK_ID:-}" ]; then
   # concurrent-build path); safest of all: run scripts/build_indexes.sh once, un-sharded,
   # before the first shard_cell.sh submission for a new condition.
   if [ "${PREBUILD:-1}" != "0" ]; then
-    kinds=$("$PYTHON" -c "from evaluation.build_indexes import prebuildable_for; print(' '.join(prebuildable_for('$CONDITION')))" 2>/dev/null || echo "")
+    kinds=$("$PYTHON" -c "from agent_search.evaluation.build_indexes import prebuildable_for; print(' '.join(prebuildable_for('$CONDITION')))" 2>/dev/null || echo "")
     for kind in $kinds; do
       echo ">> [step 0] building persistent '$kind' index (once; skips if already built) ..."
       ( unset AGENT_SEARCH_DENSE_DEVICE
         export TOKENIZERS_PARALLELISM=true
-        "$PYTHON" -m evaluation.build_indexes --dataset "$DATASET" --retriever "$kind" \
+        "$PYTHON" -m agent_search.evaluation.build_indexes --dataset "$DATASET" --retriever "$kind" \
           --index-root "$INDEX_ROOT" --repo-cache "$REPO_CACHE" \
           ${DENSE_MODEL:+--model "$DENSE_MODEL"} ) \
       || { echo "ERROR: [step 0] '$kind' index build FAILED — NOT serving vLLM." >&2; exit 1; }
@@ -270,8 +270,8 @@ dataset, canonical_rows, shard_root, num_shards, limit = sys.argv[1:6]
 num_shards = int(num_shards)
 limit = int(limit) if limit else None
 
-from evaluation.datasets import load_dataset_by_name
-from evaluation.run_eval import _load_rows
+from agent_search.evaluation.datasets import load_dataset_by_name
+from agent_search.evaluation.run_eval import _load_rows
 
 instances = load_dataset_by_name(dataset, limit=limit)
 all_ids = [inst.instance_id for inst in instances]
@@ -322,4 +322,4 @@ for i in $(seq 0 $n); do
   echo ">>   ${jid}_${i} -> $SHARD_ROOT/shard_${i}of${NUM_SHARDS}.txt (vLLM on :$((8101 + i)))"
 done
 echo ">> cancel all: scancel $jid ; watch: squeue -u \$USER"
-echo ">> when done, merge back: ./envs/bin/python scripts/merge_shards.py --runs-dir $RUNS_DIR --dataset $DATASET --condition $CONDITION --num-shards $NUM_SHARDS"
+echo ">> when done, merge back: python scripts/merge_shards.py --runs-dir $RUNS_DIR --dataset $DATASET --condition $CONDITION --num-shards $NUM_SHARDS"

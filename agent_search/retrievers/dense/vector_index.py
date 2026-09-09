@@ -110,6 +110,7 @@ class VectorIndex:
 
     def __init__(self, doc_ids: Sequence[str]):
         self.doc_ids = list(doc_ids)
+        self.meta: dict = {}       # extra caller-supplied metadata (see save_index/load_index)
 
     def search(self, qv, k: int) -> list[str]:        # qv: 1-D normalized float vector
         raise NotImplementedError
@@ -300,16 +301,25 @@ def build_index(emb, doc_ids: Sequence[str], backend: Optional[str] = None) -> V
         return FlatIndex.build(emb, list(doc_ids))    # any ANN failure -> exact flat
 
 
-def save_index(index: VectorIndex, cache_dir: str) -> None:
+def save_index(index: VectorIndex, cache_dir: str, extra_meta: Optional[dict] = None) -> None:
+    """Persist `index`. `extra_meta` (e.g. `{"corpus_fingerprint": ...}`) is merged into
+    meta.json alongside the backend/n/format fields every cache already writes -- an
+    additive sidecar, so an old reader that doesn't know a key just ignores it, and a new
+    reader gets it back via the loaded index's `.meta` dict (see `load_index`)."""
     os.makedirs(cache_dir, exist_ok=True)
     _atomic_json(os.path.join(cache_dir, "doc_ids.json"), index.doc_ids)
     index._save_payload(cache_dir)
+    meta = {"backend": index.backend, "n": len(index.doc_ids), "format": 2}
+    meta.update(extra_meta or {})
     # meta LAST: a reader that sees meta.json is guaranteed the rest is complete.
-    _atomic_json(os.path.join(cache_dir, "meta.json"),
-                 {"backend": index.backend, "n": len(index.doc_ids), "format": 2})
+    _atomic_json(os.path.join(cache_dir, "meta.json"), meta)
 
 
 def load_index(cache_dir: str) -> Optional[VectorIndex]:
+    """Load a persisted index; the FULL meta.json dict (backend/n/format plus any
+    caller-supplied `extra_meta` from `save_index`, e.g. `corpus_fingerprint`) is exposed
+    on the returned index as `.meta`, so a caller can re-validate cache freshness without
+    re-reading the file itself."""
     ids_path = os.path.join(cache_dir, "doc_ids.json")
     meta_path = os.path.join(cache_dir, "meta.json")
     if not os.path.exists(ids_path):
@@ -318,15 +328,69 @@ def load_index(cache_dir: str) -> Optional[VectorIndex]:
         doc_ids = json.load(fh)
     if os.path.exists(meta_path):
         with open(meta_path) as fh:
-            backend = json.load(fh).get("backend", "flat")
+            meta = json.load(fh)
+        backend = meta.get("backend", "flat")
         cls = _BACKENDS.get(backend, FlatIndex)
         if cls is not FlatIndex and _faiss() is None:
             return None                               # ANN payload but no faiss -> rebuild flat
-        return cls._load_payload(cache_dir, doc_ids)
+        idx = cls._load_payload(cache_dir, doc_ids)
+        idx.meta = meta
+        return idx
     # legacy cache (pre-backends): a bare float32 embeddings.npy is a flat index.
     if os.path.exists(os.path.join(cache_dir, FlatIndex.PAYLOAD)):
         return FlatIndex._load_payload(cache_dir, doc_ids)
     return None
+
+
+class ExternalFaissIndex(_FaissIndex):
+    """A prebuilt FAISS index from outside this library: `<dir>/index.faiss` plus
+    `<dir>/index.lookup.pkl` (the docid list aligned to FAISS positions, the layout ITER's
+    `build_ann_index.py` writes). Memory-mapped and read-only; `AGENT_SEARCH_ANN_EF_SEARCH`
+    overrides an HNSW index's efSearch (0 / unset keeps the value baked at build time)."""
+    backend = "external_faiss"
+
+    @classmethod
+    def open(cls, path: str) -> "ExternalFaissIndex":
+        import pickle
+        faiss = _faiss()
+        if faiss is None:
+            raise RuntimeError("faiss is required to open an external FAISS index")
+        d = path if os.path.isdir(path) else os.path.dirname(path)
+        index_path = path if path.endswith(".faiss") else os.path.join(d, "index.faiss")
+        lookup = os.path.join(d, "index.lookup.pkl")
+        with open(lookup, "rb") as fh:
+            doc_ids = [str(x) for x in pickle.load(fh)]
+        # Load into RAM by default: an HNSW search touches thousands of random pages, and paging
+        # a 46 GB index in from a network filesystem makes every early query take seconds.
+        # AGENT_SEARCH_FAISS_MMAP=1 memory-maps instead (less RAM, slow until the pages are hot).
+        if os.environ.get("AGENT_SEARCH_FAISS_MMAP", "") in ("1", "true", "yes"):
+            index = faiss.read_index(index_path, faiss.IO_FLAG_MMAP | faiss.IO_FLAG_READ_ONLY)
+        else:
+            size_gb = os.path.getsize(index_path) / 1e9
+            if size_gb > 2:
+                import sys
+                print(f"  [dense] loading external index {index_path} ({size_gb:.0f} GB) into RAM ...",
+                      file=sys.stderr, flush=True)
+            index = faiss.read_index(index_path)
+        ef = int(os.environ.get("AGENT_SEARCH_ANN_EF_SEARCH", "0") or 0)
+        if ef > 0 and hasattr(index, "hnsw"):
+            index.hnsw.efSearch = ef
+        if index.ntotal != len(doc_ids):
+            raise RuntimeError(f"{index_path}: {index.ntotal} vectors but {len(doc_ids)} ids in {lookup}")
+        out = cls(index, doc_ids)
+        out.meta = {"backend": cls.backend, "external": os.path.abspath(d), "n": len(doc_ids)}
+        return out
+
+
+def load_external_index(path: str) -> VectorIndex:
+    """`DENSE_INDEX_PATH`: a directory holding either this library's own persisted index
+    (doc_ids.json + meta.json) or an ITER-style `index.faiss` + `index.lookup.pkl`."""
+    if os.path.isdir(path) and os.path.exists(os.path.join(path, "doc_ids.json")):
+        idx = load_index(path)
+        if idx is None:
+            raise RuntimeError(f"{path}: incomplete persisted index")
+        return idx
+    return ExternalFaissIndex.open(path)
 
 
 def index_exists(cache_dir: str) -> bool:

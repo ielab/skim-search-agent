@@ -17,8 +17,8 @@ Two moves:
                             capped ~40 lines/part.
 
 The agent then commits to a concrete fix (a <fix> block; see prompts/tasks/taskfix.md), scored
-by evaluation/fix_scoring.py. The retrieval engines / localization ACI are GONE for code — this
-module is the code arm. (The deep-research arm keeps its own tools; see workspace.py.)
+by agent_search/evaluation/fix_scoring.py. The retrieval engines / localization ACI are GONE for code — this
+module is the code arm. (The deep-research arm keeps its own tools, in doc_research.py/doc_indri.py/doc_bm25_dci.py/doc_dci.py.)
 """
 from __future__ import annotations
 

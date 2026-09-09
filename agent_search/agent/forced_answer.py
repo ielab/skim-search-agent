@@ -6,9 +6,9 @@ not the offline-recovery-specific prompt reconstruction / row I/O, which stays i
 backfill script). In short: `agent_search/agent/loop.py`'s `run_episode` reserves its
 LAST allowed turn to inject a "STEP BUDGET REACHED" nudge; on a served-vLLM policy the
 model still tool-calls instead of answering 25-40% of the time on hard episodes, which
-used to leave `final_answer == ""`. This module is the ONE mechanism both the OFFLINE
-backfill script and (as of this change) the LIVE inline loop use to force an answer out
-of a model that just ignored that nudge:
+would otherwise leave `final_answer == ""`. This module is the ONE mechanism both the
+OFFLINE backfill script and the LIVE inline loop use to force an answer out of a model
+that ignored that nudge:
 
   PRIMARY — ASSISTANT PREFILL (`call_prefill`): append an `assistant`-role message whose
   content is the OPEN tag `"<answer>"` and ask vLLM's OpenAI-compatible
@@ -25,21 +25,28 @@ of a model that just ignored that nudge:
   `agent_search.agent.loop._extract_answer`'s own docstring for why rfind, not the first
   match).
 
-ASYMMETRY WITH THE SDK DRIVER: `continue_final_message`/`add_generation_prompt` are vLLM-
-specific `ChatCompletionRequest` fields (see
-`envs/lib/python3.10/site-packages/vllm/entrypoints/openai/chat_completion/protocol.py`).
+ASYMMETRY WITH THE SDK DRIVER: `continue_final_message`/`add_generation_prompt` are
+vLLM-specific `ChatCompletionRequest` fields, part of vLLM's OpenAI-compatible server.
 A hosted API model (OpenAI/Gemini via the Agents SDK) has no equivalent assistant-prefill
 affordance, so `agent_search/agent/sdk_driver.py`'s `MaxTurnsExceeded` branch cannot use
 this module at all — it instead asks-and-retries (up to 2 strict "Output ONLY
 <answer>...</answer>" retries), tagging `elicitation="ask_retry_inline"`. This module's
 mechanism is used ONLY by the loop driver (a served-vLLM / OpenAI-compatible policy,
 which is what `AGENT_DRIVER=loop` actually runs live) and by the offline backfill script.
+
+USAGE ACCOUNTING + RETRIES: `call_prefill`/`call_plain_ask` are the LARGEST prompt of an
+episode (the whole conversation, re-sent once more) — each records its `resp.usage` via
+`agent_search.models.backends._record_usage` (same `_cached_tokens`/`_reasoning_tokens`
+decomposition `backends.py` itself uses) so this forcing call is never missing from cost
+accounting. Both calls also go through `backends._with_retries` (exponential backoff on a
+transient 429/5xx/connection/timeout failure), the SAME helper `backends.py`'s own
+`client.chat.completions.create(...)` calls use.
 """
 from __future__ import annotations
 
 from typing import Optional, Tuple
 
-# --- tuning defaults (identical to the pre-extraction values in force_answer_backfill.py) -------
+# --- tuning defaults (shared with force_answer_backfill.py) -------
 
 DEFAULT_PREFILL_MAX_TOKENS = 200         # the answer span only — no room for tool-call syntax
 DEFAULT_FALLBACK_MAX_TOKENS = 512        # the ONE plain-ask fallback, same cap the harness uses
@@ -71,6 +78,20 @@ def prefill_messages_for(messages: list) -> list:
     return messages + [{"role": "assistant", "content": "<answer>"}]
 
 
+def _record_call_usage(resp) -> None:
+    """Record `resp.usage` on the shared per-episode ledger (agent_search.models.backends) — the
+    largest prompt of an episode (the whole conversation, re-sent for the forcing call) must not
+    be missing from cost accounting just because it went through this module instead of
+    backends.py's own generate() callables. Lazy import: avoids a module-load-time circular
+    import (backends.py doesn't import this module, but keeping the import local mirrors
+    `elicit_final_answer`'s own lazy import of `loop._extract_answer` just below)."""
+    from agent_search.models.backends import _cached_tokens, _reasoning_tokens, _record_usage
+    u = getattr(resp, "usage", None)
+    if u is not None:
+        _record_usage(getattr(u, "prompt_tokens", 0), getattr(u, "completion_tokens", 0),
+                      _cached_tokens(u), _reasoning_tokens(u))
+
+
 def call_prefill(client, model: str, messages: list, *, max_tokens: int = DEFAULT_PREFILL_MAX_TOKENS,
                  temperature: float = DEFAULT_TEMPERATURE, seed: Optional[int] = DEFAULT_SEED) -> str:
     """The PRIMARY forcing call: `messages` + an open `<answer>` assistant turn, continued (not
@@ -78,11 +99,16 @@ def call_prefill(client, model: str, messages: list, *, max_tokens: int = DEFAUL
     exclusive per vLLM's `ChatCompletionRequest` validator — see module docstring for the exact
     protocol fields and vLLM version). Stops at `"</answer>"`. Returns the raw continuation text —
     the answer span itself, tag-free by construction (never "" unless the model truly generated
-    nothing, which the ONE plain-ask fallback in `elicit_final_answer` handles)."""
-    resp = client.chat.completions.create(
+    nothing, which the ONE plain-ask fallback in `elicit_final_answer` handles).
+
+    Routed through `backends._with_retries` (transient 429/5xx/connection/timeout only — see
+    module docstring) and records `resp.usage` on the shared per-episode ledger."""
+    from agent_search.models.backends import _with_retries
+    resp = _with_retries(lambda: client.chat.completions.create(
         model=model, messages=prefill_messages_for(messages), max_tokens=max_tokens,
         temperature=temperature, seed=seed, stop=["</answer>"],
-        extra_body={"add_generation_prompt": False, "continue_final_message": True})
+        extra_body={"add_generation_prompt": False, "continue_final_message": True}))
+    _record_call_usage(resp)
     return resp.choices[0].message.content or ""
 
 
@@ -90,10 +116,14 @@ def call_plain_ask(client, model: str, messages: list, *, max_tokens: int = DEFA
                    temperature: float = DEFAULT_TEMPERATURE, seed: Optional[int] = DEFAULT_SEED) -> str:
     """The ONE fallback call (only when `call_prefill`'s continuation is empty/whitespace): a
     normal, non-prefilled completion asking the model to emit its own `<answer>...</answer>`
-    (`FALLBACK_MSG` appended as the next user turn)."""
+    (`FALLBACK_MSG` appended as the next user turn).
+
+    Routed through `backends._with_retries` and records `resp.usage`, same as `call_prefill`."""
+    from agent_search.models.backends import _with_retries
     msgs = messages + [{"role": "user", "content": f"<tool_response>\n{FALLBACK_MSG}\n</tool_response>"}]
-    resp = client.chat.completions.create(
-        model=model, messages=msgs, max_tokens=max_tokens, temperature=temperature, seed=seed)
+    resp = _with_retries(lambda: client.chat.completions.create(
+        model=model, messages=msgs, max_tokens=max_tokens, temperature=temperature, seed=seed))
+    _record_call_usage(resp)
     return resp.choices[0].message.content or ""
 
 
@@ -107,9 +137,9 @@ def elicit_final_answer(messages: list, client, model: str, *,
     empty/whitespace. Returns `(answer_text, method_tag, raw_text)`:
       - `method_tag` is `"prefill"` (the primary call worked), `"plain_ask_fallback"` (the
         fallback call worked), or `"empty"` (both calls came back with no usable `<answer>`).
-      - `raw_text` is the raw text of whichever call produced `answer_text` (kept for audit —
-        e.g. `scripts/force_answer_backfill.py`'s `recovered_answers.jsonl` `raw_continuation`
-        field), or the fallback's raw text when both fail.
+      - `raw_text` is the raw text of whichever call produced `answer_text` (kept for
+        provenance — e.g. `scripts/force_answer_backfill.py`'s `recovered_answers.jsonl`
+        `raw_continuation` field), or the fallback's raw text when both fail.
 
     `extract_fn` extracts an `<answer>...</answer>` span from the fallback's raw text; defaults
     to `agent_search.agent.loop._extract_answer` (imported lazily to avoid a module-load-time

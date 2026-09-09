@@ -16,5 +16,5 @@ echo "     #  GPU dense retrieval: pip install torch --index-url https://downloa
 echo
 echo ">> then VERIFY:"
 echo "     python -m pytest -q                       # pure-Python core (no Java)"
-echo "     python scripts/debug/smoke.py bm25_local        # eval pipeline, dep-free"
-echo "     python scripts/debug/smoke.py bm25_pyserini     # the real Pyserini indexing path"
+echo "     skimsearchagent dataset=doc_fixture strategy=sieve_bm25    # eval pipeline, dep-free"
+echo "     skimsearchagent dataset=doc_fixture strategy=bm25_lucene   # the real Pyserini indexing path"

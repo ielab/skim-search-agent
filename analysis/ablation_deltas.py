@@ -8,13 +8,13 @@ every comparison cell DIRECTLY against the full-method cell, on the instance set
 actually share, using the exact same EM/recovery-overlay/McNemar machinery as compare_cells.py.
 
 Reuses (does not reimplement):
-  - evaluation.metrics.answer_em            -- canonical EM, via scripts.compare_cells.metrics()
+  - agent_search.evaluation.metrics.answer_em            -- canonical EM, via scripts.compare_cells.metrics()
   - scripts.force_answer_backfill.load_rows_with_recovery -- recovery overlay (sidecar-safe)
   - scripts.compare_cells.metrics()          -- per-instance em/judge dict from overlaid rows
   - scripts.compare_cells.mcnemar_p()        -- exact two-sided McNemar on discordant pairs
   - scripts.compare_cells.load_qrels/load_judge_cache/cell_dir/cell_rows
 
-Run: PYTHONPATH=. envs/bin/python analysis/ablation_deltas.py
+Run: PYTHONPATH=. python analysis/ablation_deltas.py
 Writes analysis/ablation_deltas.md and prints the results-section sentences for Finding 2.
 """
 from __future__ import annotations

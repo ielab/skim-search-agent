@@ -117,14 +117,19 @@ def units_from_documents(docs: Sequence[Mapping[str, object]]) -> list[CodeUnit]
                 section = " ".join(h for h, _ in sections if h)
         if not (title or section or body or sections):
             continue
-        # The bm25/dense searchable blob is title+body ONLY — NOT the `section` field.
-        # FAIRNESS for the flat-vs-structured pair: a structured doc carries `section` (its joined
-        # headings) while its flat twin does not, but their `text`/`body` is byte-identical and
-        # already contains those headings (`## History` ...). Including the standalone `section`
-        # field here would double-count heading tokens in the structured arm only, giving bm25/
-        # dense a TF advantage the flat arm lacks — a confound. `section` stays on `u.section` for
+        # The bm25/dense searchable blob is `code` ALONE, and every engine indexes
+        # `f"{qualname} {code}"` (qualname = title). So `code` is BODY ONLY here — NOT
+        # title+body: title already reaches the index once via `qualname`, and folding it
+        # into `code` too would count every title token TWICE (a TF advantage no other
+        # unit kind gets — `units_from_python_source`'s `code` never repeats `qualname`
+        # either). FAIRNESS for the flat-vs-structured pair: a structured doc carries
+        # `section` (its joined headings) while its flat twin does not, but their
+        # `text`/`body` is byte-identical and already contains those headings
+        # (`## History` ...). Including the standalone `section` field here would
+        # double-count heading tokens in the structured arm only, giving bm25/dense a TF
+        # advantage the flat arm lacks — a confound. `section` stays on `u.section` for
         # BQL's IN(section,·) to scope; it just doesn't inflate the lexical/dense blob.
-        code = "\n".join(part for part in (title, body) if part)
+        code = body
         path = str(d.get("path") or d.get("url") or doc_id)
         units.append(CodeUnit(
             doc_id=doc_id,

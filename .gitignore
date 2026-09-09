@@ -1,8 +1,9 @@
 .idea/easycode.ignore
 /.idea
 
-# Local environment / secrets
+# Local environment / secrets / per-machine agent notes
 envs/
+.venv/
 .env
 CLAUDE.md
 
@@ -13,11 +14,6 @@ runs/
 logs/
 slurm_logs/
 
-# Internal working files — never part of the public release
-docs/RELEASE_CHECKLIST.md
-_audit_tmp/
-*.premerge.bak
-
 # Python
 __pycache__/
 *.pyc
@@ -26,3 +22,16 @@ __pycache__/
 /demo/app/node_modules
 /demo/app/dist
 .DS_Store
+build/
+dist/
+
+# Local working material (slides, ad-hoc outputs, test reports) — never part of the release
+*.pptx
+report.xml
+*.junit.xml
+comparison_result.md
+analysis/.compare_cache/
+analysis/paper_tables_cache.json
+envs-train/
+train_data/
+models/

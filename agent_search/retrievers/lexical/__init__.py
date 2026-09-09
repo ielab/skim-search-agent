@@ -7,7 +7,7 @@ default local) to a built engine. Shared by:
   - `agent_search.agent.retriever.AgentRetriever.index()` (the real per-episode construction
     site for the bm25/bm25dci/bm25fetch/bm25q/bm25fetchsnip arms — supplies a real
     `index_root`/`rebuild`/corpus `key` so a `pyserini` backend loads/persists the SAME
-    on-disk Lucene index `evaluation/build_indexes.py --retriever bm25_pyserini` pre-builds).
+    on-disk Lucene index `agent_search/evaluation/build_indexes.py --retriever bm25_pyserini` pre-builds).
   - Every doc-arm workspace's `engine=None` fallback default (agent_search.agent.tools.
     doc_research.Bm25Visit/Bm25FetchWorkspace/Bm25FetchSnipWorkspace, agent_search.agent.
     tools.doc_bm25_dci.Bm25DciWorkspace) — so a workspace built WITHOUT an explicit `engine`
@@ -47,5 +47,11 @@ def build_bm25_engine(units: Sequence[CodeUnit], index_root: str = "indexes",
     if backend not in ("local", ""):
         raise ValueError(
             f"unknown BM25_BACKEND={backend!r} — choose 'local' (default) or 'pyserini'.")
+    if getattr(units, "lazy", False):
+        from agent_search.core.errors import SetupError
+        raise SetupError(
+            f"corpus key {key!r} is an on-disk document store; the in-memory BM25 cannot load it. "
+            f"Use BM25_BACKEND=pyserini with BM25_INDEX_PATH (retrieval.bm25_backend / "
+            f"retrieval.bm25_index) pointing at a prebuilt Lucene index.")
     from agent_search.retrievers.lexical.bm25 import BM25Local
     return BM25Local().index(units, key=key)

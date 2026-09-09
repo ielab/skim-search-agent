@@ -2,7 +2,7 @@
 
 Faithful (documented-deviations) reimplementation of Indri Query Language semantics:
 parsing (`parser.py`), index building (`index.py`) and Dirichlet-smoothed scoring
-(`model.py`). See `docs/indri_ql_reference.md` for the source-of-truth operator
+(`model.py`). See `agent_search/prompts/skills/indri_doc.md` for the source-of-truth operator
 syntax and belief-combination math this package implements.
 
 This package is strictly ADDITIVE: it imports from `agent_search.corpus.units`

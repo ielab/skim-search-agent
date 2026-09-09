@@ -17,6 +17,10 @@ Mechanism under test:
      executor (deterministic hash-based stub encoder — no model download, no network), plus the
      full `AgentRetriever.index()` wiring (missing-cache fail-loud, and a stubbed-encoder
      success path).
+  8. Dense-ONLY ordering never DROPS a candidate absent from the dense side: `dense_belief.
+     DenseBelief.score` gives a missing id the pool-minimum score (never fabricated) instead
+     of omitting it, and `fuse_ranked_dense_only`/`fuse_coverage_tiers_dense_only` append any
+     still-missing candidates after the dense-ranked ones, in their incoming order.
 
 CPU-only; a small synthetic corpus mirroring tests/test_bql_visit.py's fixture shape.
 """
@@ -30,8 +34,8 @@ import pytest
 
 from agent_search.corpus.units import CodeUnit
 from agent_search.retrievers.structural.bql.dense_fuse import (
-    RRF_K, bql_dense_enabled, dense_rank_for_candidates, fuse_coverage_tiers, fuse_ranked,
-    rrf_fuse)
+    RRF_K, bql_dense_enabled, dense_rank_for_candidates, fuse_coverage_tiers,
+    fuse_coverage_tiers_dense_only, fuse_ranked, fuse_ranked_dense_only, rrf_fuse)
 from agent_search.retrievers.structural.bql.executor import StructuralExecutor
 from agent_search.retrievers.structural.indri.dense_belief import DenseBelief
 
@@ -469,6 +473,7 @@ def test_agentretriever_bqldensesnip_end_to_end_offline_smoke(tmp_path, monkeypa
 
     stub_model = "stub/bqldensesnip-model"
     monkeypatch.setattr(dense_belief_mod, "DEFAULT_MODEL", stub_model)
+    monkeypatch.setenv("DENSE_MODEL", stub_model)   # the ONE dense model for the run
     monkeypatch.setitem(dense_mod._ENCODER_CACHE, (stub_model, "auto", 1024), StubEncoder())
 
     corpus_units = _corpus()
@@ -561,6 +566,7 @@ def test_agentretriever_bqldensefetch_end_to_end_offline_smoke(tmp_path, monkeyp
 
     stub_model = "stub/bqldensefetch-model"
     monkeypatch.setattr(dense_belief_mod, "DEFAULT_MODEL", stub_model)
+    monkeypatch.setenv("DENSE_MODEL", stub_model)   # the ONE dense model for the run
     monkeypatch.setitem(dense_mod._ENCODER_CACHE, (stub_model, "auto", 1024), StubEncoder())
 
     corpus_units = _corpus()
@@ -594,6 +600,7 @@ def test_bqldensefetch_search_bqldf_and_bqldensesnip_search_bqlds_differ_only_by
 
     stub_model = "stub/bqldensecompare-model"
     monkeypatch.setattr(dense_belief_mod, "DEFAULT_MODEL", stub_model)
+    monkeypatch.setenv("DENSE_MODEL", stub_model)   # the ONE dense model for the run
     monkeypatch.setitem(dense_mod._ENCODER_CACHE, (stub_model, "auto", 1024), StubEncoder())
 
     corpus_units = _corpus()
@@ -626,6 +633,7 @@ def test_bqldensefetch_workspace_hallucinated_tool_name_errors(tmp_path, monkeyp
 
     stub_model = "stub/bqldensefetch-halluc-model"
     monkeypatch.setattr(dense_belief_mod, "DEFAULT_MODEL", stub_model)
+    monkeypatch.setenv("DENSE_MODEL", stub_model)   # the ONE dense model for the run
     monkeypatch.setitem(dense_mod._ENCODER_CACHE, (stub_model, "auto", 1024), StubEncoder())
 
     corpus_units = _corpus()
@@ -649,3 +657,112 @@ def test_research_bql_dense_snip_and_visit_conditions_unaffected_by_new_fetch_ce
     snip = load_condition("research_bql_dense_snip")
     assert snip.toolset == "bql_dense_snip"
     assert set(snip.tool_names) == {"search_bqlds", "fetch_bqlds"}
+
+
+# =============================================================================================
+# 8. Dense-ONLY ordering never drops a filter-passing candidate absent from the dense side
+# =============================================================================================
+#
+# A candidate can be absent from the dense side for a real reason (the dense cache was built
+# before a unit was added/renamed, or the dense index only covers a SUBSET of the corpus) —
+# `dense_rank_for_candidates` then returns fewer ids than were asked for. `fuse_ranked`/
+# `fuse_coverage_tiers` (the RRF path) never lose such a candidate (RRF unions bm25-rank with
+# dense-rank); `fuse_ranked_dense_only`/`fuse_coverage_tiers_dense_only` used to use the
+# (possibly partial) dense ranking as the WHOLE final order, silently dropping anything the
+# dense side had no opinion on.
+
+def _partial_dense(units, tmp_path, key, missing_doc_id):
+    """A DenseBelief built over every unit EXCEPT `missing_doc_id` — so that id is, by
+    construction, absent from the dense index (`.score()` has nothing to report for it)."""
+    subset = [u for u in units if u.doc_id != missing_doc_id]
+    d = DenseBelief(model=f"stub/{key}", index_root=str(tmp_path), encoder=StubEncoder())
+    d.build_or_load(subset, key=key)
+    return d
+
+
+class PartialDense:
+    """A stub dense belief whose `.score()` OMITS some ids from its returned dict entirely —
+    the exact shape `dense_belief.DenseBelief.score` had BEFORE its own never-drop fix (a
+    real dense source with no embedding at all for certain doc_ids, or any future belief
+    implementation that doesn't fill in a floor value). Used to test
+    `fuse_ranked_dense_only`/`fuse_coverage_tiers_dense_only`'s OWN defensive
+    append-missing-candidates logic in isolation from `DenseBelief`'s fix."""
+
+    def __init__(self, sims_by_id: dict, missing_ids):
+        self._sims = sims_by_id
+        self._missing = set(missing_ids)
+
+    def is_ready(self):
+        return True
+
+    def score(self, query_text, doc_ids=None):
+        ids = list(doc_ids) if doc_ids is not None else list(self._sims)
+        return {d: self._sims[d] for d in ids if d in self._sims and d not in self._missing}
+
+
+def test_dense_belief_score_gives_missing_ids_the_pool_minimum_not_a_dropped_key(units, tmp_path):
+    d = _partial_dense(units, tmp_path, "partial1", missing_doc_id="other2")
+    sims = d.score("zebra", doc_ids=["zebradoc", "other1", "other2"])
+    # never dropped: every requested id gets a key back.
+    assert set(sims) == {"zebradoc", "other1", "other2"}
+    # never fabricated: the missing id gets exactly the pool minimum of the ids that WERE
+    # actually scored, so it sorts last (or ties last), never ahead of a real similarity.
+    assert sims["other2"] == min(sims["zebradoc"], sims["other1"])
+    assert sims["other2"] <= sims["zebradoc"] and sims["other2"] <= sims["other1"]
+
+
+def test_dense_belief_score_all_missing_still_returns_empty(units, tmp_path):
+    """No id in the request has any dense info at all -> {} (unchanged: nothing to derive a
+    pool minimum FROM), same as the pre-existing empty-input contract."""
+    d = _partial_dense(units, tmp_path, "partial2", missing_doc_id="other2")
+    assert d.score("zebra", doc_ids=["__nope_not_in_corpus__"]) == {}
+
+
+def test_fuse_ranked_dense_only_appends_missing_candidate_after_dense_ranked_in_bm25_order():
+    # dense has an opinion on zebradoc/other1 only; 'other2' has NO entry at all.
+    stub = PartialDense({"zebradoc": 0.5, "other1": 0.2}, missing_ids={"other2"})
+    # bm25 order: other2 ranked FIRST by bm25 -- if dense-only silently used the (partial)
+    # dense ranking as the whole order, other2 would vanish entirely.
+    bm25_ranked = [("other2", 9.0), ("zebradoc", 5.0), ("other1", 1.0)]
+    fused = fuse_ranked_dense_only(stub, "zebra", bm25_ranked)
+    fused_ids = [doc for doc, _ in fused]
+    assert set(fused_ids) == {"other2", "zebradoc", "other1"}      # never dropped
+    assert fused_ids[:2] == ["zebradoc", "other1"]                  # dense-ranked ids first
+    assert fused_ids[-1] == "other2"                                # appended AFTER them
+    # original bm25 scores are preserved (order-only fusion, same convention as fuse_ranked).
+    assert dict(fused) == dict(bm25_ranked)
+
+
+def test_fuse_ranked_dense_only_appends_multiple_missing_in_incoming_order():
+    """Two candidates missing from the dense side keep their RELATIVE bm25 order when
+    appended (never reordered against each other, never dropped)."""
+    stub = PartialDense({"zebradoc": 0.5}, missing_ids={"other1", "other2"})
+    # incoming (bm25) order has other2 BEFORE other1; both absent from the dense side.
+    bm25_ranked = [("other2", 9.0), ("zebradoc", 5.0), ("other1", 1.0)]
+    fused = fuse_ranked_dense_only(stub, "zebra", bm25_ranked)
+    fused_ids = [doc for doc, _ in fused]
+    assert set(fused_ids) == {"other2", "zebradoc", "other1"}
+    assert fused_ids[-2:] == ["other2", "other1"]      # incoming relative order preserved
+
+
+def test_fuse_coverage_tiers_dense_only_appends_missing_within_its_own_tier():
+    stub = PartialDense({"zebradoc": 0.5, "other1": 0.2}, missing_ids={"other2"})
+    # all three rows in the SAME tier (n_matched=2); 'other2' has no dense entry at all.
+    rows = _rows(("other2", 2, 9.0), ("zebradoc", 2, 5.0), ("other1", 2, 1.0))
+    fused = fuse_coverage_tiers_dense_only(stub, "zebra", rows)
+    ids = [r[0] for r in fused]
+    assert set(ids) == {"other2", "zebradoc", "other1"}            # never dropped
+    assert ids[-1] == "other2"                                      # appended after this tier's
+                                                                     # dense-ranked candidates
+    # row payloads (mask, n_matched, score) are untouched -- only order changes.
+    assert dict((r[0], r[2]) for r in fused) == {"other2": 2, "zebradoc": 2, "other1": 2}
+
+
+def test_fuse_coverage_tiers_dense_only_never_crosses_a_tier_boundary_even_when_missing():
+    """The missing-candidate append happens WITHIN a tier only -- coverage tiers themselves
+    stay inviolable (a lower-coverage doc can never outrank a higher-coverage one)."""
+    stub = PartialDense({"paraphrase": 0.1}, missing_ids={"other2"})
+    rows = _rows(("paraphrase", 3, 0.1), ("other2", 1, 9.0))    # other2: low tier, no dense entry
+    fused = fuse_coverage_tiers_dense_only(stub, "zebra", rows)
+    ids = [r[0] for r in fused]
+    assert ids == ["paraphrase", "other2"]              # higher coverage tier always first

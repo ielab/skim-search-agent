@@ -20,8 +20,7 @@ pytest.importorskip("agents", reason="optional OpenAI Agents SDK not installed")
 
 from agents.tool_context import ToolContext
 
-from agent_search.agent.sdk_driver import (
-    _INSTR_BQL, _INSTR_BQL_VISIT, _instructions_for, _tools_for)
+from agent_search.agent.sdk_driver import _tools_for
 
 
 class FakeWS:
@@ -131,21 +130,3 @@ def test_search_bv_visit_bv_tools():
     assert ws.calls[-1] == ("visit_bv", {"rank": "1"})
     assert out2 == "OBS:visit_bv"
     assert trace[-1][0] == "visit_bv"
-
-
-# --- _instructions_for must tolerate the new tool names, still picking the BQL coaching ---
-
-def test_instructions_for_tolerates_search_v2_fetch_v2():
-    instr = _instructions_for(FakeWS(("search_v2", "fetch_v2")))
-    assert _INSTR_BQL in instr
-
-
-def test_instructions_for_tolerates_isearch():
-    instr = _instructions_for(FakeWS(("isearch", "fetch")))
-    assert _INSTR_BQL in instr
-
-
-def test_instructions_for_picks_bql_visit_coaching_for_search_bv_visit_bv():
-    instr = _instructions_for(FakeWS(("search_bv", "visit_bv")))
-    assert _INSTR_BQL_VISIT in instr
-    assert "search_bv" in instr and "visit_bv" in instr

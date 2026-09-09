@@ -31,6 +31,7 @@ import threading
 from typing import Optional, Sequence
 
 from agent_search.agent.tools import grounding
+from agent_search.corpus.fingerprint import corpus_fingerprint
 from agent_search.corpus.units import CodeUnit, code_tokenize
 from agent_search.retrievers.ranking import BM25
 from agent_search.retrievers.structural.bql.ast import (
@@ -87,6 +88,9 @@ _ISO_DATE_PREFIX_RE = re.compile(r"^(\d{4})-(\d{2})-(\d{2})")
 # even on a HIT-having query's near-miss, so cap it to the top BM25-scored slice like the spec's
 # "top ~2000 docs" guidance, not literal N.
 _COVERAGE_POOL_CAP = 2000
+# Size of the 0-hit fallback pool (`soft_topk`): the lexically closest docs plus, when a dense
+# belief is attached, the dense side's nearest neighbours, before the arm's ranker orders them.
+_SOFT_POOL = int(os.environ.get("BQL_SOFT_POOL", "100"))
 
 # Above this corpus size, narrow the live scan with an inverted-index PREFILTER
 # (filter-then-verify) instead of scanning every unit per query. Below it (the common
@@ -339,6 +343,11 @@ class StructuralExecutor:
     def __getstate__(self) -> dict:
         st = {k: getattr(self, k, None) for k in self._PERSIST}
         st["_doc_id_order"] = [u.doc_id for u in self.units]   # ~few MB; validates the re-attach
+        # Content fingerprint (agent_search.corpus.fingerprint): same doc_ids in the same
+        # ORDER can still carry DIFFERENT text (a unit edited in place) -- the doc-id-order
+        # check above can't see that. attach_units re-derives this from the units it's given
+        # and raises on a mismatch, exactly like the order check.
+        st["_corpus_fingerprint"] = corpus_fingerprint(self.units)
         return st
 
     def __setstate__(self, state: dict) -> None:
@@ -375,6 +384,11 @@ class StructuralExecutor:
         order = getattr(self, "_doc_id_order", None)
         if order is not None and [u.doc_id for u in units] != order:
             raise ValueError("units order != persisted index order (corpus changed) — rebuild")
+        stored_fp = getattr(self, "_corpus_fingerprint", None)
+        if stored_fp is not None and corpus_fingerprint(units) != stored_fp:
+            # Same doc_ids, same order, but DIFFERENT content (a unit edited in place) --
+            # the order check above can't see this; the content fingerprint can.
+            raise ValueError("units content != persisted index fingerprint (corpus changed) — rebuild")
         self.units = units
         self._ubyid = {u.doc_id: u for u in units}
         self._utoks = {}; self._uset = {}; self._ulines = {}; self._units_by_path = {}
@@ -433,14 +447,38 @@ class StructuralExecutor:
                 {u.doc_id: self._utoks[u.doc_id] for u in self.units})
         return self._bm
 
+    def _fuse_soft(self, terms, pool: list) -> list:
+        """Order a fallback pool with the SAME ranker the exact path uses when a dense belief is
+        attached (RRF of BM25 and dense here; dense-only in `DenseOnlyStructuralExecutor`)."""
+        return fuse_ranked(self.dense, " ".join(terms), pool)
+
     def soft_topk(self, terms, k: int = 5) -> list:
-        """BM25 top-k over the WHOLE corpus for `terms` — the graceful-degradation fallback for a
-        0-hit Boolean query (exact AND is brittle under paraphrase/obfuscation: the right doc is
-        often lexically CLOSE but not an exact conjunctive match). Reuses the same persisted
-        corpus-level BM25 the Boolean path already ranks with (_corpus_bm), so the fallback adds
-        no second index and stays corpus-fair. Returns [(doc_id, score)] best-first."""
-        scored = self._corpus_bm().score_terms(list(terms))
-        return [(d, s) for d, s in scored[:k] if s > 0]
+        """The graceful-degradation fallback for a 0-hit Boolean query (exact AND is brittle
+        under paraphrase/obfuscation: the right doc is often CLOSE but not an exact conjunctive
+        match). Returns [(doc_id, score)] best-first.
+
+        INVARIANT — the fallback ranks with the SAME ranker, over the SAME index, as the exact
+        path: Boolean is for filtering only; ranking is the arm's model. Without a dense belief
+        that is the persisted corpus-level BM25 (`_corpus_bm`, the same scorer `run_with_count`
+        orders exact matches with). With a dense belief attached (the `sieve` family), the pool is
+        the union of the lexically closest `BQL_SOFT_POOL` docs and the dense side's own nearest
+        neighbours — read from the persisted embedding cache, never encoded online — ordered by
+        the arm's fusion rule (`_fuse_soft`). A fallback can therefore never rank by a model the
+        exact path does not use."""
+        terms = list(terms)
+        pool_n = max(k, _SOFT_POOL)
+        scored = self._corpus_bm().score_terms(terms)
+        pool = [(d, s) for d, s in scored[:pool_n] if s > 0]
+        if self.dense is not None:
+            try:
+                dense_top = list(self.dense.top_k_doc_ids(" ".join(terms), k=pool_n) or [])
+            except Exception:  # noqa: BLE001 — a dense-side failure degrades to the BM25 pool
+                dense_top = []
+            have = {d for d, _ in pool}
+            pool += [(d, 0.0) for d in dense_top if d not in have and d in self._ubyid]
+            if pool:
+                pool = self._fuse_soft(terms, pool)
+        return pool[:k]
 
     def coverage_topk(self, expr: Expr, k: int = 5) -> list:
         """Constraint-COVERAGE ranking for a 0-hit AND (BQL v2 Feature 2): a hard 6-term
@@ -670,9 +708,11 @@ class StructuralExecutor:
             # be narrowed from token postings -> None (scan; small per-repo code corpora).
             if expr.region == Region.FILE or expr.region in _REGION_KEY:
                 return None
-            # any other doc-ish region (e.g. `tiab` ~ title+abstract) matches the unit's own text
-            # in _eval (its fallback branch) -> the COMBINED corpus postings cover it exactly.
-            return self._candidates(expr.child)
+            # No other case exists: `_FIELD_REGIONS` (7) + `_REGION_KEY` (5) + FILE (1) is
+            # every member of the 13-value `Region` enum, with no overlap -- so this `In`
+            # branch is exhaustive and always returns above. (Verified: a prior
+            # "any other doc-ish region" fallback here was provably unreachable and has
+            # been removed.)
         return None
 
     # --- evaluation ---------------------------------------------------------
@@ -787,18 +827,22 @@ def _isect(sets) -> Optional[set]:
 
     SMALLEST-FIRST: sort the postings by size and intersect from the smallest, so a
     rare term (tiny set) drives the work and we never copy/iterate a huge common
-    postings list (the standard inverted-index intersection order). The result is
-    read-only (callers only iterate it)."""
+    postings list (the standard inverted-index intersection order). The returned set is
+    always a FRESH copy the caller owns -- never a live reference into the postings index
+    (with only one input, `&` never runs, so this must copy explicitly or a caller
+    mutating the result would corrupt the shared postings set)."""
     present = [s for s in sets if s is not None]
     if not present:
         return None
     present.sort(key=len)
-    out = present[0]                              # the smallest; not copied
+    out = present[0]
+    copied = False
     for s in present[1:]:
         if not out:
             break                                 # already empty -> done
         out = out & s                             # a fresh, ever-smaller set
-    return out
+        copied = True
+    return out if copied else set(out)            # single-input case: never alias postings
 
 
 def _union(sets) -> Optional[set]:
@@ -825,61 +869,6 @@ def _tok_lines(qualname: str, code: str) -> tuple:
             toks.append(t)
             lns.append(i)
     return toks, lns
-
-
-# Above this many units, the slim-pkl load's per-unit re-tokenize is parallelized across
-# processes (below it the pool's startup/IPC overhead isn't worth it). ~7min single-threaded
-# for browsecomp's 100k docs -> ~1min on 8 cores.
-_PARALLEL_TOK_MIN = 20_000
-
-
-_TOK_UNITS: Optional[list] = None   # fork-inherited handle: children read units from COW memory
-                                    # instead of having them pickled in (the IPC that starves a
-                                    # naive ProcessPool.map on a large-payload corpus).
-
-
-def _tok_shard(rng: tuple) -> list:
-    """Tokenize the contiguous [lo, hi) slice of the fork-inherited `_TOK_UNITS`. Only the tiny
-    (lo, hi) range is pickled IN; a shard's worth of (doc_id, toks, lns) pickles back."""
-    lo, hi = rng
-    units = _TOK_UNITS
-    return [(units[i].doc_id, *_tok_lines(units[i].qualname, units[i].code)) for i in range(lo, hi)]
-
-
-def _tokenize_units(units: Sequence["CodeUnit"]) -> dict:
-    """Return {doc_id: (toks, lns)} for every unit — the per-unit token cache the slim pickle
-    drops and rebuilds on load. Parallel across cores for large corpora via FORK (children inherit
-    the units from copy-on-write memory, so nothing is pickled IN — only results come back); serial
-    (and any pool failure) fallback keeps correctness independent of parallelism. GIL-bound regex
-    tokenization needs PROCESSES, not threads, to actually parallelize."""
-    n = len(units)
-    # Serial by DEFAULT: parallelizing via fork segfaults when the parent has a large, threaded-
-    # BLAS/numpy-backed RSS (the loaded index) — a known fork-after-lib-init hazard, not OOM. The
-    # rebuild is a ONE-TIME per-process cost (~7min for browsecomp's 100k docs), negligible for a
-    # long-running eval job, so robustness wins. Opt in with BQL_PARALLEL_TOK=1 to use the fork
-    # pool (fast: ~1min) where the environment is known-safe (e.g. OMP/BLAS threads pinned to 1).
-    if n < _PARALLEL_TOK_MIN or os.environ.get("BQL_PARALLEL_TOK", "") not in ("1", "true", "yes"):
-        return {u.doc_id: _tok_lines(u.qualname, u.code) for u in units}
-    global _TOK_UNITS
-    try:
-        import concurrent.futures as _cf
-        import multiprocessing as _mp
-        nproc = min(8, os.cpu_count() or 1)
-        _TOK_UNITS = units if isinstance(units, list) else list(units)
-        ctx = _mp.get_context("fork")               # inherit _TOK_UNITS via COW; no __main__ re-import
-        nsh = nproc * 4
-        step = (n + nsh - 1) // nsh
-        ranges = [(i, min(i + step, n)) for i in range(0, n, step)]
-        out: dict = {}
-        with _cf.ProcessPoolExecutor(max_workers=nproc, mp_context=ctx) as ex:
-            for shard in ex.map(_tok_shard, ranges):
-                for doc_id, toks, lns in shard:
-                    out[doc_id] = (toks, lns)
-        return out
-    except Exception:
-        return {u.doc_id: _tok_lines(u.qualname, u.code) for u in units}
-    finally:
-        _TOK_UNITS = None
 
 
 def _seq_in(seq: list, toks: list) -> bool:
@@ -1040,10 +1029,11 @@ def _rank_leaves(expr: Expr) -> list:
 
 def hits_from_ranked(ranked, units_by_id: dict):
     from agent_search.core.interfaces import Hit
+    from agent_search.core.tokens import cap_tokens
     hits = []
     for doc_id, score in ranked:
         u = units_by_id.get(doc_id)
-        snippet = u.code.splitlines()[0][:80] if (u and u.code) else ""
+        snippet = cap_tokens(u.code.splitlines()[0], 16) if (u and u.code) else ""
         hits.append(Hit(doc_id=doc_id, score=score,
                         path=(u.path if u else None),
                         line=(u.start_line if u else None), snippet=snippet))
@@ -1145,6 +1135,11 @@ class DenseOnlyStructuralExecutor(StructuralExecutor):
     purely `dense_rank_for_candidates`, not RRF(bm25, dense). See `load_or_build_dense_only`
     below for how a real (persisted-index-backed) instance of this class is constructed, and
     `dense_fuse.py`'s "dense-ONLY ordering" section for the fusion functions."""
+
+    def _fuse_soft(self, terms, pool: list) -> list:
+        """Dense-ONLY ordering of the 0-hit fallback pool — the same ranker as this executor's
+        exact path, so the fallback never ranks by a model the exact path does not use."""
+        return fuse_ranked_dense_only(self.dense, " ".join(terms), pool)
 
     def run_with_count(self, expr: Expr, k: int = 100) -> tuple[list[tuple[str, float]], int]:
         """DENSE-ONLY sibling of `StructuralExecutor.run_with_count` — selection logic (leaves,

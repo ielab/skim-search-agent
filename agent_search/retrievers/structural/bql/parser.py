@@ -37,10 +37,10 @@ _TOKEN_RE = re.compile(
         (?P<comma>,) |
         (?P<near>(?i:NEAR)/(?:[A-Za-z]+[0-9]*|[0-9]+)) |
         (?P<string>"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*') |
-        (?P<ident>[A-Za-z0-9_][A-Za-z0-9_./*-]*)
+        (?P<ident>\w[\w./*+#-]*)
       )\s*
     """,
-    re.VERBOSE,
+    re.VERBOSE | re.UNICODE,
 )
 
 _KEYWORDS = {"AND", "OR", "NOT", "IN", "EXPAND", "PHRASE", "PREFIX"}

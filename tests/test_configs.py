@@ -1,10 +1,10 @@
-"""Active config files must match the current CLI surface."""
+"""RunConfig (the structured, programmatic run configuration) and the config.json it records."""
 from pathlib import Path
 
 import yaml
 
 from agent_search.retrievers.registry import available
-from evaluation.config import (
+from agent_search.evaluation.config import (
     AgentArgs,
     DatasetArgs,
     EvaluationArgs,
@@ -13,52 +13,17 @@ from evaluation.config import (
     RunConfig,
     results_dir_for,
 )
-from evaluation.datasets import available_datasets
+from agent_search.evaluation.datasets import available_datasets
 
 
 CONFIG_DIR = Path("configs")
 # Sourced from the dataset registry (like `retrievers = available()` below), NOT a hand-kept
 # list: a new `register_dataset(...)` call plugs in with no test edit (parameterize, don't
-# hardcode — see evaluation/datasets.py's registry-as-extension-point docstring).
+# hardcode — see agent_search/evaluation/datasets.py's registry-as-extension-point docstring).
 
 
-def _as_names(items):
-    names = []
-    for item in items or []:
-        if isinstance(item, str):
-            names.append(item)
-        elif isinstance(item, dict) and "name" in item:
-            names.append(item["name"])
-    return names
-
-
-# configs/eval_debug.yaml and configs/eval_swebench.yaml still name the pre-prune code-fix
-# family (agent_codefix / agent_codefix_grep / agent_research) — conditions.yaml was pruned to
-# the paper's 15 doc-domain conditions (tests/ only per this cleanup's scope; configs/*.yaml
-# itself is out of scope here and needs its own follow-up edit to catch up).
-
-
-def test_configs_reference_supported_datasets_and_retrievers():
-    retrievers = available()
-    datasets_known = available_datasets()
-
-    for path in CONFIG_DIR.glob("*.yaml"):
-        data = yaml.safe_load(path.read_text()) or {}
-        datasets = data.get("datasets") or [data.get("dataset")]
-        # `paired_datasets: [{structured: <name>, flat: <name>}, ...]` records the
-        # structured<->flat pairing (configs/eval_research.yaml) — its two dataset names
-        # get the same registry check as the flat `datasets:` list above.
-        for pair in data.get("paired_datasets") or []:
-            datasets = list(datasets) + [pair.get("structured"), pair.get("flat")]
-        for dataset in [d for d in datasets if d]:
-            assert dataset in datasets_known, f"{path} references unsupported dataset {dataset!r}"
-
-        names = []
-        for key in ("retrievers", "headline_conditions", "isolation_conditions",
-                    "agent_conditions", "floors"):
-            names.extend(_as_names(data.get(key)))
-        for name in names:
-            assert name in retrievers, f"{path} references unknown retriever {name!r}"
+# The shipped experiment files under configs/ are validated by tests/test_experiment_files.py
+# (complete schema, registered strategy and dataset). This module covers RunConfig itself.
 
 
 def test_structured_run_config_maps_to_retriever_config():
@@ -128,14 +93,14 @@ def test_search_fetch_conditions_compose_the_new_toolsets():
 
 
 def test_run_config_fixture(tmp_path):
-    from evaluation.run_eval import run_config
+    from agent_search.evaluation.run_eval import run_config
 
     # the fixture is a DOC instance; agent_research_snip drives search -> fetch -> <answer>.
     # The no-model stub answers from what it fetched, so the run completes with 0 errors and
     # records the doc arm's headline metric column.
     cfg = RunConfig(
         dataset=DatasetArgs(name="browsecomp_plus_fixture"),
-        retriever=RetrieverArgs(name="agent_research_snip"),
+        retriever=RetrieverArgs(name="agent_research_snip", index_root=str(tmp_path / "idx")),
         evaluation=EvaluationArgs(k=(1, 10)),
         output=OutputArgs(results_dir=str(tmp_path / "run")),
     )
@@ -155,11 +120,11 @@ def test_config_json_records_env_knobs(tmp_path):
     additive only, must not touch episode behavior (still 0 errors / same fixture result)."""
     import json
 
-    from evaluation.run_eval import run_config
+    from agent_search.evaluation.run_eval import run_config
 
     cfg = RunConfig(
         dataset=DatasetArgs(name="browsecomp_plus_fixture"),
-        retriever=RetrieverArgs(name="agent_research_snip"),
+        retriever=RetrieverArgs(name="agent_research_snip", index_root=str(tmp_path / "idx")),
         evaluation=EvaluationArgs(k=(1, 10)),
         output=OutputArgs(results_dir=str(tmp_path / "run")),
     )
@@ -175,7 +140,7 @@ def test_config_json_records_env_knobs(tmp_path):
     for key in ("MAX_VISIT_TOKENS", "INDRI_DENSE", "INDRI_DENSE_W", "INDRI_RESCORE_M",
                 "BQL_DATE_RANGE", "BQL_SOFT_FALLBACK", "AGENT_DRIVER"):
         assert key in knobs
-    assert knobs["MAX_VISIT_TOKENS"] == 1200      # the doc_research.py default, unset here
+    assert knobs["MAX_VISIT_TOKENS"] == 12000     # the doc_research.py default, unset here
 
 
 def test_config_json_env_knobs_reflect_set_env_var(tmp_path, monkeypatch):
@@ -196,11 +161,11 @@ def test_config_json_env_knobs_reflect_set_env_var(tmp_path, monkeypatch):
     monkeypatch.setenv("INDRI_DENSE", "1")
     monkeypatch.setenv("AGENT_DRIVER", "loop")
 
-    from evaluation.run_eval import run_config
+    from agent_search.evaluation.run_eval import run_config
 
     cfg = RunConfig(
         dataset=DatasetArgs(name="browsecomp_plus_fixture"),
-        retriever=RetrieverArgs(name="agent_research_snip"),
+        retriever=RetrieverArgs(name="agent_research_snip", index_root=str(tmp_path / "idx")),
         evaluation=EvaluationArgs(k=(1, 10)),
         output=OutputArgs(results_dir=str(tmp_path / "run")),
     )

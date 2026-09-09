@@ -2,7 +2,7 @@
 
 Needs internet (Hugging Face) once; needs NO OpenAI key (the published structured corpus is
 already sectioned by the paper's own batch pass). Two sources, joined on docid (see
-docs/superpowers/specs/2026-08-06-live-demo-design.md §2):
+demo/README.md, "Data provenance"):
 
   - Tevatron/browsecomp-plus (streamed): query text + answer + gold/negative/evidence docids
     for QUERY_IDS, de-obfuscated via corpus_build.browsecomp_plus.build.transform_decrypt.

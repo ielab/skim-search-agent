@@ -22,7 +22,7 @@ import pytest
 from agent_search.corpus.units import CodeUnit
 from agent_search.retrievers.dense import vector_index as vi
 from agent_search.retrievers.dense.dense import DenseRetriever, _QUERY_PREFIX
-from evaluation.datasets import default_dense_model
+from agent_search.evaluation.datasets import default_dense_model
 
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -65,9 +65,9 @@ def test_dense_belief_default_model_env_knob_in_a_fresh_process():
 
 
 def test_resolve_env_knobs_records_dense_model(monkeypatch):
-    """evaluation/run_eval.py's provenance snapshot must capture the raw knob (so two run
+    """agent_search/evaluation/run_eval.py's provenance snapshot must capture the raw knob (so two run
     dirs that differ only by DENSE_MODEL are distinguishable in config.json)."""
-    from evaluation.run_eval import _resolve_env_knobs
+    from agent_search.evaluation.run_eval import _resolve_env_knobs
 
     monkeypatch.delenv("DENSE_MODEL", raising=False)
     assert _resolve_env_knobs()["DENSE_MODEL"] is None

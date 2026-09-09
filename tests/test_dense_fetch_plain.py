@@ -100,7 +100,7 @@ def test_search_lists_structure_with_no_excerpt():
 def test_search_marks_hits_seen():
     ws = _ws(ranking=("d_mid", "d_plain2"))
     ws.run("dense_search_fp", {"query": "zephyrquokka"})
-    assert {"d_mid", "d_plain2"} <= ws.seen
+    assert {"d_mid", "d_plain2"} <= set(ws.seen)
 
 
 def test_empty_query_message():

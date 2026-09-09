@@ -1,4 +1,4 @@
-"""Shared demo observation parsers (demo/recorder/parse.py): the exact renderings of
+"""Shared demo observation parsers (demo/parse.py): the exact renderings of
 DocSearchFetch.search/.fetch and Bm25Visit.search/.visit -> the card dicts the live SSE server (demo/server.py) sends the player."""
 import sys
 from pathlib import Path

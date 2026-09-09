@@ -125,7 +125,7 @@ def test_run_accepts_search_s_and_fetch_s_aliases():
 
 # --- 5. SNIPPET_TOKENS: the window width is a sweepable knob ---------------------------------
 # Env-settable (read at import, like MAX_VISIT_TOKENS and the *_TOPK dials), so an ablation is
-# SNIPPET_TOKENS=64 python -m evaluation.run_eval ... with nothing else changed.
+# SNIPPET_TOKENS=64 python -m agent_search.evaluation.run_eval ... with nothing else changed.
 
 def test_default_width_is_32():
     # guarded: this file must also pass under a sweep (SNIPPET_TOKENS=64 pytest ...), where the

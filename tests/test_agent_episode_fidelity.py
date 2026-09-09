@@ -45,7 +45,7 @@ def test_episode_records_final_answer():
 
 
 def test_answer_metrics():
-    from evaluation.metrics import answer_em, answer_f1
+    from agent_search.evaluation.metrics import answer_em, answer_f1
     assert answer_em("The Treaty of Guadalupe Hidalgo!", "treaty of guadalupe hidalgo") == 1.0
     assert answer_em("something else", "guadalupe") == 0.0
     assert 0.5 < answer_f1("It was the Treaty of Guadalupe Hidalgo, signed 1848",

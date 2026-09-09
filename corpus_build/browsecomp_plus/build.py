@@ -107,7 +107,7 @@ def iter_rows(limit=None):
     one (verified against the hub schema: query_id/query/answer/gold_docs/negative_docs/
     evidence_docs), but nothing here read it, so every query written by `corpus` had no
     gold answer. That silently disabled answer_em/grounded_em/grounded_f1/gold_doc_coverage
-    for ANY run built from this script (evaluation.run_eval gates all doc-scoring on
+    for ANY run built from this script (agent_search.evaluation.run_eval gates all doc-scoring on
     `if inst.answer:`) — an arm-neutral scoring gap, not specific to BQL or bm25."""
     from datasets import load_dataset
     ds = load_dataset("Tevatron/browsecomp-plus", split="test")

@@ -5,7 +5,7 @@ import importlib.util
 import os
 import tempfile
 
-from evaluation.datasets import _load_beir_style, available_datasets
+from agent_search.evaluation.datasets import _load_beir_style, available_datasets
 
 _SM = os.path.join(os.path.dirname(__file__), "..", "scripts", "stage_multihop.py")
 _spec = importlib.util.spec_from_file_location("stage_multihop", _SM)
@@ -81,7 +81,7 @@ def test_round_trip_loads_as_shared_corpus_instances():
 
 
 def test_multihop_datasets_are_registered_general_domain():
-    from evaluation.datasets import dataset_domain
+    from agent_search.evaluation.datasets import dataset_domain
     for name in ("hotpotqa", "2wiki", "musique"):
         assert name in available_datasets()
         assert dataset_domain(name) == "general"

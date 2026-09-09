@@ -14,7 +14,7 @@ Shared by:
   - `agent_search.agent.retriever.AgentRetriever.index()` (the real per-episode construction
     site for the indri/indrivisit/indrisnip arms and the BQL-family arms: doc/docv2/docsnip/
     bqlvisit -- supplies a real `index_root`/`key`/`rebuild` so a `lucene` backend opens the
-    SAME on-disk index `evaluation/build_indexes.py --retriever search_lucene`
+    SAME on-disk index `agent_search/evaluation/build_indexes.py --retriever search_lucene`
     pre-builds under `indexes/lucene_structured/<key>/`).
   - Every doc-arm workspace's `executor=None` fallback default (`agent_search.agent.tools.
     doc_indri.IndriFetchWorkspace`, `agent_search.agent.tools.doc_research.DocSearchFetch`)
@@ -27,7 +27,7 @@ docstring for the exact methods and why they're shaped this way), so swapping th
 never touches a caller's listing/best_line rendering -- only which engine answers a query.
 
 `STRUCTURED_BACKEND=lucene` REQUIRES a real `key` (the corpus/dataset name, e.g.
-`hotpotqa_structured` -- matches `evaluation.datasets`' `corpus_id`, which IS the dataset
+`hotpotqa_structured` -- matches `agent_search.evaluation.datasets`' `corpus_id`, which IS the dataset
 name for every shared-document dataset): `LuceneStructuredEngine` opens a NAMED prebuilt
 index directory, it does not build one in memory the way the python engines do when given
 no `index_root`/`key`. A missing index / missing key raises loud (never silently degrades to
@@ -62,7 +62,17 @@ def _lucene_engine(index_root: str, key: Optional[str]):
             "index -- got key=None. This is the ad-hoc/test in-memory-fallback code path; "
             "production callers (agent_search.agent.retriever.AgentRetriever.index()) always "
             "pass the real corpus key.")
-    return get_engine(index_root=index_root, dataset=key)
+    eng = get_engine(index_root=index_root, dataset=key)
+    # Fail FAST, at construction (index() time), not lazily on the first search: without
+    # this, a missing prebuilt index turns every agent search call into an "ERROR: ..."
+    # tool observation instead of failing the run loudly up front -- wasting a whole
+    # episode's worth of model calls on a condition that could never have worked.
+    # `_ensure_open` is idempotent/cheap on a second call (double-checked, returns
+    # immediately once open), so calling it here doesn't duplicate the real open cost for
+    # every one of `build_indri_engine`/`build_bql_engine`/`build_bql_engine_dense_only`,
+    # which all funnel through this one function.
+    eng._ensure_open()
+    return eng
 
 
 def build_indri_engine(units: Sequence[CodeUnit], index_root: str = "indexes",

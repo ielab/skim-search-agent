@@ -118,7 +118,7 @@ def test_topk_marks_hits_as_seen_immediately():
     assert ws.last_hits == []
     ws.run("bm25_search_snip", {"query": "harbor festival annual event history"})
     assert ws.last_hits
-    assert set(ws.last_hits) <= ws.seen
+    assert set(ws.last_hits) <= set(ws.seen)
 
 
 def test_empty_query_yields_no_hits():
@@ -199,8 +199,8 @@ def test_research_bm25_fetch_snip_smoke_via_fixture_dataset(tmp_path):
     test_research_bql_visit_smoke_via_fixture_dataset uses — here for research_bm25_fetch_snip,
     via the `browsecomp_plus_fixture` 1-instance/3-doc dataset and the no-model `stub` policy
     (KeywordPolicy). No vLLM, no API."""
-    from evaluation.config import DatasetArgs, EvaluationArgs, OutputArgs, RetrieverArgs, RunConfig
-    from evaluation.run_eval import run_config
+    from agent_search.evaluation.config import DatasetArgs, EvaluationArgs, OutputArgs, RetrieverArgs, RunConfig
+    from agent_search.evaluation.run_eval import run_config
 
     cfg = RunConfig(
         dataset=DatasetArgs(name="browsecomp_plus_fixture"),

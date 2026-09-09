@@ -1,8 +1,8 @@
-"""Code-fix scoring: fix-file-ok + the grounding guard (evaluation.fix_scoring).
+"""Code-fix scoring: fix-file-ok + the grounding guard (agent_search.evaluation.fix_scoring).
 
 The code arm's end-to-end metric is whether the <fix>'s `file:` line names a gold-patch file
 (suffix-lenient). The grounding guard rejects a <fix> whose file was never fetched."""
-from evaluation.fix_scoring import (extract_fix, fix_file, is_grounded, score_fix)
+from agent_search.evaluation.fix_scoring import (extract_fix, fix_file, is_grounded, score_fix)
 
 # a minimal unified diff editing two files.
 PATCH = (

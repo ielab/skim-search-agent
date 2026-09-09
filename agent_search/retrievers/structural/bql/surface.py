@@ -80,9 +80,9 @@ _TOK = re.compile(r"""\s*(?:
     | (?P<lbrack>\[) | (?P<rbrack>\])
     | (?P<lparen>\() | (?P<rparen>\))
     | (?P<comma>,)
-    | (?P<negword>-[A-Za-z0-9_][A-Za-z0-9_.\-]*\*?)
-    | (?P<word>[A-Za-z0-9_][A-Za-z0-9_.\-]*\*?)
-    )""", re.VERBOSE)
+    | (?P<negword>-\w[\w.+#-]*\*?)
+    | (?P<word>\w[\w.+#-]*\*?)
+    )""", re.VERBOSE | re.UNICODE)
 _OPS = {"AND", "OR", "NOT"}
 # Google-style `-`-prefixed negation ("alpha -gamma"): a `-` immediately (no space)
 # before a word or quoted phrase -- distinguished from the `word` pattern above (which

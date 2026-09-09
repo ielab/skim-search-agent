@@ -5,6 +5,7 @@ from types import SimpleNamespace
 
 from agent_search.agent.loop import Step, Task, run_episode
 from agent_search.agent.policies import AgentPolicy
+from agent_search.core.tokens import count_tokens
 from agent_search.agent.tools.code_fix import CodeFixWorkspace
 from agent_search.prompts import get_prompt_spec
 from agent_search.retrievers.structural.bql.executor import StructuralExecutor, execute_bql
@@ -278,7 +279,7 @@ def test_run_episode_organic_answer_before_budget_has_no_elicitation_tag():
 # `agent_search/agent/retriever.py`'s live loop-driver wiring is exactly `fake_generate.client`/
 # `fake_generate.model` attached to `AgentPolicy.generate`, same as `openai_compat_generate`
 # (agent_search/models/backends.py) does for real. `_elicit_inline` (agent_search/agent/loop.py)
-# used to call `elicit_final_answer` ONCE at the policy's full, unshrunk `ctx_chars` and let its
+# used to call `elicit_final_answer` ONCE at the policy's full, unshrunk `ctx_tokens` and let its
 # outer `except Exception` swallow a "maximum context length" 400 exactly like any other failure
 # — so a served-vLLM episode whose final-turn history overflowed the window always resent the
 # SAME maximum-budget prompt and always failed the same way (never got smaller, never recovered).
@@ -294,24 +295,25 @@ _OVERFLOW_MSG = ("This model's maximum context length is 131072 tokens. However,
 
 class _BigObsWS:
     """A WorkspaceLike whose every observation is large, so a many-step episode's accumulated
-    history alone is big enough to exercise the elicitation call's ctx_chars shrink (mirrors a
+    history alone is big enough to exercise the elicitation call's ctx_tokens shrink (mirrors a
     DCI episode's big bash/read observations)."""
 
     def run(self, name: str, args: dict) -> str:
-        return "o" * 8_000
+        return "obs " * 2_000                 # ~2,000 tokens on either ruler
 
 
 def _fake_overflow_client(overflow_above: int, final_content: str = "Paris"):
     """Same stub shape as `_fake_client`, except `create()` raises a REAL "maximum context
     length"-shaped exception (the exact text vLLM's server sends — see the module docstring)
-    whenever the request's total message chars exceed `overflow_above`, and only succeeds once a
+    whenever the request's total message TOKENS exceed `overflow_above`, and only succeeds once a
     shrunk retry brings it under that line — so this proves the shrink loop actually reaches a
     SMALLER prompt, not just that it retries at all."""
     calls = []
 
     def create(**kwargs):
         calls.append(kwargs)
-        total = sum(len(m["content"]) for m in kwargs["messages"])
+        # the history is what the shrink governs; the (fixed) system prompt is excluded
+        total = sum(count_tokens(m["content"]) for m in kwargs["messages"] if m["role"] != "system")
         if total > overflow_above:
             raise RuntimeError(f"Error code: 400 - {_OVERFLOW_MSG}")
         return SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content=final_content))])
@@ -322,20 +324,19 @@ def _fake_overflow_client(overflow_above: int, final_content: str = "Paris"):
 
 
 def test_run_episode_inline_elicitation_shrinks_on_context_overflow_then_recovers():
-    """The reserved-final-turn elicitation call 400s at the full ctx_chars budget; the SAME
+    """The reserved-final-turn elicitation call 400s at the full ctx_tokens budget; the SAME
     15%-shrink-and-retry `AgentPolicy.propose()` uses (up to 3 shrinks) must apply here too, so
     the episode still recovers an answer instead of degrading straight to "prefill_failed"."""
     def fake_generate(messages):
         return '<tool_call>{"name":"search","arguments":{"query":"x"}}</tool_call>'
-    # ctx_chars=80_000: the full-budget elicitation prompt (history + system/user overhead) sits
-    # comfortably above 62_000 chars but three 0.85 shrinks (80000 -> 68000 -> 57800 -> 49130)
-    # bring it under.
-    client = _fake_overflow_client(overflow_above=62_000)
+    # ctx_tokens=20_000: the full-budget elicitation prompt (~10 kept pairs of ~2k tokens) sits
+    # above 13_000 tokens but three 0.85 shrinks (20000 -> 17000 -> 14450 -> 12282) bring it under.
+    client = _fake_overflow_client(overflow_above=13_000)
     fake_generate.client = client
     fake_generate.model = "m"
 
     policy = AgentPolicy(generate=fake_generate, prompt_path=get_prompt_spec("research_snip").path,
-                         ctx_chars=80_000)
+                         ctx_tokens=20_000)
     traj = run_episode(policy, Task("t", "q"), _BigObsWS(), units=[], max_steps=15, domain="general")
 
     assert traj.final_answer == "Paris"
@@ -345,10 +346,11 @@ def test_run_episode_inline_elicitation_shrinks_on_context_overflow_then_recover
     # ... and each retry's prompt was STRICTLY SMALLER than the previous one — the shrink is
     # actually taking effect, not resending the identical maximum-budget prompt every time (the
     # live bug: vLLM's log showed the identical "127073 input tokens" 400 on every occurrence).
-    sizes = [sum(len(m["content"]) for m in c["messages"]) for c in client._calls]
+    sizes = [sum(count_tokens(m["content"]) for m in c["messages"] if m["role"] != "system")
+             for c in client._calls]
     assert sizes == sorted(sizes, reverse=True)
     assert len(set(sizes)) > 1
-    assert sizes[-1] <= 62_000                        # the attempt that finally succeeded
+    assert sizes[-1] <= 13_000                        # the attempt that finally succeeded
 
 
 def test_run_episode_inline_elicitation_all_shrinks_still_overflow_stays_prefill_failed():
@@ -357,19 +359,20 @@ def test_run_episode_inline_elicitation_all_shrinks_still_overflow_stays_prefill
     but only after genuinely trying 4 progressively smaller prompts, never 4 identical ones."""
     def fake_generate(messages):
         return '<tool_call>{"name":"search","arguments":{"query":"x"}}</tool_call>'
-    # threshold far below anything 3 shrinks of an 80_000 budget can reach (80000 * 0.85**3 ≈ 49130).
+    # threshold far below anything 3 shrinks of a 20_000 budget can reach (20000 * 0.85**3 ≈ 12282).
     client = _fake_overflow_client(overflow_above=1_000)
     fake_generate.client = client
     fake_generate.model = "m"
 
     policy = AgentPolicy(generate=fake_generate, prompt_path=get_prompt_spec("research_snip").path,
-                         ctx_chars=80_000)
+                         ctx_tokens=20_000)
     traj = run_episode(policy, Task("t", "q"), _BigObsWS(), units=[], max_steps=15, domain="general")
 
     assert traj.final_answer == ""
     assert traj.elicitation == "prefill_failed"       # degrades cleanly, never raises
     assert len(client._calls) == 4                    # 1 + 3 shrinks, matching propose()'s cap
-    sizes = [sum(len(m["content"]) for m in c["messages"]) for c in client._calls]
+    sizes = [sum(count_tokens(m["content"]) for m in c["messages"] if m["role"] != "system")
+             for c in client._calls]
     assert sizes == sorted(sizes, reverse=True)
     assert len(set(sizes)) == 4                        # every attempt strictly smaller — not 4 retries of the same prompt
 

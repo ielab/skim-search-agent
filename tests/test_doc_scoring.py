@@ -1,8 +1,8 @@
-"""Deep-research doc-QA scoring: grounded EM/F1 + gold-doc coverage (evaluation.doc_scoring).
+"""Deep-research doc-QA scoring: grounded EM/F1 + gold-doc coverage (agent_search.evaluation.doc_scoring).
 
 The answer counts only when it also appears verbatim in the actual tool evidence (grounding
 gate) — a right answer from the model's memory does not score."""
-from evaluation.doc_scoring import (answer_in_evidence, gold_doc_coverage, score_answer)
+from agent_search.evaluation.doc_scoring import (answer_in_evidence, gold_doc_coverage, score_answer)
 
 
 # --- the grounding gate -----------------------------------------------------

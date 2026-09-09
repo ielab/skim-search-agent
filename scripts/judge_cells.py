@@ -1,10 +1,8 @@
 #!/usr/bin/env python
-"""LLM-judge gate for browsecomp cells — the SUPERSEDING replacement for `scripts/judge_browsecomp.py`
-(that script re-extracts `final_answer` from raw trajectory text and overwrites `rows.jsonl` in
-place; both are wrong for the current pipeline: the canonical answer now comes from
-`force_answer_backfill.load_rows_with_recovery`'s overlay, and `rows.jsonl` must never be mutated —
-see `docs/factorial_snapshot_20260710.md` / the mixed-provenance rule). `judge_browsecomp.py` is
-left untouched (superseded, not deleted — additive-backends rule).
+"""LLM-judge gate for browsecomp cells. The canonical answer for a row comes from
+`force_answer_backfill.load_rows_with_recovery`'s overlay, and `rows.jsonl` must never be
+mutated in place, so this script never re-extracts or rewrites `final_answer` — it only
+reads rows and records judge verdicts in a sibling cache file (see below).
 
 WHY a SIBLING CACHE instead of writing verdicts into rows.jsonl: rows.jsonl is the raw episode
 record and must stay reproducible against the exact loop.py/policies.py that produced it (same
@@ -15,14 +13,14 @@ just `instance_id`: a changed answer is a cache MISS, not a stale HIT, and gets 
 unchanged answer is a HIT and is never re-billed. This makes reruns of this script (after new rows
 land, or after a backfill pass changes some answers) idempotent and strictly incremental.
 
-WHY the EM short-circuit precedes the judge call: `evaluation.metrics.answer_em` is the
+WHY the EM short-circuit precedes the judge call: `agent_search.evaluation.metrics.answer_em` is the
 deterministic, free, canonical QA exact-match. Any row that already passes it needs no LLM opinion
 — recording it as `method="em_shortcircuit"` (distinct from `judge_answer_detail`'s OWN internal
 normalized-exact short-circuit, see below) saves the call and keeps the ledger auditable by method.
 
-    envs/bin/python scripts/judge_cells.py --dry-run                  # preview only, no API calls
-    envs/bin/python scripts/judge_cells.py --cell bm25 --limit 5      # smoke: a few real calls
-    PYTHONPATH=. envs/bin/python scripts/judge_cells.py --workers 16  # full gate run
+    python scripts/judge_cells.py --dry-run                  # preview only, no API calls
+    python scripts/judge_cells.py --cell bm25 --limit 5      # smoke: a few real calls
+    PYTHONPATH=. python scripts/judge_cells.py --workers 16  # full gate run
 
 Cells judged: every `scripts.compare_cells.REGISTRY` row whose dataset starts with one of the
 `--datasets` prefixes (comma-separated; default "browsecomp", covering both
@@ -46,8 +44,8 @@ from typing import Callable, Optional
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from evaluation.llm_judge import judge_answer_detail, make_judge  # noqa: E402
-from evaluation.metrics import answer_em  # noqa: E402
+from agent_search.evaluation.llm_judge import judge_answer_detail, make_judge  # noqa: E402
+from agent_search.evaluation.metrics import answer_em  # noqa: E402
 from scripts.compare_cells import MODEL_DIR, ONESHOT, REGISTRY, cell_rows  # noqa: E402
 from scripts.force_answer_backfill import load_rows_with_recovery  # noqa: E402
 
@@ -162,7 +160,7 @@ def classify_row(row: dict, cache: dict) -> Optional[dict]:
     if bool(answer_em(ans, gold)):
         return _record(iid, sha1, gold, "em_shortcircuit", {
             "judge_correct": True, "judge_extracted": ans,
-            "judge_reasoning": "canonical EM match (evaluation.metrics.answer_em, no judge call)"})
+            "judge_reasoning": "canonical EM match (agent_search.evaluation.metrics.answer_em, no judge call)"})
     return None
 
 

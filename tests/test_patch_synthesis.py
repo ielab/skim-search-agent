@@ -8,7 +8,7 @@ guess when a SEARCH block is ambiguous or missing.
 import subprocess
 import tempfile
 
-from evaluation.patch_synthesis import parse_fix_edits, synthesize_patch
+from agent_search.evaluation.patch_synthesis import parse_fix_edits, synthesize_patch
 
 
 _SRC = ("def _line_type(line):\n"

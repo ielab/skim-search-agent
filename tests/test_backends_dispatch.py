@@ -96,7 +96,7 @@ def test_gemini_generate_builds_client_with_gemini_base_url_and_key(monkeypatch)
     seen = {}
 
     class FakeOpenAI:
-        def __init__(self, *, base_url, api_key):
+        def __init__(self, *, base_url, api_key, **_kw):
             seen["base_url"] = base_url
             seen["api_key"] = api_key
 
@@ -124,10 +124,16 @@ def test_gemini_generate_falls_back_to_minimal_params_when_rejected():
     only the safe params (temperature/max_tokens/top_p/stop) instead of crashing the episode."""
     calls = []
 
+    class _FakeBadRequest(Exception):
+        # mirrors the real `openai.BadRequestError` shape (an HTTP 400 carries `status_code`) —
+        # this is what `_is_param_error` keys on, distinguishing a genuine param rejection from
+        # a transient 429/5xx that must NOT trigger the reduced-param fallback.
+        status_code = 400
+
     def create(**kwargs):
         calls.append(kwargs)
         if "seed" in kwargs or "presence_penalty" in kwargs:
-            raise Exception("400 Bad Request: Unknown name 'seed': Cannot find field.")
+            raise _FakeBadRequest("400 Bad Request: Unknown name 'seed': Cannot find field.")
         return SimpleNamespace(
             choices=[SimpleNamespace(message=SimpleNamespace(content="ok"))],
             usage=SimpleNamespace(prompt_tokens=3, completion_tokens=2))
@@ -162,7 +168,7 @@ def _capture_openai_ctor(monkeypatch):
     seen = {}
 
     class FakeOpenAI:
-        def __init__(self, *, base_url, api_key):
+        def __init__(self, *, base_url, api_key, **_kw):
             seen["base_url"] = base_url
             seen["api_key"] = api_key
 
@@ -183,3 +189,122 @@ def test_make_generate_api_key_defaults_to_env(monkeypatch):
     monkeypatch.setenv("OPENAI_API_KEY", "env-key")
     B.make_generate("gpt-4o-mini")
     assert seen["api_key"] == "env-key"
+
+
+# --- _with_retries: the transient-failure retry helper -----------------------------------------
+# class names are matched by NAME (see backends._is_transient_error), not isinstance, so a plain
+# local class named e.g. `RateLimitError` exercises the same path a real `openai.RateLimitError`
+# would without needing network/the real openai exception hierarchy.
+
+def test_with_retries_retries_rate_limit_twice_then_succeeds():
+    class RateLimitError(Exception):
+        pass
+
+    calls = {"n": 0}
+
+    def flaky():
+        calls["n"] += 1
+        if calls["n"] < 3:
+            raise RateLimitError("429 too many requests")
+        return "ok"
+
+    assert B._with_retries(flaky, attempts=5, base=0.001) == "ok"
+    assert calls["n"] == 3                        # two failures, then the succeeding 3rd call
+
+
+def test_with_retries_does_not_retry_bad_request_error():
+    class BadRequestError(Exception):
+        pass
+
+    calls = {"n": 0}
+
+    def bad():
+        calls["n"] += 1
+        raise BadRequestError("400 invalid request")
+
+    try:
+        B._with_retries(bad, attempts=5, base=0.001)
+        assert False, "expected BadRequestError to propagate"
+    except BadRequestError:
+        pass
+    assert calls["n"] == 1                        # never retried — re-raised on the first attempt
+
+
+def test_with_retries_exhausts_attempts_and_raises_last_error():
+    class RateLimitError(Exception):
+        pass
+
+    calls = {"n": 0}
+
+    def always_flaky():
+        calls["n"] += 1
+        raise RateLimitError("still limited")
+
+    try:
+        B._with_retries(always_flaky, attempts=3, base=0.001)
+        assert False, "expected RateLimitError to propagate after exhausting attempts"
+    except RateLimitError:
+        pass
+    assert calls["n"] == 3
+
+
+def test_with_retries_reads_env_overrides(monkeypatch):
+    monkeypatch.setenv("LLM_RETRY_ATTEMPTS", "2")
+    monkeypatch.setenv("LLM_RETRY_BASE_S", "0.001")
+
+    class RateLimitError(Exception):
+        pass
+
+    calls = {"n": 0}
+
+    def always_flaky():
+        calls["n"] += 1
+        raise RateLimitError("still limited")
+
+    try:
+        B._with_retries(always_flaky)              # attempts/base read from env, not passed in
+        assert False, "expected RateLimitError to propagate after exhausting attempts"
+    except RateLimitError:
+        pass
+    assert calls["n"] == 2                         # LLM_RETRY_ATTEMPTS=2, not the default 5
+
+
+def test_openai_compat_generate_is_wired_through_with_retries():
+    """Integration: `openai_compat_generate`'s own `client.chat.completions.create` call goes
+    through `_with_retries`, not a bare call — a transient failure on the first attempt(s) must
+    not crash the episode."""
+    class RateLimitError(Exception):
+        pass
+
+    calls = {"n": 0}
+
+    def create(**kwargs):
+        calls["n"] += 1
+        if calls["n"] < 2:
+            raise RateLimitError("429")
+        return SimpleNamespace(
+            choices=[SimpleNamespace(message=SimpleNamespace(content="ok"))],
+            usage=SimpleNamespace(prompt_tokens=1, completion_tokens=1))
+
+    client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
+    gen = B.openai_compat_generate(model="m", client=client)
+    assert gen("hi") == "ok"
+    assert calls["n"] == 2
+
+
+def test_openai_client_gets_explicit_timeout_and_no_sdk_retries(monkeypatch):
+    """Every constructed `OpenAI(...)` client must set `timeout` (env-overridable via
+    LLM_TIMEOUT_S) and `max_retries=0` — our own `_with_retries` does the retrying, not the
+    SDK's own silent retry loop."""
+    seen = {}
+
+    class FakeOpenAI:
+        def __init__(self, *, base_url, api_key, timeout, max_retries):
+            seen["timeout"] = timeout
+            seen["max_retries"] = max_retries
+
+    monkeypatch.setattr("openai.OpenAI", FakeOpenAI)
+    monkeypatch.setenv("LLM_TIMEOUT_S", "42")
+    B.make_generate("gpt-4o-mini")
+    assert seen["timeout"] == 42.0
+    assert seen["max_retries"] == 0

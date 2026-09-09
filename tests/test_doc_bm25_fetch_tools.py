@@ -60,7 +60,7 @@ def test_topk_marks_hits_as_seen_immediately():
     assert ws.last_hits == []                        # nothing retrieved at construction
     ws.run("bm25_search", {"query": "harbor festival annual event history"})
     assert ws.last_hits                              # harbor query matches >=1 doc
-    assert set(ws.last_hits) <= ws.seen
+    assert set(ws.last_hits) <= set(ws.seen)
 
 
 def test_empty_query_yields_no_hits():

@@ -1,6 +1,6 @@
 """Indri Query Language parser: query string -> small AST of dataclasses.
 
-Source of truth: `docs/indri_ql_reference.md` (verbatim-where-possible from the
+Source of truth: `agent_search/prompts/skills/indri_doc.md` (verbatim-where-possible from the
 official Indri Query Language reference / quick reference / belief-operations wiki).
 This module implements the SUBSET named in that task's scope; anything outside the
 subset raises a structured `IndriParseError` naming the unsupported operator rather
@@ -23,7 +23,7 @@ list (`dog.title,header`), where they separate field names. This is looser than
 official Indri (which doesn't require commas at all in most positions) but never
 rejects a query the official grammar would accept within our subset.
 
-## Deviations (from docs/indri_ql_reference.md)
+## Deviations (from agent_search/prompts/skills/indri_doc.md)
 - No stemming/normalization distinction between `term` and `"term"`: this backend
   never stems, so both are tokenized identically via `code_tokenize`. `Term.quoted`
   is retained on the AST only for round-tripping/diagnostics, never affects matching.

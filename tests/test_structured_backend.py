@@ -145,6 +145,26 @@ def test_build_bql_engine_lucene_returns_adapter(units, monkeypatch, index_root)
     assert isinstance(eng, LuceneBqlAdapter)
 
 
+def test_build_bql_engine_lucene_missing_index_raises_immediately(units, monkeypatch, tmp_path):
+    """A missing prebuilt lucene_structured index must fail FAST — at `build_bql_engine`
+    (index()) time — not lazily on the first search call. Without this, every agent search
+    against a never-built index becomes an "ERROR: ..." tool observation instead of the run
+    failing loudly up front, wasting a whole episode's worth of model calls on a condition
+    that could never have worked. The error text names the build command with plain
+    `python`, not a stale `envs/bin/python`."""
+    monkeypatch.setenv("STRUCTURED_BACKEND", "lucene")
+    missing_root = str(tmp_path / "no_such_index_root")
+    with pytest.raises(FileNotFoundError, match="python -m agent_search"):
+        build_bql_engine(units, index_root=missing_root, key="no_such_dataset_at_all")
+
+
+def test_build_indri_engine_lucene_missing_index_raises_immediately(units, monkeypatch, tmp_path):
+    monkeypatch.setenv("STRUCTURED_BACKEND", "lucene")
+    missing_root = str(tmp_path / "no_such_index_root2")
+    with pytest.raises(FileNotFoundError, match="python -m agent_search"):
+        build_indri_engine(units, index_root=missing_root, key="no_such_dataset_at_all2")
+
+
 class _StubDense:
     def __init__(self, sims: dict):
         self.sims = sims

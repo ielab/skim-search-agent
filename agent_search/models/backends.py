@@ -11,7 +11,7 @@ on an API key with no cluster:
     (`https://generativelanguage.googleapis.com/v1beta/openai/`, key from `GEMINI_API_KEY`),
     same "test anytime, no GPU" path as OpenAI. Gemini's endpoint rejects some sampling params
     (`seed`, `presence_penalty`, `frequency_penalty` — see `gemini_generate`); it retries once
-    with a minimal param set so a param-support gap never crashes an episode.
+    with a minimal param set so a genuine param-support gap never crashes an episode.
   - `backend="api"` -> an OpenAI-COMPATIBLE server (a served vLLM) at `api_base`.
   - `backend="vllm"` (default) -> in-process vLLM on the GPU (the trained backbone).
 
@@ -19,11 +19,25 @@ The default model is **Tongyi DeepResearch** (the trained deep-research backbone
 returns a `generate(prompt) -> str` callable that plugs straight into `AgentPolicy`. Provider
 dispatch is a small extensible table (add a `is_<provider>_model` matcher + a branch), not a
 hardcoded per-model list.
+
+ROBUSTNESS ON THE MODEL BOUNDARY: every `client.chat.completions.create(...)` call (this
+module and `agent_search/agent/forced_answer.py`) goes through `_with_retries` — exponential
+backoff + jitter on transient failures (HTTP 429, 5xx, connection errors, timeouts), re-raising
+anything else immediately. Attempts/base delay are env-overridable (`LLM_RETRY_ATTEMPTS`,
+`LLM_RETRY_BASE_S`). Every `OpenAI(...)` client is built with an explicit request `timeout`
+(`LLM_TIMEOUT_S`, default 600s) and `max_retries=0` — `_with_retries` does the retrying, not
+the SDK's own (silent, un-backed-off) retry loop. The param-probe fallbacks in
+`openai_reasoning_generate`/`gemini_generate` (drop `seed`/`stop`/`presence_penalty` and
+retry once) fire ONLY on a 400-shaped "unsupported parameter" error — a transient 429/5xx on
+the first attempt must never silently change sampling parameters, so it goes through
+`_with_retries` unchanged instead.
 """
 from __future__ import annotations
 
 import os
+import random
 import threading
+import time
 from typing import Callable
 
 # Headline agent model (open-weights MoE; confirm the exact HF id for your mirror).
@@ -119,6 +133,66 @@ def _truncate_at_tool_response(text: str) -> str:
     return text[:pos] if pos != -1 else text
 
 
+# --- retry helper: transient failures at the model boundary --------------------------------
+# Detected by EXCEPTION CLASS NAME (not isinstance) so this also recognizes a test double that
+# mimics the openai package's exception shape without importing it, matching how the openai SDK
+# itself names these classes (openai.RateLimitError, .APIConnectionError, .APITimeoutError,
+# .InternalServerError) regardless of which module actually defines the raised instance.
+_TRANSIENT_EXC_NAMES = frozenset({
+    "RateLimitError", "APIConnectionError", "APITimeoutError", "InternalServerError",
+})
+# 400-shaped "the server rejected one of our parameters" errors — the ONLY case the param-probe
+# fallbacks in openai_reasoning_generate/gemini_generate may treat as "drop a param and retry".
+_PARAM_ERROR_EXC_NAMES = frozenset({"BadRequestError"})
+_PARAM_ERROR_PHRASES = ("unsupported parameter", "unknown field", "not enabled")
+
+
+def _is_transient_error(exc: BaseException) -> bool:
+    """429 / 5xx / connection / timeout — worth an exponential-backoff retry. Anything else
+    (auth errors, malformed requests, a genuine param rejection) must propagate immediately."""
+    if type(exc).__name__ in _TRANSIENT_EXC_NAMES:
+        return True
+    status = getattr(exc, "status_code", None)
+    return isinstance(status, int) and (status >= 500 or status == 429)
+
+
+def _is_param_error(exc: BaseException) -> bool:
+    """400-shaped 'unsupported parameter' error — the narrow case where re-issuing the call with
+    a reduced parameter set is safe. A transient failure must NEVER match this (see
+    `_is_transient_error`, checked first by callers) so a 429 never silently changes sampling
+    parameters."""
+    if type(exc).__name__ in _PARAM_ERROR_EXC_NAMES:
+        return True
+    status = getattr(exc, "status_code", None)
+    if status == 400:
+        return True
+    msg = str(exc).lower()
+    return any(p in msg for p in _PARAM_ERROR_PHRASES)
+
+
+def _with_retries(fn, *, attempts: int | None = None, base: float | None = None):
+    """Call `fn()`, retrying on a transient failure (see `_is_transient_error`) with exponential
+    backoff + jitter; anything else re-raises immediately on the FIRST attempt. `attempts`/`base`
+    default to the `LLM_RETRY_ATTEMPTS`/`LLM_RETRY_BASE_S` env vars (5 attempts, 1.0s base)."""
+    if attempts is None:
+        attempts = int(os.environ.get("LLM_RETRY_ATTEMPTS", "5"))
+    if base is None:
+        base = float(os.environ.get("LLM_RETRY_BASE_S", "1.0"))
+    last_exc: BaseException | None = None
+    for attempt in range(max(attempts, 1)):
+        try:
+            return fn()
+        except Exception as e:  # noqa: BLE001 — re-raised immediately unless transient
+            if not _is_transient_error(e):
+                raise
+            last_exc = e
+            if attempt == attempts - 1:
+                raise
+            delay = base * (2 ** attempt) + random.uniform(0, base)
+            time.sleep(delay)
+    raise last_exc  # pragma: no cover — unreachable, the loop above always returns or raises
+
+
 def vllm_generate(model: str = DEFAULT_MODEL, *, llm=None, tokenizer=None,
                   max_tokens: int = 4000, temperature: float = 0.6,
                   seed: int | None = 42,   # fixed default for reproducibility
@@ -180,11 +254,12 @@ def openai_compat_generate(model: str = DEFAULT_MODEL, *,
     leave it None for the legacy non-deterministic behavior."""
     if client is None:
         from openai import OpenAI
-        client = OpenAI(base_url=base_url, api_key=api_key or os.environ.get("OPENAI_API_KEY", "EMPTY"))
+        client = OpenAI(base_url=base_url, api_key=api_key or os.environ.get("OPENAI_API_KEY", "EMPTY"),
+                        timeout=float(os.environ.get("LLM_TIMEOUT_S", "600")), max_retries=0)
 
     def generate(prompt) -> str:
         messages = prompt if isinstance(prompt, list) else [{"role": "user", "content": prompt}]
-        resp = client.chat.completions.create(
+        resp = _with_retries(lambda: client.chat.completions.create(
             model=model,
             messages=messages,
             max_tokens=max_tokens,
@@ -192,7 +267,7 @@ def openai_compat_generate(model: str = DEFAULT_MODEL, *,
             seed=seed,
             top_p=top_p,
             presence_penalty=presence_penalty,
-            stop=stop or _STOP)
+            stop=stop or _STOP))
         u = getattr(resp, "usage", None)
         if u is not None:
             _record_usage(getattr(u, "prompt_tokens", 0), getattr(u, "completion_tokens", 0),
@@ -259,7 +334,8 @@ def openai_reasoning_generate(model: str, *, base_url: str = _OPENAI_BASE_URL,
     if client is None:
         from openai import OpenAI
         client = OpenAI(base_url=base_url,
-                        api_key=api_key or os.environ.get("OPENAI_API_KEY", "EMPTY"))
+                        api_key=api_key or os.environ.get("OPENAI_API_KEY", "EMPTY"),
+                        timeout=float(os.environ.get("LLM_TIMEOUT_S", "600")), max_retries=0)
 
     def generate(prompt) -> str:
         messages = prompt if isinstance(prompt, list) else [{"role": "user", "content": prompt}]
@@ -269,10 +345,15 @@ def openai_reasoning_generate(model: str, *, base_url: str = _OPENAI_BASE_URL,
         # "Unsupported parameter". Try the full set, then retry without them — same defensive
         # pattern as `gemini_generate`. Dropping `stop` is safe: the loop parses the FIRST tool
         # call and `_truncate_at_tool_response` still cuts any fabricated observation post-hoc.
+        # Each attempt goes through `_with_retries` on its own, so a transient 429/5xx is retried
+        # WITHOUT ever falling through to the reduced param set — only a genuine 400-shaped
+        # "unsupported parameter" error triggers the fallback (see `_is_param_error`).
         try:
-            resp = client.chat.completions.create(seed=seed, stop=_STOP, **kw)
-        except Exception:  # noqa: BLE001 — unsupported param -> retry with the minimal reasoning set
-            resp = client.chat.completions.create(**kw)
+            resp = _with_retries(lambda: client.chat.completions.create(seed=seed, stop=_STOP, **kw))
+        except Exception as e:  # noqa: BLE001 — re-raised below unless it's a param rejection
+            if not _is_param_error(e):
+                raise
+            resp = _with_retries(lambda: client.chat.completions.create(**kw))
         u = getattr(resp, "usage", None)
         if u is not None:
             _record_usage(getattr(u, "prompt_tokens", 0), getattr(u, "completion_tokens", 0),
@@ -298,19 +379,25 @@ def gemini_generate(model: str, *, base_url: str = _GEMINI_BASE_URL,
     drops support), each call tries the FULL param set first and, only on a 400-shaped failure,
     retries once with the minimal safe set (temperature/max_tokens/top_p/stop — confirmed to work
     across the tried models). This keeps the common case identical to `openai_compat_generate`
-    while making a param-support gap a one-time retry instead of a crashed episode."""
+    while making a genuine param-support gap a one-time retry instead of a crashed episode — a
+    transient 429/5xx on the first attempt is retried unchanged by `_with_retries` and never
+    triggers this fallback (see `_is_param_error`)."""
     if client is None:
         from openai import OpenAI
-        client = OpenAI(base_url=base_url, api_key=api_key or os.environ.get("GEMINI_API_KEY", "EMPTY"))
+        client = OpenAI(base_url=base_url, api_key=api_key or os.environ.get("GEMINI_API_KEY", "EMPTY"),
+                        timeout=float(os.environ.get("LLM_TIMEOUT_S", "600")), max_retries=0)
 
     def generate(prompt) -> str:
         messages = prompt if isinstance(prompt, list) else [{"role": "user", "content": prompt}]
         kw = dict(model=model, messages=messages, max_tokens=max_tokens,
                   temperature=temperature, top_p=top_p, stop=stop or _STOP)
         try:
-            resp = client.chat.completions.create(seed=seed, presence_penalty=presence_penalty, **kw)
-        except Exception:  # noqa: BLE001 — a rejected param (seed/presence_penalty/...): drop to the safe set
-            resp = client.chat.completions.create(**kw)
+            resp = _with_retries(lambda: client.chat.completions.create(
+                seed=seed, presence_penalty=presence_penalty, **kw))
+        except Exception as e:  # noqa: BLE001 — re-raised below unless it's a param rejection
+            if not _is_param_error(e):
+                raise
+            resp = _with_retries(lambda: client.chat.completions.create(**kw))
         u = getattr(resp, "usage", None)
         if u is not None:
             _record_usage(getattr(u, "prompt_tokens", 0), getattr(u, "completion_tokens", 0),

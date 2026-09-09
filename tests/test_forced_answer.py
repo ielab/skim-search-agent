@@ -135,3 +135,81 @@ def test_elicit_final_answer_uses_custom_extract_fn():
 
 def test_force_msg_is_a_tool_response_shaped_instruction():
     assert "STEP BUDGET REACHED" in FORCE_MSG and "<answer>" in FORCE_MSG
+
+
+# --- usage accounting: the forcing call is the LARGEST prompt of an episode, must not be
+# missing from cost accounting (agent_search.models.backends' thread-local usage ledger) ---------
+
+def _fake_client_with_usage(text, prompt_tokens=11, completion_tokens=3):
+    def create(**kwargs):
+        return SimpleNamespace(
+            choices=[SimpleNamespace(message=SimpleNamespace(content=text))],
+            usage=SimpleNamespace(prompt_tokens=prompt_tokens, completion_tokens=completion_tokens))
+    return SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
+
+
+def test_call_prefill_records_usage_on_shared_ledger():
+    from agent_search.models import backends as B
+    B.reset_usage()
+    client = _fake_client_with_usage("Paris", prompt_tokens=11, completion_tokens=3)
+    call_prefill(client, "m", [{"role": "user", "content": "Q"}])
+    totals = B.usage_totals()
+    assert totals == {"llm_calls": 1, "prompt_tokens": 11, "completion_tokens": 3,
+                      "cached_input_tokens": 0, "reasoning_tokens": 0}
+
+
+def test_call_plain_ask_records_usage_on_shared_ledger():
+    from agent_search.models import backends as B
+    B.reset_usage()
+    client = _fake_client_with_usage("<answer>Paris</answer>", prompt_tokens=20, completion_tokens=5)
+    call_plain_ask(client, "m", [{"role": "user", "content": "Q"}])
+    totals = B.usage_totals()
+    assert totals["llm_calls"] == 1
+    assert totals["prompt_tokens"] == 20 and totals["completion_tokens"] == 5
+
+
+def test_call_prefill_tolerates_missing_usage():
+    """A stub client with no `usage` attribute (the pre-existing `_fake_client` in this file)
+    must not crash — usage recording degrades to a no-op, not an AttributeError."""
+    client = _fake_client(["Paris"])
+    assert call_prefill(client, "m", [{"role": "user", "content": "Q"}]) == "Paris"
+
+
+# --- retries: call_prefill/call_plain_ask route through backends._with_retries -------------------
+
+def test_call_prefill_retries_transient_failure_then_succeeds(monkeypatch):
+    monkeypatch.setenv("LLM_RETRY_BASE_S", "0.001")   # keep the backoff sleep negligible in tests
+
+    class RateLimitError(Exception):
+        pass
+
+    calls = {"n": 0}
+
+    def create(**kwargs):
+        calls["n"] += 1
+        if calls["n"] < 2:
+            raise RateLimitError("429")
+        return SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content="Paris"))])
+
+    client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
+    assert call_prefill(client, "m", [{"role": "user", "content": "Q"}]) == "Paris"
+    assert calls["n"] == 2
+
+
+def test_call_plain_ask_does_not_retry_bad_request_error():
+    class BadRequestError(Exception):
+        pass
+
+    calls = {"n": 0}
+
+    def create(**kwargs):
+        calls["n"] += 1
+        raise BadRequestError("400 invalid request")
+
+    client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
+    try:
+        call_plain_ask(client, "m", [{"role": "user", "content": "Q"}])
+        assert False, "expected BadRequestError to propagate"
+    except BadRequestError:
+        pass
+    assert calls["n"] == 1

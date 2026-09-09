@@ -5,7 +5,7 @@
 
 **One Lucene `Document` per `CodeUnit`** (i.e. per corpus document for the
 `browsecomp_plus_structured`/`hotpotqa_structured`/... datasets this backend targets
--- `evaluation.datasets`'s `units_from_documents` already maps one input JSONL row to
+-- `agent_search.evaluation.datasets`'s `units_from_documents` already maps one input JSONL row to
 one `CodeUnit`, with no chunking; see its module docstring). This mirrors EXACTLY how
 both Python reference engines score: `indri.model.IndriExecutor` and
 `bql.executor.StructuralExecutor` both treat one `CodeUnit` as one scorable/matchable

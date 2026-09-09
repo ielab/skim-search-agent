@@ -81,7 +81,7 @@ EXTRA=()
 [ -n "$LIMIT" ] && EXTRA+=(--limit "$LIMIT")
 [ -n "$CORPUS_LIMIT" ] && EXTRA+=(--corpus-limit "$CORPUS_LIMIT")
 
-"$PYTHON" -m evaluation.build_indexes \
+"$PYTHON" -m agent_search.evaluation.build_indexes \
   --dataset "$DATASET" \
   --retriever "$RETRIEVER" \
   ${DENSE_MODEL:+--model "$DENSE_MODEL"} \

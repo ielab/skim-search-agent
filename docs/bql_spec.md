@@ -1,57 +1,59 @@
-# BQL — the executor query language
+# BQL: the executor query language
 
-A small, regular Boolean query language, typed by *granularity* so ill-formed queries are
-rejected before execution and compiled to multiple backends from one abstract form.
+A small, regular Boolean query language. It is typed by *granularity*, so ill-formed queries are
+rejected before they execute, and one abstract form compiles to several backends.
 
-**This is the EXECUTOR language, not the agent surface.** The agent writes a field-tagged
-Boolean surface — `term[field]`, `AND`/`OR`/`NOT`, wildcard `*`, quoted `"phrase"` — which
-`agent_search/retrievers/structural/bql/surface.py::to_bql` lowers to the BQL below (e.g.
-`isnan[call]` → `IN(call, isnan)`; `save[def] NOT test[file]` → `IN(def, save) AND
-NOT(IN(file, test))`; `melanoma[title,body]` → `OR(IN(title, melanoma), IN(body, melanoma))`).
-The parser / type checker / executor and their tests are reused verbatim; only the surface the
-agent types changed. The direct `bql` retriever accepts BQL strings here directly (oracle/debug).
+**This is the EXECUTOR language, not what the agent types.** The agent writes a field-tagged
+Boolean surface (`term[field]`, `AND`/`OR`/`NOT`, wildcard `*`, quoted `"phrase"`), and
+`agent_search/retrievers/structural/bql/surface.py::to_bql` lowers that to the BQL below. So
+`isnan[call]` becomes `IN(call, isnan)`, `save[def] NOT test[file]` becomes `IN(def, save) AND
+NOT(IN(file, test))`, and `melanoma[title,body]` becomes `OR(IN(title, melanoma), IN(body,
+melanoma))`. The parser, type checker and executor are shared verbatim between the two; only the
+surface differs. The direct `bql` retriever takes BQL strings as-is, for oracle runs and
+debugging.
 
-Design rules:
-- **Small regular operator set.** Every operator is a precision or recall knob.
-- **Granularity typing.** Once proximity and scope exist, the unit of retrieval is
-  a *region*, not a document; operators must agree on the region.
-- **Field-tagged surface, functional executor.** The agent's `term[field]` surface maps to the
-  functional `IN(field, term)` the executor evaluates; an unknown field passes through so the
-  type checker rejects it with a readable reason (useful agent feedback).
+Three design rules hold the language together:
+- **A small, regular operator set.** Every operator is either a precision knob or a recall knob.
+- **Granularity typing.** With proximity and scope, the unit of retrieval is a *region*, not a
+  document, and operators must agree on which region they address.
+- **Field-tagged surface, functional executor.** The agent's `term[field]` maps to the functional
+  `IN(field, term)` the executor evaluates. An unknown field passes straight through so the type
+  checker can reject it with a reason the agent can read and act on.
 
 ---
 
 ## 0. Provenance: this is NOT a new Boolean logic
 
-BQL deliberately does **not** invent retrieval semantics. Its operator set is the classical
-professional-search Boolean kit that systematic-review databases, legal search, and Lucene have
-converged on over five decades — that convergence is evidence these are *the* operators expert
-searchers need. Correspondence:
+BQL does not invent retrieval semantics. Its operator set is the classical professional-search
+Boolean kit that systematic-review databases, legal search and Lucene converged on over five
+decades. That convergence is the evidence these are the operators expert searchers need. The
+correspondence:
 
 | BQL | systematic-review / Ovid | Westlaw / Lexis | Lucene / ProQuest |
 |---|---|---|---|
 | `AND(a, b)` / `OR` / `AND(a, NOT(b))` | `a AND b`, `OR`, `NOT` | same | same |
 | `PHRASE(w1, w2)` | `"w1 w2"` | `"w1 w2"` | `"w1 w2"` |
 | `NEAR/w5(a, b)` | Ovid `a adj5 b` | `a /5 b`, `a w/5 b` | `a NEAR/5 b`, `"a b"~5` |
-| `NEAR/sent` / `NEAR/para` | — | `/s`, `/p` | — |
+| `NEAR/sent` / `NEAR/para` |, | `/s`, `/p` |, |
 | `PREFIX(auth)` | `auth*` (truncation) | `auth!` | `auth*` |
 | `IN(title, x)` | `x[ti]`, Ovid `x.ti.` | `TI(x)` | `title:x` |
-| `EXPAND(x, synonym)` | thesaurus term mapping / explosion | — | — |
+| `EXPAND(x, synonym)` | thesaurus term mapping / explosion |, |, |
 | `IN(def/call/sig/comment/string, x)` | **no equivalent** | **no equivalent** | **no equivalent** |
 
-What BQL adds beyond the classical kit (the contribution):
-1. **Code-native fields.** `IN(def/call/sig/comment/string, ·)` is the AST-scope analog of a
-   field tag like `[ti]`/`[ab]` — field search where the "fields" are structural roles in code,
-   computed live from the AST. The agent reaches these as `x[def]` / `x[call]` / `x[string]`.
-2. **A granularity type system.** No classical system type-checks scope nesting; BQL rejects
-   `NEAR/w5(NEAR/file(a,b), c)` as ill-formed instead of guessing.
-3. **Index-free execution.** Classical Boolean operators are defined over inverted indexes;
-   BQL's reference executor evaluates by direct scan of live files, so there is nothing to
-   build, ship, or invalidate.
-4. **Two surfaces, one executor.** The functional form (`AND(a, b)`, `IN(def, x)`) is the
-   canonical executor input; the parser ALSO accepts the classical infix surface (`(a OR b)
-   AND c`, `NEAR/5`, case-insensitive operators), and the agent's field-tagged `term[field]`
-   surface lowers to the functional form — so all three parse to the same AST.
+Four things BQL adds on top of that classical kit:
+
+1. **Code-native fields.** `IN(def/call/sig/comment/string, ·)` is the AST-scope analog of a field
+   tag like `[ti]` or `[ab]`. It is field search where the "fields" are structural roles in code,
+   computed live from the AST. The agent reaches them as `x[def]`, `x[call]`, `x[string]`.
+2. **A granularity type system.** No classical system type-checks scope nesting. BQL rejects
+   `NEAR/w5(NEAR/file(a,b), c)` as ill-formed instead of guessing the intent.
+3. **Index-free execution.** Classical Boolean operators are defined over inverted indexes. BQL's
+   reference executor evaluates by scanning live files, so there is nothing to build, ship or
+   invalidate.
+4. **Two surfaces, one executor.** The functional form (`AND(a, b)`, `IN(def, x)`) is the canonical
+   executor input, the parser also accepts the classical infix surface (`(a OR b) AND c`,
+   `NEAR/5`, case-insensitive operators), and the agent's `term[field]` surface lowers to the
+   functional form. All three land on the same AST.
 
 ---
 
@@ -77,25 +79,24 @@ Region   := "title" | "body" | "section" | "comment" | "string"
 Strategy := "lexical" | "symbol" | "synonym"              ; how EXPAND resolves
 ```
 
-Surface tolerance (canonical form is prefix; the parser additionally accepts the
-classical Boolean surface so raw model output parses): infix `a AND b` / `a OR b`
-(precedence OR < AND), parenthesized grouping `(a OR b) AND c`, top-level comma as
-implicit AND, case-insensitive operator/region/strategy names, Lucene-style numeric
-proximity `NEAR/5(a, b)` (= `NEAR/w5`), escaped quotes in quoted terms, and a
-**bare multi-word run** (`IN(string, must be positive)`) read as an implicit
-`PHRASE(...)` — the model's natural form, which used to hard-error. All tolerance is
-purely syntactic — it canonicalizes to the same AST; semantics and the type system
-are unchanged. A genuine parse failure returns a structured error that suggests the
-fix (e.g. quote or `PHRASE(...)` a multi-word operand).
+The canonical form is prefix. The parser is tolerant so raw model output parses. It also accepts
+infix `a AND b` and `a OR b` (precedence OR below AND), parenthesized grouping like
+`(a OR b) AND c`, a top-level comma as an implicit AND, case-insensitive operator, region and
+strategy names, Lucene-style numeric proximity `NEAR/5(a, b)` (the same as `NEAR/w5`), escaped
+quotes inside quoted terms, and a **bare multi-word run** such as `IN(string, must be positive)`
+read as an implicit `PHRASE(...)`. That last form used to hard-error. All of this tolerance is
+syntactic: everything canonicalizes to the same AST, and semantics and the type system do not
+change. A real parse failure returns a structured error that suggests the fix, such as quoting a
+multi-word operand or wrapping it in `PHRASE(...)`.
 
-Three deliberate constraints:
-- **NOT exists only as the right child of AND** (set-difference). Unbounded
-  negation is semantically dangerous (matches almost everything) and a pruning
-  worst case. The grammar forbids standalone `NOT`.
-- **EXPAND carries a strategy tag**, so one operator covers text synonym expansion
-  and code symbol-graph expansion.
-- **Gran unifies proximity and scope** — "within 5 tokens", "same function", "same
-  file" are one parameter on one operator.
+Three constraints are deliberate:
+- **NOT only exists as the right child of AND**, as set-difference. Unbounded negation matches
+  almost everything, which is both semantically dangerous and a pruning worst case. The grammar
+  does not parse a standalone `NOT`.
+- **EXPAND carries a strategy tag**, so one operator covers text synonym expansion and code
+  symbol-graph expansion.
+- **Gran unifies proximity and scope.** "Within 5 tokens", "same function" and "same file" are one
+  parameter on one operator.
 
 ## 2. Operator → retrieval-polarity spine
 
@@ -103,32 +104,30 @@ Three deliberate constraints:
 |---|---|---|
 | `AND`, `NOT`(=Diff), `PHRASE`, `NEAR` | `OR`, `EXPAND`, `PREFIX` | `IN`, the `/Gran` on `NEAR` |
 
-The agent's learned job: pick which column to reach into given trajectory
-feedback — tighten when the last query over-returned, widen when it returned
-nothing. This table is the paper's one-line statement of what the policy learns.
+The agent's learned job is picking which column to reach into, given what the trajectory
+reported: tighten when the last query over-returned, widen when it came back empty. This table is
+the one-line version of what the policy learns.
 
 ## 3. Granularity type system
 
-Lattice: `token < line < block < func < file < doc`.
+The lattice is `token < line < block < func < file < doc`.
 
-- `Term`, `Phrase`, `Prefix`, `Expand` → **token**-level matches.
-- `NEAR/g` and `IN(region, ·)` **lift** their argument to level `g` (resp. the
-  region's level).
-- `AND`/`OR` require children to **share a level**, else lift to the coarser one.
+- `Term`, `Phrase`, `Prefix` and `Expand` produce **token**-level matches.
+- `NEAR/g` and `IN(region, ·)` **lift** their argument to level `g` (or the region's level).
+- `AND` and `OR` need their children to **share a level**, otherwise both lift to the coarser one.
 
-This rejects nonsense before execution. Example:
-`AND(IN(comment, x), IN(def, y))` is satisfiable only if a `comment` region and a
-`def` region can co-occur in a shared binding region — the type system resolves
-the binding region to the enclosing function/file, not the token. Without this,
-the agent emits queries with undefined region semantics and gets silent garbage.
+That rejects ill-formed queries before anything executes. Take `AND(IN(comment, x), IN(def, y))`:
+it is only satisfiable if a `comment` region and a `def` region can co-occur in a shared binding
+region, and the type system resolves that binding region to the enclosing function or file, not the
+token. Without it, the agent writes queries with undefined region semantics and gets silent
+garbage back.
 
-Type checker output is part of the **observation** when a query is ill-typed, so
-the agent (and, during RL, the reward) can react to malformedness.
+When a query is ill-typed, the type checker's output goes into the **observation**, so the agent
+(and, during RL, the reward) can react to a malformed query instead of guessing.
 
 ## 4. Worked example
 
-Intent: *find where auth tokens are **defined** (not in tests), with `auth` and
-`token` close together.*
+Find where auth tokens are **defined**, not in tests, with `auth` and `token` close together:
 
 ```
 AND(
@@ -137,15 +136,15 @@ AND(
 )
 ```
 
-- **Text backend:** `SpanNearQuery` over the `def` field, wrapped in a
-  `BooleanQuery` with a `MUST_NOT` clause.
-- **Code backend:** ripgrep prefilter for the expanded identifiers → ast-grep
-  verifies both appear in a definition node within one function, minus test paths.
+- **Text backend:** a `SpanNearQuery` over the `def` field, wrapped in a `BooleanQuery` with a
+  `MUST_NOT` clause.
+- **Code backend:** a ripgrep prefilter for the expanded identifiers, then ast-grep verifies both
+  appear in a definition node within one function, minus the test paths.
 
 ## 5. Backend targets
 
-One typed AST can be evaluated by the current reference executor, and can later be
-lowered to backend-specific programs:
+One typed AST runs on the current reference executor today, and can be lowered to backend-specific
+programs later:
 
 | BQL node | Text (Lucene/Pyserini) | Code (ripgrep + ast-grep) |
 |---|---|---|
@@ -157,63 +156,55 @@ lowered to backend-specific programs:
 | `IN(region,·)` | `field:` (title/body/section) | AST role: def / call / sig / comment / string / test-file |
 | `EXPAND` | corpus-validated synonym OR-set | identifier-variant set + symbol-graph (def→calls) |
 
-**Field generalises to structural scope, and in code that is the AST — the single
-strongest argument for the project.** `IN(def,·)`/`IN(call,·)`/`IN(comment,·)` is
-exactly what dense embeddings blur into a vector. Make it first-class.
+Two points from that table. First, field generalises to structural scope, and in code that scope
+is the AST. `IN(def,·)`, `IN(call,·)` and `IN(comment,·)` name the distinctions a dense embedding
+blurs into a single vector, which is why they are first-class here. Second, `PREFIX` in code has to
+be identifier-boundary aware: `PREFIX(auth)` should reach `authToken`, `auth_token` and
+`Authenticate` across naming conventions, and classic truncation cannot do that.
 
-**PREFIX in code needs identifier-boundary awareness**: `PREFIX(auth)` should reach
-`authToken`, `auth_token`, `Authenticate` across naming conventions — a
-code-specific flavour classic truncation lacks.
-
-**EXPAND is where corpus statistics are load-bearing**: the LLM proposes a variant
-set; a future live-corpus resolver can prune df=0 / ultra-rare variants under a
-recall budget before they enter the OR. `synonym` strategy for text, `symbol`
-(naming variants + call graph) for code, `lexical` for raw prefix/wildcard families.
+`EXPAND` is where corpus statistics carry weight. The LLM proposes a variant set, and a live corpus
+resolver can prune the df=0 and ultra-rare variants under a recall budget before any of them enter
+the OR. Use `synonym` for text, `symbol` (naming variants plus the call graph) for code, and
+`lexical` for raw prefix and wildcard families.
 
 ## 6. Cost model & efficient execution
 
-> The **method (code) is index-free**: ripgrep prefilter → ast-grep/Python-AST verify
-> over live files, ranked in-memory (no persisted index). The inverted-index / WAND
-> notes below apply to the **text/Lucene path** (the BM25 *baseline*). At repo scale
-> ripgrep scans in milliseconds, so the method needs no index.
+> The **code method is index-free**: ripgrep prefilter, then ast-grep or Python-AST verification
+> over live files, ranked in memory, with nothing persisted. The inverted-index and WAND notes
+> below are about the **text/Lucene path**, which is the BM25 *baseline*. At repo scale ripgrep
+> scans in milliseconds, so the method needs no index at all.
 
-**Implemented today (the reference executor, `structural/bql/executor.py`):** for a
-LARGE corpus (≥ `AGENT_SEARCH_BQL_PREFILTER_MIN` units, default 5000 — i.e. the shared
-document corpus, not a small per-query repo) selection is **two-phase filter-then-
-verify**: a pure-Python **inverted index** (`token → units`, built once per corpus)
-computes a recall-safe candidate superset from the query's positive leaves, then the
-exact `_eval` verifies only those candidates. It is provably **result-identical** to
-the full live scan (the index only narrows; `_eval` is still the arbiter), so it adds
-scale with zero semantic change. Below the threshold (per-query code repos) the plain
-index-free O(N) scan is used unchanged. The Lucene/WAND notes below are the standard
-sublinear machinery the text path can additionally inherit.
+**What the reference executor does today** (`structural/bql/executor.py`): for a large corpus (at
+least `AGENT_SEARCH_BQL_PREFILTER_MIN` units, default 5000, meaning the shared document corpus
+rather than a small per-query repo) selection is **two-phase filter-then-verify**. A pure-Python
+**inverted index** (`token → units`, built once per corpus) computes a recall-safe candidate
+superset from the query's positive leaves, and the exact `_eval` then verifies only those
+candidates. The result is identical to the full live scan, since the index only narrows and
+`_eval` stays the arbiter, so it scales with no semantic change. Below the threshold (per-query
+code repos) the plain index-free O(N) scan runs unchanged.
 
-Core retrieval is a **solved, sublinear** problem — inherit it where it applies:
+Core retrieval is a solved, sublinear problem, so it is inherited wherever it applies:
 
-- **Text/baseline core (`AND/OR/PHRASE/IN` over a Lucene index):** dynamic top-k
-  pruning (MaxScore / WAND / BlockMax-WAND) skips most postings unscored. Cost ≈
-  standard BM25 query.
-- **EXPAND — the one real risk, and it is bounded.** Each EXPAND is a wide OR;
-  wide disjunctions weaken WAND score upper bounds → less skipping. Control:
-  resolving an EXPAND is `k` df-lookups (µs); cap width by a **recall budget** —
-  sort variants by df, add until marginal recall gain < τ, drop df=0 and
-  ultra-rare. Expansion width becomes a tunable knob, not an explosion. *Corpus
-  statistics convert an open-ended disjunction into a bounded, selectivity-ordered
-  one.*
-- **Code structural scope — two-phase filter-then-verify (the systems
-  contribution).** Never run AST matching over the whole repo.
-  - *Phase A:* cheap lexical prefilter (inverted index / ripgrep) on EXPANDed terms
-    → small candidate file set.
-  - *Phase B:* ast-grep structural verification (`IN(def,·)`, `NEAR/func`) only on
-    candidates.
-  The genuine tension: wide EXPAND → big candidate set → expensive Phase B.
-  Expansion width and verify cost are **coupled**; the recall-budget cap bounds the
-  coupling. State this with the cost model — reviewers will probe it.
-- **NOT and proximity resist pruning → schedule late.** NOT as a post-filter on the
-  already-small candidate set; NEAR after cheap conjuncts have shrunk the set.
-  Evaluation order: selective conjuncts → expansion → proximity → negation.
+- **Text/baseline core** (`AND`/`OR`/`PHRASE`/`IN` over a Lucene index): dynamic top-k pruning
+  (MaxScore, WAND, BlockMax-WAND) skips most postings unscored. Cost lands around a standard BM25
+  query.
+- **EXPAND is the main cost risk, and it is bounded.** Each EXPAND is a wide OR, and wide
+  disjunctions weaken WAND's score upper bounds, which means less skipping. Resolving an EXPAND is
+  `k` df-lookups (microseconds), so cap the width with a **recall budget**. Sort variants by df,
+  add them until the marginal recall gain drops below τ, and drop df=0 and ultra-rare terms.
+  Expansion width becomes a tunable knob, because corpus statistics turn an open-ended disjunction
+  into a bounded, selectivity-ordered one.
+- **Code structural scope: two-phase filter-then-verify.** Never run AST matching over a whole
+  repo. *Phase A* is a cheap lexical prefilter (inverted index or ripgrep) on the EXPANDed terms,
+  giving a small candidate file set. *Phase B* runs ast-grep structural verification (`IN(def,·)`,
+  `NEAR/func`) only on those candidates. A wide EXPAND gives a large candidate set and an
+  expensive Phase B. Expansion width and verify cost are coupled, and the recall-budget cap bounds
+  the coupling.
+- **NOT and proximity resist pruning, so schedule them late.** Run NOT as a post-filter on the
+  already-small candidate set, and NEAR after the cheap conjuncts have shrunk things. The
+  evaluation order is: selective conjuncts, expansion, proximity, negation.
 
-**Pseudocode — EXPAND under recall budget:**
+**Pseudocode, EXPAND under a recall budget:**
 ```
 resolve_expand(term, strategy, budget τ):
     cands = propose_variants(term, strategy)          # LLM / symbol graph / wildcard family
@@ -227,7 +218,7 @@ resolve_expand(term, strategy, budget τ):
     return OR(kept)                                    # bounded disjunction
 ```
 
-**Pseudocode — two-phase code execution:**
+**Pseudocode, two-phase code execution:**
 ```
 execute_code(ast):
     lex = lexical_subquery(ast)                        # EXPANDed terms, no structure
@@ -242,19 +233,18 @@ execute_code(ast):
 
 ## 7. Observation format (what the agent sees back)
 
-The corpus feedback that drives refinement. Per query, return:
-- `n_hits` (total, pre-truncation) — selectivity signal.
-- per-clause / per-EXPAND-variant `df` — lets the agent see a dead clause.
-- top-k snippets with provenance (path:line, region) — evidence.
-- type-check status (ok / which clause is ill-typed).
+This is the corpus feedback that drives query refinement. Every query returns:
+- `n_hits`, the total before truncation, which is the selectivity signal.
+- per-clause and per-EXPAND-variant `df`, so the agent can spot a dead clause.
+- top-k snippets with provenance (path:line, region), which is the evidence.
+- type-check status: ok, or which clause is ill-typed.
 
-This makes the **global statistics a prior** and the **observed result the
-conditional truth** (df *given the constraints already added*), which only
-execution reveals.
+Together these make the global statistics a prior and the observed result the conditional truth,
+that is, df *given the constraints already added*, which only execution reports.
 
 ## 8. Validity & robustness
 
-- Parser returns structured errors → fed back as observation (not a crash).
-- A query that fails type-check is never executed; the agent gets the reason.
-- During RL, format/type validity is a reward term (penalise malformed) so the
+- The parser returns structured errors, which are fed back as an observation instead of crashing.
+- A query that fails the type check never executes, and the agent is told why.
+- During RL, format and type validity are a reward term (malformed queries are penalised), so the
   policy learns to emit well-formed BQL.

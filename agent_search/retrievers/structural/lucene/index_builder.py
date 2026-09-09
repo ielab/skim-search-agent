@@ -11,12 +11,13 @@ Persisted under `<index_root>/lucene_structured/<dataset>/` (index_root defaults
 `indexes/`, mirroring every other backend's `indexes/<name>/<key>/` convention).
 
 CLI:
-    envs/bin/python -m agent_search.retrievers.structural.lucene.index_builder \\
+    python -m agent_search.retrievers.structural.lucene.index_builder \\
         --dataset browsecomp_plus_structured [--index-root indexes] [--rebuild] [--limit N]
 """
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import sys
 import threading
@@ -24,6 +25,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from typing import Optional, Sequence
 
+from agent_search.corpus.fingerprint import corpus_fingerprint
 from agent_search.corpus.units import CodeUnit
 from agent_search.retrievers.structural.indri.index import field_text
 from agent_search.retrievers.structural.lucene import jni_utils as J
@@ -31,6 +33,11 @@ from agent_search.retrievers.structural.lucene.schema import (
     F_AUTHOR, F_AUTHOR_TEXT, F_BODY, F_BODY_EXACT, F_DATE, F_DATE_TEXT, F_ID,
     F_SECTION, F_SECTION_EXACT, F_TITLE, F_TITLE_EXACT,
 )
+
+# meta.json: a sidecar written at build time, alongside (never inside) the Lucene segment
+# files -- Lucene never writes a file by this name, so there's no collision risk. Mirrors
+# `bm25_pyserini`'s own meta.json congruence-check pattern (lexical/pyserini.py).
+_META_FILE = "meta.json"
 
 
 def index_dir(index_root: str, dataset: str) -> str:
@@ -79,7 +86,8 @@ def _lucene_doc_count(path: str) -> Optional[int]:
         return None
 
 
-def is_built(index_root: str, dataset: str, expected_n_docs: Optional[int] = None) -> bool:
+def is_built(index_root: str, dataset: str, expected_n_docs: Optional[int] = None,
+             expected_fingerprint: Optional[str] = None) -> bool:
     """`expected_n_docs` (passed by `build()`, where the current corpus size is
     known) adds a doc-count congruence check on top of the segments-presence
     check -- same correctness guard as the dense-cache check in
@@ -88,7 +96,16 @@ def is_built(index_root: str, dataset: str, expected_n_docs: Optional[int] = Non
     (added/removed docs) would otherwise be silently reused, serving hits for
     the WRONG document set with no error anywhere. `None` (the default, used by
     every units-free `is_cached` probe) skips this check entirely -- see
-    `has_segments`'s docstring for why those callers have no count to check."""
+    `has_segments`'s docstring for why those callers have no count to check.
+
+    `expected_fingerprint` (`agent_search.corpus.fingerprint.corpus_fingerprint`, also
+    passed only by `build()`) additionally catches the same-doc-COUNT-different-CONTENT
+    case the doc-count check alone can't see (a unit edited in place, same corpus size).
+    Compared against the `corpus_fingerprint` key in the `meta.json` sidecar `build()`
+    writes; a present-but-different value is treated as stale, same as a doc-count
+    mismatch. `None` (the default) skips this check too; an index built before this
+    check existed has no `meta.json`/no fingerprint key -- trusted as-is, like the
+    doc-count check's own pre-existing-index fallback."""
     path = index_dir(index_root, dataset)
     if not has_segments(path):
         return False
@@ -99,6 +116,19 @@ def is_built(index_root: str, dataset: str, expected_n_docs: Optional[int] = Non
                   f"but the current corpus has {expected_n_docs} -- stale/mismatched "
                   f"index, rebuilding", file=sys.stderr, flush=True)
             return False
+    if expected_fingerprint is not None:
+        meta_path = os.path.join(path, _META_FILE)
+        if os.path.exists(meta_path):
+            try:
+                with open(meta_path) as fh:
+                    fp = json.load(fh).get("corpus_fingerprint")
+            except Exception:
+                fp = None
+            if fp is not None and fp != expected_fingerprint:
+                print(f"[lucene_structured] WARNING: index at {path!r} has a different "
+                      f"corpus_fingerprint than the current corpus -- stale/mismatched "
+                      f"index (content changed), rebuilding", file=sys.stderr, flush=True)
+                return False
     return True
 
 
@@ -214,7 +244,9 @@ def build(units: Sequence[CodeUnit], index_root: str, dataset: str,
         67707-doc build, and why. Left as an opt-in knob for a follow-up.
     """
     out_dir = index_dir(index_root, dataset)
-    if not rebuild and is_built(index_root, dataset, expected_n_docs=len(units)):
+    fp = corpus_fingerprint(units)
+    if not rebuild and is_built(index_root, dataset, expected_n_docs=len(units),
+                                expected_fingerprint=fp):
         return {"n_docs": len(units), "elapsed_s": 0.0, "index_dir": out_dir, "skipped": True}
 
     os.makedirs(out_dir, exist_ok=True)
@@ -258,6 +290,15 @@ def build(units: Sequence[CodeUnit], index_root: str, dataset: str,
     writer.commit()
     writer.close()
     mmap_dir.close()
+    # meta.json sidecar (mirrors bm25_pyserini's own meta.json): the doc-count + content
+    # fingerprint `is_built` checks on the NEXT build/open, so a corpus change (added/
+    # removed docs, or a unit edited in place) is caught even though Lucene's own segment
+    # files carry no such application-level identity.
+    try:
+        with open(os.path.join(out_dir, _META_FILE), "w") as fh:
+            json.dump({"n_docs": n, "corpus_fingerprint": fp}, fh)
+    except Exception:
+        pass                    # best-effort sidecar; a missing/corrupt one just skips the check
     elapsed = time.time() - t0
     return {"n_docs": n, "elapsed_s": elapsed, "index_dir": out_dir, "skipped": False,
             "ram_buffer_mb": _RAM_BUFFER_MB, "n_threads": threads}
@@ -266,7 +307,7 @@ def build(units: Sequence[CodeUnit], index_root: str, dataset: str,
 class LuceneIndexBuilder:
     """Offline persister mirroring `BQLIndexBuilder`/`IndriIndexBuilder`'s shape
     (`.index(units, key)` / `.is_cached(key)`), so this backend can plug into the
-    same `evaluation/build_indexes.py` step-0 prebuild pattern if a follow-up wires
+    same `agent_search/evaluation/build_indexes.py` step-0 prebuild pattern if a follow-up wires
     it in (registered name left unregistered here -- see module docstring's task
     scope: this is an additive, standalone package)."""
     name = "search_lucene"
@@ -292,7 +333,7 @@ def _main() -> None:
                     help="cap the number of corpus documents indexed (debugging)")
     args = ap.parse_args()
 
-    from evaluation.datasets import load_dataset_by_name
+    from agent_search.evaluation.datasets import load_dataset_by_name
     from agent_search.corpus.units import units_from_documents
 
     instances = load_dataset_by_name(args.dataset, limit=1)

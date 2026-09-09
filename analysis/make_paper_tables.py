@@ -1,9 +1,9 @@
 #!/usr/bin/env python
 """Recompute every numeric value of the paper's result tables directly from run data.
 
-    PYTHONPATH=. ./envs/bin/python analysis/make_paper_tables.py --check          # default
-    PYTHONPATH=. ./envs/bin/python analysis/make_paper_tables.py --emit <outdir>
-    PYTHONPATH=. ./envs/bin/python analysis/make_paper_tables.py --selftest       # pipeline vs cell_metrics
+    PYTHONPATH=. python analysis/make_paper_tables.py --check          # default
+    PYTHONPATH=. python analysis/make_paper_tables.py --emit <outdir>
+    PYTHONPATH=. python analysis/make_paper_tables.py --selftest       # pipeline vs cell_metrics
 
 BrowseComp-Plus corpus switch (--corpus, DEFAULT full):
   --corpus full   -> every BCP cell reads the FULL-corpus runs (dataset
@@ -16,7 +16,7 @@ BrowseComp-Plus corpus switch (--corpus, DEFAULT full):
                      backbone rows stay FROZEN constants copied verbatim from the live .tex.
   Wiki (hotpotqa/musique) cells are identical under both settings.
 
-Covers (all under Boolean_agent_paper/tables/):
+Covers the paper's table sources:
   consolidated.tex, snippet_ablation.tex, backbone_transfer.tex (hotpotqa rows recomputed always;
   BCP-S rows recomputed under --corpus full, FROZEN under pooled; MuSiQue rows always FROZEN
   historical constants copied from the live .tex), main_results.tex, wiki_results.tex (two
@@ -56,13 +56,17 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT))
-os.chdir(ROOT)  # compare_cells / load_qrels / the compare cache all use repo-relative paths
+if str(ROOT) not in sys.path:                    # `scripts/` is repo-only, not an installed package
+    sys.path.insert(0, str(ROOT))
+# NOTE: compare_cells / load_qrels / the compare cache use repo-relative paths, so main()
+# changes into ROOT before doing any work. Importing this module never changes the cwd.
 
 from scripts.compare_cells import (  # noqa: E402
     MODEL_DIR, _apply_overlay, _qid_of, _read_cache, _row_intrinsic, load_qrels, mcnemar_p, pct,
 )
 
+# The paper's LaTeX tree is a local checkout, not part of this release; these paths only
+# resolve when that tree happens to sit alongside the repo.
 TABLES_DIR = ROOT / "Boolean_agent_paper" / "tables"
 FIGS_DIR = ROOT / "Boolean_agent_paper" / "figures"
 CACHE_PATH = ROOT / "analysis" / "paper_tables_cache.json"
@@ -840,6 +844,7 @@ def run_selftest(stats, corpus: str = "full") -> int:
 
 
 def main() -> int:
+    os.chdir(ROOT)   # compare_cells / load_qrels / the compare cache use repo-relative paths
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--check", action="store_true", help="recompute + diff vs live .tex (default)")

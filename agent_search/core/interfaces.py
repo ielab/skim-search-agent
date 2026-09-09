@@ -1,22 +1,41 @@
-"""The contracts of the framework — everything you implement to extend it, in one
-place.
+"""The contracts of the library — what you implement to extend it, in one place.
 
-agent_search answers an information need by **searching a corpus**. The pieces that
-vary across tasks are the *dials*; each is one interface here:
+SkimSearchAgent answers an information need by letting an agent **search a corpus** over
+several steps. The parts that vary between experiments are the *dials*; each is one
+interface here, and every built-in implementation goes through the same interface as a
+user-provided one (nothing in the harness special-cases the built-ins):
 
-- ``CorpusSource`` — where the units come from. Two regimes: a **per-query** corpus
-  (a code repo @ commit, built fresh per instance) or a **shared** corpus (one fixed
-  document/passage collection searched by every query).
-- ``Retriever`` — query -> ranked unit ids. The zoo: grep, BM25, dense, SPLADE, an
-  LLM reranker, the structural BQL engine. Index lifecycle is the retriever's own
-  business (none / inverted / embeddings / sparse).
-- ``Model`` — an LLM provider: ``generate(messages) -> text``. Local (vLLM) or API
-  (OpenAI / Claude / Gemini). The agent is provider-agnostic because tools are
-  described in the prompt and tool calls are parsed from text.
-- ``Executor`` / ``Observation`` / ``Hit`` — a retriever's execution result and the
-  feedback an agent reads after a tool call.
+==================  ====================================================================
+dial                contract
+==================  ====================================================================
+corpus              a sequence of ``Unit`` (``agent_search.corpus.units.CodeUnit``): the
+                    retrievable atom — ``doc_id``, ``title``, ``body``, optional named
+                    ``sections`` and ``metadata``. Build one from plain dicts with
+                    ``units_from_documents``; register a loader with
+                    ``agent_search.evaluation.datasets.register_dataset``.
+retriever           ``Retriever`` — index a corpus, rank it for a query. Register with
+                    ``agent_search.retrievers.registry.register``.
+model               ``Model`` — ``generate(messages) -> text``: any callable taking an
+                    OpenAI-style chat message list and returning the raw generation.
+                    ``agent_search.models.backends.make_generate`` builds the built-ins.
+policy              ``Policy`` — decides the next raw generation from the task and the
+                    step history. ``AgentPolicy`` (prompted model), ``KeywordPolicy``
+                    (no model) and ``ScriptPolicy`` (replay) are the built-ins.
+workspace / tools   ``Workspace`` — the tool surface an episode drives: dispatch one tool
+                    call by name and return the text observation; remember what was
+                    surfaced. A tool is a method of a workspace, declared in
+                    ``agent_search/prompts/tools.yaml`` and bound to a condition in
+                    ``conditions.yaml``. Register a workspace for a toolset with
+                    ``agent_search.agent.retriever.register_workspace``.
+evaluator           functions over the run record: ``agent_search.evaluation.metrics``,
+                    ``doc_scoring``, ``llm_judge``.
+==================  ====================================================================
 
-Adding a dial value = implement the interface + register it; no harness change.
+Every interface here is either an ABC the built-ins subclass or a ``runtime_checkable``
+Protocol the harness reads through ``getattr``; there are no decorative contracts. The
+episode loop (``agent_search.agent.loop.run_episode``) consumes exactly ``Policy`` and
+``Workspace``; the harness (``agent_search.evaluation.run_eval``) consumes exactly
+``Retriever`` plus the optional capability flags documented on it.
 """
 from __future__ import annotations
 
@@ -27,56 +46,39 @@ from typing import Any, Optional, Protocol, Sequence, runtime_checkable
 from .units import Unit
 
 
-# --- corpus -----------------------------------------------------------------
-
-@runtime_checkable
-class CorpusSource(Protocol):
-    """Yields the retrievable units for a query instance. A per-query source
-    returns that instance's repo units; a shared source ignores the instance and
-    returns the one fixed collection (cached). ``key`` is a stable corpus identity
-    used to reuse a built index across instances that share a corpus."""
-
-    def units_for(self, instance: Any) -> Sequence[Unit]: ...
-
-    def key(self, instance: Any) -> str: ...
-
-
 # --- retrieval --------------------------------------------------------------
 
 class Retriever(ABC):
-    """index a corpus of units, then rank them for a query. Built once per corpus
-    identity (per SWE-bench instance for code, once for a shared collection)."""
+    """Index a corpus of units, then rank them for a query.
+
+    Built once per corpus identity (``key``) and reused across queries. Optional
+    capabilities the harness reads with ``getattr``:
+
+    * ``returns_full_set = True`` — ``search`` returns the retriever's own complete ranking
+      (an agent's surfaced set), so the harness must not pad it to the set-metric pool.
+    * ``is_cached(key) -> bool`` — a persistent index for ``key`` already exists on disk
+      (lets ``build_indexes`` skip parsing the corpus).
+    * ``search_with_scores(query, k) -> list[tuple[str, float]]`` — scored ranking, when
+      the engine has scores to show.
+    """
 
     name: str = "retriever"
 
     @abstractmethod
     def index(self, units: Sequence[Unit], key: Optional[str] = None) -> "Retriever":
-        """Build/load the index for a corpus. ``key`` lets persistent backends cache
-        and reuse an index keyed by corpus identity (e.g. "repo@commit")."""
+        """Build or load the index for a corpus. ``key`` is the corpus identity persistent
+        backends cache under (e.g. the dataset name); ``None`` means in-memory only."""
         ...
 
     @abstractmethod
     def search(self, query: str, k: int) -> list[str]:
-        """Return up to k unit doc_ids ("path::qualname"), best first."""
+        """Return up to ``k`` unit ``doc_id``s, best first."""
         ...
 
 
-# --- agent tools ------------------------------------------------------------
-
-@runtime_checkable
-class Tool(Protocol):
-    """An agent-callable action: given JSON arguments, return a text observation the
-    agent reads next turn. Search tools wrap a Retriever; workspace tools open/scroll
-    a file. The available tools per condition are listed in ``prompts/tools.yaml`` and
-    dispatched by the agent's action executor / workspace."""
-
-    def __call__(self, **arguments: Any) -> str: ...
-
-
-# --- execution result + agent feedback --------------------------------------
-
 @dataclass
 class Hit:
+    """One ranked result with optional provenance (used by the structured executors)."""
     doc_id: str
     score: float
     path: str | None = None
@@ -87,29 +89,61 @@ class Hit:
 
 @dataclass
 class Observation:
-    """What gets serialized into the agent's context after a query."""
+    """A structured retrieval result: what a search tool renders for the agent."""
     n_hits: int
     hits: Sequence[Hit]
-    clause_df: dict[str, int] = field(default_factory=dict)  # per-clause/variant df
+    clause_df: dict[str, int] = field(default_factory=dict)  # per-clause document frequency
     typecheck_ok: bool = True
-    error: str | None = None  # parse/type error -> agent reacts instead of crashing
-
-
-class Executor(ABC):
-    """Runs a compiled retrieval program and ranks (BM25). CPU-only by design.
-    The structural BQL engine is the reference implementation."""
-
-    @abstractmethod
-    def run(self, program: Any, k: int = 100) -> Observation:
-        ...
+    error: str | None = None  # parse/type error -> the agent reacts instead of crashing
 
 
 # --- model provider ---------------------------------------------------------
 
 @runtime_checkable
 class Model(Protocol):
-    """An LLM provider. The agent calls it with a chat message list and reads back
-    raw text; tool calls live in that text (DeepResearch-style), so any provider —
-    local vLLM or a hosted OpenAI/Claude/Gemini endpoint — plugs in as one adapter."""
+    """An LLM provider: ``generate(messages) -> text``.
+
+    ``messages`` is an OpenAI-style chat list (``[{"role": ..., "content": ...}, ...]``); the
+    return value is the raw generation. Tool calls live in that text (``<tool_call>...``), so
+    any provider plugs in as one callable — a served vLLM, the OpenAI or Gemini APIs, or a
+    lambda in a test. ``agent_search.models.backends.make_generate`` returns one of these.
+
+    Optional attributes the loop reads with ``getattr`` (never required): ``client`` and
+    ``model`` (an OpenAI-compatible client + model id) enable the forced-answer elicitation
+    call on budget exhaustion; without them the episode simply ends with what it has."""
 
     def __call__(self, messages: list[dict]) -> str: ...
+
+
+# --- policy -----------------------------------------------------------------
+
+@runtime_checkable
+class Policy(Protocol):
+    """Decides the next raw generation from the task and the steps so far. The loop
+    parses ONE tool call (or a terminal ``<answer>``) out of what it returns."""
+
+    def propose(self, task: Any, history: Sequence[Any]) -> str: ...
+
+
+# --- workspace / tools ------------------------------------------------------
+
+@runtime_checkable
+class Workspace(Protocol):
+    """The tool surface an episode drives.
+
+    ``run`` dispatches one tool call by name and returns the text observation fed back to
+    the policy — a tool error is itself a returned observation, never a raised exception.
+    ``tools`` lists the tool names this workspace answers to (the condition's toolset).
+    ``surfaced`` is the doc ids the episode has surfaced so far in first-seen order: the
+    agent's retrieval ranking for rank metrics (built-ins keep an
+    ``agent_search.core.seen.OrderedSeen`` as ``seen`` and expose it as ``surfaced``)."""
+
+    tools: Sequence[str]
+
+    def run(self, name: str, args: dict) -> str: ...
+
+    @property
+    def surfaced(self) -> Sequence[str]: ...
+
+
+__all__ = ["Unit", "Retriever", "Hit", "Observation", "Model", "Policy", "Workspace"]

@@ -5,7 +5,7 @@ output is tail-truncated. read(path, offset, limit) returns a 1-indexed line-ran
 exported file. NO retriever — the agent must grep for candidate files itself. `.seen`
 accumulates every doc_id surfaced (a direct read, or a filename mentioned in a bash command
 or its output), for gold-doc coverage."""
-from agent_search.agent.tools.doc_dci import DciWorkspace
+from agent_search.agent.tools.doc_dci import DciWorkspace, _run_read, _tail_truncate
 from agent_search.corpus.units import units_from_documents
 
 DOCS = [
@@ -114,3 +114,42 @@ def test_same_corpus_key_reuses_export_dir():
     a = _ws(key="__test_dci_shared_corpus__")
     b = _ws(key="__test_dci_shared_corpus__")
     assert a.corpus_dir == b.corpus_dir
+
+
+# --- token caps (no character/byte caps anywhere — agent_search.core.tokens) ------------------
+
+def test_tail_truncate_keeps_last_n_whitespace_tokens_not_bytes():
+    """`_tail_truncate`'s size limit is WHITESPACE TOKENS, not bytes: a line whose token count
+    is small but byte length is large (long individual words) must NOT trip the cap, and the
+    kept content is the TAIL of the token stream."""
+    # 50 short tokens fits comfortably under max_tokens=10 lines-worth if measured in bytes
+    # (each token is 1 char), but token-counted only the LAST 10 survive.
+    content = " ".join(f"t{i}" for i in range(50))
+    out = _tail_truncate(content, max_lines=1000, max_tokens=10)
+    assert "[Truncated:" in out and "token limit" in out
+    kept = out.split("\n")[0]
+    assert kept.split() == [f"t{i}" for i in range(40, 50)]
+
+
+def test_tail_truncate_under_budget_is_unchanged():
+    content = "a b c"
+    assert _tail_truncate(content, max_lines=1000, max_tokens=10) == content
+
+
+def test_run_read_caps_an_oversized_line_in_tokens_with_a_token_count_marker(tmp_path):
+    """`_run_read`'s per-line cap (`cap_tokens`) truncates a line to `max_line_tokens`
+    whitespace tokens and appends a `...[line truncated; N tokens]` marker — no character
+    cap anywhere in the read path."""
+    long_line = " ".join(f"w{i}" for i in range(30))
+    f = tmp_path / "doc.txt"
+    f.write_text(long_line)
+    out = _run_read(tmp_path, "doc.txt", None, None, default_limit=10, max_line_tokens=5)
+    assert out.startswith(" ".join(f"w{i}" for i in range(5)))
+    assert "...[line truncated; 25 tokens]" in out
+
+
+def test_run_read_line_within_budget_is_unmarked(tmp_path):
+    f = tmp_path / "doc.txt"
+    f.write_text("short line")
+    out = _run_read(tmp_path, "doc.txt", None, None, default_limit=10, max_line_tokens=5)
+    assert out == "short line"

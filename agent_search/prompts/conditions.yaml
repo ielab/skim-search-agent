@@ -18,3 +18,10 @@ conditions:
   research_bql_dense_snip: {task: research, toolset: bql_dense_snip}
   research_bql_dense_fetch: {task: research, toolset: bql_dense_fetch}
   research_indri_snip: {task: research, toolset: indri_snip}
+  # code-localization arm (SWE-bench-style repositories): search->fetch or grep->read, then a <fix>
+  codefix: {task: taskfix, toolset: code_fix}
+  codefix_grep: {task: taskfix, toolset: code_grep}
+  codefix_patch: {task: taskfix_patch, toolset: code_fix}
+  # ITER's search strategy: de-duplicated keyword search over the collection, get_document by id
+  research_dedup_bm25: {task: research_dedup, toolset: dedup_bm25}
+  research_dedup_dense: {task: research_dedup, toolset: dedup_dense}

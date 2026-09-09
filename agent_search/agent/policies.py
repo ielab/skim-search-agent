@@ -10,12 +10,17 @@ the loop parses it. Three flavours:
 from __future__ import annotations
 
 import json as _json
+import os
 from collections import Counter
 from datetime import date
 from typing import Callable, List, Sequence
 
+from agent_search.core.tokens import count_tokens, truncate_tokens
 from agent_search.corpus.units import code_tokenize
 from agent_search.prompts import load_prompt_text
+
+# History budget (model tokens) for AgentPolicy — see `default_ctx_tokens`.
+DEFAULT_CTX_TOKENS = 115_000
 
 _STOP_WORDS = {
     "the", "a", "an", "is", "are", "be", "to", "of", "and", "or", "in", "on", "for",
@@ -41,11 +46,24 @@ def _tool_call(name: str, **args) -> str:
 
 # --- LLM policy --------------------------------------------------------------
 
+def default_ctx_tokens() -> int:
+    """The history budget in model tokens. ``AGENT_CTX_TOKENS`` overrides; the default leaves
+    headroom inside a 131k-token window (the paper's served backbone) for the system prompt,
+    the question, and the next generation. Read at policy construction, not at import."""
+    return int(os.environ.get("AGENT_CTX_TOKENS", str(DEFAULT_CTX_TOKENS)))
+
+
 class AgentPolicy:
-    """Prompt-profile-driven policy. `generate(messages) -> raw text`."""
+    """Prompt-profile-driven policy. `generate(messages) -> raw text`.
+
+    Length is governed in TOKENS only. ``ctx_tokens`` is the total token budget for the
+    (assistant, observation) history pairs kept in the prompt — never a per-observation
+    cap and never a character count. Tokens are counted on the library's measurement ruler
+    (``agent_search.core.tokens.count_tokens``: tiktoken ``o200k_base`` when installed,
+    whitespace tokens otherwise)."""
 
     def __init__(self, generate: Callable[[list], str], prompt_path: str,
-                 max_history: int = 40, ctx_chars: int = 450_000,
+                 max_history: int = 40, ctx_tokens: int | None = None,
                  field_profile: str | None = None):
         self.generate = generate
         self.prompt_path = prompt_path
@@ -53,17 +71,10 @@ class AgentPolicy:
         # "wiki"/"browsecomp" vs flat "general"); None -> the task's own domain.
         self.system = load_prompt_text(prompt_path, field_profile)
         self.max_history = max_history
-        # ctx_chars: a TOTAL char budget (default ~450k chars =~ 115k tokens) for the
-        # kept (assistant, observation) history pairs, not a per-observation cap. This is
-        # what makes the model's real 128k-token window (Tongyi-DeepResearch-30B-A3B's
-        # max_position_embeddings=131072) usable: sections (median 100-170 tokens) always
-        # fit whole; whole docs (median 550-1938 tokens, p95 up to 22k, max ~930k on
-        # browsecomp) mostly fit whole too, instead of being silently clipped to ~500
-        # tokens by a flat per-observation cap.
-        self.ctx_chars = ctx_chars
+        self.ctx_tokens = int(ctx_tokens) if ctx_tokens is not None else default_ctx_tokens()
         self.last_raw = ""
 
-    def build_messages(self, task, history, ctx_chars: int | None = None) -> list:
+    def build_messages(self, task, history, ctx_tokens: int | None = None) -> list:
         system = _re.sub(r"\n{3,}", "\n\n", self.system).strip() + "\n"
         msgs = [
             {"role": "system", "content": system},
@@ -71,26 +82,28 @@ class AgentPolicy:
              "content": f"Current date: {date.today().isoformat()}\n\n{task.query}"},
         ]
         # Walk history newest -> oldest, keeping whole (assistant, observation) pairs while
-        # a running char total stays under ctx_chars; older steps are dropped once the
+        # the running token total stays under the budget; older steps are dropped once the
         # budget is hit. Only a SINGLE observation that alone exceeds the entire remaining
-        # budget gets truncated (rare: e.g. a ~930k-token browsecomp doc) — everything else
-        # is kept in full, chronologically ordered, in the final message list.
+        # budget gets truncated (rare: e.g. a ~930k-token document) — everything else is
+        # kept in full, chronologically ordered, in the final message list.
         kept: list[tuple[str, str]] = []   # (raw_output, observation) chronological once reversed
-        budget = ctx_chars if ctx_chars is not None else self.ctx_chars
+        budget = int(ctx_tokens) if ctx_tokens is not None else self.ctx_tokens
         for s in reversed(history[-self.max_history:]):
             raw = s.raw_output or ""
             obs = s.observation or ""
-            pair_len = len(raw) + len(obs)
+            raw_len = count_tokens(raw)
+            obs_len = count_tokens(obs)
+            pair_len = raw_len + obs_len
             if pair_len <= budget:
                 kept.append((raw, obs))
                 budget -= pair_len
-            elif not kept and len(obs) > budget:
+            elif not kept and obs_len > budget:
                 # this is the newest step, and its observation ALONE overflows the whole
-                # budget (rare: e.g. a ~930k-token browsecomp doc): truncate just it,
-                # rather than dropping it outright (the model needs SOME view of its most
-                # recent tool call), then stop — no room remains for any older step.
-                room = max(budget - len(raw), 0)
-                obs = obs[:room] + "\n...(truncated)"
+                # budget: truncate just it (by tokens), rather than dropping it outright
+                # (the model needs SOME view of its most recent tool call), then stop —
+                # no room remains for any older step.
+                room = max(budget - raw_len, 0)
+                obs = truncate_tokens(obs, room, "\n...(truncated)")
                 kept.append((raw, obs))
                 budget = 0
                 break
@@ -102,15 +115,15 @@ class AgentPolicy:
         return msgs
 
     def propose(self, task, history) -> str:
-        # The char budget (~3.9 chars/token heuristic) can overshoot the model's true token
-        # window on token-dense content (tables, id lists): vLLM then 400s with "maximum
-        # context length". Rather than killing the instance (permanent n<200 hole — e.g.
-        # browsecomp__1012 at 127,073 tokens), shrink the window 15% and retry, up to 3
-        # times. Episodes that never trip the error build identical messages to before.
-        ctx = self.ctx_chars
+        # The measurement ruler can differ from the serving model's tokenizer, so the budget
+        # can still overshoot the true window on token-dense content: the server then rejects
+        # the request with "maximum context length". Rather than killing the instance, shrink
+        # the window 15% and retry, up to 3 times. Episodes that never trip the error are
+        # unaffected by this loop.
+        ctx = self.ctx_tokens
         for shrink in range(4):
             try:
-                self.last_raw = self.generate(self.build_messages(task, history, ctx_chars=ctx))
+                self.last_raw = self.generate(self.build_messages(task, history, ctx_tokens=ctx))
                 return self.last_raw
             except Exception as e:
                 if "maximum context length" not in str(e) or shrink == 3:
@@ -169,13 +182,20 @@ class KeywordPolicy:
             else:
                 self.last_raw = _tool_call("search", query=q)
             return self.last_raw
-        # second move: open the first candidate (fetch a part / visit the doc / read a hit)
+        # second move: open the first candidate (fetch a part / visit the doc / read a hit).
+        # Every arm names its read tool differently (visit, visit_d, visit_h, fetch, fetch_s,
+        # fetch_bqld*): pick whichever this toolset has, so the smoke run exercises a read.
+        visit_tool = next((t for t in self.toolset if t.startswith("visit")), None)
+        fetch_tool = next((t for t in self.toolset if t.startswith("fetch")), None)
         if step == 1:
-            if "visit" in ts:
-                self.last_raw = _tool_call("visit", rank=1)
-            elif "fetch" in ts:
-                part = _first_fetch_part(history[-1].observation)
-                self.last_raw = _tool_call("fetch", specs=[[1, part]] if part else [])
+            if "get_document" in ts:
+                m = _re.search(r"DocID:\s*(\S+)", history[-1].observation or "")
+                self.last_raw = _tool_call("get_document", docid=m.group(1)) if m else "<answer></answer>"
+            elif visit_tool and history[-1].name != "read":
+                self.last_raw = _tool_call(visit_tool, rank=1)
+            elif fetch_tool:
+                part = _first_fetch_part(history[-1].observation) or "(intro)"
+                self.last_raw = _tool_call(fetch_tool, specs=[[1, part]])
             elif "grep" in ts and "read" in ts:
                 path = _first_grep_hit_path(history[-1].observation)
                 self.last_raw = _tool_call("read", path=path) if path else "<answer></answer>"

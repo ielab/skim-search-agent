@@ -126,11 +126,11 @@ def test_zero_match_query_is_reported_with_query_text():
 def test_seen_accumulates_across_init_and_later_search():
     ws = _ws(topk=3)
     init_hits = set(ws.last_hits)
-    assert init_hits <= ws.seen
+    assert init_hits <= set(ws.seen)
     ws.search(QUERY_LATER)
     assert "doc_b" in ws.seen
     # both the construction-time hits AND the later hit are present simultaneously
-    assert init_hits <= ws.seen
+    assert init_hits <= set(ws.seen)
     assert "doc_b" in ws.seen and init_hits.issubset(ws.seen)
 
 

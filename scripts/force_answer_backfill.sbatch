@@ -14,7 +14,7 @@
 # Offline forced-answer backfill (scripts/force_answer_backfill.py): serve Tongyi vLLM on :8102
 # (SAME serve invocation scripts/run.sh / scripts/oneshot_rag.sbatch use), wait for it, then run
 # the backfill over every browsecomp factorial cell (CELLS env, newline- or space-separated glob
-# patterns; default below covers every cell docs/factorial_snapshot_20260710.md diagnosed).
+# patterns; default below covers every browsecomp factorial cell known to need recovery).
 # `bash scripts/force_answer_backfill.sbatch` runs interactively; `sbatch scripts/force_answer_backfill.sbatch`
 # submits it as a SLURM job. Never mutates any rows.jsonl — writes only
 # <condition_dir>/recovered_answers.jsonl (additive, idempotent, safe to re-run/resume).
@@ -66,9 +66,9 @@ TP="${TP:-1}"
 WORKERS="${WORKERS:-8}"
 DRY_RUN="${DRY_RUN:-0}"                    # set DRY_RUN=1 to only report counts (no GPU needed)
 # CELLS: newline- or space-separated glob pattern(s), one per condition-dir group. Default: every
-# browsecomp cell docs/factorial_snapshot_20260710.md diagnosed (the _headline_validation /
-# _dense_validation / _visit_uncapped / _fullvisit / _fullvisit_dense factorial dirs, plus the
-# main-sweep browsecomp_plus_structured / browsecomp_plus_flat condition dirs).
+# browsecomp factorial cell (the _headline_validation / _dense_validation / _visit_uncapped /
+# _fullvisit / _fullvisit_dense factorial dirs, plus the main-sweep browsecomp_plus_structured /
+# browsecomp_plus_flat condition dirs).
 if [ -n "${CELLS:-}" ]; then
   read -r -a CELL_ARGS <<< "$CELLS"
 else

@@ -1,5 +1,5 @@
-from evaluation.build_indexes import unique_corpora, shard_by_repo
-from evaluation.datasets import Instance
+from agent_search.evaluation.build_indexes import unique_corpora, shard_by_repo
+from agent_search.evaluation.datasets import Instance
 
 
 def _inst(iid, repo, commit):

@@ -1,4 +1,4 @@
-"""The demo's curated BrowseComp-Plus collection: ~102 real docs (2 queries' gold + distractor
+"""The demo's curated BrowseComp-Plus collection: ~250 real docs (2 queries' gold + distractor
 pools from the paper's published structured corpus) + the 2 curated questions.
 
 Data lives in corpus_data.json (generated once, offline, by build_corpus.py — checked in so

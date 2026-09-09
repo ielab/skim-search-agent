@@ -127,7 +127,7 @@ run_eval () {
   if [ -n "$CORPUS_LIMIT" ]; then
     EXTRA+=(--corpus-limit "$CORPUS_LIMIT")
   fi
-  "$PYTHON" -m evaluation.run_eval \
+  "$PYTHON" -m agent_search.evaluation.run_eval \
     --dataset "$DATASET" --retriever "$RETRIEVER" --level "$LEVEL" \
     --repo-cache "$REPO_CACHE" --workers "$WORKERS" --index-root "$INDEX_ROOT" \
     --k 1 3 5 10 "${EXTRA[@]}" "$@"
@@ -142,14 +142,14 @@ run_eval () {
 # pre-running scripts/build_indexes.sh (array) makes this a no-op. PREBUILD=0 disables.
 prebuild_corpus_indexes () {
   local kinds
-  kinds=$("$PYTHON" -c "from evaluation.build_indexes import prebuildable_for; print(' '.join(prebuildable_for('$RETRIEVER')))" 2>/dev/null || echo "")
+  kinds=$("$PYTHON" -c "from agent_search.evaluation.build_indexes import prebuildable_for; print(' '.join(prebuildable_for('$RETRIEVER')))" 2>/dev/null || echo "")
   [ -z "$kinds" ] && return 0                 # nothing persistent to build (index-free toolset)
   [ "${PREBUILD:-1}" = "0" ] && { echo ">> [step 0] prebuild skipped (PREBUILD=0)"; return 0; }
   for kind in $kinds; do
     echo ">> [step 0] building persistent '$kind' index over the run's corpora (once) ..."
     if ! ( unset AGENT_SEARCH_DENSE_DEVICE   # one-time embed belongs on the GPU, not CPU
            export TOKENIZERS_PARALLELISM=true   # build is single-process: parallel tokenize is safe + fast
-           "$PYTHON" -m evaluation.build_indexes --dataset "$DATASET" --retriever "$kind" \
+           "$PYTHON" -m agent_search.evaluation.build_indexes --dataset "$DATASET" --retriever "$kind" \
              --index-root "$INDEX_ROOT" --repo-cache "$REPO_CACHE" \
              ${DENSE_MODEL:+--model "$DENSE_MODEL"} ${LIMIT:+--limit "$LIMIT"} ); then
       echo "ERROR: [step 0] '$kind' index build FAILED — NOT serving vLLM. Fix the error" >&2
@@ -163,8 +163,7 @@ prebuild_corpus_indexes () {
 if [ "${PREFLIGHT:-1}" = "0" ]; then
   echo ">> preflight skipped (PREFLIGHT=0)"
 elif [[ "$DATASET" == swebench_* ]]; then
-  echo ">> preflight (PREFLIGHT=0 skips; first run is slow: torch import from Lustre)"
-  "$PYTHON" scripts/debug/doctor.py --dataset "$DATASET" --repo-cache "$REPO_CACHE" || true
+  echo ">> (no preflight for code datasets in this release)"
 else
   echo ">> preflight skipped for $DATASET (not a SWE-bench repo-cache dataset)"
 fi

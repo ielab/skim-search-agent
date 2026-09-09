@@ -1,10 +1,10 @@
 """The count-once token cost (`total_tokens_once`) must reflect what the model
 actually held in its context window (real per-step `prompt_tokens`), not a sum over
 raw/uncapped tool-observation text — a bash "read" observation can be 10-100x bigger
-than what the policy actually lets into the prompt. See evaluation/run_eval.py, the
+than what the policy actually lets into the prompt. See agent_search/evaluation/run_eval.py, the
 TOKEN COST block in `_score_instance`."""
-from evaluation.datasets import Instance
-from evaluation.run_eval import evaluate
+from agent_search.evaluation.datasets import Instance
+from agent_search.evaluation.run_eval import evaluate
 
 
 class _StubAgentRetriever:

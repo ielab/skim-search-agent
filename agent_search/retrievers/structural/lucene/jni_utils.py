@@ -89,10 +89,20 @@ def _boot() -> None:
         # pyserini.py: pyserini.search.lucene transitively imports an OpenAI client
         # constructor at IMPORT time. We only import pyserini.pyclass here (not
         # pyserini.search.lucene), so that landmine doesn't apply to this module —
-        # but set the placeholder anyway in case a caller imports both in one process.
-        os.environ.setdefault("OPENAI_API_KEY", "agent-search-unused-placeholder")
-        with silence_fd(2):
-            from pyserini.pyclass import autoclass  # noqa: F401  (side effect: boots JVM)
+        # but set-and-restore the placeholder anyway in case a caller imports both in
+        # one process. Only set if absent, and removed again in `finally` (same
+        # set-and-restore contract as `pyserini.py`'s `_openai_placeholder_env` — a
+        # JVM boot must never leave a fake key sitting in the host process's
+        # environment after the one import that needed it returns).
+        had_key = "OPENAI_API_KEY" in os.environ
+        if not had_key:
+            os.environ["OPENAI_API_KEY"] = "agent-search-unused-placeholder"
+        try:
+            with silence_fd(2):
+                from pyserini.pyclass import autoclass  # noqa: F401  (side effect: boots JVM)
+        finally:
+            if not had_key:
+                os.environ.pop("OPENAI_API_KEY", None)
         _booted = True
 
 

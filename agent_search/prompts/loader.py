@@ -24,6 +24,34 @@ TOOL_REGISTRY = PROMPT_ROOT / "tools.yaml"
 CONDITIONS = PROMPT_ROOT / "conditions.yaml"
 TASKS_DIR = PROMPT_ROOT / "tasks"
 
+# Runtime additions (plugins): merged over the YAML files by `_registry()`/`_conditions()`.
+# See `register_tool`, `register_toolset`, `register_runtime_condition` below and
+# `agent_search.prompts.registry.register_condition` (the public entry point).
+_RUNTIME: dict[str, dict] = {"tools": {}, "toolsets": {}, "conditions": {}}
+
+
+def register_tool(name: str, *, description: str, parameters: dict | None = None,
+                  manual: str | dict | None = None) -> None:
+    """Declare a tool the agent may call: its name, the description and JSON-schema
+    ``parameters`` rendered into the prompt's ``<tools>`` block, and an optional ``manual``
+    (a markdown file path, absolute or relative to the prompts package; or a
+    ``{domain: path}`` mapping) appended to the system prompt when the tool is in the toolset."""
+    spec: dict[str, Any] = {"description": description,
+                            "parameters": parameters or {"type": "object", "properties": {}}}
+    if manual:
+        spec["manual"] = manual
+    _RUNTIME["tools"][name] = spec
+
+
+def register_toolset(name: str, tools: list[str] | tuple[str, ...]) -> None:
+    """Name a tool combination (the agent's tool surface for a condition)."""
+    _RUNTIME["toolsets"][name] = list(tools)
+
+
+def register_runtime_condition(name: str, *, task: str, toolset: str) -> None:
+    """Bind a task template (a name under tasks/ or a path to a .md file) to a toolset."""
+    _RUNTIME["conditions"][name] = {"task": task, "toolset": toolset}
+
 
 @dataclass(frozen=True)
 class PromptProfile:
@@ -49,7 +77,12 @@ def _read_yaml(path: Path) -> dict[str, Any]:
 
 
 def _registry() -> dict[str, Any]:
-    return _read_yaml(TOOL_REGISTRY)
+    reg = _read_yaml(TOOL_REGISTRY)
+    if _RUNTIME["tools"] or _RUNTIME["toolsets"]:
+        reg = dict(reg)
+        reg["tools"] = {**(reg.get("tools") or {}), **_RUNTIME["tools"]}
+        reg["toolsets"] = {**(reg.get("toolsets") or {}), **_RUNTIME["toolsets"]}
+    return reg
 
 
 def _conditions() -> dict[str, dict[str, str]]:
@@ -57,13 +90,17 @@ def _conditions() -> dict[str, dict[str, str]]:
     conds = data.get("conditions") or {}
     if not isinstance(conds, dict):
         raise ValueError("conditions.yaml must map name -> {task, toolset}")
+    if _RUNTIME["conditions"]:
+        conds = {**conds, **_RUNTIME["conditions"]}
     return conds
 
 
 # --- task templates (front-matter + markdown body) --------------------------
 
 def _split_front_matter(text: str) -> tuple[dict[str, Any], str]:
-    """Parse an optional leading `---\\n...\\n---` YAML front-matter block."""
+    """Parse an optional leading `---\\n...\\n---` YAML front-matter block (leading blank
+    lines are tolerated)."""
+    text = text.lstrip("\n")
     if text.startswith("---"):
         end = text.find("\n---", 3)
         if end != -1:
@@ -76,6 +113,11 @@ def _split_front_matter(text: str) -> tuple[dict[str, Any], str]:
 
 
 def _task_path(task: str) -> Path:
+    """A task template: a bare name resolves under the package's tasks/; a path to an
+    existing .md file (a plugin's own template) is used as is."""
+    p = Path(task)
+    if p.suffix.lower() == ".md" and p.exists():
+        return p
     return TASKS_DIR / f"{task}.md"
 
 

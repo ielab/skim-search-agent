@@ -83,3 +83,48 @@ def test_dense_retriever_rejects_incongruent_cache_and_rebuilds(tmp_path, capsys
     DenseRetriever("fake/model", index_root=str(tmp_path), encoder=enc3).index(
         _other_units(), key="repo@abc")
     assert enc3.calls == 0
+
+
+def test_dense_retriever_rejects_stale_fingerprint_same_doc_ids_and_rebuilds(tmp_path, capsys):
+    """Same doc_ids, same order, same COUNT -- but a unit's `code` edited in place. The
+    doc-id-list congruence check above can't see this (it's still an exact match); the
+    `corpus_fingerprint` (agent_search.corpus.fingerprint) check attached to the persisted
+    meta.json must catch it and force a rebuild instead of silently serving embeddings for
+    text that no longer matches the corpus."""
+    enc1 = FakeEncoder()
+    DenseRetriever("fake/model", index_root=str(tmp_path), encoder=enc1).index(
+        _units(), key="repo@fp")
+    assert enc1.calls == 1
+
+    edited = [
+        CodeUnit("a.py::token", "a.py", "token", 1, 1,
+                 "def token(): pass  # body edited in place"),
+        CodeUnit("b.py::render", "b.py", "render", 1, 1, "def render(): pass"),
+    ]
+    enc2 = FakeEncoder()
+    DenseRetriever("fake/model", index_root=str(tmp_path), encoder=enc2).index(
+        edited, key="repo@fp")
+    assert enc2.calls == 1, (
+        "stale cache (same doc_ids, changed content) was trusted instead of rebuilt")
+    err = capsys.readouterr().err
+    assert "incongruent" in err.lower() or "mismatch" in err.lower() or "stale" in err.lower()
+
+    # An OLD cache with no `corpus_fingerprint` key at all (pre-existing artifact) must
+    # still be TRUSTED as before -- nothing to compare against.
+    enc3 = FakeEncoder()
+    r3 = DenseRetriever("fake/model", index_root=str(tmp_path), encoder=enc3).index(
+        edited, key="repo@fp")
+    cache_dir = r3._cache_dir("repo@fp")
+    import json
+    import os
+    meta_path = os.path.join(cache_dir, "meta.json")
+    with open(meta_path) as fh:
+        meta = json.load(fh)
+    assert meta.get("corpus_fingerprint")           # the key IS actually written
+    meta.pop("corpus_fingerprint")
+    with open(meta_path, "w") as fh:
+        json.dump(meta, fh)
+    enc4 = FakeEncoder()
+    DenseRetriever("fake/model", index_root=str(tmp_path), encoder=enc4).index(
+        edited, key="repo@fp")
+    assert enc4.calls == 0, "an old cache with no fingerprint key must be trusted as before"

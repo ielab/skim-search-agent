@@ -1,5 +1,5 @@
 from agent_search.corpus.units import CodeUnit
-from evaluation.ground_truth import changed_line_ranges, gold_files, gold_units
+from agent_search.evaluation.ground_truth import changed_line_ranges, gold_files, gold_units
 
 DIFF = '''diff --git a/pkg/mod.py b/pkg/mod.py
 index 1111111..2222222 100644

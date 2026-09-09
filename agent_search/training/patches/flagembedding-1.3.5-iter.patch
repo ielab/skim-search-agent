@@ -1,0 +1,780 @@
+--- a/FlagEmbedding/abc/finetune/embedder/AbsArguments.py
++++ b/FlagEmbedding/abc/finetune/embedder/AbsArguments.py
+@@ -30,6 +30,10 @@
+         default=False,
+         metadata={"help": "Trust remote code"}
+     )
++    use_fast_tokenizer: bool = field(
++        default=True,
++        metadata={"help": "Whether to use fast tokenizer or not."}
++    )
+     token: str = field(
+         default_factory=lambda: os.getenv('HF_TOKEN', None),
+         metadata={"help": "The token to use when accessing the model."}
+@@ -113,6 +117,19 @@
+         metadata={"help": "The threshold for dropping merged small dataset. If the number of examples in the merged small dataset is less than this threshold, it will be dropped."}
+     )
+ 
++    # Tiered negatives (diversity-aware v3): stratified sampling caps. Priority per
++    # sample is diversity -> hard -> weak; diversity is scarce and never sampled away.
++    div_neg_cap: int = field(
++        default=3,
++        metadata={"help": "Max DIVERSITY-tier negatives (neg_diversity, visited+relevant) "
++                          "per sample. Only used when data has neg_diversity/neg_hard/neg_weak."}
++    )
++    hard_neg_cap: int = field(
++        default=3,
++        metadata={"help": "Max HARD-tier negatives (neg_hard, visited+irrelevant) per sample; "
++                          "remaining group slots are filled from neg_weak."}
++    )
++
+     def __post_init__(self):
+         # replace "\\n" with "\n"
+         if "\\n" in self.query_instruction_format:
+@@ -135,3 +152,7 @@
+     normalize_embeddings: bool = field(default=True, metadata={"help": "whether to normalize the embeddings"})
+     sub_batch_size: Optional[int] = field(default=None, metadata={"help": "sub batch size for training"})
+     kd_loss_type: str = field(default='kl_div', metadata={"help": "the loss type for knowledge distillation. Available options: kl_div, m3_kd_loss. Default: kl_div.", "choices": ['kl_div', 'm3_kd_loss']})
++    # Tiered negatives (diversity-aware v3): per-tier weights in the weighted InfoNCE
++    neg_w_div: float = field(default=1.0, metadata={"help": "loss weight for DIVERSITY-tier negatives (visited+relevant docs)"})
++    neg_w_hard: float = field(default=1.0, metadata={"help": "loss weight for HARD-tier negatives (visited+irrelevant docs)"})
++    neg_w_weak: float = field(default=1.0, metadata={"help": "loss weight for WEAK-tier negatives (returned-but-not-visited docs)"})
+--- a/FlagEmbedding/abc/finetune/embedder/AbsDataset.py
++++ b/FlagEmbedding/abc/finetune/embedder/AbsDataset.py
+@@ -63,7 +63,8 @@
+         Returns:
+             datasets.Dataset: Loaded HF dataset.
+         """
+-        if dist.get_rank() == 0:
++        safe_rank = dist.get_rank() if dist.is_initialized() else 0
++        if safe_rank == 0:
+             logger.info(f'loading data from {file_path} ...')
+ 
+         temp_dataset = datasets.load_dataset('json', data_files=file_path, split='train', cache_dir=self.args.cache_path)
+@@ -106,6 +107,11 @@
+         train_group_size = self.args.train_group_size
+ 
+         query = data['query']
++
++        ###
++        reweight_rate = data.get('reweight_rate', 1)
++        ###
++        
+         if self.args.query_instruction_for_retrieval is not None:
+             query = self.args.query_instruction_format.format(
+                 data['prompt'] if 'prompt' in data else self.args.query_instruction_for_retrieval,
+@@ -147,7 +153,7 @@
+                 for p in passages
+             ]
+ 
+-        return query, passages, teacher_scores
++        return query, passages, teacher_scores, reweight_rate
+ 
+ @dataclass
+ class AbsEmbedderCollator(DataCollatorWithPadding):
+@@ -162,6 +168,8 @@
+         queries = [f[0] for f in features]
+         passages = [f[1] for f in features]
+         teacher_scores = [f[2] for f in features]
++        reweight_rates = [f[3] for f in features
++                         ]
+         if teacher_scores[0] is None:
+             teacher_scores = None
+         elif isinstance(teacher_scores[0], list):
+@@ -237,6 +245,7 @@
+             "queries": q_collated,
+             "passages": d_collated,
+             "teacher_scores": teacher_scores,
++            "reweight_rates": reweight_rates,
+             "no_in_batch_neg_flag": False
+         }
+ 
+@@ -333,28 +342,57 @@
+ 
+         self.refresh_epoch()
+ 
++    # def _load_dataset(self, file_path: str):
++    #     """Load datset from given path.
++
++    #     Args:
++    #         file_path (str): The path to load or download from HF hub.
++
++    #     Returns:
++    #         datasets.Dataset: The loaded dataset.
++    #     """
++    #     safe_rank = dist.get_rank() if dist.is_initialized() else 0
++    #     if safe_rank == 0:
++    #         logger.info(f'loading data from {file_path} ...')
++
++    #     temp_dataset = datasets.load_dataset('json', data_files=file_path, split='train', cache_dir=self.args.cache_path)
++    #     if len(temp_dataset) > self.args.max_example_num_per_dataset:
++    #         temp_dataset = temp_dataset.select(random.sample(list(range(len(temp_dataset))), self.args.max_example_num_per_dataset))
++    #     if not self.args.knowledge_distillation:
++    #         if 'pos_scores' in temp_dataset.column_names:
++    #             temp_dataset = temp_dataset.remove_columns(['pos_scores'])
++    #         if 'neg_scores' in temp_dataset.column_names:
++    #             temp_dataset = temp_dataset.remove_columns(['neg_scores'])
++    #     return temp_dataset
++
+     def _load_dataset(self, file_path: str):
+         """Load datset from given path.
+-
++    
+         Args:
+             file_path (str): The path to load or download from HF hub.
+-
++    
+         Returns:
+             datasets.Dataset: The loaded dataset.
+         """
+-        if dist.get_rank() == 0:
++        safe_rank = dist.get_rank() if dist.is_initialized() else 0
++        if safe_rank == 0:
+             logger.info(f'loading data from {file_path} ...')
+-
++    
+         temp_dataset = datasets.load_dataset('json', data_files=file_path, split='train', cache_dir=self.args.cache_path)
+         if len(temp_dataset) > self.args.max_example_num_per_dataset:
+             temp_dataset = temp_dataset.select(random.sample(list(range(len(temp_dataset))), self.args.max_example_num_per_dataset))
++        
++        # 检查并添加 reweight_rate 列
++        if 'reweight_rate' not in temp_dataset.column_names:
++            temp_dataset = temp_dataset.map(lambda x: {'reweight_rate': 1}, batched=False)
++
+         if not self.args.knowledge_distillation:
+             if 'pos_scores' in temp_dataset.column_names:
+                 temp_dataset = temp_dataset.remove_columns(['pos_scores'])
+             if 'neg_scores' in temp_dataset.column_names:
+                 temp_dataset = temp_dataset.remove_columns(['neg_scores'])
+         return temp_dataset
+-
++    
+     @staticmethod
+     def _get_file_batch_size(temp_dataset: datasets.Dataset, default_batch_size: int):
+         """Get the appropriate batch size for the dataset.
+@@ -407,8 +445,8 @@
+         batch_indices = batch_indices[self.process_index * cur_batch_size: (self.process_index + 1) * cur_batch_size]
+         batch_data = self.dataset[batch_indices]
+         self.step += 1
+-        queries, passages, teacher_scores = self._create_batch_data(batch_raw_data=batch_data)
+-        return queries, passages, teacher_scores, no_in_batch_neg_flag
++        queries, passages, teacher_scores, reweight_rates, passage_tiers = self._create_batch_data(batch_raw_data=batch_data)
++        return queries, passages, teacher_scores, reweight_rates, passage_tiers, no_in_batch_neg_flag
+ 
+     def _get_train_group_size(self, batch_raw_data):
+         """Get the training group size and data type.
+@@ -428,6 +466,12 @@
+                 return min(len(batch_raw_data['neg'][0]) + 1, self.args.train_group_size), data_type
+             else:
+                 return self.args.train_group_size, data_type
++        elif 'train_group_size' in batch_raw_data:
++            train_group_size = batch_raw_data['train_group_size'][0]
++            if isinstance(train_group_size, int) and train_group_size > 0:
++                return train_group_size, None
++            else:
++                return self.args.train_group_size, None
+         return self.args.train_group_size, None
+ 
+     def _create_batch_data(self, batch_raw_data):
+@@ -441,7 +485,10 @@
+             List[str]: Documents with instruction format.
+             List[float]: Teacher scores for model distillation.
+         """
+-        queries, passages, teacher_scores = [], [], []
++        queries, passages, teacher_scores, reweight_rates = [], [], [], []
++        # passage_tiers: one int per passage; 0 = pos, 1 = DIVERSITY, 2 = HARD, 3 = WEAK.
++        # Stays None for plain (non-tiered) data so downstream code can ignore it.
++        passage_tiers = [] if 'neg_diversity' in batch_raw_data else None
+ 
+         train_group_size, data_type = self._get_train_group_size(batch_raw_data)
+ 
+@@ -455,21 +502,57 @@
+                     batch_raw_data['query'][i]
+                 )
+             )
++
++            reweight_rates.append(batch_raw_data['reweight_rate'][i])
++
+             tmp_passages = []
+             pos_idx = random.choice(list(range(len(batch_raw_data['pos'][i]))))
+             pos = self._shuffle_text(batch_raw_data['pos'][i][pos_idx])
+             tmp_passages.append(pos)
+ 
+-            neg_all_idx = list(range(len(batch_raw_data['neg'][i])))
+-            if len(batch_raw_data['neg'][i]) < train_group_size - 1:
+-                num = math.ceil((train_group_size - 1) / len(batch_raw_data['neg'][i]))
+-                neg_idxs = random.sample(neg_all_idx * num, train_group_size - 1)
++            if passage_tiers is not None:
++                # tiered negatives (diversity-aware v3): stratified sampling.
++                # Priority diversity -> hard -> weak. Diversity (visited+relevant)
++                # is scarce and the core signal, so include ALL of it (capped) and
++                # never sample it away; fill remaining slots with hard then weak.
++                div_pool = batch_raw_data['neg_diversity'][i] or []
++                hard_pool = batch_raw_data['neg_hard'][i] or []
++                weak_pool = batch_raw_data['neg_weak'][i] or []
++                n_neg = train_group_size - 1
++
++                chosen = []  # list of (text, tier)
++                div = (random.sample(div_pool, self.args.div_neg_cap)
++                       if len(div_pool) > self.args.div_neg_cap else list(div_pool))
++                chosen += [(d, 1) for d in div]
++                if len(chosen) < n_neg:
++                    hard = (random.sample(hard_pool, self.args.hard_neg_cap)
++                            if len(hard_pool) > self.args.hard_neg_cap else list(hard_pool))
++                    chosen += [(d, 2) for d in hard]
++                if len(chosen) < n_neg and weak_pool:
++                    need = n_neg - len(chosen)
++                    weak = (random.sample(weak_pool, need) if len(weak_pool) >= need
++                            else random.sample(weak_pool * math.ceil(need / len(weak_pool)), need))
++                    chosen += [(d, 3) for d in weak]
++                chosen = chosen[:n_neg]
++                # pad if all pools exhausted: repeat existing negatives (keep tiers)
++                if len(chosen) < n_neg and chosen:
++                    pad = random.sample(chosen * math.ceil(n_neg / len(chosen)), n_neg - len(chosen))
++                    chosen += pad
++
++                tmp_passages.extend([d for d, _ in chosen])
++                passage_tiers.append(0)
++                passage_tiers.extend([t for _, t in chosen])
+             else:
+-                neg_idxs = random.sample(neg_all_idx, train_group_size - 1)
+-            for neg_idx in neg_idxs:
+-                tmp_passages.append(batch_raw_data['neg'][i][neg_idx])
++                neg_all_idx = list(range(len(batch_raw_data['neg'][i])))
++                if len(batch_raw_data['neg'][i]) < train_group_size - 1:
++                    num = math.ceil((train_group_size - 1) / len(batch_raw_data['neg'][i]))
++                    neg_idxs = random.sample(neg_all_idx * num, train_group_size - 1)
++                else:
++                    neg_idxs = random.sample(neg_all_idx, train_group_size - 1)
++                for neg_idx in neg_idxs:
++                    tmp_passages.append(batch_raw_data['neg'][i][neg_idx])
+ 
+-            if self.args.knowledge_distillation:
++            if self.args.knowledge_distillation and passage_tiers is None:
+                 if 'pos_scores' in batch_raw_data and batch_raw_data['pos_scores'][i] is not None:
+                     teacher_scores.append(batch_raw_data['pos_scores'][i][pos_idx])
+                 for neg_idx in neg_idxs:
+@@ -499,7 +582,7 @@
+                 if len(teacher_scores) > 0 and len(passages) > 0:
+                     assert len(teacher_scores) == len(passages)
+ 
+-        return queries, passages, teacher_scores
++        return queries, passages, teacher_scores, reweight_rates, passage_tiers
+ 
+ 
+ @dataclass
+@@ -520,7 +603,9 @@
+         queries = features[0][0]
+         passages = features[0][1]
+         teacher_scores = features[0][2]
+-        no_in_batch_neg_flag = features[0][3]
++        reweight_rates = features[0][3]
++        passage_tiers = features[0][4]
++        no_in_batch_neg_flag = features[0][5]
+ 
+         queries_inputs = self.tokenizer(
+             queries,
+@@ -592,6 +677,8 @@
+             "queries": q_collated,
+             "passages": d_collated,
+             "teacher_scores": teacher_scores,
++            "reweight_rates": reweight_rates,
++            "passage_tiers": passage_tiers,
+             "no_in_batch_neg_flag": no_in_batch_neg_flag
+         }
+ 
+--- a/FlagEmbedding/abc/finetune/embedder/AbsModeling.py
++++ b/FlagEmbedding/abc/finetune/embedder/AbsModeling.py
+@@ -48,14 +48,16 @@
+         nn.Module.__init__(self)
+         self.model = base_model
+         self.tokenizer = tokenizer
++        # Align with transformers Trainer resume/load checks.
++        self._keys_to_ignore_on_save = None
+ 
+         self.temperature = temperature
+         self.negatives_cross_device = negatives_cross_device
+         if self.negatives_cross_device:
+             if not dist.is_initialized():
+                 raise ValueError('Distributed training has not been initialized for representation all gather.')
+-            self.process_rank = dist.get_rank()
+-            self.world_size = dist.get_world_size()
++            self.process_rank = dist.get_rank() if dist.is_initialized() else 0
++            self.world_size = dist.get_world_size() if dist.is_initialized() else 1
+ 
+         self.sub_batch_size = sub_batch_size
+         self.kd_loss_type = kd_loss_type
+@@ -98,6 +100,12 @@
+         """
+         pass
+ 
++    def load_state_dict(self, state_dict, strict: bool = True, assign: bool = False):
++        # Resume checkpoints are saved from the inner HF model without the outer "model." prefix.
++        if state_dict and not next(iter(state_dict)).startswith("model."):
++            return self.model.load_state_dict(state_dict, strict=strict, assign=assign)
++        return nn.Module.load_state_dict(self, state_dict, strict=strict, assign=assign)
++
+     def get_local_score(self, q_reps, p_reps, all_scores):
+         """Get the local score of queries and passages.
+ 
+--- a/FlagEmbedding/finetune/embedder/decoder_only/base/arguments.py
++++ b/FlagEmbedding/finetune/embedder/decoder_only/base/arguments.py
+@@ -17,7 +17,7 @@
+         default='', metadata={"help": "The peft model checkpoint for initialization."}
+     )
+     use_lora: bool = field(
+-        default=True,
++        default=False,
+         metadata={"help": "If passed, will use LORA (low-rank parameter-efficient training) to train the model."}
+     )
+     lora_rank: int = field(
+--- a/FlagEmbedding/finetune/embedder/decoder_only/base/load_model.py
++++ b/FlagEmbedding/finetune/embedder/decoder_only/base/load_model.py
+@@ -68,16 +68,27 @@
+     config.use_cache = False
+ 
+     if model_args.model_name_or_path:
+-        model = AutoModel.from_pretrained(
+-            model_args.model_name_or_path,
+-            # torch_dtype=torch.bfloat16,
+-            use_flash_attention_2=True if model_args.use_flash_attn else False,
+-            token=model_args.token,
+-            cache_dir=model_args.cache_dir,
+-            from_tf=bool(".ckpt" in model_args.model_name_or_path),
+-            config=config,
+-            trust_remote_code=model_args.trust_remote_code,
+-        )
++        if "Qwen" in model_args.model_name_or_path:
++            model = AutoModel.from_pretrained(
++                model_args.model_name_or_path,
++                # torch_dtype=torch.bfloat16,
++                token=model_args.token,
++                cache_dir=model_args.cache_dir,
++                from_tf=bool(".ckpt" in model_args.model_name_or_path),
++                config=config,
++                trust_remote_code=model_args.trust_remote_code,
++            )
++        else:
++            model = AutoModel.from_pretrained(
++                model_args.model_name_or_path,
++                # torch_dtype=torch.bfloat16,
++                use_flash_attention_2=True if model_args.use_flash_attn else False,
++                token=model_args.token,
++                cache_dir=model_args.cache_dir,
++                from_tf=bool(".ckpt" in model_args.model_name_or_path),
++                config=config,
++                trust_remote_code=model_args.trust_remote_code,
++            )
+     else:
+         logger.info("Training new model from scratch")
+         model = model_args.from_config(config)
+@@ -169,6 +180,8 @@
+ 
+     if os.path.exists(os.path.join(output_dir, 'embedding', 'emb.pth')):
+         model.set_input_embeddings(torch.load(os.path.join(output_dir, 'embedding', 'emb.pth')))
++        # modify the vocab size in the model configuration
++        model.config.vocab_size = len(tokenizer)
+ 
+     try:
+         model = PeftModel.from_pretrained(model, output_dir)
+@@ -180,6 +193,4 @@
+     tokenizer = AutoTokenizer.from_pretrained(output_dir, trust_remote_code=model_args.trust_remote_code)
+     tokenizer.save_pretrained(os.path.join(output_dir, 'merged_model'))
+ 
+-    # modify the vocab size in the model configuration
+-    model.config.vocab_size = len(tokenizer)
+     model.save_pretrained(os.path.join(output_dir, 'merged_model'))
+--- a/FlagEmbedding/finetune/embedder/decoder_only/base/modeling.py
++++ b/FlagEmbedding/finetune/embedder/decoder_only/base/modeling.py
+@@ -1,12 +1,28 @@
+ import logging
+-
+-import torch
+ from transformers import AutoModel, PreTrainedModel, PreTrainedTokenizer
+-
+ from FlagEmbedding.abc.finetune.embedder import AbsEmbedderModel
+ 
++import torch
++from torch import nn, Tensor
++import torch.nn.functional as F
++import torch.distributed as dist
++from transformers.file_utils import ModelOutput
++
++from dataclasses import dataclass
++from abc import ABC, abstractmethod
++from typing import Dict, Optional, List, Union
++
+ logger = logging.getLogger(__name__)
+ 
++@dataclass
++class EmbedderOutput(ModelOutput):
++    """
++    Output information returned by the model.
++    """
++    q_reps: Optional[Tensor] = None
++    p_reps: Optional[Tensor] = None
++    loss: Optional[Tensor] = None
++    scores: Optional[Tensor] = None
+ 
+ class BiDecoderOnlyEmbedderModel(AbsEmbedderModel):
+     """Embedder model class for decoder only model.
+@@ -34,6 +50,9 @@
+         kd_loss_type: str = 'kl_div',
+         sentence_pooling_method: str = 'last_token',
+         normalize_embeddings: bool = False,
++        neg_w_div: float = 1.0,
++        neg_w_hard: float = 1.0,
++        neg_w_weak: float = 1.0,
+     ):
+         super().__init__(
+             base_model,
+@@ -45,7 +64,13 @@
+         )
+         self.sentence_pooling_method = sentence_pooling_method
+         self.normalize_embeddings = normalize_embeddings
++        # tiered-negative weights (diversity-aware v3)
++        self.neg_w_div = neg_w_div
++        self.neg_w_hard = neg_w_hard
++        self.neg_w_weak = neg_w_weak
++        ###
+         self.cross_entropy = torch.nn.CrossEntropyLoss(reduction='mean')
++        self.cross_entropy_none = torch.nn.CrossEntropyLoss(reduction="none")
+ 
+     def encode(self, features):
+         """
+@@ -154,17 +179,68 @@
+             return torch.matmul(q_reps, p_reps.transpose(0, 1))
+         return torch.matmul(q_reps, p_reps.transpose(-2, -1))
+ 
+-    def compute_loss(self, scores, target):
+-        """Compute the loss using cross entropy.
++    # def compute_loss(self, scores, target):
++    #     """Compute the loss using cross entropy.
+ 
+-        Args:
+-            scores (torch.Tensor): Computed score.
+-            target (torch.Tensor): The target value.
++    #     Args:
++    #         scores (torch.Tensor): Computed score.
++    #         target (torch.Tensor): The target value.
++
++    #     Returns:
++    #         torch.Tensor: The computed cross entropy loss.
++    #     """
++    #     return self.cross_entropy(scores, target)
++
++    def compute_loss(self, scores, target, reweight_rates=None):
++        if reweight_rates is None:
++            return self.cross_entropy(scores, target)   # 标量
++    
++        if not torch.is_tensor(reweight_rates):
++            w = torch.tensor(reweight_rates, device=scores.device, dtype=scores.dtype)
++        else:
++            w = reweight_rates.to(device=scores.device, dtype=scores.dtype)
++        w = w.view(-1)
++    
++        per_sample = self.cross_entropy_none(scores, target)  # (B,)
++        return (per_sample * w).sum() / w.sum().clamp_min(1e-12)
++
++    def _weighted_infonce_loss(self, scores, targets, passage_tiers, reweight_rates=None):
++        """InfoNCE with per-negative tier weights (diversity-aware v2).
++
++        scores: (B, B*G) in-batch score matrix; targets[i] = i*G (own positive).
++        passage_tiers: flat list of len B*G; 0 = pos, 1 = DIVERSITY, 2 = HARD, 3 = WEAK.
++        Tier weights apply ONLY to a query's own group columns — another
++        trajectory's seen-doc is just an ordinary in-batch negative (weight 1).
+ 
+-        Returns:
+-            torch.Tensor: The computed cross entropy loss.
++            loss_i = logsumexp(scores_i + log W_i) - scores_i[target_i]
+         """
+-        return self.cross_entropy(scores, target)
++        bsz = scores.size(0)
++        group_size = scores.size(1) // bsz
++
++        tiers = torch.as_tensor(passage_tiers, device=scores.device, dtype=torch.long).view(bsz, group_size)
++        group_w = torch.ones(bsz, group_size, device=scores.device, dtype=scores.dtype)
++        group_w[tiers == 1] = self.neg_w_div
++        group_w[tiers == 2] = self.neg_w_hard
++        group_w[tiers == 3] = self.neg_w_weak
++
++        weight = torch.ones_like(scores)
++        rows = torch.arange(bsz, device=scores.device).unsqueeze(1)              # (B, 1)
++        cols = (torch.arange(bsz, device=scores.device) * group_size).unsqueeze(1) \
++             + torch.arange(group_size, device=scores.device).unsqueeze(0)        # (B, G)
++        weight[rows, cols] = group_w
++
++        log_w = torch.log(weight.clamp_min(1e-12))
++        pos_scores = scores.gather(1, targets.view(-1, 1)).squeeze(1)             # (B,)
++        per_sample = torch.logsumexp(scores + log_w, dim=1) - pos_scores          # (B,)
++
++        if reweight_rates is None:
++            return per_sample.mean()
++        if not torch.is_tensor(reweight_rates):
++            rw = torch.tensor(reweight_rates, device=scores.device, dtype=scores.dtype)
++        else:
++            rw = reweight_rates.to(device=scores.device, dtype=scores.dtype)
++        rw = rw.view(-1)
++        return (per_sample * rw).sum() / rw.sum().clamp_min(1e-12)
+ 
+     def gradient_checkpointing_enable(self, **kwargs):
+         """
+@@ -178,6 +254,94 @@
+         """
+         self.model.enable_input_require_grads(**kwargs)
+ 
++    def _compute_in_batch_neg_loss(self, q_reps, p_reps, teacher_targets=None, reweight_rates=None, passage_tiers=None, compute_score_func=None, **kwargs):
++        """
++        Compute loss when only using in-batch negatives
++        """
++        group_size = p_reps.size(0) // q_reps.size(0)
++
++        if compute_score_func is None:
++            scores = self.compute_score(q_reps, p_reps) # (batch_size, batch_size * group_size)
++        else:
++            scores = compute_score_func(q_reps, p_reps, **kwargs)   # (batch_size, batch_size * group_size)
++        
++        if teacher_targets is not None:
++            # compute kd loss
++            if self.kd_loss_type == "kl_div":
++                student_scores = self.get_local_score(q_reps, p_reps, scores) # (batch_size, group_size)
++
++                loss = self.distill_loss(self.kd_loss_type, teacher_targets, student_scores, group_size)
++
++                idxs = torch.arange(q_reps.size(0), device=q_reps.device, dtype=torch.long)
++                targets = idxs * (p_reps.size(0) // q_reps.size(0)) # (batch_size)
++                loss += self.compute_loss(scores, targets)
++            elif self.kd_loss_type == "m3_kd_loss":
++                loss = self.distill_loss(self.kd_loss_type, teacher_targets, scores, group_size)
++            else:
++                raise ValueError(f"Invalid kd_loss_type: {self.kd_loss_type}")
++        else:
++            idxs = torch.arange(q_reps.size(0), device=q_reps.device, dtype=torch.long)
++            targets = idxs * group_size # (batch_size)
++            if passage_tiers is not None:
++                loss = self._weighted_infonce_loss(scores, targets, passage_tiers, reweight_rates=reweight_rates)
++            else:
++                loss = self.compute_loss(scores, targets, reweight_rates=reweight_rates)
++
++        return scores, loss
++
++    
++    def forward(
++        self,
++        queries: Union[Dict[str, Tensor], List[Dict[str, Tensor]]] = None,
++        passages: Union[Dict[str, Tensor], List[Dict[str, Tensor]]] = None,
++        teacher_scores: Union[None, List[float]] = None,
++        reweight_rates: List[float] = None,
++        passage_tiers: List[int] = None,
++        no_in_batch_neg_flag: bool = False,
++    ):
++        """The computation performed at every call.
++
++        Args:
++            queries (Union[Dict[str, Tensor], List[Dict[str, Tensor]]], optional): Input queries. Defaults to ``None``.
++            passages (Union[Dict[str, Tensor], List[Dict[str, Tensor]]], optional): Input passages. Defaults to ``None``.
++            teacher_scores (Union[None, List[float]], optional): Teacher scores for distillation. Defaults to ``None``.
++            no_in_batch_neg_flag (bool, optional): If True, use no in-batch negatives and no cross-device negatives. Defaults to ``False``.
++
++        Returns:
++            EmbedderOutput: Output of the forward call of model.
++        """
++        q_reps = self.encode(queries) # (batch_size, dim)
++        p_reps = self.encode(passages) # (batch_size * group_size, dim)
++
++        if self.training:
++            if teacher_scores is not None:
++                teacher_scores = torch.tensor(teacher_scores, device=q_reps.device)
++                teacher_scores = teacher_scores.view(q_reps.size(0), -1).detach()   # (batch_size, group_size)
++                teacher_targets = F.softmax(teacher_scores, dim=-1)  # (batch_size, group_size)
++            else:
++                teacher_targets = None
++
++            if no_in_batch_neg_flag:
++                compute_loss_func = self._compute_no_in_batch_neg_loss
++            else:
++                if self.negatives_cross_device:
++                    compute_loss_func = self._compute_cross_device_neg_loss
++                else:
++                    compute_loss_func = self._compute_in_batch_neg_loss
++
++            # tier weights are only implemented for the in-batch negatives path
++            # (single-GPU training); other paths ignore tiers and behave as before
++            if passage_tiers is not None and compute_loss_func == self._compute_in_batch_neg_loss:
++                scores, loss = compute_loss_func(q_reps, p_reps, teacher_targets=teacher_targets, reweight_rates=reweight_rates, passage_tiers=passage_tiers)
++            else:
++                scores, loss = compute_loss_func(q_reps, p_reps, teacher_targets=teacher_targets, reweight_rates=reweight_rates)
++        else:
++            loss = None
++
++        return EmbedderOutput(
++            loss=loss,
++        )
++
+     def save(self, output_dir: str):
+         """Save the model to the directory.
+ 
+--- a/FlagEmbedding/finetune/embedder/decoder_only/base/runner.py
++++ b/FlagEmbedding/finetune/embedder/decoder_only/base/runner.py
+@@ -29,6 +29,7 @@
+         training_args: AbsEmbedderTrainingArguments
+     ):
+         super().__init__(model_args, data_args, training_args)
++        
+         self.model_args: DecoderOnlyEmbedderModelArguments
+         self.data_args: AbsEmbedderDataArguments
+         self.training_args: AbsEmbedderTrainingArguments
+@@ -43,7 +44,7 @@
+             self.model_args.tokenizer_name if self.model_args.tokenizer_name else self.model_args.model_name_or_path,
+             token=self.model_args.token,
+             cache_dir=self.model_args.cache_dir,
+-            use_fast=False,
++            use_fast=self.model_args.use_fast_tokenizer,
+             add_eos_token=True,
+             trust_remote_code=self.model_args.trust_remote_code,
+         )
+@@ -86,7 +87,10 @@
+             sub_batch_size=self.training_args.sub_batch_size,
+             kd_loss_type=self.training_args.kd_loss_type,
+             sentence_pooling_method=self.training_args.sentence_pooling_method,
+-            normalize_embeddings=self.training_args.normalize_embeddings
++            normalize_embeddings=self.training_args.normalize_embeddings,
++            neg_w_div=self.training_args.neg_w_div,
++            neg_w_hard=self.training_args.neg_w_hard,
++            neg_w_weak=self.training_args.neg_w_weak
+         )
+ 
+         if self.training_args.gradient_checkpointing:
+--- a/FlagEmbedding/finetune/embedder/encoder_only/base/modeling.py
++++ b/FlagEmbedding/finetune/embedder/encoder_only/base/modeling.py
+@@ -1,12 +1,28 @@
+ import logging
+ 
+ import torch
++from torch import nn, Tensor
++import torch.nn.functional as F
+ from transformers import AutoModel, PreTrainedModel, PreTrainedTokenizer
+ 
+ from FlagEmbedding.abc.finetune.embedder import AbsEmbedderModel
++from transformers.file_utils import ModelOutput
++
++from dataclasses import dataclass
++from abc import ABC, abstractmethod
++from typing import Dict, Optional, List, Union
+ 
+ logger = logging.getLogger(__name__)
+ 
++@dataclass
++class EmbedderOutput(ModelOutput):
++    """
++    Output information returned by the model.
++    """
++    q_reps: Optional[Tensor] = None
++    p_reps: Optional[Tensor] = None
++    loss: Optional[Tensor] = None
++    scores: Optional[Tensor] = None
+ 
+ class BiEncoderOnlyEmbedderModel(AbsEmbedderModel):
+     """Embedder class for encoder only model.
+@@ -46,6 +62,7 @@
+         self.sentence_pooling_method = sentence_pooling_method
+         self.normalize_embeddings = normalize_embeddings
+         self.cross_entropy = torch.nn.CrossEntropyLoss(reduction='mean')
++        self.cross_entropy_none = torch.nn.CrossEntropyLoss(reduction="none")
+ 
+     def encode(self, features):
+         """Encode and get the embedding.
+@@ -153,17 +170,77 @@
+             return torch.matmul(q_reps, p_reps.transpose(0, 1))
+         return torch.matmul(q_reps, p_reps.transpose(-2, -1))
+ 
+-    def compute_loss(self, scores, target):
+-        """Compute the loss using cross entropy.
++    # def compute_loss(self, scores, target):
++    #     """Compute the loss using cross entropy.
++
++    #     Args:
++    #         scores (torch.Tensor): Computed score.
++    #         target (torch.Tensor): The target value.
++
++    #     Returns:
++    #         torch.Tensor: The computed cross entropy loss.
++    #     """
++    #     return self.cross_entropy(scores, target)
++
++    def compute_loss(self, scores, target, reweight_rates=None):
++        if reweight_rates is None:
++            return self.cross_entropy(scores, target)   # 标量
++    
++        if not torch.is_tensor(reweight_rates):
++            w = torch.tensor(reweight_rates, device=scores.device, dtype=scores.dtype)
++        else:
++            w = reweight_rates.to(device=scores.device, dtype=scores.dtype)
++        w = w.view(-1)
++    
++        per_sample = self.cross_entropy_none(scores, target)  # (B,)
++        return (per_sample * w).sum() / w.sum().clamp_min(1e-12)
++
++    
++    def forward(
++        self, 
++        queries: Union[Dict[str, Tensor], List[Dict[str, Tensor]]] = None, 
++        passages: Union[Dict[str, Tensor], List[Dict[str, Tensor]]] = None,
++        teacher_scores: Union[None, List[float]] = None,
++        reweight_rates: List[float] = None,
++        no_in_batch_neg_flag: bool = False,
++    ):
++        """The computation performed at every call.
+ 
+         Args:
+-            scores (torch.Tensor): Computed score.
+-            target (torch.Tensor): The target value.
++            queries (Union[Dict[str, Tensor], List[Dict[str, Tensor]]], optional): Input queries. Defaults to ``None``.
++            passages (Union[Dict[str, Tensor], List[Dict[str, Tensor]]], optional): Input passages. Defaults to ``None``.
++            teacher_scores (Union[None, List[float]], optional): Teacher scores for distillation. Defaults to ``None``.
++            no_in_batch_neg_flag (bool, optional): If True, use no in-batch negatives and no cross-device negatives. Defaults to ``False``.
+ 
+         Returns:
+-            torch.Tensor: The computed cross entropy loss.
++            EmbedderOutput: Output of the forward call of model.
+         """
+-        return self.cross_entropy(scores, target)
++        q_reps = self.encode(queries) # (batch_size, dim)
++        p_reps = self.encode(passages) # (batch_size * group_size, dim)
++
++        if self.training:
++            if teacher_scores is not None:
++                teacher_scores = torch.tensor(teacher_scores, device=q_reps.device)
++                teacher_scores = teacher_scores.view(q_reps.size(0), -1).detach()   # (batch_size, group_size)
++                teacher_targets = F.softmax(teacher_scores, dim=-1)  # (batch_size, group_size)
++            else:
++                teacher_targets = None
++
++            if no_in_batch_neg_flag:
++                compute_loss_func = self._compute_no_in_batch_neg_loss
++            else:
++                if self.negatives_cross_device:
++                    compute_loss_func = self._compute_cross_device_neg_loss
++                else:
++                    compute_loss_func = self._compute_in_batch_neg_loss
++
++            scores, loss = compute_loss_func(q_reps, p_reps, teacher_targets=teacher_targets, reweight_rates=reweight_rates)
++        else:
++            loss = None
++
++        return EmbedderOutput(
++            loss=loss,
++        )
+ 
+     def gradient_checkpointing_enable(self, **kwargs):
+         """
+--- a/FlagEmbedding/finetune/embedder/encoder_only/base/runner.py
++++ b/FlagEmbedding/finetune/embedder/encoder_only/base/runner.py
+@@ -26,6 +26,7 @@
+             self.model_args.model_name_or_path,
+             cache_dir=self.model_args.cache_dir,
+             token=self.model_args.token,
++            use_fast=self.model_args.use_fast_tokenizer,
+             trust_remote_code=self.model_args.trust_remote_code
+         )
+         base_model = AutoModel.from_pretrained(

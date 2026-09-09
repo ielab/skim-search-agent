@@ -110,7 +110,7 @@ def test_search_output_matches_bm25visit_rendering_for_the_same_hit_order():
 def test_search_marks_hits_seen():
     ws = _ws(("d_harbor", "d_flat"))
     ws.run("dense_search", {"query": "harbor"})
-    assert {"d_harbor", "d_flat"} <= ws.seen
+    assert {"d_harbor", "d_flat"} <= set(ws.seen)
 
 
 def test_empty_query_message():
@@ -298,7 +298,7 @@ def test_fetchws_excerpt_is_mid_body_not_the_doc_opening():
 def test_fetchws_marks_hits_seen():
     ws = _fetch_ws(ranking=("d_mid", "d_plain2"))
     ws.run("dense_search_f", {"query": "zephyrquokka"})
-    assert {"d_mid", "d_plain2"} <= ws.seen
+    assert {"d_mid", "d_plain2"} <= set(ws.seen)
 
 
 def test_fetchws_empty_query_message():

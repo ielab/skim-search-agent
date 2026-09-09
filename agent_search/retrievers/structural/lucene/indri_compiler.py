@@ -61,7 +61,7 @@ behavior rather than worked around:
 `FilReq`/`FilRej` filter clauses and `Not` exclusions -- restricted to leaf-ish nodes
 (`Term`/`Wildcard`/`Window`/`Syn`/`WSyn`) + `FieldExpr`/`Not` wrapping them, mirroring
 the Indri QL spec's own restriction that `#filreq`/`#filrej`'s first argument "must be
-a term/proximity expression" (`docs/indri_ql_reference.md`). A `Combine`/`Weight`/`Or`/
+a term/proximity expression" (`agent_search/prompts/skills/indri_doc.md`). A `Combine`/`Weight`/`Or`/
 `Max` used as a filter argument (rare, out of spec) raises `LuceneCompileError` rather
 than silently approximating -- unlike the Python reference's `_matches`, which defines
 "matches" for ANY compound node as "belief != -inf" (a graded fallback with no Lucene

@@ -74,7 +74,7 @@ def bql_dense_enabled() -> bool:
     `research_bql_dense_snip`) attach a `DenseBelief` unconditionally in their own arm branch
     (like `research_dense`/`research_dense_fetch` never need an env toggle to use dense
     retrieval) — for them this function is not consulted at all. Recorded in `env_knobs` by
-    `evaluation/run_eval.py`, alongside `STRUCTURED_BACKEND`/`BM25_BACKEND`/`INDRI_DENSE`."""
+    `agent_search/evaluation/run_eval.py`, alongside `STRUCTURED_BACKEND`/`BM25_BACKEND`/`INDRI_DENSE`."""
     return os.environ.get("BQL_DENSE", "0").strip().lower() in ("1", "true", "yes")
 
 
@@ -200,15 +200,23 @@ def fuse_ranked_dense_only(dense_belief, query_text: str,
     doc_ids (never a global dense search — same restriction `dense_rank_for_candidates` itself
     enforces). Original bm25 scores are preserved for display (only the ORDER changes, matching
     `fuse_ranked`'s own convention). `[]`/unfusable input, or a dense-side miss, returns
-    `bm25_ranked` UNCHANGED (byte-identical fallback — never worse, never raises)."""
+    `bm25_ranked` UNCHANGED (byte-identical fallback — never worse, never raises).
+
+    `dense_rank_for_candidates` may return FEWER ids than `bm_ids` (a candidate absent from
+    the dense index/corpus, e.g. an id the dense cache was never built for) — those missing
+    candidates are APPENDED after the dense-ranked ones, in their incoming bm25 order, so a
+    filter-passing candidate is never silently dropped from the result just because the dense
+    side has no opinion on it."""
     if not bm25_ranked:
         return list(bm25_ranked)
     bm_ids = [d for d, _ in bm25_ranked]
     dense_ids = dense_rank_for_candidates(dense_belief, query_text, bm_ids)
     if not dense_ids:
         return list(bm25_ranked)
+    dense_set = set(dense_ids)
+    missing = [d for d in bm_ids if d not in dense_set]   # never dropped -> appended, bm25 order
     score_by = dict(bm25_ranked)
-    return [(d, score_by.get(d, 0.0)) for d in dense_ids]
+    return [(d, score_by.get(d, 0.0)) for d in (*dense_ids, *missing)]
 
 
 def fuse_coverage_tiers_dense_only(dense_belief, query_text: str,
@@ -219,7 +227,10 @@ def fuse_coverage_tiers_dense_only(dense_belief, query_text: str,
     boundary; this isolates the fusion SIGNAL, not the tiering). `[]`/no dense attached returns
     `rows` unchanged; a tier whose dense scoring fails/returns nothing keeps its incoming
     (bm25/coverage) order for that tier only — same graceful-degradation contract as
-    `fuse_coverage_tiers`."""
+    `fuse_coverage_tiers`. As in `fuse_ranked_dense_only`, a tier candidate absent from the
+    dense side (`dense_rank_for_candidates` returns fewer ids than the tier has) is APPENDED
+    after the dense-ranked ones, in its incoming (coverage/bm25) order within that tier —
+    never dropped."""
     rows = list(rows)
     if not rows or dense_belief is None:
         return rows
@@ -235,5 +246,7 @@ def fuse_coverage_tiers_dense_only(dense_belief, query_text: str,
             out.extend(group)
             continue
         by_id = {r[0]: r for r in group}
-        out.extend(by_id[d] for d in dense_ids if d in by_id)
+        dense_set = set(dense_ids)
+        missing = [d for d in bm_ids if d not in dense_set]    # never dropped -> appended
+        out.extend(by_id[d] for d in (*dense_ids, *missing) if d in by_id)
     return out

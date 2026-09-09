@@ -1,6 +1,6 @@
 import math
 
-from evaluation.metrics import recall_at_k, acc_at_k, mrr_at_k, ndcg_at_k
+from agent_search.evaluation.metrics import recall_at_k, acc_at_k, mrr_at_k, ndcg_at_k
 
 
 def test_recall_counts_gold_in_topk():
@@ -35,7 +35,7 @@ def test_ndcg_rewards_higher_rank():
 
 
 def test_hit_precision_f1_map():
-    from evaluation.metrics import (hit_at_k, precision_at_k, f1_at_k,
+    from agent_search.evaluation.metrics import (hit_at_k, precision_at_k, f1_at_k,
                                         average_precision_at_k)
     r = ["a", "b", "c", "d"]
     # hit: any gold in top-k
@@ -55,7 +55,7 @@ def test_hit_precision_f1_map():
 
 
 def test_cutoff_free_set_metrics():
-    from evaluation.metrics import set_recall, set_precision, set_f1
+    from agent_search.evaluation.metrics import set_recall, set_precision, set_f1
     # a tight, surgical set: 2 returned, 1 gold among them
     tight = ["a.py::foo", "a.py::bar"]
     gold = {"a.py::foo"}

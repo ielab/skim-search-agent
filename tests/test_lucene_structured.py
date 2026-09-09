@@ -18,6 +18,8 @@ build is the expensive part, not the per-test queries).
 """
 from __future__ import annotations
 
+import json
+import os
 import shutil
 
 import pytest
@@ -46,7 +48,7 @@ except Exception as e:                          # pragma: no cover - environment
 
 
 # --- shared fixture corpus: built via `units_from_documents`, the SAME path a real
-# dataset takes (evaluation/datasets.py), so `code` = title+body join exactly like
+# dataset takes (agent_search/evaluation/datasets.py), so `code` = title+body join exactly like
 # production -- unlike a hand-rolled CodeUnit fixture, this makes the BQL default/
 # DOC-scope comparison meaningful (see module docstring point 1). --------------
 
@@ -506,6 +508,44 @@ def test_is_built_rejects_stale_doc_count_and_rebuilds(tmp_path):
         assert not (got & {u.doc_id for u in units_a}), (
             "stale corpus_a doc_ids leaked through -- the doc-count congruence "
             "check did not trigger a rebuild")
+    finally:
+        eng.close()
+
+
+def test_is_built_rejects_stale_fingerprint_same_doc_count_and_rebuilds(tmp_path):
+    """Same doc COUNT (and same doc_ids) but DIFFERENT content -- the doc-count check above
+    can't see a unit edited in place. `build()` also writes a `corpus_fingerprint`
+    (agent_search.corpus.fingerprint.corpus_fingerprint) into a `meta.json` sidecar and
+    `is_built` cross-checks it; a same-count, different-CONTENT reuse of the same dataset
+    key must still trigger a rebuild instead of silently serving stale postings."""
+    idx_root = str(tmp_path)
+    dataset = "fingerprint_congruence_test"
+
+    docs_a = [{"_id": "d0", "title": "d0", "text": "alpha content zero"}]
+    units_a = units_from_documents(docs_a)
+    stats_a = index_builder.build(units_a, idx_root, dataset, rebuild=True, progress=False)
+    assert stats_a["n_docs"] == 1 and not stats_a["skipped"]
+    meta_path = os.path.join(index_builder.index_dir(idx_root, dataset), "meta.json")
+    assert os.path.exists(meta_path)
+    with open(meta_path) as fh:
+        meta = json.load(fh)
+    assert meta.get("corpus_fingerprint")
+
+    # SAME doc_id, SAME count, DIFFERENT text -- the doc-count check alone would trust this.
+    docs_b = [{"_id": "d0", "title": "d0", "text": "totally different beta wording"}]
+    units_b = units_from_documents(docs_b)
+    assert not index_builder.is_built(
+        idx_root, dataset, expected_n_docs=1,
+        expected_fingerprint=index_builder.corpus_fingerprint(units_b))
+    stats_b = index_builder.build(units_b, idx_root, dataset, rebuild=False, progress=False)
+    assert not stats_b["skipped"], "stale-content index was reused instead of rebuilt"
+
+    eng = LuceneStructuredEngine(index_root=idx_root, dataset=dataset, mu=2500)
+    try:
+        got_alpha = {h.doc_id for h in eng.search_indri("alpha", k=10).hits}
+        got_beta = {h.doc_id for h in eng.search_indri("beta", k=10).hits}
+        assert not got_alpha, "stale content served after an in-place edit"
+        assert got_beta == {"d0"}
     finally:
         eng.close()
 

@@ -2,9 +2,7 @@
 agent loop (see agent_search/agent/loop.py). No model. `parse_tool_call` itself is specced
 in tests/test_actions_parser.py; no parser tests are duplicated here.
 
-The SWE-agent-style multi-tool ACI (find_file/search_dir/open/goto/scroll/search_bql, the
-`Workspace` class in agent_search/agent/tools/workspace.py) this file used to exercise was
-removed (~Jul 3-4); the code arm's tool surface is now CodeFixWorkspace (search -> fetch,
+The code arm's tool surface is CodeFixWorkspace (search -> fetch,
 <fix> terminal) and the grep baseline is GrepReadWorkspace (grep -> read, <fix> terminal) —
 see agent_search/agent/tools/code_fix.py and code_grep.py. `run_episode` over those
 workspaces (search->fetch->fix, fix_guard rejection, etc.) is already covered end-to-end in

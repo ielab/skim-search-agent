@@ -11,7 +11,7 @@ they THREAD THROUGH (the params matter once a real LLM backend is wired in).
 import json
 import os
 
-from evaluation.config import (
+from agent_search.evaluation.config import (
     AgentArgs,
     DatasetArgs,
     EvaluationArgs,
@@ -46,7 +46,7 @@ def test_seed_temperature_reach_the_registry_builder(monkeypatch):
 
     monkeypatch.setattr(reg, "build_factory", spy)
     # run_eval imports build_factory lazily from the module, so patching reg is enough
-    from evaluation.run_eval import make_factory_from_config
+    from agent_search.evaluation.run_eval import make_factory_from_config
 
     config = RunConfig(
         dataset=DatasetArgs(name="browsecomp_plus_fixture"),
@@ -61,7 +61,7 @@ def test_seed_temperature_reach_the_registry_builder(monkeypatch):
 def test_make_factory_threads_seed_temperature(monkeypatch):
     """The CLI's _make_factory passes seed/temperature into the RetrieverConfig."""
     import agent_search.retrievers.registry as reg
-    from evaluation.run_eval import _make_factory
+    from agent_search.evaluation.run_eval import _make_factory
 
     seen = {}
     orig = reg.build_factory
@@ -99,13 +99,15 @@ def test_run_dir_has_no_seed_segment_seed_lives_in_config_json_instead():
 
 
 def _run_seed(seed, runs_dir=None, results_dir=None):
-    from evaluation.datasets import load_dataset_by_name
-    from evaluation.run_eval import evaluate, make_factory_from_config
+    from agent_search.evaluation.datasets import load_dataset_by_name
+    from agent_search.evaluation.run_eval import evaluate, make_factory_from_config
 
     output = OutputArgs(runs_dir=runs_dir) if runs_dir else OutputArgs(results_dir=results_dir)
+    # index caches go next to the run output — never into the working directory
+    index_root = os.path.join(runs_dir or os.path.dirname(results_dir), "idx")
     config = RunConfig(
         dataset=DatasetArgs(name="browsecomp_plus_fixture"),
-        retriever=RetrieverArgs(name="agent_research_snip"),
+        retriever=RetrieverArgs(name="agent_research_snip", index_root=index_root),
         agent=AgentArgs(policy="stub", domain="general", seed=seed),
         evaluation=EvaluationArgs(level="function", k=(1, 10)),
         output=output,

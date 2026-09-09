@@ -1,12 +1,19 @@
-"""Minimal SkimSearchAgent demo: index-free Boolean search over an in-memory structured corpus.
-
-Runs with zero heavy dependencies (no Java, no torch, no index build) — this is the
-pure-Python REFERENCE executor. At paper scale the same query language compiles to Lucene
-(STRUCTURED_BACKEND=lucene over an index built by evaluation/build_indexes.py), and the
-agent-facing `term[field]` suffix sugar is provided by the tool layer on top of it.
+"""The smallest thing that shows BQL working: Boolean search over three in-memory documents.
 
     python examples/quickstart_bql.py
+
+No Java, no torch, no index to build. This is the pure-Python reference executor. It prints one
+line per query showing the hit count and the doc ids that matched. At paper scale the same query
+language compiles to Lucene instead (STRUCTURED_BACKEND=lucene, over an index built by
+agent_search/evaluation/build_indexes.py), and the `term[field]` sugar the agent types is added by
+the tool layer on top.
 """
+import sys
+from pathlib import Path
+
+# Runs from a source checkout without `pip install -e .` too (the repo root is the parent dir).
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
 from agent_search.corpus.units import CodeUnit
 from agent_search.retrievers.structural.bql.executor import StructuralExecutor, execute_bql
 

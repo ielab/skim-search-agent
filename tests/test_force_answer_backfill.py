@@ -69,12 +69,12 @@ def test_reconstruct_messages_uses_full_observations_not_the_capped_field():
     assert FORCE_MSG in messages[-1]["content"]
 
 
-def test_reconstruct_messages_ctx_chars_drops_oldest_pairs_first():
+def test_reconstruct_messages_ctx_tokens_drops_oldest_pairs_first():
     row = _synthetic_row()
     # a tiny budget: only the newest (assistant, tool_response) pair (plus system/user/forced-turn)
     # can fit — the OLDER step's raw_output must be dropped, mirroring AgentPolicy.build_messages'
     # newest-first walk (agent_search/agent/policies.py).
-    messages = reconstruct_messages(row, field_profile=None, ctx_chars=50)
+    messages = reconstruct_messages(row, field_profile=None, ctx_tokens=50)
     joined = "\n".join(m["content"] for m in messages)
     assert "grep -ril foo" not in joined       # step 0 (oldest) dropped
     assert "d1.txt" in joined                  # step 1 (newest) kept
@@ -204,7 +204,7 @@ def test_process_condition_dir_is_idempotent(tmp_path, monkeypatch):
     monkeypatch.setattr("scripts.force_answer_backfill.build_client", fake_build_client)
 
     summary1 = process_condition_dir(
-        cond_dir, model="m", api_base="http://fake/v1", ctx_chars=420_000,
+        cond_dir, model="m", api_base="http://fake/v1", ctx_tokens=110_000,
         prefill_max_tokens=200, fallback_max_tokens=512, stamp="2026-01-01T00:00:00Z")
     assert summary1["n_empty"] == 1                 # only the empty row is a candidate
     assert summary1["n_already_recovered"] == 0
@@ -224,7 +224,7 @@ def test_process_condition_dir_is_idempotent(tmp_path, monkeypatch):
     # SECOND run over the SAME cond_dir: the already-recovered id must be skipped (idempotent) —
     # no new model call, no new line appended.
     summary2 = process_condition_dir(
-        cond_dir, model="m", api_base="http://fake/v1", ctx_chars=420_000,
+        cond_dir, model="m", api_base="http://fake/v1", ctx_tokens=110_000,
         prefill_max_tokens=200, fallback_max_tokens=512, stamp="2026-01-02T00:00:00Z")
     assert summary2["n_already_recovered"] == 1
     assert summary2["n_pending"] == 0
@@ -250,7 +250,7 @@ def test_process_condition_dir_selects_placeholder_rows_and_stays_idempotent(tmp
     monkeypatch.setattr("scripts.force_answer_backfill.build_client", fake_build_client)
 
     summary1 = process_condition_dir(
-        cond_dir, model="m", api_base="http://fake/v1", ctx_chars=420_000,
+        cond_dir, model="m", api_base="http://fake/v1", ctx_tokens=110_000,
         prefill_max_tokens=200, fallback_max_tokens=512, stamp="2026-01-01T00:00:00Z")
     assert summary1["n_empty"] == 2                  # empty_1 AND placeholder_1 are candidates
     assert summary1["n_already_recovered"] == 0
@@ -263,7 +263,7 @@ def test_process_condition_dir_selects_placeholder_rows_and_stays_idempotent(tmp
 
     # SECOND run: both are now already-recovered -> skipped, no new calls, no new lines.
     summary2 = process_condition_dir(
-        cond_dir, model="m", api_base="http://fake/v1", ctx_chars=420_000,
+        cond_dir, model="m", api_base="http://fake/v1", ctx_tokens=110_000,
         prefill_max_tokens=200, fallback_max_tokens=512, stamp="2026-01-02T00:00:00Z")
     assert summary2["n_already_recovered"] == 2
     assert summary2["n_pending"] == 0
@@ -280,7 +280,7 @@ OVERFLOW_MSG = ("Error code: 400 - This model's maximum context length is 131072
 
 def test_overflow_row_retries_with_shrunken_context_then_recovers(tmp_path, monkeypatch):
     """Two overflow 400s then success: the row must be recovered, and each retry must have
-    rebuilt the prompt with a 15%-smaller ctx_chars (mirroring AgentPolicy.propose())."""
+    rebuilt the prompt with a 15%-smaller ctx_tokens (mirroring AgentPolicy.propose())."""
     import scripts.force_answer_backfill as fab
     cond_dir = str(tmp_path / "runs" / "agent" / "browsecomp_plus_structured" / "M" / "agent_research_dci")
     _write_rows(cond_dir, [_synthetic_row(instance_id="of_1", final_answer="")])
@@ -288,9 +288,9 @@ def test_overflow_row_retries_with_shrunken_context_then_recovers(tmp_path, monk
     ctx_seen = []
     real_reconstruct = fab.reconstruct_messages
 
-    def spy_reconstruct(row, field_profile, ctx_chars=fab.DEFAULT_CTX_CHARS):
-        ctx_seen.append(ctx_chars)
-        return real_reconstruct(row, field_profile, ctx_chars=ctx_chars)
+    def spy_reconstruct(row, field_profile, ctx_tokens=fab.DEFAULT_CTX_TOKENS):
+        ctx_seen.append(ctx_tokens)
+        return real_reconstruct(row, field_profile, ctx_tokens=ctx_tokens)
 
     monkeypatch.setattr(fab, "reconstruct_messages", spy_reconstruct)
 
@@ -306,13 +306,13 @@ def test_overflow_row_retries_with_shrunken_context_then_recovers(tmp_path, monk
     monkeypatch.setattr(fab, "build_client", lambda api_base, api_key=None: client)
 
     summary = process_condition_dir(
-        cond_dir, model="m", api_base="http://fake/v1", ctx_chars=420_000,
+        cond_dir, model="m", api_base="http://fake/v1", ctx_tokens=110_000,
         prefill_max_tokens=200, fallback_max_tokens=512, stamp="2026-01-01T00:00:00Z")
     assert summary["n_recovered"] == 1
     assert summary["n_skipped_overflow"] == 0
     assert summary["n_failed"] == 0
     # 3 attempts: full window, then x0.85, then x0.85^2 (int() after each shrink).
-    assert ctx_seen == [420_000, 357_000, 303_450]
+    assert ctx_seen == [110000, 93500, 79475]
     recs = [json.loads(l) for l in open(os.path.join(cond_dir, "recovered_answers.jsonl")) if l.strip()]
     assert len(recs) == 1 and recs[0]["instance_id"] == "of_1"
     assert recs[0]["recovered_answer"] == "forty-two"
@@ -341,7 +341,7 @@ def test_always_overflowing_row_is_skipped_and_pass_continues(tmp_path, monkeypa
 
     log_lines = []
     summary = process_condition_dir(
-        cond_dir, model="m", api_base="http://fake/v1", ctx_chars=420_000,
+        cond_dir, model="m", api_base="http://fake/v1", ctx_tokens=110_000,
         prefill_max_tokens=200, fallback_max_tokens=512, stamp="2026-01-01T00:00:00Z",
         log=log_lines.append)
     assert summary["n_pending"] == 2
@@ -352,8 +352,8 @@ def test_always_overflowing_row_is_skipped_and_pass_continues(tmp_path, monkeypa
     skip_lines = [l for l in log_lines if "SKIPPED context-overflow" in l]
     assert len(skip_lines) == 1
     assert "pathological_1" in skip_lines[0]
-    final_ctx = int(int(int(420_000 * 0.85) * 0.85) * 0.85)
-    assert f"final_ctx_chars={final_ctx}" in skip_lines[0]
+    final_ctx = int(int(int(110000 * 0.85) * 0.85) * 0.85)
+    assert f"final_ctx_tokens={final_ctx}" in skip_lines[0]
     # exactly 4 attempts were made for the pathological row (1 + 3 shrinks).
     bad_calls = [k for k in calls if any("OVERFLOW-MARKER" in m["content"] for m in k["messages"])]
     assert len(bad_calls) == 4
@@ -388,7 +388,7 @@ def test_non_overflow_row_exception_is_logged_and_counted_not_fatal(tmp_path, mo
 
     log_lines = []
     summary = process_condition_dir(
-        cond_dir, model="m", api_base="http://fake/v1", ctx_chars=420_000,
+        cond_dir, model="m", api_base="http://fake/v1", ctx_tokens=110_000,
         prefill_max_tokens=200, fallback_max_tokens=512, stamp="2026-01-01T00:00:00Z",
         log=log_lines.append)
     assert summary["n_recovered"] == 1
@@ -442,7 +442,7 @@ def test_overflow_resilience_in_threaded_mode(tmp_path, monkeypatch):
     monkeypatch.setattr(fab, "build_client", lambda api_base, api_key=None: client)
 
     summary = process_condition_dir(
-        cond_dir, model="m", api_base="http://fake/v1", ctx_chars=420_000,
+        cond_dir, model="m", api_base="http://fake/v1", ctx_tokens=110_000,
         prefill_max_tokens=200, fallback_max_tokens=512, stamp="2026-01-01T00:00:00Z",
         workers=3, log=lambda m: None)
     assert summary["n_recovered"] == 1
@@ -621,7 +621,7 @@ def test_placeholder_recovery_does_not_suppress_reattempt(tmp_path, monkeypatch)
 
     monkeypatch.setattr(fab, "build_client", lambda api_base, api_key=None: _fake_client(["forty-two"]))
     summary = process_condition_dir(
-        cond_dir, model="m", api_base="http://fake/v1", ctx_chars=420_000,
+        cond_dir, model="m", api_base="http://fake/v1", ctx_tokens=110_000,
         prefill_max_tokens=200, fallback_max_tokens=512, stamp="2026-01-02T00:00:00Z")
     assert summary["n_already_recovered"] == 0
     assert summary["n_pending"] == 1                  # NOT suppressed by the placeholder entry
@@ -635,7 +635,7 @@ def test_placeholder_recovery_does_not_suppress_reattempt(tmp_path, monkeypatch)
     assert merged[0]["recovered"] is True
     # now genuinely covered: a third run has nothing pending.
     summary2 = process_condition_dir(
-        cond_dir, model="m", api_base="http://fake/v1", ctx_chars=420_000,
+        cond_dir, model="m", api_base="http://fake/v1", ctx_tokens=110_000,
         prefill_max_tokens=200, fallback_max_tokens=512, stamp="2026-01-03T00:00:00Z")
     assert summary2["n_already_recovered"] == 1
     assert summary2["n_pending"] == 0
@@ -651,7 +651,7 @@ def test_fresh_placeholder_recovery_is_recorded_but_not_counted_as_success(tmp_p
 
     log_lines = []
     summary = process_condition_dir(
-        cond_dir, model="m", api_base="http://fake/v1", ctx_chars=420_000,
+        cond_dir, model="m", api_base="http://fake/v1", ctx_tokens=110_000,
         prefill_max_tokens=200, fallback_max_tokens=512, stamp="2026-01-01T00:00:00Z",
         log=log_lines.append)
     assert summary["n_recovered"] == 0

@@ -51,6 +51,7 @@ from pydantic import BaseModel, Field                          # noqa: E402
 from agent_search.agent.loop import Task, run_episode          # noqa: E402
 from agent_search.agent.policies import AgentPolicy            # noqa: E402
 from agent_search.agent.tools.doc_research import Bm25Visit, DocSearchFetch  # noqa: E402
+from agent_search.core.tokens import count_tokens               # noqa: E402
 from agent_search.models import backends                       # noqa: E402
 from agent_search.prompts import get_prompt_spec               # noqa: E402
 from demo.corpus import CORPUS, QUESTIONS                      # noqa: E402
@@ -155,9 +156,13 @@ class RunRequest(BaseModel):
 
 
 app = FastAPI(title="SkimSearchAgent live demo")
-# a file://-opened demo page must still reach a locally-running server.
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"],
-                   allow_headers=["*"])
+# The server now serves its own page (GET /), so the browser's origin is always this server's —
+# no more file://-opened page reaching across origins. Pin to the two localhost spellings a
+# browser may use to reach this same server, not "*" (which would let ANY page on the web POST a
+# visitor's typed-in API key to this endpoint via a background fetch).
+app.add_middleware(CORSMiddleware,
+                   allow_origins=["http://localhost:8008", "http://127.0.0.1:8008"],
+                   allow_methods=["*"], allow_headers=["*"])
 
 
 def _cost(model: str, prompt_tokens: int, completion_tokens: int,
@@ -201,8 +206,11 @@ def _step_payload(step) -> dict:
                 **parse_bm25_search(obs)}
     if name == "visit":
         return {"type": "visit", **parse_visit(obs)}
-    # submit/answer/stop/budget/none/... -> the frontend's generic fallback renderer
-    return {"type": "generic", "name": name, "observation": obs[:2000]}
+    # submit/answer/stop/budget/none/... -> the frontend's generic fallback renderer. Full
+    # observation, uncapped: this used to be character-clipped to 2000, which silently hid the
+    # tail of a long generic-step observation from the page for no budget reason (the real read
+    # caps live in agent_search/agent/tools/doc_research.py's token budgets, not here).
+    return {"type": "generic", "name": name, "observation": obs}
 
 
 def _run_strategy(strategy: str, req: RunRequest, out: queue.Queue) -> None:
@@ -228,19 +236,27 @@ def _run_strategy(strategy: str, req: RunRequest, out: queue.Queue) -> None:
                              field_profile="wiki")
         policy.system += CORPUS_NOTE
         steps_seen = {"n": 0}
-        # Characters of DOCUMENT TEXT pulled into context — the axis the two strategies
-        # actually differ on (a named section vs a whole document). Token/cost totals alone
-        # are confounded when one strategy gives up early and the other keeps hopping.
+        # Document text pulled into context — the axis the two strategies actually differ on (a
+        # named section vs a whole document). Token/cost totals alone are confounded when one
+        # strategy gives up early and the other keeps hopping. `read_chars` is a CHARACTER count;
+        # kept (never mixed with the token ruler) because the compiled React bundle
+        # (demo/app/dist/index.html, which this change cannot rebuild here) reads this exact
+        # field name. `read_tokens` is the token-ruler companion (agent_search.core.tokens.
+        # count_tokens — tiktoken o200k when available) for anything reading the live event
+        # stream directly rather than through the prebuilt page.
         read_chars = {"n": 0}
+        read_tokens = {"n": 0}
 
         def on_step(step) -> None:
             steps_seen["n"] += 1
             payload = _step_payload(step)
             if payload["type"] in ("fetch", "visit") and not payload.get("error"):
-                read_chars["n"] += len(payload.get("text") or "")
+                text = payload.get("text") or ""
+                read_chars["n"] += len(text)
+                read_tokens["n"] += count_tokens(text)
             out.put({"event": "step", "strategy": strategy, "step": payload,
                      "usage": {**_usage_snapshot(req.model), "steps": steps_seen["n"],
-                               "read_chars": read_chars["n"]}})
+                               "read_chars": read_chars["n"], "read_tokens": read_tokens["n"]}})
 
         traj = run_episode(policy, Task("live", req.question), workspace, CORPUS,
                            max_steps=MAX_STEPS, usage_fn=backends.usage_events,
@@ -248,7 +264,7 @@ def _run_strategy(strategy: str, req: RunRequest, out: queue.Queue) -> None:
         out.put({"event": "done", "strategy": strategy,
                  "answer": traj.final_answer, "stopped": traj.stopped_reason,
                  "usage": {**_usage_snapshot(req.model), "steps": steps_seen["n"],
-                           "read_chars": read_chars["n"]}})
+                           "read_chars": read_chars["n"], "read_tokens": read_tokens["n"]}})
     except Exception as e:  # noqa: BLE001 — any failure becomes an error event, never a hang
         # provider auth errors quote a (masked) copy of the offending key — redact any
         # key-shaped token so the "never echoed back" invariant holds on error paths too.

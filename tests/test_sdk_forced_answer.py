@@ -58,7 +58,8 @@ def test_closer_call_success_tags_ask_retry_inline_no_extra_retries(monkeypatch)
     """The pre-existing single closer call (unchanged behavior) already produces a usable answer
     — a PURE ADDITION means this must NOT trigger any of the new retry calls."""
     calls = _install_fake_runner(monkeypatch, ["Paris is the capital of France."])
-    traj = run_episode_sdk(FakeWS(), "What is the capital of France?", model="gpt-4o-mini", max_turns=3)
+    traj = run_episode_sdk(FakeWS(), "What is the capital of France?", model="gpt-4o-mini", max_turns=3,
+                           instructions="Answer the question.")
     assert traj.final_answer == "Paris is the capital of France."
     assert traj.elicitation == "ask_retry_inline"
     assert calls == ["research", "research-final"]      # no retry agents invoked
@@ -66,7 +67,8 @@ def test_closer_call_success_tags_ask_retry_inline_no_extra_retries(monkeypatch)
 
 def test_retries_fire_when_closer_call_is_empty_and_first_retry_wins(monkeypatch):
     calls = _install_fake_runner(monkeypatch, ["", "<answer>Paris</answer>"])
-    traj = run_episode_sdk(FakeWS(), "What is the capital of France?", model="gpt-4o-mini", max_turns=3)
+    traj = run_episode_sdk(FakeWS(), "What is the capital of France?", model="gpt-4o-mini", max_turns=3,
+                           instructions="Answer the question.")
     assert traj.final_answer == "Paris"
     assert traj.elicitation == "ask_retry_inline"
     assert calls == ["research", "research-final", "research-final-retry"]
@@ -74,17 +76,22 @@ def test_retries_fire_when_closer_call_is_empty_and_first_retry_wins(monkeypatch
 
 def test_second_retry_wins_when_first_retry_is_also_empty(monkeypatch):
     calls = _install_fake_runner(monkeypatch, ["", "", "<answer>Paris</answer>"])
-    traj = run_episode_sdk(FakeWS(), "What is the capital of France?", model="gpt-4o-mini", max_turns=3)
+    traj = run_episode_sdk(FakeWS(), "What is the capital of France?", model="gpt-4o-mini", max_turns=3,
+                           instructions="Answer the question.")
     assert traj.final_answer == "Paris"
     assert traj.elicitation == "ask_retry_inline"
     assert calls == ["research", "research-final", "research-final-retry", "research-final-retry"]
 
 
-def test_all_attempts_empty_tags_ask_retry_failed_and_keeps_placeholder(monkeypatch):
+def test_all_attempts_empty_tags_ask_retry_failed_and_never_persists_placeholder(monkeypatch):
+    """`_MAX_TURNS_PLACEHOLDER` is logging-only now — when every forcing call comes up empty,
+    `final_answer` must be "" (never the placeholder text)."""
     calls = _install_fake_runner(monkeypatch, ["", "", ""])
-    traj = run_episode_sdk(FakeWS(), "What is the capital of France?", model="gpt-4o-mini", max_turns=3)
-    assert traj.final_answer == "(max turns exceeded — no final answer)"
+    traj = run_episode_sdk(FakeWS(), "What is the capital of France?", model="gpt-4o-mini", max_turns=3,
+                           instructions="Answer the question.")
+    assert traj.final_answer == ""
     assert traj.elicitation == "ask_retry_failed"
+    assert traj.stopped_reason == "max_turns"
     # exactly 2 retry attempts beyond the closer call — never crashes, never loops forever.
     assert calls == ["research", "research-final", "research-final-retry", "research-final-retry"]
 
@@ -96,6 +103,28 @@ def test_organic_completion_has_no_elicitation_tag(monkeypatch):
         return _FakeResult("Paris")
 
     monkeypatch.setattr(sdk_driver.Runner, "run_sync", fake_run_sync)
-    traj = run_episode_sdk(FakeWS(), "What is the capital of France?", model="gpt-4o-mini", max_turns=3)
+    traj = run_episode_sdk(FakeWS(), "What is the capital of France?", model="gpt-4o-mini", max_turns=3,
+                           instructions="Answer the question.")
     assert traj.final_answer == "Paris"
     assert traj.elicitation is None
+    assert traj.stopped_reason == "answer"
+
+
+def test_stopped_reason_is_max_turns_even_when_closer_recovers_an_answer(monkeypatch):
+    """`stopped_reason` must reflect that the SDK's own loop hit MaxTurnsExceeded regardless of
+    whether the forcing sequence went on to recover a usable answer (needed to compute timeout
+    rates independently of forced-answer success)."""
+    _install_fake_runner(monkeypatch, ["Paris is the capital of France."])
+    traj = run_episode_sdk(FakeWS(), "What is the capital of France?", model="gpt-4o-mini", max_turns=3,
+                           instructions="Answer the question.")
+    assert traj.final_answer == "Paris is the capital of France."
+    assert traj.stopped_reason == "max_turns"
+
+
+def test_instructions_is_required(monkeypatch):
+    monkeypatch.setattr(sdk_driver.Runner, "run_sync", lambda *a, **k: _FakeResult("Paris"))
+    with pytest.raises(ValueError):
+        run_episode_sdk(FakeWS(), "What is the capital of France?", model="gpt-4o-mini",
+                        instructions="")
+    with pytest.raises(TypeError):
+        run_episode_sdk(FakeWS(), "What is the capital of France?", model="gpt-4o-mini")

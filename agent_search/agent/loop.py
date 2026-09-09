@@ -42,8 +42,8 @@ _FIX = re.compile(r"<fix>(.*?)</fix>", re.DOTALL | re.IGNORECASE)
 #                          Tongyi's served --max-model-len.
 #   AGENT_CTX_STOP_FRAC — fraction of that window at which to force the answer. Default 0.90
 #                          (deliberately BIG — let the agent use ~90% of its budget). >= 1.0
-#                          disables the early stop entirely (byte-identical to pre-change
-#                          behavior: only the reactive max_steps nudge remains).
+#                          disables the proactive early stop; only the reactive max_steps
+#                          nudge remains.
 # Read once per episode (not at import time) so a per-run env override (e.g. a different served
 # backbone) is honored without a process restart.
 DEFAULT_CTX_WINDOW = 131072
@@ -94,9 +94,14 @@ class WorkspaceLike(Protocol):
         raised exception)."""
         ...
 
-    # `surfaced` is read via getattr(..., []) below, not through this Protocol,
-    # because it's genuinely optional: a workspace with no location ranking (the
-    # code-fix task, scored on its <fix> block instead) may omit it entirely.
+    @property
+    def surfaced(self) -> Sequence[str]:
+        """Doc ids the episode has surfaced so far, in first-seen order — the agent's
+        retrieval ranking for rank metrics. Every document workspace provides it (see
+        ``agent_search.core.seen.OrderedSeen``); a workspace with no location ranking
+        (the code-fix task, scored on its <fix> block) may omit it, in which case the
+        loop reads an empty ranking via ``getattr(..., "surfaced", [])``."""
+        ...
 
 
 @dataclass
@@ -133,8 +138,9 @@ class Trajectory:
     final_answer: str = ""
     fix_text: str = ""                                  # the <fix> block (code-fix task)
     # provenance of a non-empty final_answer on a force-answer-gated (non-code) episode:
-    #   None              — pre-change rows, or the episode never reached the reserved final
-    #                        turn (answered/submitted/stopped organically before the budget nudge).
+    #   None              — the episode never reached the reserved final turn (answered/
+    #                        submitted/stopped organically before the budget nudge), or this
+    #                        field wasn't recorded for the row.
     #   "nudge"           — the model complied with the inline "STEP BUDGET REACHED" nudge directly
     #                       (produced a usable <answer> on that same forced turn, no extra call).
     #   "prefill_inline"  — the nudge turn still had no <answer>; the shared forced-answer-
@@ -171,8 +177,8 @@ def run_episode(policy: Policy, task: Task, workspace: WorkspaceLike,
 
     `on_step`, when given, is called with the just-appended Step after every step the episode
     records (tool/nudge/terminal) — the live-demo streaming hook. A raising listener is
-    swallowed (an episode must never die because a spectator did). None (the default) is
-    byte-identical to the pre-change loop."""
+    swallowed (an episode must never die because a spectator did). None (the default) runs no
+    listener and leaves the loop otherwise unaffected."""
     steps: List[Step] = []
 
     def _push(step: Step) -> None:
@@ -206,7 +212,7 @@ def run_episode(policy: Policy, task: Task, workspace: WorkspaceLike,
 
     # Proactive context-budget threshold (see the module-level comment above _last_prompt_tokens).
     # ctx_stop_frac >= 1.0 is the opt-out sentinel: ctx_threshold stays None and the block below
-    # can never fire, so every check below reduces to the pre-existing max_steps-only nudge.
+    # never fires, so the forced-final-turn check below only ever triggers on max_steps.
     ctx_window = int(os.environ.get("AGENT_CTX_WINDOW", str(DEFAULT_CTX_WINDOW)))
     ctx_stop_frac = float(os.environ.get("AGENT_CTX_STOP_FRAC", str(DEFAULT_CTX_STOP_FRAC)))
     ctx_threshold = ctx_stop_frac * ctx_window if ctx_stop_frac < 1.0 else None
@@ -291,21 +297,19 @@ def run_episode(policy: Policy, task: Task, workspace: WorkspaceLike,
         _push(Step(name=name or "none", args=args, observation=obs,
                   raw_output=raw or "", t_llm=t_llm, t_tool=t_tool))
         if nudge_injected and is_forced_final_turn:
-            # The forced final turn (max_steps- OR ctx_budget-triggered) did NOT terminate
-            # organically — the model tool-called again instead of answering. On the pre-existing
-            # max_steps turn this is a no-op (range(max_steps) has no further iterations anyway);
-            # on an EARLIER ctx_budget turn it is load-bearing — without it the loop would keep
-            # taking normal steps up to max_steps, defeating the whole point of stopping early.
+            # The forced final turn (max_steps- or ctx_budget-triggered) did not terminate
+            # organically — the model tool-called again instead of answering. On a max_steps
+            # turn this break is a no-op (the for-loop has no further iterations anyway); on an
+            # earlier ctx_budget turn it is load-bearing — without it the loop would keep taking
+            # normal steps up to max_steps, defeating the point of stopping early.
             break
 
-    # INLINE FORCED-ANSWER ELICITATION (pure addition — everything above this point is the
-    # pre-existing episode loop, unchanged). `nudge_injected` is only True when force_answer's
+    # INLINE FORCED-ANSWER ELICITATION. `nudge_injected` is only True when force_answer's
     # reserved-final-turn nudge (above) actually fired; `reason` stays the loop's initial
-    # "max_steps" value ONLY when the for-loop ran out without ever hitting a terminal branch —
-    # i.e. exactly the case the nudge exists to prevent: the model tool-called (or emitted
-    # nothing parseable) on its forced final turn instead of answering. When the model DID comply
-    # with the nudge directly (reason is "answer"/"submit" on that same forced turn), tag it
-    # "nudge" and do nothing further — the existing behavior is untouched either way.
+    # "max_steps" value only when the for-loop ran out without ever hitting a terminal branch —
+    # i.e. the model tool-called (or emitted nothing parseable) on its forced final turn instead
+    # of answering. When the model complies with the nudge directly (reason is "answer"/"submit"
+    # on that same forced turn), tag it "nudge" and do nothing further.
     elicitation: Optional[str] = None
     if force_answer and nudge_injected:
         if reason == "max_steps":
@@ -326,7 +330,7 @@ def run_episode(policy: Policy, task: Task, workspace: WorkspaceLike,
     # text is PROSE, not locations, so the retrieval ranking is the surfaced evidence;
     # likewise for `STOP` / max_steps (no declaration). Same @k / set metrics either way.
     # The code-fix task has no location ranking — it is scored on the <fix> block
-    # (evaluation.fix_scoring), and its workspace exposes no `surfaced` list.
+    # (agent_search.evaluation.fix_scoring), and its workspace exposes no `surfaced` list.
     surfaced = list(getattr(workspace, "surfaced", []) or [])
     declares_locations = bool(declared) and (reason == "submit" or domain != "general")
     located = resolve_locations(declared, units) if declares_locations else surfaced
@@ -341,46 +345,37 @@ def run_episode(policy: Policy, task: Task, workspace: WorkspaceLike,
         traj.completion_tokens = sum(e[1] for e in events)
         traj.cached_input_tokens = sum((e[2] if len(e) > 2 else 0) for e in events)
         traj.reasoning_tokens = sum((e[3] if len(e) > 3 else 0) for e in events)
-        for step, ev in zip(traj.steps, events):
+        # One usage event per model call. The injected "budget" nudge step is pushed WITHOUT a
+        # model call, so it must be skipped when attributing per-step usage — otherwise every
+        # step after the nudge would be credited with the previous turn's tokens.
+        llm_steps = [s for s in traj.steps if s.name != "budget"]
+        for step, ev in zip(llm_steps, events):
             step.prompt_tokens, step.completion_tokens = ev[0], ev[1]
     return traj
 
 
 def _elicit_inline(policy, task: Task, steps: List[Step]) -> tuple:
     """Best-effort inline forced-answer elicitation for a budget-exhausted episode whose reserved
-    final nudge STILL produced no `<answer>` (see the `force_answer` block above). Reuses the
-    SAME mechanism `scripts/force_answer_backfill.py` runs OFFLINE
+    final nudge still produced no `<answer>` (see the `force_answer` block above). Reuses the
+    same mechanism `scripts/force_answer_backfill.py` runs offline
     (`agent_search.agent.forced_answer.elicit_final_answer`, assistant-prefill via vLLM's
-    `continue_final_message`) — LIVE, over the episode's own message list.
-
-    EQUIVALENCE to the offline backfill's reconstruction (see `force_answer_backfill.py`'s
-    `reconstruct_messages`): that script rebuilds `Task`/`Step` objects from a PERSISTED row's
-    `trajectory`/`observations` fields, constructs an `AgentPolicy` with the row's own
-    `prompt_profile_path`/`field_profile`, and calls `.build_messages(task, steps)`, then appends
-    the tools-disabled instruction as a user/tool_response turn. Here, `policy` IS the episode's
-    real, already-configured `AgentPolicy` and `task`/`steps` are the LIVE objects the episode has
-    been accumulating (steps already include the "budget" nudge Step) — so this call is the exact
-    object-identity version of what the offline script can only reconstruct from a serialized row;
-    the appended instruction reuses the identical `FORCE_MSG` constant so the two paths produce a
-    byte-identical final turn given the same trajectory.
+    `continue_final_message`), live, over the episode's own message list and its
+    already-configured `AgentPolicy` (`task`/`steps` are the live objects the episode has been
+    accumulating, already including the "budget" nudge Step) — so this path matches what the
+    offline backfill script does when it reconstructs the same call from a persisted row.
 
     Returns `(answer, elicitation_tag)`. `elicitation_tag` is `"prefill_inline"` on success,
-    `"prefill_failed"` on ANY failure (no client/model available on this policy's generate
+    `"prefill_failed"` on any failure (no client/model available on this policy's generate
     callable — e.g. in-process vLLM, which has no assistant-prefill affordance — the call itself
     raising, or both the prefill and its one plain-ask fallback coming back empty). Never raises.
 
-    OVERFLOW SHRINK-RETRY: this call carries the episode's FULL accumulated history (the reserved
-    final turn fires only once the budget is otherwise exhausted, so this is the single largest
-    prompt any turn in the episode ever builds) — it is therefore the call most likely to trip
-    vLLM's "maximum context length" 400. `AgentPolicy.propose()` already shrinks `ctx_chars` 15%
-    and retries (up to 3 shrinks) for every ordinary turn; this reserved-final-turn call used to
-    build its messages ONCE at the policy's full, unshrunk `ctx_chars` and let the `except`
-    below swallow an overflow exactly like any other failure — so on any episode whose final-turn
-    context overflows, this path always resent the identical maximum-budget prompt (never a
-    smaller one) and always failed the same way. Mirror `propose()`'s (and
-    `scripts/force_answer_backfill.py::process_condition_dir`'s offline `_work`'s) shrink loop
-    here instead, so a real overflow gets the same chance to shrink into the window before this
-    degrades to `"prefill_failed"`."""
+    OVERFLOW SHRINK-RETRY: this call carries the episode's full accumulated history (the reserved
+    final turn fires only once the budget is otherwise exhausted, so this is the largest prompt
+    any turn in the episode builds), making it the call most likely to trip vLLM's "maximum
+    context length" 400. Mirrors `AgentPolicy.propose()`'s shrink loop (and
+    `scripts/force_answer_backfill.py::process_condition_dir`'s offline `_work`): it retries up
+    to 3 times, shrinking `ctx_chars` 15% each time, so an overflowing final turn gets the same
+    chance to fit before falling back to `"prefill_failed"`."""
     try:
         generate = getattr(policy, "generate", None)
         client = getattr(generate, "client", None)
@@ -389,9 +384,10 @@ def _elicit_inline(policy, task: Task, steps: List[Step]) -> tuple:
         if client is None or model is None or build_messages is None:
             return "", "prefill_failed"
         from agent_search.agent.forced_answer import FORCE_MSG, elicit_final_answer
-        ctx = getattr(policy, "ctx_chars", 450_000)
+        from agent_search.agent.policies import default_ctx_tokens
+        ctx = getattr(policy, "ctx_tokens", None) or default_ctx_tokens()
         for shrink in range(4):
-            messages = build_messages(task, steps, ctx_chars=ctx)
+            messages = build_messages(task, steps, ctx_tokens=ctx)
             messages.append({"role": "user", "content": f"<tool_response>\n{FORCE_MSG}\n</tool_response>"})
             try:
                 answer, _method_tag, _raw = elicit_final_answer(messages, client, model)

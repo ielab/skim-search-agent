@@ -1,7 +1,7 @@
 """The deep-research DCI baseline ACI: `bash` (grep/rg/ls/etc) + `read` (a file line-range).
 
-DCI — Direct Corpus Interaction (`chen2026dci`; RISE's brute-force reference arm, replicated
-from `bql_skill_construct/proto/dci_tools.py` + `refs/RISE/src/rise/tools.py`) gives the agent
+DCI — Direct Corpus Interaction (`chen2026dci`; RISE's brute-force reference arm, ported from
+an internal prototype, not part of this release) gives the agent
 NO retriever at all: a flat file tree (`agent_search.corpus.flat_export`) and two shell-shaped
 tools. The agent must grep for candidate files itself, then read line-ranges, then `<answer>` —
 this is the "accurate but token-EXPENSIVE" reference the structured (`research`) and
@@ -11,7 +11,9 @@ own headline: comparable accuracy to a trained structured agent at a fraction of
 Two tools, uncoached (no manual — a shell needs no teaching):
   bash(command)             : run a bash command (grep/rg/ls/find/wc/...) with cwd = the
                               export dir; output combines stdout+stderr, TAIL-truncated to
-                              ~2000 lines / ~50KB (RISE's `truncateTail` default).
+                              ~2000 lines / ~12000 whitespace tokens (RISE's `truncateTail`
+                              default, adapted to SkimSearchAgent's one-token-ruler-for-every-cap
+                              convention — see agent_search.core.tokens).
   read(path, offset, limit) : read a 1-indexed line-range of one exported file (default
                               limit 2000 lines); paths are resolved relative to the export
                               dir and may not escape it.
@@ -28,65 +30,67 @@ import subprocess
 from pathlib import Path
 from typing import Optional, Sequence
 
+from agent_search.agent.tools.doc_research import _SeenMixin
+from agent_search.core.seen import OrderedSeen
+from agent_search.core.tokens import cap_tokens, count_ws_tokens
 from agent_search.corpus.flat_export import export_flat_corpus
 from agent_search.corpus.units import CodeUnit
 
 # RISE tools.py defaults (PI_BASH_DEFAULT_MAX_LINES / PI_BASH_DEFAULT_MAX_BYTES /
-# PI_READ_DEFAULT_MAX_LINES) — kept identical so truncation behavior matches the paper-faithful
-# DCI baseline (bql_skill_construct/proto/dci_tools.py).
+# PI_READ_DEFAULT_MAX_LINES) — kept identical in SPIRIT (same shape: a line cap plus a size cap),
+# but the size caps are WHITESPACE TOKENS, not bytes/characters — SkimSearchAgent measures and
+# caps text in tokens everywhere (agent_search.core.tokens), never characters.
 BASH_MAX_LINES = 2000
-BASH_MAX_BYTES = 50 * 1024
+BASH_MAX_TOKENS = int(os.environ.get("BASH_MAX_TOKENS", "12000"))
 READ_DEFAULT_LIMIT = 2000
-READ_MAX_LINE_CHARS = 2000
+READ_MAX_LINE_TOKENS = int(os.environ.get("READ_MAX_LINE_TOKENS", "400"))
 _HARD_TIMEOUT_S = 60.0     # per-subprocess safety ceiling (catastrophic-regex guard)
 
 
 def _tail_truncate(content: str, *, max_lines: int = BASH_MAX_LINES,
-                   max_bytes: int = BASH_MAX_BYTES) -> str:
-    """Keep the LAST N lines or M bytes (whichever limit hits first); append a one-line
-    `[Truncated: showing X of Y lines]` marker when truncation fires. Ported verbatim from
-    `bql_skill_construct/proto/dci_tools._tail_truncate` (self-contained here — no cross-import
-    from the sandbox)."""
-    total_bytes = len(content.encode("utf-8"))
+                   max_tokens: int = BASH_MAX_TOKENS) -> str:
+    """Keep the LAST N lines or M whitespace tokens (whichever limit hits first); append a
+    one-line `[Truncated: showing X of Y lines]` marker when truncation fires. Adapted from
+    an internal prototype's `_tail_truncate` (self-contained here — no cross-import),
+    with the original byte-count size limit replaced by SkimSearchAgent's
+    whitespace-token ruler (agent_search.core.tokens) — see BASH_MAX_TOKENS."""
+    total_tokens = count_ws_tokens(content)
     lines = content.split("\n")
     total_lines = len(lines)
-    if total_lines <= max_lines and total_bytes <= max_bytes:
+    if total_lines <= max_lines and total_tokens <= max_tokens:
         return content
 
     out_lines: list[str] = []
-    out_bytes = 0
+    out_tokens = 0
     truncated_by = "lines"
     for i in range(len(lines) - 1, -1, -1):
         if len(out_lines) >= max_lines:
             truncated_by = "lines"
             break
         line = lines[i]
-        line_bytes = len(line.encode("utf-8")) + (1 if out_lines else 0)
-        if out_bytes + line_bytes > max_bytes:
-            truncated_by = "bytes"
+        line_tokens = count_ws_tokens(line)
+        if out_tokens + line_tokens > max_tokens:
+            truncated_by = "tokens"
             if not out_lines:
-                buf = line.encode("utf-8")
-                start = max(0, len(buf) - max_bytes)
-                while start < len(buf) and (buf[start] & 0xc0) == 0x80:
-                    start += 1
-                out_lines.insert(0, buf[start:].decode("utf-8", errors="replace"))
-                out_bytes = len(buf) - start
+                # keep the TAIL `max_tokens` whitespace tokens of this single oversized line.
+                toks = line.split()
+                kept = toks[-max_tokens:] if max_tokens > 0 else []
+                out_lines.insert(0, " ".join(kept))
+                out_tokens = len(kept)
             break
         out_lines.insert(0, line)
-        out_bytes += line_bytes
+        out_tokens += line_tokens
 
     out = "\n".join(out_lines)
     if truncated_by == "lines":
         warning = f"\n[Truncated: showing {len(out_lines)} of {total_lines} lines]"
     else:
-        kb = max_bytes / 1024
-        kb_str = f"{kb:.1f}KB" if kb < 1024 else f"{kb / 1024:.1f}MB"
-        warning = f"\n[Truncated: {len(out_lines)} lines shown ({kb_str} limit)]"
+        warning = f"\n[Truncated: {len(out_lines)} lines shown ({max_tokens} token limit)]"
     return out + warning
 
 
 def _run_bash(corpus_dir: Path, command: str, timeout_s: float,
-             max_lines: int, max_bytes: int) -> str:
+             max_lines: int, max_tokens: int) -> str:
     """`bash -c <command>` with cwd=corpus_dir; combined stdout+stderr, tail-truncated. Exit 1 +
     empty output is annotated "(no matches found)" (grep/rg convention) so the agent can tell a
     clean miss from a crash."""
@@ -133,11 +137,11 @@ def _run_bash(corpus_dir: Path, command: str, timeout_s: float,
             full = f"(no output; exit={proc.returncode})"
     elif proc.returncode != 0:
         full += f"\n\nCommand exited with code {proc.returncode}"
-    return _tail_truncate(full, max_lines=max_lines, max_bytes=max_bytes)
+    return _tail_truncate(full, max_lines=max_lines, max_tokens=max_tokens)
 
 
 def _run_read(corpus_dir: Path, rel: str, offset, limit,
-             default_limit: int, max_line_chars: int) -> str:
+             default_limit: int, max_line_tokens: int) -> str:
     """Read a 1-indexed line-range of one exported file; rejects paths escaping corpus_dir."""
     if not rel:
         return "Error: read called with empty path."
@@ -147,7 +151,7 @@ def _run_read(corpus_dir: Path, rel: str, offset, limit,
     candidate = Path(rel)
     target = (candidate.resolve() if candidate.is_absolute()
               else (root_resolved / candidate).resolve())
-    if not str(target).startswith(str(root_resolved)):
+    if not target.is_relative_to(root_resolved):
         return f"Error: path {rel!r} escapes the corpus root — use a relative path."
     if not target.exists():
         return f"Error: file not found: {rel!r}. Use `bash` (ls/rg -l) to find the exact filename first."
@@ -178,9 +182,10 @@ def _run_read(corpus_dir: Path, rel: str, offset, limit,
 
     formatted = []
     for line in all_lines[start:end]:
-        if len(line) > max_line_chars:
-            cut = len(line) - max_line_chars
-            line = line[:max_line_chars] + f"...[line truncated; {cut} chars]"
+        n_tok = len(line.split())
+        if n_tok > max_line_tokens:
+            cut = n_tok - max_line_tokens
+            line = cap_tokens(line, max_line_tokens, f"...[line truncated; {cut} tokens]")
         formatted.append(line)
     out = "\n".join(formatted)
     if end < total_lines:
@@ -188,7 +193,7 @@ def _run_read(corpus_dir: Path, rel: str, offset, limit,
     return out
 
 
-class DciWorkspace:
+class DciWorkspace(_SeenMixin):
     """`bash(command)` -> shell over the flat export dir; `read(path, offset, limit)` -> a
     line-range. NO retriever, NO search/fetch — the agent finds candidate files itself.
 
@@ -199,17 +204,17 @@ class DciWorkspace:
     tools = ("bash", "read")
 
     def __init__(self, units: Sequence[CodeUnit], corpus_key: Optional[str] = None,
-                *, max_bash_lines: int = BASH_MAX_LINES, max_bash_bytes: int = BASH_MAX_BYTES,
+                *, max_bash_lines: int = BASH_MAX_LINES, max_bash_tokens: int = BASH_MAX_TOKENS,
                 read_default_limit: int = READ_DEFAULT_LIMIT,
-                read_max_line_chars: int = READ_MAX_LINE_CHARS):
+                read_max_line_tokens: int = READ_MAX_LINE_TOKENS):
         self.units = list(units)
         self.corpus_dir, doc_to_rel = export_flat_corpus(self.units, key=corpus_key)
         self._rel_to_doc = {rel: doc_id for doc_id, rel in doc_to_rel.items()}
         self._max_bash_lines = max_bash_lines
-        self._max_bash_bytes = max_bash_bytes
+        self._max_bash_tokens = max_bash_tokens
         self._read_default_limit = read_default_limit
-        self._read_max_line_chars = read_max_line_chars
-        self.seen: set = set()
+        self._read_max_line_tokens = read_max_line_tokens
+        self.seen = OrderedSeen()
         self.n_bash = 0
         self.n_read = 0
 
@@ -228,7 +233,7 @@ class DciWorkspace:
             timeout_s = _HARD_TIMEOUT_S
         timeout_s = max(1.0, min(timeout_s, _HARD_TIMEOUT_S))
         obs = _run_bash(self.corpus_dir, command, timeout_s,
-                        self._max_bash_lines, self._max_bash_bytes)
+                        self._max_bash_lines, self._max_bash_tokens)
         self._surface_from_text(command)
         self._surface_from_text(obs)
         return obs
@@ -237,7 +242,7 @@ class DciWorkspace:
         rel = (path or "").strip()
         self._surface_from_text(rel)
         obs = _run_read(self.corpus_dir, rel, offset, limit,
-                        self._read_default_limit, self._read_max_line_chars)
+                        self._read_default_limit, self._read_max_line_tokens)
         if not obs.startswith("Error"):
             self._surface_from_text(rel)
         return obs

@@ -5,10 +5,10 @@ Companion to scripts/shard_cell.sh (INSTANCE-SHARDING): each shard task ran
 `run_eval --only-instances shard_<i>of<N>.txt --runs-dir <tier>/__shards/<CONDITION>/
 shard_<i>of<N>`, a run-dir DISTINCT from the canonical cell so its appends never
 collided with the canonical rows.jsonl or with other shards. This script folds those
-shard rows back into the canonical dir evaluation/config.py:results_dir_for computes
+shard rows back into the canonical dir agent_search/evaluation/config.py:results_dir_for computes
 for the same (dataset, model, condition): <runs_dir>/agent/<dataset>/<model>/<condition>/.
 
-Reuses evaluation.run_eval._load_rows (the same parser run_eval itself uses for
+Reuses agent_search.evaluation.run_eval._load_rows (the same parser run_eval itself uses for
 resume) rather than re-parsing rows.jsonl by hand, so "done" here means exactly what
 run_eval would treat as done on its next invocation.
 
@@ -22,7 +22,7 @@ Safety:
     adds nothing and does not touch the canonical file or its backup
 
 Usage:
-    ./envs/bin/python scripts/merge_shards.py \\
+    python scripts/merge_shards.py \\
         --runs-dir runs/_visit_uncapped --dataset browsecomp_plus_structured \\
         --condition agent_research_bm25_autoread --num-shards 10
 """
@@ -39,11 +39,11 @@ _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
 
-from evaluation.run_eval import _load_rows  # noqa: E402  (see module docstring: reuse, don't reimplement)
+from agent_search.evaluation.run_eval import _load_rows  # noqa: E402  (see module docstring: reuse, don't reimplement)
 
 
 def _resolve_model_tag(runs_dir: str, dataset: str, condition: str, model: str | None) -> str:
-    """Same basename evaluation/config.py:results_dir_for uses for the path segment.
+    """Same basename agent_search/evaluation/config.py:results_dir_for uses for the path segment.
     Auto-discovered by globbing the canonical layout when --model isn't given, so the
     caller doesn't have to know/repeat the exact --model string used to run the cell."""
     if model:

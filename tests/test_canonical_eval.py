@@ -3,18 +3,18 @@
 Covers the switch from an invented "cover-EM" (substring containment — no paper uses it) to
 each dataset's PUBLISHED metric:
 
-  HotpotQA / 2WikiMultihopQA : Answer EM + F1, SQuAD-style normalization (evaluation.metrics).
+  HotpotQA / 2WikiMultihopQA : Answer EM + F1, SQuAD-style normalization (agent_search.evaluation.metrics).
   MuSiQue                    : Answer F1 (already covered) + SUPPORT F1 over gold-doc-id sets
-                                (evaluation.metrics.support_f1).
-  BrowseComp-Plus            : LLM-as-judge (evaluation.llm_judge.judge_answer), mocked here so
+                                (agent_search.evaluation.metrics.support_f1).
+  BrowseComp-Plus            : LLM-as-judge (agent_search.evaluation.llm_judge.judge_answer), mocked here so
                                 the suite never makes a real network call.
 
 Also checks that `score_answer` extracts the `<answer>...</answer>` span (the short span the
 agent is now instructed to emit) before scoring.
 """
-from evaluation.metrics import answer_em, answer_f1, support_f1
-from evaluation.doc_scoring import extract_answer_span, score_answer
-from evaluation.llm_judge import judge_answer, judge_answer_detail
+from agent_search.evaluation.metrics import answer_em, answer_f1, support_f1
+from agent_search.evaluation.doc_scoring import extract_answer_span, score_answer
+from agent_search.evaluation.llm_judge import judge_answer, judge_answer_detail
 
 
 # --- HotpotQA / 2WikiMultihopQA canonical EM/F1 ------------------------------
@@ -131,7 +131,7 @@ def test_judge_answer_model_param_and_env_default_exist():
     # Configurability contract: `model` is a keyword param, and a module-level default exists
     # (overridable via LLM_JUDGE_MODEL) — without actually hitting the network.
     import inspect
-    import evaluation.llm_judge as llm_judge
+    import agent_search.evaluation.llm_judge as llm_judge
     sig = inspect.signature(judge_answer)
     assert "model" in sig.parameters
     assert hasattr(llm_judge, "DEFAULT_JUDGE_MODEL")
