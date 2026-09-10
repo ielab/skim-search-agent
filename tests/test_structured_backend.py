@@ -1,8 +1,8 @@
 """Tests for `STRUCTURED_BACKEND` (python|lucene) — the env knob that swaps the pure-Python
-Indri/BQL reference engines for `LuceneStructuredEngine` (`agent_search/retrievers/structural/
+Indri/BQL reference engines for `LuceneStructuredEngine` (`agent_search/retrievers/
 lucene/`) underneath the SAME doc-arm workspaces (`IndriFetchWorkspace`/`IndriVisitWorkspace`,
 `DocSearchFetch`/`BqlVisitWorkspace`), unchanged. See `structural/backend.py`'s module
-docstring (the resolver) and `structural/lucene/adapters.py`'s module docstring (the two
+docstring (the resolver) and `lucene/adapters.py`'s module docstring (the two
 adapters + documented deviations, incl. dense-belief score-normalization) for the design.
 
 1. Backend-selection: `structured_backend()`'s env resolution, `build_indri_engine`/
@@ -30,11 +30,11 @@ import pytest
 from agent_search.agent.tools.doc_indri import IndriFetchWorkspace, IndriVisitWorkspace
 from agent_search.agent.tools.doc_research import BqlVisitWorkspace, DocSearchFetch
 from agent_search.corpus.units import CodeUnit
-from agent_search.retrievers.structural.bql.executor import StructuralExecutor
-from agent_search.retrievers.structural.indri.model import IndriExecutor
-from agent_search.retrievers.structural.lucene import index_builder
-from agent_search.retrievers.structural.lucene import jni_utils as _jni
-from agent_search.retrievers.structural.lucene.engine import LuceneStructuredEngine
+from agent_search.retrievers.bql.executor import StructuralExecutor
+from agent_search.retrievers.indri.model import IndriExecutor
+from agent_search.retrievers.lucene import index_builder
+from agent_search.retrievers.lucene import jni_utils as _jni
+from agent_search.retrievers.lucene.engine import LuceneStructuredEngine
 
 try:
     _jni._boot()
@@ -42,9 +42,9 @@ except Exception as e:                          # pragma: no cover - environment
     pytest.skip(f"lucene backend needs a working JVM (pyserini/pyjnius): {e}",
                 allow_module_level=True)
 
-from agent_search.retrievers.structural.backend import (       # noqa: E402
+from agent_search.retrievers.backend import (       # noqa: E402
     build_bql_engine, build_indri_engine, structured_backend)
-from agent_search.retrievers.structural.lucene.adapters import (  # noqa: E402
+from agent_search.retrievers.lucene.adapters import (  # noqa: E402
     LuceneBqlAdapter, LuceneIndriAdapter)
 
 _DATASET_KEY = "fixture_backend_test"

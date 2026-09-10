@@ -1,5 +1,5 @@
 """Semantics validation for the `lucene` structured backend
-(`agent_search/retrievers/structural/lucene/`) against BOTH pure-Python reference
+(`agent_search/retrievers/lucene/`) against BOTH pure-Python reference
 engines (`indri`, `bql`) it compiles for -- see that package's `__init__.py`.
 
 Per the task's validation contract (documented, not exact-ranking equality):
@@ -25,14 +25,14 @@ import shutil
 import pytest
 
 from agent_search.corpus.units import units_from_documents
-from agent_search.retrievers.structural.bql.executor import StructuralExecutor
-from agent_search.retrievers.structural.bql.parser import parse as bql_parse
-from agent_search.retrievers.structural.bql.types import check as bql_check
-from agent_search.retrievers.structural.indri.model import IndriExecutor
-from agent_search.retrievers.structural.lucene import index_builder
-from agent_search.retrievers.structural.lucene import jni_utils as _jni
-from agent_search.retrievers.structural.lucene.adapters import LuceneIndriAdapter
-from agent_search.retrievers.structural.lucene.engine import LuceneStructuredEngine
+from agent_search.retrievers.bql.executor import StructuralExecutor
+from agent_search.retrievers.bql.parser import parse as bql_parse
+from agent_search.retrievers.bql.types import check as bql_check
+from agent_search.retrievers.indri.model import IndriExecutor
+from agent_search.retrievers.lucene import index_builder
+from agent_search.retrievers.lucene import jni_utils as _jni
+from agent_search.retrievers.lucene.adapters import LuceneIndriAdapter
+from agent_search.retrievers.lucene.engine import LuceneStructuredEngine
 
 # NOT `pytest.importorskip("jnius", ...)`: a bare `import jnius` starts the JVM with
 # NO classpath (pyjnius auto-starts on module import in this environment) --

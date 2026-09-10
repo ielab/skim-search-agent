@@ -1,5 +1,56 @@
 # Changelog
 
+## 0.3.0 (2026-09, tools, tasks, strategies)
+
+The code now says what a tool is, what a task is and what a strategy is. Nothing the model sees
+changed: every paper condition renders the same system prompt (`tests/test_prompt_fidelity.py`
+pins all 24), every tool gives the same observations as the workspace it replaces
+(`tests/test_tool_parity.py`) and a stub episode is identical end to end
+(`tests/test_episode_parity.py`). Old import paths keep working for this release.
+
+### Structure
+- `agent_search/tools/`: one folder per atomic tool (`search_bm25`, `search_dense`, `search_hybrid`,
+  `search_bql`, `search_indri`, `search_dedup`, `search_bm25_dci`, `visit`, `fetch`, `fetch_code`,
+  `get_document`, `bash`, `read`, `grep`), each with its declaration, its code and its manual.
+- `agent_search/tasks/`: one folder per task (`research`, `research_dedup`, `codefix`,
+  `codefix_patch`) with the prompt template and the answer protocol.
+- `agent_search/strategies/`: one file per family; a strategy is tools with options under the
+  names the paper prompts used. `conditions.py` pairs a task with a strategy; `paper.py` keeps the
+  paper's condition names. New strategies: one-shot RAG (`rag_bm25`, `rag_dense`, `rag_hybrid`,
+  from `scripts/oneshot_rag.py`), `search_visit_snippets`, `autoread_hybrid`, `sieve_plain`,
+  `sieve_v2`, `sieve_visit*`, `indri_plain`, `indri_visit`.
+- `agent_search/evaluation/agent_runner.py`: `ConditionAgent` runs a condition; `ProcedureAgent`
+  runs a loop-free strategy. Every condition is the retriever `agent_<name>`.
+- `agent_search/retrievers/`: `structural/` flattened into `bql/`, `indri/`, `lucene/` and
+  `backend.py`; dense retrievers are a base class and one file per encoder family.
+- `agent_search/legacy/`: the pre-0.3 workspaces, `AgentRetriever` and the YAML prompt registry,
+  reachable under their old names, removed next release.
+- The code task's grounding guards live with the task (`tasks/codefix/guards.py`); the corpus
+  vocabulary helper moved to `corpus/grounding.py`.
+
+### Extending
+- A tool is a `Tool` subclass; a strategy is `register_strategy(Strategy(...))`; a condition is
+  `condition(name, task, strategy)`. `docs/EXTENDING.md` and `examples/plugin_strategy.py` show
+  the whole path. `register_tool` / `register_toolset` / `register_condition` /
+  `register_workspace` still work through `agent_search.legacy`.
+
+### Verified on the cluster (2026-09-11)
+- The smoke suite (`scripts/slurm/smoke_suite.sbatch`): the full test suite, every strategy on
+  the fixtures with the stub policy, and the dense episode parity (nine conditions).
+- Replay of the 20 recorded ITER trajectories on the InfoSeek-Eval sample
+  (`scripts/replay_check.py`): the old code and the new code give the same observation on all
+  486 steps. Against the record, with the fp32 index the run used, every step reproduces except
+  the forced final answer of the episodes that used all 40 steps (the model was called there).
+- Tongyi samples through the new runner, 20 questions each, judged by gpt-4o-mini: Sieve
+  (`sieve_bm25`) 25% and Search-Visit with Lucene BM25 25% on the BrowseComp-Plus chunk sample;
+  one-shot RAG (`rag_bm25`) 70% and ITER's loop (`dedup_dense`, released ITER-0.6B) 50% on the
+  InfoSeek-Eval sample. The ITER run scored 70% before the restructure; that run used an fp32
+  embedding index and this one a bfloat16 rebuild, and the replay above shows the tools
+  unchanged, so the gap is index precision and sampling on 20 questions, not the code.
+- ITER, held out: 99 InfoSeek training trajectories to a bf16 checkpoint; on 20 unseen
+  InfoSeek-Eval questions the trained retriever behind the agent scored 65% judged against 60%
+  for its base (`docs/ITER.md`).
+
 ## 0.2.0 (2026-09, library release)
 
 Breaking changes are marked **[breaking]**.

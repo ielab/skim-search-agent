@@ -2,8 +2,8 @@
 the SAME searchable input — they differ ONLY in the scopeable fields that BQL uses. This guards
 the headline control (the flat/structured pair isolates BQL's value, not a content difference)."""
 from agent_search.corpus.units import units_from_documents
-from agent_search.retrievers.structural.bql.executor import StructuralExecutor
-from agent_search.retrievers.structural.bql.parser import parse
+from agent_search.retrievers.bql.executor import StructuralExecutor
+from agent_search.retrievers.bql.parser import parse
 
 
 def test_flat_and_structured_units_share_identical_bm25_blob():

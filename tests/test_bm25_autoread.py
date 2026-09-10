@@ -210,27 +210,29 @@ def test_research_bm25_autoread_condition_loads_uncoached():
 
 
 def test_research_bm25_autoread_resolves_via_registry_as_bm25autoread_arm():
-    from agent_search.agent.retriever import AgentRetriever
+    from agent_search.evaluation.agent_runner import ConditionAgent
     from agent_search.retrievers.registry import RetrieverConfig, build_factory
 
     r = build_factory("agent_research_bm25_autoread", RetrieverConfig(policy="stub"))()
-    assert isinstance(r, AgentRetriever)
+    assert isinstance(r, ConditionAgent)
     assert r.toolset == ("bm25_read_search",)
     assert r.tool == "agent_research_bm25_autoread"
-    assert r._arm == "bm25autoread"
+    assert r.condition.name == "research_bm25_autoread"
     assert r.domain == "general"
     assert not r.needs_files
 
 
 def test_bm25_autoread_workspace_builds_end_to_end(tmp_path):
     from agent_search.retrievers.registry import RetrieverConfig, build_factory
+    from agent_search.tools.search_bm25.tool import SearchBm25
 
     cfg = RetrieverConfig(policy="stub", index_root=str(tmp_path))
     r = build_factory("agent_research_bm25_autoread", cfg)()
     r.index(_units(), key="bm25_autoread_test_corpus")
-    ws = r._workspace(5, "harbor festival annual event")
-    assert isinstance(ws, Bm25AutoRead)
+    ws = r.toolbox("harbor festival annual event")
     assert ws.tools == ("bm25_read_search",)
+    assert isinstance(ws["bm25_read_search"], SearchBm25)
+    assert ws["bm25_read_search"].full_text is True
     out = ws.run("bm25_read_search", {"query": "harbor festival annual event"})
     assert "Founded in 1897" in out
 

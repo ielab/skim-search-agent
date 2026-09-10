@@ -66,8 +66,8 @@ def test_workspaces_do_not_materialise_a_lazy_corpus(tmp_path):
 def test_in_memory_engines_refuse_a_lazy_corpus(tmp_path):
     from agent_search.retrievers.lexical.bm25 import BM25Local
     from agent_search.retrievers.lexical.grep import GrepBaseline
-    from agent_search.retrievers.structural.bql.executor import StructuralExecutor
-    from agent_search.retrievers.structural.indri.model import IndriExecutor
+    from agent_search.retrievers.bql.executor import StructuralExecutor
+    from agent_search.retrievers.indri.model import IndriExecutor
     units = LazyUnits(_store(tmp_path))
     for build in (lambda: BM25Local().index(units), lambda: GrepBaseline().index(units),
                   lambda: StructuralExecutor(units), lambda: IndriExecutor(units)):

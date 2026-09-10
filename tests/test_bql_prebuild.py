@@ -12,7 +12,7 @@ import tempfile
 import pytest
 
 from agent_search.corpus.units import CodeUnit
-from agent_search.retrievers.structural.bql.executor import (
+from agent_search.retrievers.bql.executor import (
     BQLIndexBuilder, StructuralExecutor, bql_index_path, execute_bql, load_or_build,
 )
 

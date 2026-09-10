@@ -15,7 +15,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from agent_search.corpus.units import CodeUnit
-from agent_search.retrievers.structural.bql.executor import StructuralExecutor, execute_bql
+from agent_search.retrievers.bql.executor import StructuralExecutor, execute_bql
 
 
 def doc(doc_id: str, title: str, body: str, date: str | None = None) -> CodeUnit:

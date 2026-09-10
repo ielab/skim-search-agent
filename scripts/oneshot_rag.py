@@ -13,7 +13,7 @@ conditions run through agent_search/evaluation/run_eval.py:
          BM25Local — the dependency-free approximation; 'pyserini' — canonical Lucene BM25,
          persisted under indexes/bm25_pyserini/<corpus_key>/lucene/ (built once, reused).
          Override with --bm25-backend {local,pyserini} (defaults from env BM25_BACKEND).
-  dense  DenseBelief (agent_search.retrievers.structural.indri.dense_belief), the SAME
+  dense  DenseBelief (agent_search.retrievers.indri.dense_belief), the SAME
          persisted doc-embedding cache Baseline 1's `research_dense` condition
          (agent_search.agent.tools.doc_research.DenseVisit) uses — default BAAI/bge-base-en-v1.5,
          indexes/dense/BAAI__bge-base-en-v1.5-sl1024/<corpus_key>/ (env `DENSE_MODEL` overrides,
@@ -61,7 +61,7 @@ from typing import Callable, Optional, Sequence
 
 from agent_search.agent.tools.doc_research import MAX_VISIT_TOKENS, _cap_tokens
 from agent_search.corpus.units import CodeUnit, units_from_documents
-from agent_search.retrievers.structural.indri.dense_belief import DEFAULT_MODEL as DENSE_MODEL
+from agent_search.retrievers.indri.dense_belief import DEFAULT_MODEL as DENSE_MODEL
 from agent_search.evaluation.datasets import Instance, load_dataset_by_name
 from agent_search.evaluation.doc_scoring import extract_answer_span
 from agent_search.evaluation.run_eval import _corpus_key
@@ -156,7 +156,7 @@ def _build_dense_engine(units: Sequence[CodeUnit], key: str, index_root: str = "
     not live-encode the corpus) if that cache is missing, mirroring
     agent_search.agent.retriever.AgentRetriever.index()'s 'densevisit' arm."""
     from agent_search.retrievers.dense.dense import DenseRetriever
-    from agent_search.retrievers.structural.indri.dense_belief import DenseBelief
+    from agent_search.retrievers.indri.dense_belief import DenseBelief
 
     probe = DenseRetriever(model=DENSE_MODEL, index_root=index_root)
     if not probe.is_cached(key):

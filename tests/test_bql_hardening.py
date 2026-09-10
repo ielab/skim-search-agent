@@ -7,9 +7,9 @@ operands instead of silently mistyping them.
 import random
 import string
 
-from agent_search.retrievers.structural.bql.ast import And, In, Near, Or, Term
-from agent_search.retrievers.structural.bql.parser import parse
-from agent_search.retrievers.structural.bql.types import Granularity, check
+from agent_search.retrievers.bql.ast import And, In, Near, Or, Term
+from agent_search.retrievers.bql.parser import parse
+from agent_search.retrievers.bql.types import Granularity, check
 
 
 # --- 1. RecursionError must not escape (critical) ----------------------------
@@ -142,9 +142,9 @@ def test_in_def_matches_class_via_method_qualname():
     """Observed miss (astropy-14182): IN(def, RST) found nothing although
     rst.py defines `class RST` — methods are the units and their bodies never
     mention the class name. The unit's qualname is part of its definition."""
-    from agent_search.retrievers.structural.bql.executor import StructuralExecutor
+    from agent_search.retrievers.bql.executor import StructuralExecutor
     from agent_search.corpus.units import CodeUnit
-    from agent_search.retrievers.structural.bql.parser import parse
+    from agent_search.retrievers.bql.parser import parse
 
     units = [
         CodeUnit(doc_id="rst.py::RST.write", path="rst.py", qualname="RST.write",
@@ -159,7 +159,7 @@ def test_in_def_matches_class_via_method_qualname():
 
 
 def test_near_file_cooccurs_across_units():
-    from agent_search.retrievers.structural.bql.executor import StructuralExecutor
+    from agent_search.retrievers.bql.executor import StructuralExecutor
     from agent_search.corpus.units import CodeUnit
 
     units = [
@@ -183,7 +183,7 @@ def test_region_bags_survive_col0_multiline_string():
     """A method whose body holds a multiline string with column-0 content defeats
     textwrap.dedent; the wrapper-class re-parse must keep the AST bags populated
     (previously ALL IN(...) regions silently went empty for such units)."""
-    from agent_search.retrievers.structural.bql.structure import region_token_bags
+    from agent_search.retrievers.bql.structure import region_token_bags
 
     code = '    def write(self, lines):\n        t = """\ncol0 text\n"""\n        return self.render(t)\n'
     bags = region_token_bags(code)
@@ -193,13 +193,13 @@ def test_region_bags_survive_col0_multiline_string():
 
 
 def test_attribute_assignment_in_def_bag():
-    from agent_search.retrievers.structural.bql.structure import region_token_bags
+    from agent_search.retrievers.bql.structure import region_token_bags
     bags = region_token_bags("def f(self):\n    self.required_columns = []\n")
     assert "required" in bags["def"] and "columns" in bags["def"]
 
 
 def _exec_for(src):
-    from agent_search.retrievers.structural.bql.executor import StructuralExecutor
+    from agent_search.retrievers.bql.executor import StructuralExecutor
     from agent_search.corpus.units import units_from_python_source
     return StructuralExecutor(units_from_python_source("m.py", src))
 
@@ -207,7 +207,7 @@ def _exec_for(src):
 def test_window_near_honors_or_operand():
     """NEAR/wN(OR(...), x) must enforce the WINDOW, not degrade to unit
     co-occurrence (observed: matched with every pair far apart)."""
-    from agent_search.retrievers.structural.bql.parser import parse
+    from agent_search.retrievers.bql.parser import parse
     far = ("def f():\n    alpha = 1\n"
            "    a1 = a2 = a3 = a4 = a5 = a6 = a7 = 0\n"
            "    gamma = 2\n"
@@ -219,7 +219,7 @@ def test_window_near_honors_or_operand():
 
 
 def test_window_near_expand_is_prefix_consistent():
-    from agent_search.retrievers.structural.bql.parser import parse
+    from agent_search.retrievers.bql.parser import parse
     src = "def f():\n    authenticate_user = 1\n    x = 0\n    token = 2\n"
     ex = _exec_for(src)
     # EXPAND(auth) matches 'authenticate' by prefix at token distance 5 from 'token'
@@ -228,7 +228,7 @@ def test_window_near_expand_is_prefix_consistent():
 
 
 def test_window_near_phrase_uses_span_coverage():
-    from agent_search.retrievers.structural.bql.parser import parse
+    from agent_search.retrievers.bql.parser import parse
     src = "def f():\n    make_token = factory\n"
     # 'factory' is adjacent to the END of the make/token span
     assert [d for d, _ in _exec_for(src).run(

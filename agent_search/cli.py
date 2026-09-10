@@ -21,7 +21,7 @@ from __future__ import annotations
 import os
 import sys
 
-from agent_search.strategies import DEFAULT_STRATEGY, STRATEGIES, resolve_strategy
+from agent_search.strategies.names import DEFAULT_STRATEGY, STRATEGIES, resolve_strategy
 
 # key=value names accepted as environment knobs. Several tool modules read these at import
 # time, so they cannot be run_eval flags; they are exported here before the harness loads and
@@ -73,6 +73,14 @@ def _usage() -> str:
              "", "strategies:"]
     for name in sorted(STRATEGIES):
         lines.append(f"  {name:<22} -> {STRATEGIES[name]}")
+    from agent_search.strategies import CONDITIONS
+    extra = sorted(n for n in CONDITIONS if n not in STRATEGIES and f"agent_{n}" not in STRATEGIES.values())
+    if extra:
+        lines.append("")
+        lines.append("conditions (task x strategy, agent_search/strategies):")
+        for name in extra:
+            c = CONDITIONS[name]
+            lines.append(f"  {name:<28} {c.task.name} x {c.strategy.name}: {c.strategy.description}")
     lines += ["", "boolean flags: " + ", ".join(BOOL_FLAGS),
               "environment knobs: " + ", ".join(ENV_KNOBS)]
     return "\n".join(lines)

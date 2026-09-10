@@ -19,7 +19,8 @@ SUBSET="${SUBSET:-3000}"
 TRIPLES="${TRIPLES:-train_data/iter_smoke_i2.jsonl}"
 DATASET="${DATASET:-infoseek_train}"
 OUT="${OUT:-runs/iter_smoke}"
-export DENSE_QUERY_INSTRUCTION="${DENSE_QUERY_INSTRUCTION:-Given the main question, the current sub-query, and the sub-queries already tried in previous interactions, retrieve documents relevant to the current sub-query that provide NEW information not yet found.}"
+# each retriever family uses its own query instruction (a trained checkpoint: its serving note);
+# export DENSE_QUERY_INSTRUCTION yourself to force one for both models
 echo "[$(date)] node=$(hostname) gpu=${CUDA_VISIBLE_DEVICES:-none}"
 mkdir -p "$OUT"
 skimsearchagent-eval-retriever --triples "$TRIPLES" --dataset "$DATASET" --dense-model "$MODEL" --subset "$SUBSET" --out "$OUT/retriever_eval_trained.json"

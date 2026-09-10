@@ -9,9 +9,9 @@ import random
 import pytest
 
 from agent_search.corpus.units import CodeUnit
-from agent_search.retrievers.structural.bql import executor as ex
-from agent_search.retrievers.structural.bql.parser import parse
-from agent_search.retrievers.structural.bql.types import check
+from agent_search.retrievers.bql import executor as ex
+from agent_search.retrievers.bql.parser import parse
+from agent_search.retrievers.bql.types import check
 
 
 def _corpus(n=400, seed=0):

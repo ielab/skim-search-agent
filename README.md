@@ -120,41 +120,42 @@ def my_model(messages: list[dict]) -> str:
 research(question, docs, strategy="sieve_bm25", generate=my_model)
 ```
 
-**The prompt**: edit `agent_search/prompts/tasks/research.md`, or point a condition at your
-own template file:
+**The prompt**: edit `agent_search/tasks/research/prompt.md`, or write a task with your own
+template and pair it with an existing strategy:
 
 ```python
-from agent_search.prompts.registry import register_condition
-register_condition("my_sieve", task="/path/to/my_task.md", toolset="search_fetch_s")
-# run it: strategy=agent_my_sieve
+from agent_search.tasks.base import Task, register_task
+from agent_search.strategies.conditions import condition
+
+@register_task
+class MyTask(Task):
+    name, domain, terminal = "my_task", "general", "answer"
+    prompt_file = "/path/to/my_task.md"        # front matter + body with {{tools}} and {{tool_manuals}}
+
+condition("my_sieve", task="my_task", strategy="sieve_bm25")
+# run it: strategy=my_sieve
 ```
 
-**A tool** (declare it, implement it, bind it to a condition):
+**A tool** (its declaration and its code in one class), **a strategy** (which tools, under which
+names, with which options) and **a condition** (a task with that strategy):
 
 ```python
-from agent_search.prompts.loader import register_tool, register_toolset
-from agent_search.prompts.registry import register_condition
-from agent_search.agent.retriever import register_workspace
-from agent_search.core import OrderedSeen
+from agent_search.tools.base import Tool
+from agent_search.strategies.base import Strategy, register_strategy
+from agent_search.strategies.conditions import condition
 
-register_tool("title_lookup", description="Documents whose title contains the words.",
-              parameters={"type": "object", "properties": {"words": {"type": "string"}}, "required": ["words"]})
-register_toolset("title_only", ["title_lookup"])
-register_condition("title_agent", task="research", toolset="title_only")
-
-class TitleWorkspace:
-    tools = ("title_lookup",)
-    def __init__(self, ctx):                      # ctx.units, ctx.ubyid, ctx.bm25(), ctx.bql(), ctx.dense()
-        self.units, self.seen = ctx.units, OrderedSeen()
-    @property
-    def surfaced(self): return list(self.seen)    # the agent's retrieval ranking
-    def run(self, name, args):
+class TitleLookup(Tool):
+    name = "title_lookup"
+    description = "Documents whose title contains the words."
+    parameters = {"type": "object", "properties": {"words": {"type": "string"}}, "required": ["words"]}
+    def run(self, args):                          # self.units, self.ubyid, self.state, self.engine[...]
         hits = [u for u in self.units if all(w in (u.title or "").lower() for w in args["words"].lower().split())]
-        self.seen.update(u.doc_id for u in hits)
+        self.state.seen.update(u.doc_id for u in hits)   # first-seen order = the agent's ranking
         return "\n".join(f"{u.doc_id}  {u.title}: {u.body}" for u in hits) or "no match"
 
-register_workspace("title_arm", tools=("title_lookup",), builder=TitleWorkspace)
-# run it: strategy=agent_title_agent
+register_strategy(Strategy(name="title_only", description="look up by title", tools=(TitleLookup(name="title_lookup"),)))
+condition("title_agent", task="research", strategy="title_only")
+# run it: strategy=title_agent
 ```
 
 **A retriever**:
@@ -169,7 +170,7 @@ class MyRetriever(Retriever):
     def search(self, query, k): return self._ids[:k]
 
 register("my_method")(lambda cfg, name: (lambda: MyRetriever()))
-# run it: strategy=my_method (retrieval-only), or call it from a workspace
+# run it: strategy=my_method (retrieval-only), or give it an engine kind so a tool can use it
 ```
 
 **The dense model** (one setting covers Sieve's ranker, its fallback, and every dense baseline):
@@ -217,13 +218,14 @@ agent.search(question, k=10)
 
 | family | `strategy=` | what the agent does |
 |---|---|---|
-| Retrieval-only | `bm25`, `bm25_lucene`; `dense`, `bql`, `grep` by retriever name | rank once, no agent loop |
-| Search–Visit | `search_visit`, `search_visit_dense`, `search_visit_hybrid` | read a result list, open whole documents |
-| Search–AutoRead | `autoread`, `autoread_dense` | every search returns full text |
+| Retrieval-only | `bm25`, `bm25_lucene`, `dense`, `bql`, `grep` | rank once, no agent loop, no model |
+| One-shot RAG | `rag_bm25`, `rag_dense`, `rag_hybrid` | rank once, put the top five documents in one prompt, one model call |
+| Search–Visit | `search_visit`, `search_visit_dense`, `search_visit_hybrid`, `search_visit_snippets` | read a result list, open whole documents |
+| Search–AutoRead | `autoread`, `autoread_dense`, `autoread_hybrid` | every search returns full text |
 | Direct corpus interaction | `dci`, `bounded_dci` | shell commands over exported files, optionally within a BM25 working set |
 | Search–Fetch | `search_fetch`, `search_fetch_dense`, `search_fetch_hybrid` | result cards with snippets, then named sections |
-| **Sieve** | `sieve`, `sieve_bm25`, `sieve_dense`, `sieve_nosnip` | BQL candidate filtering, one ranking model, result cards, section fetch |
-| Structured control | `indri` | Indri-QL retrieval with cards and section fetch |
+| **Sieve** | `sieve`, `sieve_bm25`, `sieve_dense`, `sieve_nosnip`, `sieve_plain`, `sieve_v2`, `sieve_visit`, `sieve_visit_fused`, `sieve_visit_dense` | BQL candidate filtering, one ranking model, result cards, section fetch (or whole documents) |
+| Structured control | `indri`, `indri_plain`, `indri_visit` | Indri-QL retrieval with cards and section fetch (or whole documents) |
 | Code localization | `codefix`, `codefix_grep`, `codefix_patch` | search or grep a repository, read functions, propose a fix (`dataset=code_fixture`) |
 | ITER search | `dedup_bm25`, `dedup_dense` | ITER's tool setup; see [docs/ITER.md](docs/ITER.md) |
 

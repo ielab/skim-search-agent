@@ -1,7 +1,7 @@
 """Code-FIX task scoring — the code arm's end-to-end metric.
 
 The code agent ends an episode by proposing a concrete fix (a <fix> block; see
-prompts/tasks/taskfix.md). We score it LOCALLY, no test execution:
+agent_search/tasks/codefix/prompt.md). We score it LOCALLY, no test execution:
 
   fix-file-ok : did the `file:` line name a file the gold patch edits (suffix-lenient)?
 

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "skimsearchagent"
-version = "0.2.0"
+version = "0.3.0"
 description = "A research framework for deep-search agents: corpora, retrieval, strategies, evaluation and traces behind one stable contract"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -94,7 +94,9 @@ include = ["agent_search*"]
 # Prompt profiles, tool declarations and skill manuals are DATA the package reads at import
 # (agent_search/prompts/loader.py resolves them next to __file__); they must ship in the wheel.
 [tool.setuptools.package-data]
-"agent_search.prompts" = ["*.yaml", "tasks/*.md", "skills/*.md", "vendor/*/*.yaml"]
+"agent_search.legacy.prompts" = ["*.yaml", "tasks/*.md", "skills/*.md", "vendor/*/*.yaml"]
+"agent_search.tasks" = ["*/prompt.md"]
+"agent_search.tools" = ["*/*.md"]
 "agent_search.training" = ["patches/*.patch"]
 
 # Roadmap note: the import path stays `agent_search` for continuity with the paper's

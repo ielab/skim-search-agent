@@ -1,6 +1,7 @@
 #!/usr/bin/env python
-"""A whole plugin strategy in one file: a new tool, toolset, condition and workspace, driven
-through the library's own agent loop by a scripted model. No index, no network.
+"""A whole plugin strategy in one file: a new tool, a strategy that uses it, and a condition
+that pairs it with the document-research task, driven through the library's own agent loop by
+a scripted model. No index, no network.
 
     python examples/plugin_strategy.py
 
@@ -12,43 +13,32 @@ different list of documents in place of `DOCS`. docs/EXTENDING.md has the full c
 from __future__ import annotations
 
 from agent_search import research
-from agent_search.agent.retriever import WorkspaceContext, register_workspace
-from agent_search.core import OrderedSeen, cap_tokens
-from agent_search.prompts.loader import register_tool, register_toolset
-from agent_search.prompts.registry import register_condition
-
-# 1. declare the tool (rendered into the system prompt as a JSON schema)
-register_tool("title_lookup",
-              description="Return every document whose title contains ALL the given words.",
-              parameters={"type": "object", "properties": {"words": {"type": "string"}},
-                          "required": ["words"]})
-# 2. name the tool surface, 3. bind it to the document-research task template
-register_toolset("title_only", ["title_lookup"])
-register_condition("title_agent", task="research", toolset="title_only")
+from agent_search.core import cap_tokens
+from agent_search.strategies.base import Strategy, register_strategy
+from agent_search.strategies.conditions import condition
+from agent_search.tools.base import Tool
 
 
-# 4. how the tool executes
-class TitleWorkspace:
-    tools = ("title_lookup",)
+# 1. the tool: its declaration (what the model sees) and its code (what a call returns)
+class TitleLookup(Tool):
+    name = "title_lookup"
+    description = "Return every document whose title contains ALL the given words."
+    parameters = {"type": "object", "properties": {"words": {"type": "string"}},
+                  "required": ["words"]}
 
-    def __init__(self, ctx: WorkspaceContext):
-        self.units = ctx.units
-        self.seen = OrderedSeen()          # first-seen order = the agent's retrieval ranking
-
-    @property
-    def surfaced(self):
-        return list(self.seen)
-
-    def run(self, name: str, args: dict) -> str:
-        if name != "title_lookup":
-            return f"ERROR: unknown tool {name!r}. Available tools: title_lookup."
+    def run(self, args: dict) -> str:
         words = (args or {}).get("words", "").lower().split()
         hits = [u for u in self.units if all(w in (u.title or "").lower() for w in words)]
-        self.seen.update(u.doc_id for u in hits)
+        self.state.seen.update(u.doc_id for u in hits)     # first-seen order = the ranking
         return "\n".join(f"{u.doc_id}  {u.title}: {cap_tokens(u.body, 48)}" for u in hits) or "no match"
 
 
-register_workspace("title_arm", tools=("title_lookup",), builder=TitleWorkspace)
+# 2. the strategy: which tools, under which names, with which options
+register_strategy(Strategy(name="title_only", description="look documents up by title words",
+                           tools=(TitleLookup(name="title_lookup"),)))
+
+# 3. the condition: the research task with that strategy; runnable as `title_agent`
+condition("title_agent", task="research", strategy="title_only")
 
 
 DOCS = [
@@ -70,7 +60,7 @@ def scripted_model(messages: list[dict]) -> str:
 
 if __name__ == "__main__":
     result = research("When did Grace Hopper write the first compiler?", DOCS,
-                      strategy="agent_title_agent", generate=scripted_model, max_steps=4)
+                      strategy="title_agent", generate=scripted_model, max_steps=4)
     print("answer  :", result.answer)
     print("ranking :", result.ranking)
     print("steps   :", [s["action"] for s in result.steps])

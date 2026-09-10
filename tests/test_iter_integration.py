@@ -54,7 +54,7 @@ def test_dedup_search_hides_already_seen_and_lists_them():
 
 def test_dedup_conditions_and_strategies_are_registered():
     from agent_search.prompts import load_condition
-    from agent_search.strategies import STRATEGIES, DENSE_STRATEGIES
+    from agent_search.strategies.names import STRATEGIES, DENSE_STRATEGIES
     for cond, tools in (("research_dedup_bm25", ("bm25_search", "get_document")),
                         ("research_dedup_dense", ("search", "get_document"))):
         p = load_condition(cond)
@@ -170,7 +170,8 @@ def test_lazy_corpus_with_external_faiss_index_never_materialises_units(tmp_path
     ar._units, ar._ubyid = [], {}
     AgentRetriever.index  # noqa: B018 — sanity that the method exists
     ar.dense_model, ar.index_root, ar.rebuild = "fake/model", str(tmp_path / "idx"), False
-    ar.toolset = ("search", "get_document"); ar._bql = ar._bm25 = ar._indri = ar._dense_belief = None
+    ar.toolset = ("search", "get_document"); ar.domain = "general"
+    ar._bql = ar._bm25 = ar._indri = ar._dense_belief = None
     ar._files = {}; ar._key = None
     import threading; ar._tl = threading.local()
     ar.index(units, key="wiki")

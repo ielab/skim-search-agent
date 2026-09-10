@@ -23,10 +23,10 @@ policy              ``Policy`` — decides the next raw generation from the task
                     (no model) and ``ScriptPolicy`` (replay) are the built-ins.
 workspace / tools   ``Workspace`` — the tool surface an episode drives: dispatch one tool
                     call by name and return the text observation; remember what was
-                    surfaced. A tool is a method of a workspace, declared in
-                    ``agent_search/prompts/tools.yaml`` and bound to a condition in
-                    ``conditions.yaml``. Register a workspace for a toolset with
-                    ``agent_search.agent.retriever.register_workspace``.
+                    surfaced. ``agent_search.tools.base.ToolBox`` is the built-in: the
+                    bound ``Tool`` instances of a strategy (``agent_search/strategies``)
+                    over one episode state. A tool is a ``Tool`` subclass in its own
+                    folder under ``agent_search/tools/``.
 evaluator           functions over the run record: ``agent_search.evaluation.metrics``,
                     ``doc_scoring``, ``llm_judge``.
 ==================  ====================================================================

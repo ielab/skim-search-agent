@@ -15,11 +15,11 @@ import os
 import pytest
 
 from agent_search.corpus.units import CodeUnit
-from agent_search.retrievers.structural.bql import executor as execmod
-from agent_search.retrievers.structural.bql.executor import StructuralExecutor
-from agent_search.retrievers.structural.bql.parser import parse
-from agent_search.retrievers.structural.bql.surface import to_bql
-from agent_search.retrievers.structural.bql.types import check
+from agent_search.retrievers.bql import executor as execmod
+from agent_search.retrievers.bql.executor import StructuralExecutor
+from agent_search.retrievers.bql.parser import parse
+from agent_search.retrievers.bql.surface import to_bql
+from agent_search.retrievers.bql.types import check
 
 
 @pytest.fixture(autouse=True)

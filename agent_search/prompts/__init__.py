@@ -1,17 +1,13 @@
-"""Prompt profiles and toolset rendering."""
+"""Compatibility package: `agent_search.prompts` moved to `agent_search.legacy.prompts` (the
+YAML prompt registry). Tasks are `agent_search.tasks`; manuals live with their tools."""
+from __future__ import annotations
 
-from .loader import (PromptProfile, load_condition, load_prompt_profile,
-                     load_prompt_text, render_manuals, render_tools)
-from .registry import DOMAINS, PromptSpec, get_prompt_spec
+import importlib
+import pkgutil
+import sys
 
-__all__ = [
-    "DOMAINS",
-    "PromptProfile",
-    "PromptSpec",
-    "get_prompt_spec",
-    "load_condition",
-    "load_prompt_profile",
-    "load_prompt_text",
-    "render_manuals",
-    "render_tools",
-]
+_NEW = "agent_search.legacy.prompts"
+_pkg = importlib.import_module(_NEW)
+sys.modules[__name__] = _pkg
+for _info in pkgutil.iter_modules(_pkg.__path__):
+    sys.modules[f"{__name__}.{_info.name}"] = importlib.import_module(f"{_NEW}.{_info.name}")

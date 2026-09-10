@@ -56,7 +56,7 @@ environment variables the tool modules read. The `key=value` launcher produces t
 things, so both forms run through one path.
 
 Some tool modules read their environment knob when they are imported, not when they are called
-(`SNIPPET_TOKENS` at the top of `agent_search/agent/tools/doc_research.py`, for example). The
+(`SNIPPET_TOKENS` at the top of `agent_search/tools/budgets.py`, for example). The
 launcher exports every knob before it imports the harness, so this is invisible when you use
 `skimsearchagent`. If you call `python -m agent_search.evaluation.run_eval` from your own script,
 export the variables first. The tables below mark these knobs with "before import".
@@ -214,12 +214,12 @@ handles that for you.
 
 | knob | default | what it does | read by |
 |---|---|---|---|
-| `SNIPPET_TOKENS` | 32 | width of a result card's snippet, and of the opening excerpt in search-visit listings (before import) | `agent_search/agent/tools/doc_research.py` |
-| `MAX_VISIT_TOKENS` | 12000 | how much of a whole document a read returns (`visit`, `get_document`, autoread) (before import) | `agent_search/agent/tools/doc_research.py` |
-| `MAX_SECTION_TOKENS` | same as `MAX_VISIT_TOKENS` | how much of a section a `fetch` returns (before import) | `agent_search/agent/tools/doc_research.py` |
-| `BASH_MAX_TOKENS` | 12000 | the tail of a DCI shell command's output that is kept (before import) | `agent_search/agent/tools/doc_dci.py` |
-| `READ_MAX_LINE_TOKENS` | 400 | per-line cap in the DCI `read` tool (before import) | `agent_search/agent/tools/doc_dci.py` |
-| `GREP_LINE_TOKENS` | 24 | per-line cap on a `grep` hit (before import) | `agent_search/agent/tools/code_grep.py` |
+| `SNIPPET_TOKENS` | 32 | width of a result card's snippet, and of the opening excerpt in search-visit listings (before import) | `agent_search/tools/budgets.py` |
+| `MAX_VISIT_TOKENS` | 12000 | how much of a whole document a read returns (`visit`, `get_document`, autoread) (before import) | `agent_search/tools/budgets.py` |
+| `MAX_SECTION_TOKENS` | same as `MAX_VISIT_TOKENS` | how much of a section a `fetch` returns (before import) | `agent_search/tools/budgets.py` |
+| `BASH_MAX_TOKENS` | 12000 | the tail of a DCI shell command's output that is kept (before import) | `agent_search/tools/bash/tool.py` |
+| `READ_MAX_LINE_TOKENS` | 400 | per-line cap in the DCI `read` tool (before import) | `agent_search/tools/read/tool.py` |
+| `GREP_LINE_TOKENS` | 24 | per-line cap on a `grep` hit (before import) | `agent_search/tools/grep/tool.py` |
 | `CLOSER_EVIDENCE_ARG_TOKENS` | 32 | how much of a tool call's arguments the forced-answer closer shows (before import) | `agent_search/agent/sdk_driver.py` |
 | `CLOSER_EVIDENCE_OBS_TOKENS` | 160 | how much of each observation the forced-answer closer shows (before import) | `agent_search/agent/sdk_driver.py` |
 | `AGENT_CTX_TOKENS` | 115000 | the model-token budget the agent keeps its context under | `agent_search/agent/policies.py` |
@@ -230,36 +230,36 @@ handles that for you.
 
 | knob | default | what it does | read by |
 |---|---|---|---|
-| `BM25_VISIT_TOPK` | 5 | results per search, `search_visit` (before import) | `agent_search/agent/tools/doc_research.py` |
-| `DENSE_VISIT_TOPK` | 5 | results per search, `search_visit_dense` (before import) | `agent_search/agent/tools/doc_research.py` |
-| `HYBRID_VISIT_TOPK` | 5 | results per search after fusion, `search_visit_hybrid` (before import) | `agent_search/agent/tools/doc_research.py` |
-| `BM25_FETCH_TOPK` | 10 | results per search, `search_fetch` (before import) | `agent_search/agent/tools/doc_research.py` |
-| `DENSE_FETCH_TOPK` | 10 | results per search, `search_fetch_dense` (before import) | `agent_search/agent/tools/doc_research.py` |
-| `HYBRID_FETCH_TOPK` | 10 | results per search after fusion, `search_fetch_hybrid` (before import) | `agent_search/agent/tools/doc_research.py` |
-| `HYBRID_POOL` | 100 | how deep each ranker is queried before RRF fusion (before import) | `agent_search/agent/tools/doc_research.py` |
-| `AUTOREAD_TOPK` | 5 | documents rendered in full per search, `autoread*` (before import) | `agent_search/agent/tools/doc_research.py` |
-| `BM25_DCI_TOPK` | 10 | documents staged per search, `bounded_dci` (before import) | `agent_search/agent/tools/doc_bm25_dci.py` |
-| `DEDUP_TOPK` | 10 | results per search, `dedup_*` (before import) | `agent_search/agent/tools/doc_dedup.py` |
-| `DEDUP_POOL_K` | 100 | how many candidates a dedup search draws before dropping documents shown earlier (before import) | `agent_search/agent/tools/doc_dedup.py` |
+| `BM25_VISIT_TOPK` | 5 | results per search, `search_visit` (before import) | `agent_search/tools/budgets.py` |
+| `DENSE_VISIT_TOPK` | 5 | results per search, `search_visit_dense` (before import) | `agent_search/tools/budgets.py` |
+| `HYBRID_VISIT_TOPK` | 5 | results per search after fusion, `search_visit_hybrid` (before import) | `agent_search/tools/budgets.py` |
+| `BM25_FETCH_TOPK` | 10 | results per search, `search_fetch` (before import) | `agent_search/tools/budgets.py` |
+| `DENSE_FETCH_TOPK` | 10 | results per search, `search_fetch_dense` (before import) | `agent_search/tools/budgets.py` |
+| `HYBRID_FETCH_TOPK` | 10 | results per search after fusion, `search_fetch_hybrid` (before import) | `agent_search/tools/budgets.py` |
+| `HYBRID_POOL` | 100 | how deep each ranker is queried before RRF fusion (before import) | `agent_search/tools/budgets.py` |
+| `AUTOREAD_TOPK` | 5 | documents rendered in full per search, `autoread*` (before import) | `agent_search/tools/budgets.py` |
+| `BM25_DCI_TOPK` | 10 | documents staged per search, `bounded_dci` (before import) | `agent_search/tools/search_bm25_dci/tool.py` |
+| `DEDUP_TOPK` | 10 | results per search, `dedup_*` (before import) | `agent_search/tools/search_dedup/tool.py` |
+| `DEDUP_POOL_K` | 100 | how many candidates a dedup search draws before dropping documents shown earlier (before import) | `agent_search/tools/search_dedup/tool.py` |
 
 #### Retrieval and method switches
 
 | knob | default | what it does | read by |
 |---|---|---|---|
-| `BQL_SOFT_FALLBACK` | 1 | when a Boolean query matches nothing, rank the corpus with the arm's own model instead of returning nothing; `0` is the strict-Boolean ablation | `agent_search/agent/tools/doc_research.py` |
-| `BQL_SOFT_POOL` | 100 | how many candidates that fallback ranks (before import) | `agent_search/retrievers/structural/bql/executor.py` |
-| `BQL_DATE_RANGE` | 1 | allow `date[YYYY..YYYY]` in BQL | `agent_search/retrievers/structural/bql/surface.py` |
-| `BQL_DENSE` | 0 | attach the dense model to the BM25-only Sieve arms too | `agent_search/retrievers/structural/bql/dense_fuse.py` |
-| `BQL_DENSE_RRF_K` | 60 | RRF constant for Sieve's BM25 and dense fusion (before import) | `agent_search/retrievers/structural/bql/dense_fuse.py` |
-| `RRF_K` | 60 | RRF constant for the hybrid baselines (before import) | `agent_search/agent/tools/doc_research.py` |
-| `AGENT_SEARCH_BQL_PREFILTER_MIN` | 5000 | corpus size above which BQL narrows a scan with an inverted index first; speed only (before import) | `agent_search/retrievers/structural/bql/executor.py` |
-| `INDRI_DENSE` | 0 | attach the dense model to the Indri arm | `agent_search/agent/retriever.py` |
-| `INDRI_DENSE_W` | 0.35 | weight of the dense score in Indri's ranking | `agent_search/retrievers/structural/indri/model.py` |
-| `INDRI_DENSE_EXPAND_K` | 50 | dense neighbours added to Indri's candidate pool | `agent_search/retrievers/structural/indri/model.py` |
-| `INDRI_MU` | 2500 | Dirichlet smoothing for Indri (before import) | `agent_search/retrievers/structural/indri/model.py` |
-| `LUCENE_MU` | `INDRI_MU` | the same for the Lucene structural engine | `agent_search/retrievers/structural/lucene/engine.py` |
-| `INDRI_POOL_CAP` | 5000 | Indri's candidate pool size (before import) | `agent_search/retrievers/structural/indri/model.py` |
-| `INDRI_RESCORE_M` | 300 | how many candidates Indri rescores in its second stage | `agent_search/retrievers/structural/indri/model.py` |
+| `BQL_SOFT_FALLBACK` | 1 | when a Boolean query matches nothing, rank the corpus with the arm's own model instead of returning nothing; `0` is the strict-Boolean ablation | `agent_search/tools/search_bql/tool.py` |
+| `BQL_SOFT_POOL` | 100 | how many candidates that fallback ranks (before import) | `agent_search/retrievers/bql/executor.py` |
+| `BQL_DATE_RANGE` | 1 | allow `date[YYYY..YYYY]` in BQL | `agent_search/retrievers/bql/surface.py` |
+| `BQL_DENSE` | 0 | attach the dense model to the BM25-only Sieve arms too | `agent_search/retrievers/bql/dense_fuse.py` |
+| `BQL_DENSE_RRF_K` | 60 | RRF constant for Sieve's BM25 and dense fusion (before import) | `agent_search/retrievers/bql/dense_fuse.py` |
+| `RRF_K` | 60 | RRF constant for the hybrid baselines (before import) | `agent_search/tools/budgets.py` |
+| `AGENT_SEARCH_BQL_PREFILTER_MIN` | 5000 | corpus size above which BQL narrows a scan with an inverted index first; speed only (before import) | `agent_search/retrievers/bql/executor.py` |
+| `INDRI_DENSE` | 0 | attach the dense model to the Indri arm | `agent_search/retrievers/engines.py` |
+| `INDRI_DENSE_W` | 0.35 | weight of the dense score in Indri's ranking | `agent_search/retrievers/indri/model.py` |
+| `INDRI_DENSE_EXPAND_K` | 50 | dense neighbours added to Indri's candidate pool | `agent_search/retrievers/indri/model.py` |
+| `INDRI_MU` | 2500 | Dirichlet smoothing for Indri (before import) | `agent_search/retrievers/indri/model.py` |
+| `LUCENE_MU` | `INDRI_MU` | the same for the Lucene structural engine | `agent_search/retrievers/lucene/engine.py` |
+| `INDRI_POOL_CAP` | 5000 | Indri's candidate pool size (before import) | `agent_search/retrievers/indri/model.py` |
+| `INDRI_RESCORE_M` | 300 | how many candidates Indri rescores in its second stage | `agent_search/retrievers/indri/model.py` |
 | `DENSE_QUERY_STYLE` | `plain` | how the dense query is written from the agent's history (`plain`, `mem`, `docs`, `i1` to `i7`); must match the trained retriever | `agent_search/training/history.py` |
 | `DENSE_QUERY_INSTRUCTION` | unset | the query instruction prefix; unset means the checkpoint's serving note or the built-in table | `agent_search/retrievers/dense/dense.py` |
 | `DENSE_POOLING` | unset | `last_token`, `mean` or `cls` for a checkpoint without a sentence-transformers config; unset means the serving note, then a guess from the model type | `agent_search/retrievers/dense/dense.py` |
@@ -268,23 +268,23 @@ handles that for you.
 | `AGENT_SEARCH_ANN_EF_SEARCH` | 0 | HNSW `efSearch` for a prebuilt index; 0 keeps the built-in value | `agent_search/retrievers/dense/vector_index.py` |
 | `AGENT_SEARCH_FAISS_MMAP` | unset | `1` memory-maps a prebuilt FAISS index instead of reading it into RAM | `agent_search/retrievers/dense/vector_index.py` |
 | `BM25_INDEX_PATH` | unset | a prebuilt Lucene index for the pyserini backend; required for an on-disk corpus | `agent_search/retrievers/lexical/pyserini.py` |
-| `AGENT_SEARCH_DOCSTORE` | unset | `1` serves a topics-layout corpus from disk whatever its size | `agent_search/evaluation/datasets.py` |
-| `AGENT_SEARCH_DOCSTORE_MIN_BYTES` | 1 GiB | corpus size above which the loader serves it from disk (before import) | `agent_search/evaluation/datasets.py` |
+| `AGENT_SEARCH_DOCSTORE` | unset | `1` serves a topics-layout corpus from disk whatever its size | `agent_search/evaluation/datasets/topics.py` |
+| `AGENT_SEARCH_DOCSTORE_MIN_BYTES` | 1 GiB | corpus size above which the loader serves it from disk (before import) | `agent_search/evaluation/datasets/topics.py` |
 
 #### Engines and models
 
 | knob | default | what it does | read by |
 |---|---|---|---|
-| `STRUCTURED_BACKEND` | `python` | the structural engine behind BQL and Indri: `python` or `lucene` (needs a prebuilt `indexes/lucene_structured/<key>/` and Java 21) | `agent_search/retrievers/structural/backend.py` |
+| `STRUCTURED_BACKEND` | `python` | the structural engine behind BQL and Indri: `python` or `lucene` (needs a prebuilt `indexes/lucene_structured/<key>/` and Java 21) | `agent_search/retrievers/backend.py` |
 | `BM25_BACKEND` | `local` | the BM25 engine: `local` (in memory, no dependencies) or `pyserini` (Lucene, persisted; the paper's) | `agent_search/retrievers/lexical/__init__.py` |
-| `DENSE_MODEL` | `BAAI/bge-base-en-v1.5` | the dense model for general-domain runs when the file names none; code datasets keep `nomic-ai/CodeRankEmbed` | `agent_search/evaluation/datasets.py` |
+| `DENSE_MODEL` | `BAAI/bge-base-en-v1.5` | the dense model for general-domain runs when the file names none; code datasets keep `nomic-ai/CodeRankEmbed` | `agent_search/evaluation/datasets/base.py` |
 | `AGENT_SEARCH_ANN` | `auto` | vector index type: `flat`, `hnsw`, `ivfpq`, or `auto` by corpus size | `agent_search/retrievers/dense/vector_index.py` |
 | `AGENT_SEARCH_ANN_MIN` | 1,000,000 | corpus size at which `auto` picks HNSW | `agent_search/retrievers/dense/vector_index.py` |
 | `AGENT_SEARCH_ANN_PQ_MIN` | 8,000,000 | corpus size at which `auto` picks IVF-PQ | `agent_search/retrievers/dense/vector_index.py` |
 | `AGENT_SEARCH_FLAT_FAISS` | off | use FAISS for the exact `flat` search (faster, same results) | `agent_search/retrievers/dense/vector_index.py` |
 | `AGENT_SEARCH_DENSE_DEVICE` | auto | the device the dense encoder runs on (`cpu` when a vLLM server owns the GPU) | `agent_search/retrievers/dense/dense.py` |
 | `SKIMSEARCHAGENT_PLUGINS` | unset | comma-separated modules imported before the registries are read, so they can register things | `agent_search/retrievers/registry.py` |
-| `AGENT_SEARCH_DATA` | `data` | where datasets are read from (before import) | `agent_search/evaluation/datasets.py` |
+| `AGENT_SEARCH_DATA` | `data` | where datasets are read from (before import) | `agent_search/evaluation/datasets/base.py` |
 | `AGENT_SEARCH_DCI_CACHE` | `$TMPDIR/agent_search_dci` | where the DCI arms export their flat text files | `agent_search/corpus/flat_export.py` |
 
 #### Index building
@@ -293,20 +293,20 @@ handles that for you.
 |---|---|---|---|
 | `BM25_PYSERINI_THREADS` | all cores | indexing threads for Pyserini | `agent_search/retrievers/lexical/pyserini.py` |
 | `BM25_PYSERINI_STORE_RAW` | off | also store raw text and positions in the Lucene index (bigger, slower) | `agent_search/retrievers/lexical/pyserini.py` |
-| `LUCENE_INDEX_RAM_MB` | 512 | RAM buffer for the structural Lucene index builder (before import) | `agent_search/retrievers/structural/lucene/index_builder.py` |
-| `LUCENE_INDEX_THREADS` | 1 | threads for the structural Lucene index builder (before import) | `agent_search/retrievers/structural/lucene/index_builder.py` |
+| `LUCENE_INDEX_RAM_MB` | 512 | RAM buffer for the structural Lucene index builder (before import) | `agent_search/retrievers/lucene/index_builder.py` |
+| `LUCENE_INDEX_THREADS` | 1 | threads for the structural Lucene index builder (before import) | `agent_search/retrievers/lucene/index_builder.py` |
 
 #### Model client, driver, judge
 
 | knob | default | what it does | read by |
 |---|---|---|---|
-| `LLM_TIMEOUT_S` | 600 | HTTP timeout for every model call | `agent_search/models/backends.py` |
+| `LLM_TIMEOUT_S` | 600 | HTTP timeout for every model call | `agent_search/models/openai_chat.py` |
 | `LLM_RETRY_ATTEMPTS` | 5 | attempts per model call before giving up | `agent_search/models/backends.py` |
 | `LLM_RETRY_BASE_S` | 1.0 | base delay of the retry backoff | `agent_search/models/backends.py` |
 | `REASONING_EFFORT` | `low` | reasoning effort for OpenAI reasoning models | `agent_search/models/backends.py` |
 | `AGENT_SEARCH_MAX_CONSECUTIVE_ERRORS` | 3 | stop a run after this many consecutive failed questions before any success (an unreachable endpoint, a broken index); `0` disables | `agent_search/evaluation/run_eval.py` |
-| `AGENT_DRIVER` | auto | `loop` (text-parsed tool calls) or `sdk` (OpenAI Agents SDK, native tool calling, document arms only) | `agent_search/agent/retriever.py` |
-| `AGENT_DEFAULT_CONDITION` | `research_snip` | the condition the bare `agent` alias means (before import) | `agent_search/agent/retriever.py` |
+| `AGENT_DRIVER` | auto | `loop` (text-parsed tool calls) or `sdk` (OpenAI Agents SDK, native tool calling, document arms only) | `agent_search/evaluation/agent_runner.py` |
+| `AGENT_DEFAULT_CONDITION` | `research_snip` | the condition the bare `agent` alias means (before import) | `agent_search/strategies/conditions.py` |
 | `LLM_JUDGE_MODEL` | `gpt-4o-mini` | the judge module's default grader (before import) | `agent_search/evaluation/llm_judge.py` |
 | `VLLM_API_BASE` | `http://localhost:8000/v1` | the served endpoint the SDK driver falls back to | `agent_search/agent/sdk_driver.py` |
 

@@ -4,7 +4,7 @@ from __future__ import annotations
 from typing import Optional, Sequence
 
 from agent_search.corpus.units import CodeUnit
-from agent_search.retrievers.ranking import BM25
+from agent_search.retrievers.lexical.scorer import BM25
 from agent_search.core.interfaces import Retriever
 
 

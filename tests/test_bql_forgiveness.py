@@ -6,11 +6,11 @@ Regressions for the 2026-06-19 BQL engine audit (real agent-run failures):
   B. genuine parse failures suggest the fix (quote / PHRASE).
   C. IN(string, ...) reliably matches f-string literals on any CPython >= 3.8.
 """
-from agent_search.retrievers.structural.bql.ast import (
+from agent_search.retrievers.bql.ast import (
     And, In, Near, Or, Phrase, Region, Term,
 )
-from agent_search.retrievers.structural.bql.parser import parse
-from agent_search.retrievers.structural.bql.types import check
+from agent_search.retrievers.bql.parser import parse
+from agent_search.retrievers.bql.types import check
 
 
 # --- A. parser forgiveness: bare multi-word -> implicit PHRASE ----------------
@@ -99,8 +99,8 @@ def test_unbalanced_paren_still_errors():
 # --- C. f-string-robust string region ----------------------------------------
 
 def test_in_string_matches_fstring_literal():
-    from agent_search.retrievers.structural.bql.structure import region_token_bags
-    from agent_search.retrievers.structural.bql.executor import StructuralExecutor
+    from agent_search.retrievers.bql.structure import region_token_bags
+    from agent_search.retrievers.bql.executor import StructuralExecutor
     from agent_search.corpus.units import CodeUnit
 
     code = (
@@ -128,7 +128,7 @@ def test_in_string_matches_fstring_literal():
 
 
 def test_fstring_format_spec_literal_text_collected():
-    from agent_search.retrievers.structural.bql.structure import region_token_bags
+    from agent_search.retrievers.bql.structure import region_token_bags
     bags = region_token_bags('x = f"value {n:>{w}d} end"\n')
     assert "value" in bags["string"] and "end" in bags["string"]
     assert "d" in bags["string"]

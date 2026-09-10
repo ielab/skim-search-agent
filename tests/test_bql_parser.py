@@ -2,8 +2,8 @@
 
 Malformed input must return a structured ParseResult error, never raise.
 """
-from agent_search.retrievers.structural.bql.parser import parse
-from agent_search.retrievers.structural.bql.ast import (
+from agent_search.retrievers.bql.parser import parse
+from agent_search.retrievers.bql.ast import (
     Term, And, Or, Not, Near, In, Expand, Phrase, Prefix, Region, Strategy,
 )
 

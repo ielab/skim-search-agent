@@ -1,5 +1,5 @@
 """Tests for the DENSE-EMBEDDING belief source of the Indri graded retrieval engine
-(`agent_search/retrievers/structural/indri/dense_belief.py` + the additive, default-OFF
+(`agent_search/retrievers/indri/dense_belief.py` + the additive, default-OFF
 `dense=` hooks in `model.py`).
 
 CPU-only, tiny corpus, deterministic hash-based STUB encoder (no model download):
@@ -32,9 +32,9 @@ import numpy as np
 import pytest
 
 from agent_search.corpus.units import CodeUnit
-from agent_search.retrievers.structural.indri.dense_belief import (
+from agent_search.retrievers.indri.dense_belief import (
     DenseBelief, _plain_terms, _plain_text)
-from agent_search.retrievers.structural.indri.model import IndriExecutor
+from agent_search.retrievers.indri.model import IndriExecutor
 
 # --- stub encoder --------------------------------------------------------------
 
@@ -136,7 +136,7 @@ def test_dense_off_is_byte_identical_to_plain_executor(units):
 
 
 def test_attach_dense_none_is_noop_and_load_or_build_default_off(units, tmp_path):
-    from agent_search.retrievers.structural.indri.model import load_or_build
+    from agent_search.retrievers.indri.model import load_or_build
     plain = IndriExecutor(units, mu=2500)
     ex = load_or_build(units, index_root=str(tmp_path), key="parity")   # no dense kwarg
     assert ex.dense is None

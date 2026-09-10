@@ -5,7 +5,7 @@ rejected before they execute, and one abstract form compiles to several backends
 
 **This is the EXECUTOR language, not what the agent types.** The agent writes a field-tagged
 Boolean surface (`term[field]`, `AND`/`OR`/`NOT`, wildcard `*`, quoted `"phrase"`), and
-`agent_search/retrievers/structural/bql/surface.py::to_bql` lowers that to the BQL below. So
+`agent_search/retrievers/bql/surface.py::to_bql` lowers that to the BQL below. So
 `isnan[call]` becomes `IN(call, isnan)`, `save[def] NOT test[file]` becomes `IN(def, save) AND
 NOT(IN(file, test))`, and `melanoma[title,body]` becomes `OR(IN(title, melanoma), IN(body,
 melanoma))`. The parser, type checker and executor are shared verbatim between the two; only the
@@ -174,7 +174,7 @@ the OR. Use `synonym` for text, `symbol` (naming variants plus the call graph) f
 > below are about the **text/Lucene path**, which is the BM25 *baseline*. At repo scale ripgrep
 > scans in milliseconds, so the method needs no index at all.
 
-**What the reference executor does today** (`structural/bql/executor.py`): for a large corpus (at
+**What the reference executor does today** (`bql/executor.py`): for a large corpus (at
 least `AGENT_SEARCH_BQL_PREFILTER_MIN` units, default 5000, meaning the shared document corpus
 rather than a small per-query repo) selection is **two-phase filter-then-verify**. A pure-Python
 **inverted index** (`token → units`, built once per corpus) computes a recall-safe candidate

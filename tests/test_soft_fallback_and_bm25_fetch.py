@@ -16,7 +16,7 @@
 from agent_search.agent.tools.doc_research import Bm25FetchWorkspace, DocSearchFetch
 from agent_search.corpus.units import units_from_documents
 from agent_search.retrievers.lexical.bm25 import BM25Local
-from agent_search.retrievers.structural.bql.executor import StructuralExecutor
+from agent_search.retrievers.bql.executor import StructuralExecutor
 
 # ~30 docs, each built around ONE distinctive topic word repeated for a clear BM25 signal, so a
 # query on that word ranks its doc unambiguously first. d1/d2/d3 additionally carry `##`-style

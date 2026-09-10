@@ -1,5 +1,5 @@
 # Held-out check: train on the InfoSeek trajectories only, evaluate on the BrowseComp-Plus triples.
-# Run: skimsearchagent-train-retriever run configs/iter/train_check_i2.yaml
+# Run: skimsearchagent-train-retriever run configs/iter/train_heldout_i2.yaml
 train_data: train_data/heldout_train_i2.jsonl
 output_dir: models/iter-heldout-qwen3-0.6b
 base_model: Qwen/Qwen3-Embedding-0.6B

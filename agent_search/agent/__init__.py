@@ -1,1 +1,4 @@
-"""The agent: ONE ReAct loop over a per-condition tool surface (a `WorkspaceLike`); the condition is just the toolset. loop.py drives it; retriever.py exposes it as a Retriever; tools/ holds the per-condition workspaces (code_fix, code_grep, doc_research, doc_dci)."""
+"""The agent runtime: one ReAct loop (loop.py) over a strategy's tools, the policies that
+propose each step (policies.py), the parsing of tool calls and answers (actions.py), the
+forced final answer (forced_answer.py) and the Agents-SDK driver (sdk_driver.py). What to run
+is a condition (agent_search.strategies); how it runs is here."""

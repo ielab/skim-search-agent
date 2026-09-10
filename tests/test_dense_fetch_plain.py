@@ -208,7 +208,7 @@ def test_dense_search_fp_and_dense_search_f_differ_only_by_the_excerpt_line():
 @pytest.fixture
 def fake_dense_stack(monkeypatch):
     from agent_search.retrievers.dense.dense import DenseRetriever
-    from agent_search.retrievers.structural.indri import dense_belief as dense_belief_mod
+    from agent_search.retrievers.indri import dense_belief as dense_belief_mod
 
     class _FakeBelief:
         def __init__(self, ranking=()):
@@ -247,11 +247,11 @@ def test_densefetchworkspace_still_always_renders_the_excerpt():
 
 
 def test_research_dense_fetch_resolves_via_registry_as_densefetch_arm_unaffected():
-    from agent_search.agent.retriever import AgentRetriever
+    from agent_search.evaluation.agent_runner import ConditionAgent
     from agent_search.retrievers.registry import RetrieverConfig, build_factory
 
     r = build_factory("agent_research_dense_fetch", RetrieverConfig(policy="stub"))()
-    assert isinstance(r, AgentRetriever)
+    assert isinstance(r, ConditionAgent)
     assert r.toolset == ("dense_search_f", "fetch")
-    assert r._arm == "densefetch"
+    assert r.condition.name == "research_dense_fetch"
     assert r.domain == "general"

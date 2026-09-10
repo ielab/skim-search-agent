@@ -7,7 +7,7 @@ ranked unit ids back. Natural-language-to-BQL remains the agent's job.
 import pytest
 
 from agent_search.corpus.units import CodeUnit
-from agent_search.retrievers.structural.bql.retriever import BQLRetriever
+from agent_search.retrievers.bql.retriever import BQLRetriever
 
 
 def _units():

@@ -197,14 +197,14 @@ def test_research_dense_condition_loads_uncoached():
 
 
 def test_research_dense_resolves_via_registry_as_densevisit_arm():
-    from agent_search.agent.retriever import AgentRetriever
+    from agent_search.evaluation.agent_runner import ConditionAgent
     from agent_search.retrievers.registry import RetrieverConfig, build_factory
 
     r = build_factory("agent_research_dense", RetrieverConfig(policy="stub"))()
-    assert isinstance(r, AgentRetriever)
+    assert isinstance(r, ConditionAgent)
     assert r.toolset == ("dense_search", "visit_d")
     assert r.tool == "agent_research_dense"
-    assert r._arm == "densevisit"
+    assert r.condition.name == "research_dense"
     assert r.domain == "general"
     assert not r.needs_files
 
@@ -212,11 +212,12 @@ def test_research_dense_resolves_via_registry_as_densevisit_arm():
 def test_densevisit_index_raises_clear_error_when_cache_missing(tmp_path):
     """This baseline needs a persisted dense doc-embedding cache — a missing cache must raise
     a CLEAR error at index() time, never silently fall back to live-encoding the corpus."""
+    from agent_search.core.errors import SetupError
     from agent_search.retrievers.registry import RetrieverConfig, build_factory
 
     r = build_factory("agent_research_dense", RetrieverConfig(
         policy="stub", index_root=str(tmp_path)))()
-    with pytest.raises(RuntimeError, match="dense doc-embedding cache"):
+    with pytest.raises(SetupError, match="dense embedding cache"):
         r.index(_units(), key="no_such_corpus_key")
 
 
@@ -386,14 +387,14 @@ def test_research_dense_fetch_condition_loads_uncoached():
 
 
 def test_research_dense_fetch_resolves_via_registry_as_densefetch_arm():
-    from agent_search.agent.retriever import AgentRetriever
+    from agent_search.evaluation.agent_runner import ConditionAgent
     from agent_search.retrievers.registry import RetrieverConfig, build_factory
 
     r = build_factory("agent_research_dense_fetch", RetrieverConfig(policy="stub"))()
-    assert isinstance(r, AgentRetriever)
+    assert isinstance(r, ConditionAgent)
     assert r.toolset == ("dense_search_f", "fetch")
     assert r.tool == "agent_research_dense_fetch"
-    assert r._arm == "densefetch"
+    assert r.condition.name == "research_dense_fetch"
     assert r.domain == "general"
     assert not r.needs_files
 

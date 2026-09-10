@@ -61,7 +61,7 @@ def test_env_knobs_in_configuration_tables_are_read_by_the_code():
 
 def test_strategies_and_datasets_named_in_readme_exist():
     from agent_search.evaluation.datasets import available_datasets
-    from agent_search.strategies import STRATEGIES
+    from agent_search.strategies.names import STRATEGIES
     readme = (REPO / "README.md").read_text(encoding="utf-8")
     table = readme.split("## Strategies", 1)[1].split("\n## ", 1)[0]
     named = set(re.findall(r"`([a-z0-9_]+)`", table.split("|---|")[1] if "|---|" in table else table))

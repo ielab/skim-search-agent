@@ -1,8 +1,8 @@
 """Top-level comma list is implicit AND (surface sugar models reach for):
 `A, B` parses as AND(A, B). Genuine trailing junk is still rejected."""
-from agent_search.retrievers.structural.bql.ast import And
-from agent_search.retrievers.structural.bql.parser import parse
-from agent_search.retrievers.structural.bql.types import check
+from agent_search.retrievers.bql.ast import And
+from agent_search.retrievers.bql.parser import parse
+from agent_search.retrievers.bql.types import check
 
 
 def test_top_level_comma_is_implicit_and():
@@ -39,13 +39,13 @@ def test_infix_and_with_not():
 
 
 def test_infix_or():
-    from agent_search.retrievers.structural.bql.ast import Or
+    from agent_search.retrievers.bql.ast import Or
     r = parse("IN(def, write) OR IN(call, write)")
     assert r.ok and isinstance(r.expr, Or) and len(r.expr.children) == 2
 
 
 def test_or_binds_looser_than_and():
-    from agent_search.retrievers.structural.bql.ast import Or
+    from agent_search.retrievers.bql.ast import Or
     r = parse("a AND b OR c")                  # (a AND b) OR c
     assert r.ok and isinstance(r.expr, Or)
     assert isinstance(r.expr.children[0], And)

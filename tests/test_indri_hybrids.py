@@ -114,27 +114,26 @@ def test_research_indri_snip_condition_loads():
 
 
 def test_research_indri_snip_resolves_via_registry():
-    from agent_search.agent.retriever import AgentRetriever
+    from agent_search.evaluation.agent_runner import ConditionAgent
 
     r = build_factory("agent_research_indri_snip", RetrieverConfig(policy="stub"))()
-    assert isinstance(r, AgentRetriever)
+    assert isinstance(r, ConditionAgent)
     assert r.toolset == ("isearch_s", "fetch")
     assert r.tool == "agent_research_indri_snip"
-    assert r._arm == "indrisnip"
+    assert r.condition.name == "research_indri_snip"
     assert r.domain == "general"
     assert not r.needs_files
 
 
 def test_research_indri_snip_workspace_builds_and_answers_via_stub(units, tmp_path):
-    from agent_search.agent.retriever import AgentRetriever
+    from agent_search.tools.search_indri.tool import SearchIndri
 
     cfg = RetrieverConfig(policy="stub", index_root=str(tmp_path))
     r = build_factory("agent_research_indri_snip", cfg)()
     r.index(units, key="test-indri-hybrids-corpus")
-    ws = r._workspace(5, "bank management ceremony")
-    assert isinstance(ws, IndriFetchWorkspace)
-    assert not isinstance(ws, IndriVisitWorkspace)
-    assert ws.snippets is True
+    ws = r.toolbox("bank management ceremony")
+    assert isinstance(ws["isearch_s"], SearchIndri)
+    assert ws["isearch_s"].snippets is True
     ranking = r.search("bank management ceremony", k=5)
     assert isinstance(ranking, list)
 
@@ -227,7 +226,7 @@ def test_isearch_known_field_has_no_warning(units):
 # NEW, ADDITIVE-only: the indri-family arms ('indri'/'indrivisit'/'indrisnip') optionally
 # attach a `DenseBelief` to the shared `IndriExecutor` when `INDRI_DENSE` is truthy. OFF by
 # default — all three tests below patch
-# `agent_search.retrievers.structural.indri.dense_belief.DenseBelief` (the class the
+# `agent_search.retrievers.dense.DenseBelief` (the class the
 # `index()` branch imports LOCALLY at call time, so patching the module attribute is
 # sufficient) rather than touching real GPU/model code.
 
@@ -244,8 +243,9 @@ class _StubDenseBelief:
 
     instances: list = []
 
-    def __init__(self, model=None):
+    def __init__(self, model=None, index_root="indexes", **_kw):
         self.model = model
+        self.index_root = index_root
         self.built_key = None
         _StubDenseBelief.instances.append(self)
 
@@ -269,23 +269,27 @@ class _RaisingBuildDenseBelief:
 def test_indri_dense_off_by_default_does_not_construct_dense_belief(units, tmp_path, monkeypatch):
     monkeypatch.delenv("INDRI_DENSE", raising=False)
     monkeypatch.setattr(
-        "agent_search.retrievers.structural.indri.dense_belief.DenseBelief",
+        "agent_search.retrievers.dense.DenseBelief",
         _RaisingDenseBelief)
-    from agent_search.agent.retriever import AgentRetriever
 
     cfg = RetrieverConfig(policy="stub", index_root=str(tmp_path))
     r = build_factory("agent_research_indri_snip", cfg)()
     r.index(units, key="test-indri-hybrids-dense-off")     # would raise if DenseBelief() called
-    assert r._indri.dense is None
+    assert r.engines.get("indri").dense is None
 
 
 def test_indri_dense_on_attaches_stub_dense_belief_to_executor(units, tmp_path, monkeypatch):
+    """INDRI_DENSE=1 attaches the run's dense belief to the Indri executor when the persisted
+    embedding cache exists. The engine registry probes `DenseRetriever.is_cached` first and
+    degrades with a warning when it is missing (the pre-0.3 agent built the belief without the
+    probe), so the stub here also stands in for the cache check."""
+    from agent_search.retrievers.dense import DenseRetriever
+    monkeypatch.setattr(DenseRetriever, "is_cached", lambda self, key=None: True)
     _StubDenseBelief.instances = []
     monkeypatch.setenv("INDRI_DENSE", "1")
     monkeypatch.setattr(
-        "agent_search.retrievers.structural.indri.dense_belief.DenseBelief",
+        "agent_search.retrievers.dense.DenseBelief",
         _StubDenseBelief)
-    from agent_search.agent.retriever import AgentRetriever
 
     cfg = RetrieverConfig(policy="stub", index_root=str(tmp_path))
     r = build_factory("agent_research_indri_snip", cfg)()
@@ -297,23 +301,22 @@ def test_indri_dense_on_attaches_stub_dense_belief_to_executor(units, tmp_path, 
     assert stub.built_key == "test-indri-hybrids-dense-on"
     # attached on the executor the workspace receives ('the attribute the engine stores it
     # on' is IndriExecutor.dense, per model.py's attach_dense/`dense=` constructor kwarg)
-    assert r._indri.dense is stub
-    ws = r._workspace(5, "bank management ceremony")
-    assert ws.iex.dense is stub
+    assert r.engines.get("indri").dense is stub
+    ws = r.toolbox("bank management ceremony")
+    assert ws["isearch_s"].iex.dense is stub
 
 
 def test_indri_dense_on_raising_dense_belief_degrades_with_warning(units, tmp_path, monkeypatch, capsys):
     monkeypatch.setenv("INDRI_DENSE", "1")
     monkeypatch.setattr(
-        "agent_search.retrievers.structural.indri.dense_belief.DenseBelief",
+        "agent_search.retrievers.dense.DenseBelief",
         _RaisingBuildDenseBelief)
-    from agent_search.agent.retriever import AgentRetriever
 
     cfg = RetrieverConfig(policy="stub", index_root=str(tmp_path))
     r = build_factory("agent_research_indri_snip", cfg)()
     r.index(units, key="test-indri-hybrids-dense-raise")   # must NOT raise -> degrades
 
-    assert r._indri.dense is None
+    assert r.engines.get("indri").dense is None
     captured = capsys.readouterr()
     assert "WARNING" in captured.err
     assert "INDRI_DENSE" in captured.err

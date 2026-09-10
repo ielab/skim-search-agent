@@ -73,7 +73,7 @@ To rebuild from scratch, `corpus_build/` has both pipelines:
   corpus without repeating that batch.
 
 Each folder's README has the exact commands. Dataset names are registered in
-`agent_search/evaluation/datasets.py`. The paper's BrowseComp-Plus experiments use
+`agent_search/evaluation/datasets/`. The paper's BrowseComp-Plus experiments use
 `browsecomp_plus_structured_full` and `browsecomp_plus_flat_full`, which is the complete
 100,195-document collection (the plain `browsecomp_plus_structured` / `_flat` pair is the smaller
 67,707-document pooled corpus the local builder produces).

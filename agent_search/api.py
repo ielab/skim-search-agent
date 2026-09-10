@@ -21,7 +21,7 @@ from dataclasses import dataclass, field
 from typing import Any, Callable, Iterable, Optional, Sequence
 
 from agent_search.corpus.units import CodeUnit, units_from_documents
-from agent_search.strategies import DEFAULT_STRATEGY, condition_of, resolve_strategy
+from agent_search.strategies.names import DEFAULT_STRATEGY, condition_of, resolve_strategy
 
 
 @dataclass
@@ -60,20 +60,61 @@ def build_agent(strategy: str = DEFAULT_STRATEGY, *,
 
     Call ``.index(units, key=...)`` then ``.search(question, k)``; the episode record is on
     ``.last_trajectory_meta``. :func:`research` wraps exactly that."""
-    from agent_search.agent.retriever import AgentRetriever
-    from agent_search.prompts import get_prompt_spec, load_prompt_profile
+    from agent_search.evaluation.agent_runner import ConditionAgent, ProcedureAgent
+    from agent_search.strategies.conditions import CONDITIONS
 
     retriever_name = resolve_strategy(strategy)
-    cond = condition_of(retriever_name)
-    if cond is None:
+    cond_name = condition_of(retriever_name) or (strategy if strategy in CONDITIONS else None)
+    cond = CONDITIONS.get(cond_name) if cond_name else None
+    if cond is None and cond_name is not None:
+        # a condition declared through the YAML prompt registry (the pre-0.3 plugin path)
+        return _build_legacy_agent(cond_name, retriever_name, generate=generate, model=model, backend=backend,
+                                   api_base=api_base, tp=tp, temperature=temperature, seed=seed,
+                                   max_steps=max_steps, dense_model=dense_model, index_root=index_root,
+                                   rebuild=rebuild, field_profile=field_profile, driver=driver)
+    if cond is None or (not cond.strategy.loop and cond.strategy.retriever):
         raise ValueError(f"{strategy!r} is a retrieval-only floor, not an agent strategy; "
                          f"use agent_search.retrievers.registry.build_factory for it")
+    domain = cond.domain
+    profile = field_profile or domain
+    from agent_search.evaluation.datasets import default_dense_model
+    dense = dense_model or default_dense_model(domain)
+
+    if generate is None and model is not None:
+        from agent_search.models.backends import make_generate
+        generate = make_generate(model=model, backend=backend, api_base=api_base, tp=tp,
+                                 temperature=temperature, seed=seed)
+
+    if not cond.strategy.loop:
+        return ProcedureAgent(cond, generate, dense_model=dense, index_root=index_root, rebuild=rebuild)
+
+    if generate is None:
+        from agent_search.agent.policies import KeywordPolicy
+        policy_factory = lambda: KeywordPolicy(cond.tool_names)  # noqa: E731
+        chosen_driver = "loop"
+    else:
+        from agent_search.agent.policies import AgentPolicy
+        gen, system = generate, cond.render(profile)
+        policy_factory = lambda: AgentPolicy(generate=gen, system=system)  # noqa: E731
+        chosen_driver = driver or "loop"
+
+    return ConditionAgent(cond, policy_factory, max_steps=max_steps, dense_model=dense,
+                          index_root=index_root, rebuild=rebuild, driver=chosen_driver,
+                          field_profile=profile, model=model, api_base=api_base)
+
+
+def _build_legacy_agent(cond, retriever_name, *, generate, model, backend, api_base, tp, temperature, seed,
+                        max_steps, dense_model, index_root, rebuild, field_profile, driver):
+    """The workspace-based agent for a condition that only the YAML prompt registry knows.
+    Kept for one release; new conditions are declared in `agent_search.strategies`."""
+    from agent_search.legacy.retriever import AgentRetriever
+    from agent_search.legacy.prompts import get_prompt_spec, load_prompt_profile
+
     spec = get_prompt_spec(cond, "general")
     domain = spec.domain
     prompt_path = spec.path
     toolset = tuple(load_prompt_profile(prompt_path).tool_names)
     profile = field_profile or domain
-
     if generate is None and model is None:
         from agent_search.agent.policies import KeywordPolicy
         policy_factory = lambda: KeywordPolicy(toolset)  # noqa: E731
@@ -88,7 +129,6 @@ def build_agent(strategy: str = DEFAULT_STRATEGY, *,
         policy_factory = lambda: AgentPolicy(  # noqa: E731
             generate=gen, prompt_path=prompt_path, field_profile=profile)
         chosen_driver = driver or "loop"
-
     from agent_search.evaluation.datasets import default_dense_model
     return AgentRetriever(
         policy_factory=policy_factory, toolset=toolset, max_steps=max_steps,

@@ -451,25 +451,25 @@ def test_existing_sibling_conditions_are_unaffected():
 # =============================================================================================
 
 def test_research_hybrid_resolves_via_registry():
-    from agent_search.agent.retriever import AgentRetriever
+    from agent_search.evaluation.agent_runner import ConditionAgent
 
     r = build_factory("agent_research_hybrid", RetrieverConfig(policy="stub"))()
-    assert isinstance(r, AgentRetriever)
+    assert isinstance(r, ConditionAgent)
     assert r.toolset == ("hybrid_search", "visit_h")
     assert r.tool == "agent_research_hybrid"
-    assert r._arm == "hybridvisit"
+    assert r.condition.name == "research_hybrid"
     assert r.domain == "general"
     assert not r.needs_files
 
 
 def test_research_hybrid_fetch_snip_resolves_via_registry():
-    from agent_search.agent.retriever import AgentRetriever
+    from agent_search.evaluation.agent_runner import ConditionAgent
 
     r = build_factory("agent_research_hybrid_fetch_snip", RetrieverConfig(policy="stub"))()
-    assert isinstance(r, AgentRetriever)
+    assert isinstance(r, ConditionAgent)
     assert r.toolset == ("hybrid_search_snip", "fetch")
     assert r.tool == "agent_research_hybrid_fetch_snip"
-    assert r._arm == "hybridfetchsnip"
+    assert r.condition.name == "research_hybrid_fetch_snip"
     assert r.domain == "general"
     assert not r.needs_files
 
@@ -480,20 +480,22 @@ def test_research_hybrid_fetch_snip_resolves_via_registry():
 # =============================================================================================
 
 def test_hybridvisit_index_raises_clear_error_when_dense_cache_missing(tmp_path):
+    from agent_search.core.errors import SetupError
     from agent_search.retrievers.registry import RetrieverConfig, build_factory
 
     r = build_factory("agent_research_hybrid", RetrieverConfig(
         policy="stub", index_root=str(tmp_path)))()
-    with pytest.raises(RuntimeError, match="dense doc-embedding cache"):
+    with pytest.raises(SetupError, match="dense embedding cache"):
         r.index(_units(), key="no_such_corpus_key")
 
 
 def test_hybridfetchsnip_index_raises_clear_error_when_dense_cache_missing(tmp_path):
+    from agent_search.core.errors import SetupError
     from agent_search.retrievers.registry import RetrieverConfig, build_factory
 
     r = build_factory("agent_research_hybrid_fetch_snip", RetrieverConfig(
         policy="stub", index_root=str(tmp_path)))()
-    with pytest.raises(RuntimeError, match="dense doc-embedding cache"):
+    with pytest.raises(SetupError, match="dense embedding cache"):
         r.index(_units(), key="no_such_corpus_key")
 
 
@@ -508,13 +510,14 @@ def test_hybridfetchsnip_index_raises_clear_error_when_dense_cache_missing(tmp_p
 
 @pytest.fixture
 def fake_dense_stack(monkeypatch):
-    """Monkeypatch the SAME two call sites agent_search.agent.retriever.AgentRetriever.index()
+    """Monkeypatch the SAME two call sites `agent_search.retrievers.engines.Engines._dense_locked`
     uses for the densevisit/densefetch/hybridvisit/hybridfetchsnip arms:
-      - DenseRetriever.is_cached -> always True (skip the 'no persisted cache' RuntimeError)
-      - dense_belief.DenseBelief -> a lightweight stub whose build_or_load/top_k_doc_ids never
-        touch a real encoder (no heavy import, no GPU, no network)."""
-    from agent_search.retrievers.dense.dense import DenseRetriever
-    from agent_search.retrievers.structural.indri import dense_belief as dense_belief_mod
+      - DenseRetriever.is_cached -> always True (skip the 'no persisted cache' SetupError)
+      - the `agent_search.retrievers.dense` package's own `DenseBelief` name (what `Engines`
+        actually re-imports on every call) -> a lightweight stub whose build_or_load/
+        top_k_doc_ids never touch a real encoder (no heavy import, no GPU, no network)."""
+    import agent_search.retrievers.dense as dense_pkg
+    from agent_search.retrievers.dense.base import DenseRetriever
 
     class _FakeBelief:
         def __init__(self, ranking=()):
@@ -529,32 +532,32 @@ def fake_dense_stack(monkeypatch):
             return list(ids[: (k or len(ids))])
 
     monkeypatch.setattr(DenseRetriever, "is_cached", lambda self, key=None: True)
-    monkeypatch.setattr(dense_belief_mod, "DenseBelief", lambda *a, **k: _FakeBelief())
+    monkeypatch.setattr(dense_pkg, "DenseBelief", lambda *a, **k: _FakeBelief())
     return _FakeBelief
 
 
 def test_research_hybrid_workspace_builds_and_answers_via_stub(tmp_path, fake_dense_stack):
-    from agent_search.agent.retriever import AgentRetriever
     from agent_search.retrievers.registry import RetrieverConfig, build_factory
+    from agent_search.tools.search_hybrid.tool import SearchHybrid
 
     cfg = RetrieverConfig(policy="stub", index_root=str(tmp_path))
     r = build_factory("agent_research_hybrid", cfg)()
     r.index(_units(), key="test-hybrid-corpus")
-    ws = r._workspace(5, "harbor festival annual event history")
-    assert isinstance(ws, HybridVisit)
+    ws = r.toolbox("harbor festival annual event history")
+    assert isinstance(ws["hybrid_search"], SearchHybrid)
     ranking = r.search("harbor festival annual event history", k=5)
     assert isinstance(ranking, list)
 
 
 def test_research_hybrid_fetch_snip_workspace_builds_and_answers_via_stub(tmp_path, fake_dense_stack):
-    from agent_search.agent.retriever import AgentRetriever
     from agent_search.retrievers.registry import RetrieverConfig, build_factory
+    from agent_search.tools.search_hybrid.tool import SearchHybrid
 
     cfg = RetrieverConfig(policy="stub", index_root=str(tmp_path))
     r = build_factory("agent_research_hybrid_fetch_snip", cfg)()
     r.index(_units(), key="test-hybrid-fetch-snip-corpus")
-    ws = r._workspace(5, "harbor festival annual event history")
-    assert isinstance(ws, HybridFetchSnipWorkspace)
+    ws = r.toolbox("harbor festival annual event history")
+    assert isinstance(ws["hybrid_search_snip"], SearchHybrid)
     ranking = r.search("harbor festival annual event history", k=5)
     assert isinstance(ranking, list)
 

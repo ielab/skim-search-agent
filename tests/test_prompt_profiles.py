@@ -6,7 +6,7 @@ THE method, both arms: the BQL field-tagged Boolean surface + search -> fetch.
           task=research, toolset=research_bm25      (retrieve-then-visit baseline)
 Per-tool teaching lives in a tool's manual (skills/*.md) and renders only when the tool is in
 the toolset; the field-tagged surface lowers to the SAME executor AST via
-retrievers/structural/bql/surface.to_bql, so the parser/typechecker/executor are reused.
+retrievers/bql/surface.to_bql, so the parser/typechecker/executor are reused.
 """
 import re
 
@@ -16,9 +16,9 @@ from agent_search.prompts import (DOMAINS, get_prompt_spec, load_condition,
                                    load_prompt_profile, load_prompt_text,
                                    render_manuals)
 from agent_search.prompts.loader import load_task
-from agent_search.retrievers.structural.bql.parser import parse
-from agent_search.retrievers.structural.bql.surface import to_bql
-from agent_search.retrievers.structural.bql.types import check
+from agent_search.retrievers.bql.parser import parse
+from agent_search.retrievers.bql.surface import to_bql
+from agent_search.retrievers.bql.types import check
 
 # Document conditions live in the "general" domain; the code-localization arm
 # (codefix / codefix_grep / codefix_patch over the taskfix templates) in "code".
@@ -139,7 +139,7 @@ def test_only_search_family_tools_have_a_manual():
     do its siblings `isearch_s` (research_indri_snip's Indri graded query language) and the
     BQL_DENSE dense-fused twins `search_bqld{f,os}`/`search_bqlds` (research_bql_dense_fetch/
     research_bql_donly_snip/research_bql_dense_snip — SAME bql_doc.md manual VALUES, only the
-    ranking underneath differs, see agent_search/retrievers/structural/bql/dense_fuse.py).
+    ranking underneath differs, see agent_search/retrievers/bql/dense_fuse.py).
     `fetch`/`fetch_s`/`fetch_bqld{f,os,s}` carry none — they're plain reads, no new coaching.
     The code arm's `search` carries the code BQL manual (skills/bql_code.md)."""
     from agent_search.prompts.loader import _registry

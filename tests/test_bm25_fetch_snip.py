@@ -161,25 +161,25 @@ def test_existing_research_dense_fetch_condition_is_unaffected():
 
 
 def test_research_bm25_fetch_snip_resolves_via_registry():
-    from agent_search.agent.retriever import AgentRetriever
+    from agent_search.evaluation.agent_runner import ConditionAgent
 
     r = build_factory("agent_research_bm25_fetch_snip", RetrieverConfig(policy="stub"))()
-    assert isinstance(r, AgentRetriever)
+    assert isinstance(r, ConditionAgent)
     assert r.toolset == ("bm25_search_snip", "fetch")
     assert r.tool == "agent_research_bm25_fetch_snip"
-    assert r._arm == "bm25fetchsnip"
+    assert r.condition.name == "research_bm25_fetch_snip"
     assert r.domain == "general"
     assert not r.needs_files
 
 
 def test_research_bm25_fetch_snip_workspace_builds(tmp_path):
-    from agent_search.agent.retriever import AgentRetriever
+    from agent_search.tools.search_bm25.tool import SearchBm25
 
     cfg = RetrieverConfig(policy="stub", index_root=str(tmp_path))
     r = build_factory("agent_research_bm25_fetch_snip", cfg)()
     r.index(_units(), key="test-bm25-fetch-snip-corpus")
-    ws = r._workspace(5, "harbor festival annual event history")
-    assert isinstance(ws, Bm25FetchSnipWorkspace)
+    ws = r.toolbox("harbor festival annual event history")
+    assert isinstance(ws["bm25_search_snip"], SearchBm25)
 
 
 def test_research_bm25_fetch_snip_workspace_answers_via_stub(tmp_path):

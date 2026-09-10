@@ -3,10 +3,10 @@ instead of crashes), Python source-unit line spans (decorators, duplicate qualna
 ground-truth parsing (CRLF, top-of-file insertions), NEAR proximity semantics, and run_eval
 aggregation. Each test pins one previously-wrong behavior.
 """
-from agent_search.retrievers.structural.bql.parser import parse
+from agent_search.retrievers.bql.parser import parse
 from agent_search.evaluation.ground_truth import changed_line_ranges
 from agent_search.evaluation.run_eval import _aggregate
-from agent_search.retrievers.structural.bql.executor import StructuralExecutor
+from agent_search.retrievers.bql.executor import StructuralExecutor
 from agent_search.corpus.units import CodeUnit, units_from_python_source
 
 

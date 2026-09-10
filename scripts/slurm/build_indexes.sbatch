@@ -18,6 +18,6 @@ DENSE_MODEL="${DENSE_MODEL:-BAAI/bge-base-en-v1.5}"
 WHICH="${WHICH:-dense,lucene,pyserini}"
 INDEX_ROOT="${INDEX_ROOT:-indexes}"
 case ",$WHICH," in *,dense,*)    skimsearchagent-build-indexes --dataset "$DATASET" --retriever dense --model "$DENSE_MODEL" --index-root "$INDEX_ROOT";; esac
-case ",$WHICH," in *,lucene,*)   python -m agent_search.retrievers.structural.lucene.index_builder --dataset "$DATASET" --index-root "$INDEX_ROOT";; esac
+case ",$WHICH," in *,lucene,*)   python -m agent_search.retrievers.lucene.index_builder --dataset "$DATASET" --index-root "$INDEX_ROOT";; esac
 case ",$WHICH," in *,pyserini,*) skimsearchagent-build-indexes --dataset "$DATASET" --retriever bm25_pyserini --index-root "$INDEX_ROOT";; esac
 echo ">> indexes built for $DATASET under $INDEX_ROOT"

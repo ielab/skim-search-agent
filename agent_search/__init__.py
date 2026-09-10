@@ -12,8 +12,10 @@ Layers (each a directory, each replaceable through a documented contract — see
                     ``evaluation.datasets``.
 * ``retrievers``  — BM25 (local / Lucene), dense, hybrid fusion, BQL fielded retrieval,
                     Indri-style structured retrieval; ``retrievers.registry`` is the plugin point.
-* ``prompts``     — conditions = task template x toolset; ``tools.yaml`` declares tools.
-* ``agent``       — the reason-act-observe loop, policies, tool workspaces, the Agents-SDK driver.
+* ``tools``       — one folder per atomic tool: its declaration, its code, its manual.
+* ``tasks``       — one folder per task: the prompt template and the answer protocol.
+* ``strategies``  — combinations of tools with options; a condition is a task with a strategy.
+* ``agent``       — the reason-act-observe loop, policies, the Agents-SDK driver.
 * ``models``      — model providers behind one ``messages -> text`` callable.
 * ``evaluation``  — the experiment runner, metrics, judge, and the run record.
 """
@@ -35,6 +37,6 @@ def __getattr__(name: str):
         from agent_search import api
         return getattr(api, name)
     if name == "STRATEGIES":
-        from agent_search.strategies import STRATEGIES
+        from agent_search.strategies.names import STRATEGIES
         return STRATEGIES
     raise AttributeError(name)

@@ -401,13 +401,13 @@ ONESHOT = [("one-shot bm25", "bm25"), ("one-shot dense", "dense")]  # browsecomp
 
 # One line per DISTINCT cell label (order = first appearance in REGISTRY/ONESHOT), rendered as
 # the "## Legend" section after the tables. Wording is derived from the actual condition/toolset
-# code, not guessed: agent_search/prompts/conditions.yaml + tools.yaml (condition -> task/toolset
-# binding + tool descriptions), agent_search/agent/tools/doc_research.py (workspace classes:
+# code, not guessed: agent_search/strategies/paper.py (condition -> task x strategy
+# binding + tool descriptions), agent_search/tools/*/tool.py (the tools:
 # Bm25Visit/DenseVisit/HybridVisit/BqlVisitWorkspace/DocSearchFetch/...), agent_search/agent/
 # retriever.py (the env-knob retrofits — INDRI_DENSE=1 / BQL_DENSE=1 attach a DenseBelief onto
 # the SAME condition's executor; these knobs are set per RUN SUBDIR, not per condition name, which
 # is why e.g. "indri visit" and "indri+dense visit" share the same REGISTRY `cond` string), and
-# agent_search/retrievers/structural/indri/dense_belief.py (DENSE_MODEL env override for the
+# agent_search/retrievers/indri/dense_belief.py (DENSE_MODEL env override for the
 # "qwen *" cells' embedder swap) / scripts/oneshot_rag.py (the one-shot baseline).
 # A drift guard (tests/test_compare_cells.py) asserts this list's labels exactly match the
 # distinct labels in REGISTRY + ONESHOT — keep both in sync when either changes.

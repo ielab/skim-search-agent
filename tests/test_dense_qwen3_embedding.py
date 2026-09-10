@@ -48,7 +48,7 @@ def test_dense_belief_default_model_env_knob_in_a_fresh_process():
     """DenseBelief.DEFAULT_MODEL is resolved at import time (same pattern as
     AGENT_DEFAULT_CONDITION / oneshot_rag.DEFAULT_MAX_TOKENS) — verified in a subprocess so
     this test doesn't reload the already-imported module in-process."""
-    code = ("from agent_search.retrievers.structural.indri.dense_belief import DEFAULT_MODEL; "
+    code = ("from agent_search.retrievers.indri.dense_belief import DEFAULT_MODEL; "
             "print(DEFAULT_MODEL)")
 
     env_unset = {k: v for k, v in os.environ.items() if k != "DENSE_MODEL"}

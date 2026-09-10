@@ -31,7 +31,7 @@ def _bm25_backend_is_pyserini() -> bool:
 
 
 def _structured_backend_is_lucene() -> bool:
-    """Mirrors agent_search.retrievers.structural.backend.structured_backend's own env
+    """Mirrors agent_search.retrievers.backend.structured_backend's own env
     resolution (default 'python') without importing the structural package eagerly —
     same cheap-answer-from-env-var motivation as `_bm25_backend_is_pyserini` above."""
     import os
@@ -56,54 +56,26 @@ def prebuildable_for(retriever: str) -> list[str]:
         return ["search_lucene" if _structured_backend_is_lucene() else "search_bql"]
     if retriever == "agent" or retriever.startswith("agent_"):
         try:
-            from agent_search.agent.retriever import AGENT_DEFAULT_CONDITION
-            from agent_search.prompts import load_condition
-            cond = (AGENT_DEFAULT_CONDITION if retriever == "agent"
-                    else retriever[len("agent_"):])
-            toolset = set(load_condition(cond).tool_names)
+            from agent_search.strategies.conditions import get_condition
+            cond = get_condition(retriever)
+            toolset = set(cond.tool_names)
+            engines = set(cond.strategy.engines)
         except Exception:
             return []
+        # the strategy's engine kinds say which artifacts a run will load: a dense arm (or a
+        # BQL arm that fuses the dense model) reads the persisted embedding cache; BQL and
+        # Indri read their own artifact, or the shared Lucene index under STRUCTURED_BACKEND=
+        # lucene; a BM25 arm reads the Pyserini index only under BM25_BACKEND=pyserini.
         kinds = []
-        # research_dense's `dense_search` (DenseVisit, toolset dense_visit) lowers to the SAME
-        # persisted dense doc-embedding cache the `dense` retriever/floor already builds — the
-        # AgentRetriever raises a CLEAR error at index() time if it's missing (this baseline
-        # never live-encodes), so pre-building it here (like research_indri's search_indri) is
-        # what makes `RETRIEVER=agent_research_dense scripts/run.sh` work without a manual step.
-        # research_hybrid/research_hybrid_fetch_snip's `hybrid_search`/`hybrid_search_snip` ALSO
-        # need this SAME cache (RRF fuses it with the bm25 pool below) — AgentRetriever raises
-        # the SAME clear error at index() time if it's missing, see doc_research.py's HybridVisit/
-        # HybridFetchSnipWorkspace.
-        if toolset & {"dense", "semantic_search", "dense_search", "hybrid_search",
-                     "hybrid_search_snip"}:
+        if engines & {"dense", "bql_fused", "bql_dense"}:
             kinds.append("dense")
-        # the search -> fetch instrument's `search`/`search_v2`/`search_s` (research_snip) /
-        # `search_bv` (the BQL v2 whole-doc-visit tool) lowers to the BQL executor (via
-        # build_bql_engine), so it reads the SAME prewarmed `search_bql` artifact — pre-build
-        # it off the clock (every one of these conditions reuses the SAME index as `research`,
-        # no new artifact kind per condition). The bm25_search/visit baseline uses in-memory
-        # BM25Local (no step 0). env STRUCTURED_BACKEND=lucene
-        # (agent_search.retrievers.structural.backend) needs the `lucene_structured` index
-        # INSTEAD of the .pkl — same 'which artifact' switch `_bm25_backend_is_pyserini` makes
-        # for the bm25-family arms below.
-        if toolset & {"search", "search_v2", "search_s", "search_bv", "search_bql"}:
+        if engines & {"bql", "bql_fused", "bql_dense", "bql_plain"}:
             kinds.append("search_lucene" if _structured_backend_is_lucene() else "search_bql")
-        # The Indri tool names `isearch` / `isearch_v` / `isearch_s` (research_indri_snip's
-        # snippet-listing tool) all lower to the Indri executor — pre-build its own artifact (or the SAME
-        # shared `lucene_structured` index under STRUCTURED_BACKEND=lucene — one Lucene index
-        # answers both the BQL and Indri query languages, see lucene/engine.py).
-        if toolset & {"isearch", "isearch_v", "isearch_s"}:
+        if "indri" in engines:
             kinds.append("search_lucene" if _structured_backend_is_lucene() else "search_indri")
-        # bm25/bm25dci/bm25fetch/bm25q/bm25fetchsnip's `bm25_search`-family tool lowers to
-        # BM25Pyserini (agent_search.retrievers.lexical.build_bm25_engine) iff BM25_BACKEND=
-        # pyserini — pre-build the SAME persisted Lucene index that condition's index() will
-        # otherwise build (or block waiting on) inside the first episode. research_hybrid/
-        # research_hybrid_fetch_snip's `hybrid_search`/`hybrid_search_snip` reuse this SAME
-        # bm25 engine as one of the two RRF-fused rankers (see doc_research.py's HybridVisit/
-        # HybridFetchSnipWorkspace) — same env-gated pyserini prebuild rule.
-        if (toolset & {"bm25_search", "bm25q_search", "bm25_search_snip", "hybrid_search",
-                      "hybrid_search_snip"}
-                and _bm25_backend_is_pyserini()):
+        if "bm25" in engines and _bm25_backend_is_pyserini():
             kinds.append("bm25_pyserini")
+        del toolset
         return kinds
     return []
 
@@ -136,17 +108,17 @@ def build(instances, index_root="indexes", rebuild=False, cache_dir="data/repos"
         from agent_search.retrievers.lexical.pyserini import BM25Pyserini
         make_retriever = lambda: BM25Pyserini(index_root=index_root, rebuild=rebuild)
     elif retriever == "dense":
-        from agent_search.retrievers.dense.dense import DenseRetriever
+        from agent_search.retrievers.dense import DenseRetriever
         make_retriever = lambda: DenseRetriever(model or "nomic-ai/CodeRankEmbed",
                                                 index_root=index_root, rebuild=rebuild)
     elif retriever == "search_bql":
-        from agent_search.retrievers.structural.bql.executor import BQLIndexBuilder
+        from agent_search.retrievers.bql.executor import BQLIndexBuilder
         make_retriever = lambda: BQLIndexBuilder(index_root=index_root, rebuild=rebuild)
     elif retriever == "search_indri":
-        from agent_search.retrievers.structural.indri.model import IndriIndexBuilder
+        from agent_search.retrievers.indri.model import IndriIndexBuilder
         make_retriever = lambda: IndriIndexBuilder(index_root=index_root, rebuild=rebuild)
     elif retriever == "search_lucene":
-        from agent_search.retrievers.structural.lucene.index_builder import LuceneIndexBuilder
+        from agent_search.retrievers.lucene.index_builder import LuceneIndexBuilder
         make_retriever = lambda: LuceneIndexBuilder(index_root=index_root, rebuild=rebuild)
     else:
         raise ValueError(f"cannot pre-build indexes for retriever {retriever!r}")

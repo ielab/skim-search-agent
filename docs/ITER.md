@@ -20,7 +20,7 @@ pool of 100, drops every document an earlier search already surfaced in this epi
 the top 10 of the rest with a 64-token snippet. Documents that would have ranked but were shown
 before are listed under "Already-seen" so the agent can reopen them. That is `strategy=dedup_dense`
 (the run's dense model behind `search`) or `dedup_bm25`, with the task template
-`agent_search/prompts/tasks/research_dedup.md`. Listing knobs: `listing.dedup_topk` (10),
+`agent_search/tasks/research_dedup/prompt.md`. Listing knobs: `listing.dedup_topk` (10),
 `listing.dedup_pool_k` (100); snippet: `budgets.snippet_tokens: 64`; `get_document` returns at
 most 512 tokens in ITER (`budgets.max_visit_tokens: 512`; the wiki chunks are 512 tokens, so this
 only matters on a corpus with longer documents).
@@ -118,8 +118,16 @@ job, express queue):
 | training check, agent | the trained checkpoint (bfloat16) as the retriever of `dedup_dense` on the BrowseComp-Plus sample, Tongyi, 40 steps | 20/20 scored, 0 errors, hit@5 0.45, judged 15% (3/20); a 48-triple model, not a contender, the loop closes |
 | InfoSeek-Eval sample | 20 questions, released `ielabgroup/ITER-Qwen3-Embedding-0.6B`, Tongyi, 40 steps | judged accuracy 70% (14/20), 24 steps per question |
 | BrowseComp-Plus sample | 20 questions with qrels, the same retriever and backbone, 40 steps | judged accuracy 25% (5/20), hit@1 0.20, gold-document coverage 0.41; 90% of episodes used all 40 steps (the paper allows 100) |
+| held-out training | 99 InfoSeek training trajectories (97 triples, answer labels), Qwen3-Embedding-0.6B, bf16, 3 epochs | loss decreases each epoch; the checkpoint serves in bfloat16 |
+| held-out eval, retriever | the trained checkpoint vs its base vs the released ITER-0.6B on 20 InfoSeek-Eval triples the training never saw | recall@1 0.45 / 0.30 / 0.45; recall@5 0.60 / 0.75 / 0.75; recall@10 0.70 / 0.85 / 0.85 |
+| held-out eval, agent | `dedup_dense` on the 20-question InfoSeek-Eval sample, Tongyi, 40 steps, the trained checkpoint vs its base | judged accuracy 65% (13/20) vs 60% (12/20); 25.7 vs 27.6 steps per question |
+| after the 0.3 restructure | the InfoSeek-Eval sample again with the released ITER-0.6B, its index rebuilt in bfloat16 | judged accuracy 50% (10/20), 25 steps per question; replaying the earlier run's 20 trajectories through the old and the new code gives identical observations on all 486 steps (`scripts/replay_check.py`), so the difference from the 70% above is the index precision and sampling |
+| one-shot RAG | `rag_bm25` on the same sample, Tongyi: BM25 top 5 in one prompt, one call | judged accuracy 70% (14/20), 3 empty answers |
 
-The sample numbers are smoke checks over 20 questions each, not paper results.
+The sample numbers are smoke checks over 20 questions each, not paper results. The held-out
+rows show the whole loop closing on data the model never trained on (trajectories in, a
+checkpoint out, that checkpoint behind the agent); 97 triples and 20 questions are far too few to
+rank the retrievers.
 
 ## Evaluate a retriever without an agent
 

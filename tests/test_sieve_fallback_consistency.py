@@ -10,9 +10,9 @@ The dense side is a stub that only exposes what `DenseBelief` exposes to the exe
 documents, and one search pass encodes the query once.
 """
 from agent_search.corpus.units import units_from_documents
-from agent_search.retrievers.structural.bql.executor import (
+from agent_search.retrievers.bql.executor import (
     DenseOnlyStructuralExecutor, StructuralExecutor)
-from agent_search.retrievers.structural.bql.parser import parse
+from agent_search.retrievers.bql.parser import parse
 
 DOCS = [
     {"_id": "A", "title": "Alpha treaty", "text": "alpha alpha alpha treaty signed"},

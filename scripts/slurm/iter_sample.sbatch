@@ -21,7 +21,9 @@ EXPERIMENTS="${EXPERIMENTS:-configs/iter/sample_bcp_chunks_iter06b_tongyi.yaml c
 MODEL="${MODEL:-Alibaba-NLP/Tongyi-DeepResearch-30B-A3B}"
 PORT="${PORT:-8000}"; TP="${TP:-1}"; MAX_MODEL_LEN="${MAX_MODEL_LEN:-98304}"
 echo "[$(date)] node=$(hostname) gpu=${CUDA_VISIBLE_DEVICES:-none} retriever=$RETRIEVER"
-# 1. the sample indexes (encoded on this GPU; a few minutes for tens of thousands of chunks)
+# 1. the sample indexes (encoded on this GPU; a few minutes for tens of thousands of chunks).
+#    Built in the precision the experiment files serve (DTYPE, default bfloat16): the caches differ by precision.
+export DENSE_DTYPE="${DTYPE:-bfloat16}"
 for ds in $DATASETS; do
   skimsearchagent-build-indexes --dataset "$ds" --retriever dense --model "$RETRIEVER" --index-root "${INDEX_ROOT:-indexes}"
 done
@@ -38,9 +40,11 @@ for i in $(seq 1 180); do
   sleep 10
 done
 # 3. the runs (the files name the retriever; the backbone and its endpoint come from this job)
+FAILED=""
 for exp in $EXPERIMENTS; do
   # shellcheck disable=SC2086
   skimsearchagent run "$exp" model.name="$MODEL" model.backend=api model.api_base="http://127.0.0.1:$PORT/v1" \
-      retrieval.dense_model="$RETRIEVER" ${OVERRIDES:-}
+      retrieval.dense_model="$RETRIEVER" ${OVERRIDES:-} || FAILED="$FAILED $exp"
 done
-echo "[$(date)] done"
+echo "[$(date)] done${FAILED:+; FAILED:$FAILED}"
+[ -z "$FAILED" ]

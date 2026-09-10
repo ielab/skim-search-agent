@@ -1,4 +1,4 @@
-"""Tests for the `indri` retrieval backend (agent_search/retrievers/structural/indri/).
+"""Tests for the `indri` retrieval backend (agent_search/retrievers/indri/).
 
 CPU-only; a small synthetic ~30-doc corpus with dates/titles/authors/sections
 exercises the parser subset, the Dirichlet-smoothed belief math (including a
@@ -15,8 +15,8 @@ import os
 import pytest
 
 from agent_search.corpus.units import CodeUnit
-from agent_search.retrievers.structural.indri import parser as P
-from agent_search.retrievers.structural.indri.model import (
+from agent_search.retrievers.indri import parser as P
+from agent_search.retrievers.indri.model import (
     IndriExecutor, IndriResult, indri_index_path, load_or_build,
 )
 

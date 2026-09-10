@@ -25,7 +25,7 @@ from typing import Any, Optional
 
 import yaml
 
-from agent_search.strategies import DEFAULT_STRATEGY, DENSE_STRATEGIES, STRATEGIES, resolve_strategy
+from agent_search.strategies.names import DEFAULT_STRATEGY, DENSE_STRATEGIES, STRATEGIES, resolve_strategy
 
 SCHEMA_VERSION = 1
 
@@ -187,26 +187,38 @@ class ExperimentError(ValueError):
 # --- which keys a strategy reads ------------------------------------------------------------
 # A file is complete when it names every key its strategy reads. Keys absent from this map apply
 # to every strategy; a key mapped to a set applies to those friendly strategy names only.
-_DOC_AGENTS = {"search_visit", "search_visit_dense", "search_visit_hybrid", "autoread", "autoread_dense",
+_DOC_AGENTS = {"search_visit", "search_visit_dense", "search_visit_hybrid", "search_visit_snippets",
+               "autoread", "autoread_dense", "autoread_hybrid",
                "dci", "bounded_dci", "search_fetch", "search_fetch_dense", "search_fetch_hybrid",
-               "sieve", "sieve_bm25", "sieve_dense", "sieve_nosnip", "indri", "dedup_bm25", "dedup_dense"}
+               "search_fetch_bm25_plain", "search_fetch_dense_plain",
+               "sieve", "sieve_bm25", "sieve_dense", "sieve_nosnip", "sieve_plain", "sieve_v2",
+               "sieve_visit", "sieve_visit_fused", "sieve_visit_dense",
+               "indri", "indri_plain", "indri_visit", "dedup_bm25", "dedup_dense"}
 _CODE_AGENTS = {"codefix", "codefix_grep", "codefix_patch"}
+_RAG = {"rag_bm25", "rag_dense", "rag_hybrid"}          # one model call, no loop
 _AGENTS = _DOC_AGENTS | _CODE_AGENTS
-_DENSE = set(DENSE_STRATEGIES)
-_BM25_USERS = {"search_visit", "search_fetch", "autoread", "bounded_dci", "search_visit_hybrid",
-               "search_fetch_hybrid", "dedup_bm25", "bm25", "bm25_lucene"}
-_BQL = {"sieve", "sieve_bm25", "sieve_dense", "sieve_nosnip", "codefix", "codefix_patch"}
-_HYBRID = {"search_visit_hybrid", "search_fetch_hybrid"}
-_VISIT = {"search_visit", "search_visit_dense", "search_visit_hybrid", "autoread", "autoread_dense",
-          "dedup_bm25", "dedup_dense"}
-_FETCH = {"search_fetch", "search_fetch_dense", "search_fetch_hybrid", "sieve", "sieve_bm25",
-          "sieve_dense", "sieve_nosnip", "indri"}
+_MODEL_USERS = _AGENTS | _RAG
+_DENSE = set(DENSE_STRATEGIES) | {"sieve_visit_fused", "sieve_visit_dense", "search_fetch_dense_plain",
+                                  "autoread_hybrid", "rag_dense", "rag_hybrid"}
+_BM25_USERS = {"search_visit", "search_visit_snippets", "search_fetch", "search_fetch_bm25_plain", "autoread",
+               "autoread_hybrid", "bounded_dci", "search_visit_hybrid", "search_fetch_hybrid", "dedup_bm25",
+               "bm25", "bm25_lucene", "rag_bm25", "rag_hybrid"}
+_BQL = {"sieve", "sieve_bm25", "sieve_dense", "sieve_nosnip", "sieve_plain", "sieve_v2", "sieve_visit",
+        "sieve_visit_fused", "sieve_visit_dense", "codefix", "codefix_patch"}
+_HYBRID = {"search_visit_hybrid", "search_fetch_hybrid", "autoread_hybrid", "rag_hybrid"}
+_VISIT = {"search_visit", "search_visit_dense", "search_visit_hybrid", "search_visit_snippets", "autoread",
+          "autoread_dense", "autoread_hybrid", "sieve_visit", "sieve_visit_fused", "sieve_visit_dense",
+          "indri_visit", "dedup_bm25", "dedup_dense"}
+_FETCH = {"search_fetch", "search_fetch_dense", "search_fetch_hybrid", "search_fetch_bm25_plain",
+          "search_fetch_dense_plain", "sieve", "sieve_bm25", "sieve_dense", "sieve_nosnip", "sieve_plain",
+          "sieve_v2", "indri", "indri_plain"}
+_INDRI = {"indri", "indri_plain", "indri_visit"}
 APPLIES: dict[str, set] = {
-    "model.name": _AGENTS, "model.policy": _AGENTS, "model.backend": _AGENTS, "model.api_base": _AGENTS,
-    "model.tp": _AGENTS, "model.temperature": _AGENTS, "model.seed": _AGENTS, "model.seeds": _AGENTS,
-    "model.driver": _AGENTS, "model.reasoning_effort": _AGENTS, "model.timeout_s": _AGENTS,
-    "model.retry_attempts": _AGENTS,
-    "agent.max_steps": _AGENTS, "agent.prompt_profile": _AGENTS, "agent.ctx_tokens": _AGENTS,
+    "model.name": _MODEL_USERS, "model.policy": _MODEL_USERS, "model.backend": _MODEL_USERS,
+    "model.api_base": _MODEL_USERS, "model.tp": _MODEL_USERS, "model.temperature": _MODEL_USERS,
+    "model.seed": _MODEL_USERS, "model.seeds": _MODEL_USERS, "model.driver": _AGENTS,
+    "model.reasoning_effort": _MODEL_USERS, "model.timeout_s": _MODEL_USERS, "model.retry_attempts": _MODEL_USERS,
+    "agent.max_steps": _AGENTS, "agent.prompt_profile": _AGENTS, "agent.ctx_tokens": _AGENTS | _RAG,
     "agent.ctx_window": _AGENTS, "agent.ctx_stop_frac": _AGENTS,
     "budgets.snippet_tokens": _DOC_AGENTS - {"dci"},
     "budgets.max_visit_tokens": _VISIT,
@@ -214,22 +226,25 @@ APPLIES: dict[str, set] = {
     "budgets.bash_max_tokens": {"dci", "bounded_dci"}, "budgets.read_max_line_tokens": {"dci", "bounded_dci"},
     "budgets.grep_line_tokens": {"codefix_grep"},
     "budgets.closer_evidence_arg_tokens": _AGENTS, "budgets.closer_evidence_obs_tokens": _AGENTS,
-    "listing.bm25_visit_topk": {"search_visit"}, "listing.bm25_fetch_topk": {"search_fetch"},
-    "listing.dense_visit_topk": {"search_visit_dense"}, "listing.dense_fetch_topk": {"search_fetch_dense"},
+    "listing.bm25_visit_topk": {"search_visit", "search_visit_snippets"},
+    "listing.bm25_fetch_topk": {"search_fetch", "search_fetch_bm25_plain"},
+    "listing.dense_visit_topk": {"search_visit_dense"},
+    "listing.dense_fetch_topk": {"search_fetch_dense", "search_fetch_dense_plain"},
     "listing.hybrid_visit_topk": {"search_visit_hybrid"}, "listing.hybrid_fetch_topk": {"search_fetch_hybrid"},
-    "listing.hybrid_pool": _HYBRID, "listing.autoread_topk": {"autoread", "autoread_dense"},
+    "listing.hybrid_pool": _HYBRID, "listing.autoread_topk": {"autoread", "autoread_dense", "autoread_hybrid"},
     "listing.bm25_dci_topk": {"bounded_dci"},
     "listing.dedup_topk": {"dedup_bm25", "dedup_dense"}, "listing.dedup_pool_k": {"dedup_bm25", "dedup_dense"},
-    "retrieval.bm25_backend": _BM25_USERS, "retrieval.structured_backend": _BQL | {"indri"},
+    "retrieval.bm25_backend": _BM25_USERS, "retrieval.structured_backend": _BQL | {"indri", "indri_plain", "indri_visit"},
     "retrieval.dense_model": _DENSE, "retrieval.dense_query_style": _DENSE,
     "retrieval.dense_query_instruction": _DENSE, "retrieval.dense_pooling": _DENSE, "retrieval.dense_dtype": _DENSE,
     "retrieval.dense_index": _DENSE, "retrieval.ann_ef_search": _DENSE, "retrieval.bm25_index": _BM25_USERS,
     "retrieval.bql_soft_fallback": _BQL, "retrieval.bql_soft_pool": _BQL, "retrieval.bql_date_range": _BQL,
-    "retrieval.bql_dense": {"sieve_bm25"}, "retrieval.bql_dense_rrf_k": {"sieve", "sieve_nosnip", "sieve_bm25"},
+    "retrieval.bql_dense": {"sieve_bm25", "sieve_plain", "sieve_v2", "sieve_visit"},
+    "retrieval.bql_dense_rrf_k": {"sieve", "sieve_nosnip", "sieve_bm25", "sieve_visit_fused"},
     "retrieval.rrf_k": _HYBRID, "retrieval.bql_prefilter_min": _BQL,
-    "retrieval.indri_dense": {"indri"}, "retrieval.indri_dense_w": {"indri"}, "retrieval.indri_dense_expand_k": {"indri"},
-    "retrieval.indri_mu": {"indri"}, "retrieval.lucene_mu": {"indri"}, "retrieval.indri_pool_cap": {"indri"},
-    "retrieval.indri_rescore_m": {"indri"},
+    "retrieval.indri_dense": _INDRI, "retrieval.indri_dense_w": _INDRI, "retrieval.indri_dense_expand_k": _INDRI,
+    "retrieval.indri_mu": _INDRI, "retrieval.lucene_mu": _INDRI, "retrieval.indri_pool_cap": _INDRI,
+    "retrieval.indri_rescore_m": _INDRI,
     "retrieval.ann": _DENSE, "retrieval.ann_min": _DENSE, "retrieval.ann_pq_min": _DENSE, "retrieval.dense_device": _DENSE,
     "output.repo_cache": _CODE_AGENTS, "output.allow_clone": _CODE_AGENTS,
 }
@@ -242,7 +257,9 @@ def _friendly(strategy: str) -> Optional[str]:
     for k, v in STRATEGIES.items():
         if v == strategy:
             return k
-    return None
+    from agent_search.strategies.conditions import CONDITIONS
+    name = strategy[len("agent_"):] if strategy.startswith("agent_") else strategy
+    return name if name in CONDITIONS else None
 
 
 def applies(section: str, key: str, strategy: str) -> bool:
@@ -478,7 +495,7 @@ def requirements(exp: Experiment) -> list[str]:
     if exp.get("retrieval", "bm25_index"):
         notes.append(f"the prebuilt Lucene index at {exp.get('retrieval', 'bm25_index')} (retrieval.bm25_index)")
     if exp.get("retrieval", "structured_backend") == "lucene":
-        notes.append("the Lucene structured index (python -m agent_search.retrievers.structural.lucene"
+        notes.append("the Lucene structured index (python -m agent_search.retrievers.lucene"
                      ".index_builder --dataset <name>) and Java 21+")
     if exp.get("retrieval", "bm25_backend") == "pyserini":
         notes.append("Pyserini and Java 21+ (pip install -e '.[retrieval]')")

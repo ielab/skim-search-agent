@@ -8,7 +8,7 @@ from agent_search.agent.policies import AgentPolicy
 from agent_search.core.tokens import count_tokens
 from agent_search.agent.tools.code_fix import CodeFixWorkspace
 from agent_search.prompts import get_prompt_spec
-from agent_search.retrievers.structural.bql.executor import StructuralExecutor, execute_bql
+from agent_search.retrievers.bql.executor import StructuralExecutor, execute_bql
 from agent_search.corpus.units import units_from_python_source
 
 SRC = ("def make_token(user):\n    return str(user)\n"

@@ -44,50 +44,50 @@ def test_build_dense_factory_does_not_load_encoder():
 
 
 def test_build_direct_bql_factory_no_model():
-    from agent_search.retrievers.structural.bql.retriever import BQLRetriever
+    from agent_search.retrievers.bql.retriever import BQLRetriever
     r = build_factory("bql")()
     assert isinstance(r, BQLRetriever) and r.name == "bql"
 
 
 def test_build_research_snip_agent_stub():
-    from agent_search.agent.retriever import AgentRetriever
+    from agent_search.evaluation.agent_runner import ConditionAgent
     r = build_factory("agent_research_snip", RetrieverConfig(policy="stub"))()
-    assert isinstance(r, AgentRetriever) and r.toolset == ("search_s", "fetch_s")
-    assert r._arm == "docsnip" and r.domain == "general"
+    assert isinstance(r, ConditionAgent) and r.toolset == ("search_s", "fetch_s")
+    assert r.strategy.name == "sieve_bm25" and r.domain == "general"
 
 
 def test_build_research_dci_baseline_stub():
-    from agent_search.agent.retriever import AgentRetriever
+    from agent_search.evaluation.agent_runner import ConditionAgent
     r = build_factory("agent_research_dci", RetrieverConfig(policy="stub"))()
-    assert isinstance(r, AgentRetriever) and r.toolset == ("bash", "read")
-    assert r._arm == "dci" and r.domain == "general" and not r.needs_files
+    assert isinstance(r, ConditionAgent) and r.toolset == ("bash", "read")
+    assert r.strategy.name == "dci" and r.domain == "general" and not r.needs_files
 
 
 def test_one_builder_serves_several_names():
-    # one AgentRetriever; the condition is entirely the toolset + domain (from the profile)
-    for name, want, arm in [("agent_research_snip", "fetch_s", "docsnip"),
-                            ("agent_research_bm25", "visit", "bm25"),
-                            ("agent_research_dci", "read", "dci")]:
+    # one runner; the condition (task x strategy) is what differs
+    for name, want, strategy in [("agent_research_snip", "fetch_s", "sieve_bm25"),
+                                 ("agent_research_bm25", "visit", "search_visit"),
+                                 ("agent_research_dci", "read", "dci")]:
         r = build_factory(name, RetrieverConfig(policy="stub"))()
-        assert want in r.toolset and r.tool == name and r._arm == arm
+        assert want in r.toolset and r.condition.name == name[len("agent_"):]
+        assert r.strategy.name == strategy
 
 
 def test_build_search_fetch_agents_no_model():
-    from agent_search.agent.retriever import AgentRetriever
+    from agent_search.evaluation.agent_runner import ConditionAgent
     for name in ("agent_research_snip",):
         r = build_factory(name, RetrieverConfig(policy="stub"))()
         # the doc arm drives the search -> fetch instrument (no localization `submit`)
-        assert isinstance(r, AgentRetriever) and "search_s" in r.toolset and "fetch_s" in r.toolset
+        assert isinstance(r, ConditionAgent) and "search_s" in r.toolset and "fetch_s" in r.toolset
         assert "submit" not in r.toolset
 
 
 def test_doc_arm_and_its_two_baselines_share_the_answer_contract():
     # research_snip (search_s->fetch_s), research_bm25 (bm25_search->visit), research_dci
-    # (bash->read) are three of the doc conditions; all general-domain, <answer>-terminal arms.
-    from agent_search.agent.retriever import AgentRetriever
+    # (bash->read) are three of the doc conditions; all general-domain, <answer>-terminal.
     for name in ("agent_research_snip", "agent_research_bm25", "agent_research_dci"):
         r = build_factory(name, RetrieverConfig(policy="stub"))()
-        assert isinstance(r, AgentRetriever) and r.domain == "general"
+        assert r.domain == "general" and r.task.terminal == "answer"
 
 
 def test_unknown_name_raises_with_choices():

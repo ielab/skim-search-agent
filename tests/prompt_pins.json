@@ -1,0 +1,213 @@
+{
+ "codefix": {
+  "domain": "code",
+  "sha": "388aa8afb2899fec",
+  "task": "taskfix",
+  "tools": [
+   "search",
+   "fetch"
+  ],
+  "toolset": "code_fix"
+ },
+ "codefix_grep": {
+  "domain": "code",
+  "sha": "8bd32c9aabafb5b1",
+  "task": "taskfix",
+  "tools": [
+   "grep",
+   "read"
+  ],
+  "toolset": "code_grep"
+ },
+ "codefix_patch": {
+  "domain": "code",
+  "sha": "46c582f6cbea2008",
+  "task": "taskfix_patch",
+  "tools": [
+   "search",
+   "fetch"
+  ],
+  "toolset": "code_fix"
+ },
+ "research_bm25": {
+  "domain": "general",
+  "sha": "d321973e1ec46acc",
+  "task": "research",
+  "tools": [
+   "bm25_search",
+   "visit"
+  ],
+  "toolset": "research_bm25"
+ },
+ "research_bm25_autoread": {
+  "domain": "general",
+  "sha": "16727ee5c39e1267",
+  "task": "research",
+  "tools": [
+   "bm25_read_search"
+  ],
+  "toolset": "bm25_autoread"
+ },
+ "research_bm25_dci": {
+  "domain": "general",
+  "sha": "20ea814e54a8805e",
+  "task": "research",
+  "tools": [
+   "bm25_search",
+   "bash",
+   "read"
+  ],
+  "toolset": "bm25_dci"
+ },
+ "research_bm25_fetch_snip": {
+  "domain": "general",
+  "sha": "10f01435a7f773dd",
+  "task": "research",
+  "tools": [
+   "bm25_search_snip",
+   "fetch"
+  ],
+  "toolset": "bm25_fetch_snip"
+ },
+ "research_bql_dense_fetch": {
+  "domain": "general",
+  "sha": "b8c828ce95072273",
+  "task": "research",
+  "tools": [
+   "search_bqldf",
+   "fetch_bqldf"
+  ],
+  "toolset": "bql_dense_fetch"
+ },
+ "research_bql_dense_snip": {
+  "domain": "general",
+  "sha": "03b6d514e44c0002",
+  "task": "research",
+  "tools": [
+   "search_bqlds",
+   "fetch_bqlds"
+  ],
+  "toolset": "bql_dense_snip"
+ },
+ "research_bql_dense_snip@browsecomp": {
+  "sha": "ad69f699648c1604"
+ },
+ "research_bql_dense_snip@wiki": {
+  "sha": "03b6d514e44c0002"
+ },
+ "research_bql_donly_snip": {
+  "domain": "general",
+  "sha": "162ae473dfd58a02",
+  "task": "research",
+  "tools": [
+   "search_bqldos",
+   "fetch_bqldos"
+  ],
+  "toolset": "bql_donly_snip"
+ },
+ "research_dci": {
+  "domain": "general",
+  "sha": "4618cdf251069d8d",
+  "task": "research",
+  "tools": [
+   "bash",
+   "read"
+  ],
+  "toolset": "dci"
+ },
+ "research_dedup_bm25": {
+  "domain": "general",
+  "sha": "0c9a7ca64088278e",
+  "task": "research_dedup",
+  "tools": [
+   "bm25_search",
+   "get_document"
+  ],
+  "toolset": "dedup_bm25"
+ },
+ "research_dedup_dense": {
+  "domain": "general",
+  "sha": "b4402098a6830110",
+  "task": "research_dedup",
+  "tools": [
+   "search",
+   "get_document"
+  ],
+  "toolset": "dedup_dense"
+ },
+ "research_dense": {
+  "domain": "general",
+  "sha": "71e9bf188fe1aa37",
+  "task": "research",
+  "tools": [
+   "dense_search",
+   "visit_d"
+  ],
+  "toolset": "dense_visit"
+ },
+ "research_dense_autoread": {
+  "domain": "general",
+  "sha": "29a4480d8f294788",
+  "task": "research",
+  "tools": [
+   "dense_read_search"
+  ],
+  "toolset": "dense_autoread"
+ },
+ "research_dense_fetch": {
+  "domain": "general",
+  "sha": "1fa2e1b403d9ba53",
+  "task": "research",
+  "tools": [
+   "dense_search_f",
+   "fetch"
+  ],
+  "toolset": "dense_fetch"
+ },
+ "research_hybrid": {
+  "domain": "general",
+  "sha": "4eac515210be4782",
+  "task": "research",
+  "tools": [
+   "hybrid_search",
+   "visit_h"
+  ],
+  "toolset": "hybrid_visit"
+ },
+ "research_hybrid_fetch_snip": {
+  "domain": "general",
+  "sha": "5730222ac885b204",
+  "task": "research",
+  "tools": [
+   "hybrid_search_snip",
+   "fetch"
+  ],
+  "toolset": "hybrid_fetch_snip"
+ },
+ "research_indri_snip": {
+  "domain": "general",
+  "sha": "e7a5af0837b2841d",
+  "task": "research",
+  "tools": [
+   "isearch_s",
+   "fetch"
+  ],
+  "toolset": "indri_snip"
+ },
+ "research_snip": {
+  "domain": "general",
+  "sha": "9b61845e5c810125",
+  "task": "research",
+  "tools": [
+   "search_s",
+   "fetch_s"
+  ],
+  "toolset": "search_fetch_s"
+ },
+ "research_snip@browsecomp": {
+  "sha": "7e3b1e2c387805a5"
+ },
+ "research_snip@wiki": {
+  "sha": "9b61845e5c810125"
+ }
+}

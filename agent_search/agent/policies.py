@@ -17,7 +17,6 @@ from typing import Callable, List, Sequence
 
 from agent_search.core.tokens import count_tokens, truncate_tokens
 from agent_search.corpus.units import code_tokenize
-from agent_search.prompts import load_prompt_text
 
 # History budget (model tokens) for AgentPolicy — see `default_ctx_tokens`.
 DEFAULT_CTX_TOKENS = 115_000
@@ -62,14 +61,18 @@ class AgentPolicy:
     (``agent_search.core.tokens.count_tokens``: tiktoken ``o200k_base`` when installed,
     whitespace tokens otherwise)."""
 
-    def __init__(self, generate: Callable[[list], str], prompt_path: str,
+    def __init__(self, generate: Callable[[list], str], prompt_path: str = "",
                  max_history: int = 40, ctx_tokens: int | None = None,
-                 field_profile: str | None = None):
+                 field_profile: str | None = None, system: str | None = None):
         self.generate = generate
         self.prompt_path = prompt_path
         # field_profile selects the per-dataset field-tagged manual variant (e.g. structured
         # "wiki"/"browsecomp" vs flat "general"); None -> the task's own domain.
-        self.system = load_prompt_text(prompt_path, field_profile)
+        # `system`: a prerendered system prompt (a condition's render); else the prompt path is loaded
+        if system is None:                                   # the pre-0.3 path: a YAML prompt profile
+            from agent_search.legacy.prompts import load_prompt_text
+            system = load_prompt_text(prompt_path, field_profile)
+        self.system = system
         self.max_history = max_history
         self.ctx_tokens = int(ctx_tokens) if ctx_tokens is not None else default_ctx_tokens()
         self.last_raw = ""

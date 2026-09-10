@@ -27,7 +27,7 @@ demo/
 ├── server.py          the whole backend: FastAPI + SSE, wraps the real agent loop
 ├── app/               React frontend (Vite): npm install && npm run build
 ├── index.html         prebuilt single-file page (the server serves app/dist/ or this)
-├── corpus.py          loads the collection for the agent workspaces
+├── corpus.py          loads the collection for the agent's tools
 ├── corpus_data.json   the curated 250-doc BrowseComp-Plus subsample (checked in)
 ├── build_corpus.py    one-time offline curation script (documents the provenance)
 └── parse.py           tool-observation -> card parsers shared by server tests

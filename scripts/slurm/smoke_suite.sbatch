@@ -18,7 +18,13 @@ for st in search_visit search_fetch autoread dci bounded_dci sieve_bm25 indri bm
   skimsearchagent dataset=$ds strategy=$st runs_dir="$OUT" index_root="$OUT/idx"
 done
 skimsearchagent-build-indexes --dataset doc_fixture --retriever dense --index-root "$OUT/idx"
-for st in sieve sieve_dense search_visit_dense search_fetch_dense search_visit_hybrid; do
+for st in sieve sieve_dense search_visit_dense search_fetch_dense search_visit_hybrid rag_bm25 rag_dense dedup_dense; do
   skimsearchagent dataset=doc_fixture strategy=$st runs_dir="$OUT" index_root="$OUT/idx"
 done
+# the dense conditions: one stub episode each through the pre-0.3 workspace agent and the
+# condition runner must be identical (the non-dense ones are tests/test_episode_parity.py)
+PARITY_INDEX_ROOT="$OUT/idx" python scripts/episode_parity.py research_dense research_hybrid research_dense_autoread \
+    research_bql_dense_snip research_bql_donly_snip research_bql_dense_fetch research_dedup_dense \
+    research_dense_fetch research_hybrid_fetch_snip | tee "$OUT/episode_parity.txt"
+grep -q "steps_eq=False\|located_eq=False" "$OUT/episode_parity.txt" && { echo "episode parity FAILED" >&2; exit 1; }
 echo ">> smoke suite OK -> $OUT"

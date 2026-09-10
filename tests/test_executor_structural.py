@@ -2,8 +2,8 @@
 units, no index. These tests are the spec for matching semantics."""
 import os
 
-from agent_search.retrievers.structural.bql.parser import parse
-from agent_search.retrievers.structural.bql.executor import StructuralExecutor
+from agent_search.retrievers.bql.parser import parse
+from agent_search.retrievers.bql.executor import StructuralExecutor
 from agent_search.corpus.units import CodeUnit, units_from_documents
 
 

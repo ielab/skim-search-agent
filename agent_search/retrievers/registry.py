@@ -122,10 +122,17 @@ def _ensure_loaded() -> None:
                   f"{e!r} — skipping it", file=sys.stderr, flush=True)
     # the agent-as-retriever lives outside retrievers/ (it composes tools), import it too
     try:
-        from agent_search.agent import retriever as _agent_ret                 # noqa: F401
+        from agent_search.legacy import retriever as _agent_ret                 # noqa: F401
     except Exception as e:
-        print(f"  [registry] WARNING: failed to import agent_search.agent.retriever: "
+        print(f"  [registry] WARNING: failed to import agent_search.legacy.retriever: "
               f"{e!r} — skipping it", file=sys.stderr, flush=True)
+    # conditions declared in agent_search.strategies (tasks x strategies) register as agent_<name>
+    try:
+        from agent_search.evaluation.agent_runner import register_conditions
+        register_conditions()
+    except Exception as e:                         # noqa: BLE001
+        print(f"  [registry] WARNING: failed to register conditions: {e!r} — skipping them",
+              file=sys.stderr, flush=True)
     _load_plugins()
     _loaded = True
 

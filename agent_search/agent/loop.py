@@ -33,7 +33,7 @@ _FIX = re.compile(r"<fix>(.*?)</fix>", re.DOTALL | re.IGNORECASE)
 # exhausted — REACTIVE. On a deep-research episode whose accumulated search/fetch history is
 # already huge, the turn that finally hits `max_steps - 1` can itself already be sitting near the
 # model's context window; injecting the nudge THEN and getting one more (possibly ~12k-token,
-# see MAX_VISIT_TOKENS in agent_search/agent/tools/doc_research.py) observation before it is what
+# see MAX_VISIT_TOKENS in agent_search/tools/budgets.py) observation before it is what
 # trips vLLM's "prompt + requested_output > max-model-len" 400 (see `run_eval.py`'s "dead cell"
 # churn write-up). These two knobs make the SAME nudge/elicitation machinery fire PROACTIVELY,
 # by observed token budget instead of step count, while there is still headroom:
@@ -223,7 +223,7 @@ def run_episode(policy: Policy, task: Task, workspace: WorkspaceLike,
         # PROACTIVE early-stop check: fires BEFORE another normal search/fetch step is taken, using
         # the last OBSERVED prompt_tokens (the size of the most recent real generate() call) as the
         # running context-size proxy — a new observation could add up to MAX_VISIT_TOKENS (~12k,
-        # agent_search/agent/tools/doc_research.py) more, so we stop reaching for one once already
+        # agent_search/tools/budgets.py) more, so we stop reaching for one once already
         # past the threshold rather than waiting for max_steps to overflow reactively.
         ctx_budget_hit = (ctx_threshold is not None and not nudge_injected and steps
                           and _last_prompt_tokens(usage_fn) >= ctx_threshold)

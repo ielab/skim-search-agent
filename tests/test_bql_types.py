@@ -4,9 +4,9 @@ Term/Phrase/Prefix/Expand are TOKEN-level; NEAR/g and IN(region,.) lift; NOT is
 valid only as a clause of AND (set-difference), never standalone / inside OR/NEAR;
 an AND of only negations has no positive clause and is rejected.
 """
-from agent_search.retrievers.structural.bql.parser import parse
-from agent_search.retrievers.structural.bql.types import check
-from agent_search.retrievers.structural.bql.ast import Granularity
+from agent_search.retrievers.bql.parser import parse
+from agent_search.retrievers.bql.types import check
+from agent_search.retrievers.bql.ast import Granularity
 
 
 def _ast(q):

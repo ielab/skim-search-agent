@@ -113,18 +113,18 @@ long-context dense embedder is not truncated, so there is no need to chunk by se
 Copy the resulting `data/*_flat/` and `data/*_structured/` over to the GPU node afterwards.
 
 ## Wiring (already done in the main repo)
-1. Datasets are registered in `agent_search/evaluation/datasets.py`: `<name>_flat` and
+1. Datasets are registered in `agent_search/evaluation/datasets/beir.py`: `<name>_flat` and
    `<name>_structured` for `hotpotqa`, `2wiki` and `musique` (structured gets
    `field_profile=wiki`), plus `browsecomp_plus_structured` (`field_profile=browsecomp`).
-2. One shared doc BQL skill, `skills/bql_doc.md` (title/body/section/infobox), covers both the flat
-   arms (no `field_profile`, so it falls back to `domain=general` and section/infobox never
-   populate) and the `wiki` profile. `skills/bql_browsecomp.md` (title/author/date/body, no
-   section/infobox) is the corpus-correct manual for the `browsecomp` profile. `tools.yaml`'s
-   `search.manual` map picks one per dataset by `field_profile`, so a skill only ever advertises
-   the corpus's real fields.
+2. One shared doc BQL manual, `agent_search/tools/search_bql/bql_doc.md` (title/body/section/infobox),
+   covers both the flat arms (no `field_profile`, so it falls back to `domain=general` and
+   section/infobox never populate) and the `wiki` profile. `bql_browsecomp.md` in the same folder
+   (title/author/date/body, no section/infobox) is the corpus-correct manual for the `browsecomp`
+   profile. The `search_bql` tool's manual map picks one per dataset by `field_profile`, so a
+   manual only ever advertises the corpus's real fields.
 3. Run the method against its baselines on **both** arms of each pair:
    `agent_research_bql_dense_snip` (the method) vs `agent_research_bm25` (retrieve-then-visit) vs
-   `agent_research_dci` (brute-force shell, from `conditions.yaml`).
+   `agent_research_dci` (brute-force shell; the names are in `agent_search/strategies/paper.py`).
    - wikipedia: `<name>_flat` vs `<name>_structured`
    - browsecomp: `browsecomp_plus` (original flat) vs `browsecomp_plus_structured`
 

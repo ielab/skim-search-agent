@@ -136,9 +136,9 @@ runs and what was verified) has its own page: [ITER.md](ITER.md).
 | trainer command, environment check, patch, serving note | `agent_search/training/retriever.py` |
 | episode context at inference | `agent_search/training/history.py` |
 | ITER's FlagEmbedding changes | `agent_search/training/patches/flagembedding-1.3.5-iter.patch` |
-| ITER's search strategy (dedup search, get_document) | `agent_search/agent/tools/doc_dedup.py`, `prompts/tasks/research_dedup.md` |
+| ITER's search strategy (dedup search, get_document) | `agent_search/strategies/dedup.py`, `agent_search/tools/search_dedup/`, `agent_search/tasks/research_dedup/prompt.md` |
 | on-disk corpus, prebuilt index loading | `agent_search/corpus/docstore.py`, `retrievers/dense/vector_index.py` (`ExternalFaissIndex`) |
-| ITER datasets (topics, qrels, answer-only) | `agent_search/evaluation/datasets.py` (`_load_topics_qrels`) |
+| ITER datasets (topics, qrels, answer-only) | `agent_search/evaluation/datasets/topics.py` (`_load_topics_qrels`) |
 | retriever-only evaluation | `agent_search/training/retriever_eval.py` |
 | ITER experiment files | `configs/iter/` |
 | SLURM jobs | `scripts/slurm/train_retriever.sbatch`, `scripts/slurm/iter_smoke_*.sbatch` |

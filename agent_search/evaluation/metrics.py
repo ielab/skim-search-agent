@@ -89,7 +89,7 @@ def answer_em(prediction: str, gold: str) -> float:
     """Exact match after normalization (the standard QA EM; HotpotQA/2WikiMultihopQA canonical
     metric). Requires the WHOLE normalized prediction to equal the whole normalized gold —
     per the published protocol, the answerer is expected to emit a short span, not a sentence
-    (see agent_search/prompts/tasks/research.md, which now instructs exactly that)."""
+    (see agent_search/tasks/research/prompt.md, which instructs exactly that)."""
     if not gold:
         return 0.0
     p_norm, g_norm = _normalize_answer(prediction), _normalize_answer(gold)

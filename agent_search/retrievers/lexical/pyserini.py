@@ -38,7 +38,7 @@ makes every reported bm25 number canonical Lucene, not the approximation.
 
 The `search(query, k) -> list[str]` interface is IDENTICAL to `BM25Local.search` (see bm25.py),
 so this class is a drop-in `engine=` for `Bm25Visit`/`Bm25FetchWorkspace`/`Bm25FetchSnipWorkspace`/
-`Bm25DciWorkspace` (agent_search/agent/tools/doc_research.py, doc_bm25_dci.py) with NO change
+the BM25 tools (agent_search/tools/search_bm25, search_bm25_dci) with NO change
 to their listing/best_line rendering, which only ever consumes the returned doc_id list.
 
 Thread safety: `LuceneSearcher` wraps Anserini's `SimpleSearcher` via pyjnius (`jnius`), which

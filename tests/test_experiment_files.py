@@ -11,7 +11,7 @@ from agent_search import cli
 from agent_search import experiment as X
 from agent_search.evaluation.datasets import available_datasets
 from agent_search.retrievers.registry import available
-from agent_search.strategies import resolve_strategy
+from agent_search.strategies.names import resolve_strategy
 
 REPO = Path(__file__).resolve().parent.parent
 SHIPPED = sorted((REPO / "configs").rglob("*.yaml"))

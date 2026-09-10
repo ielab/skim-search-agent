@@ -118,7 +118,7 @@ def main(argv: Optional[list[str]] = None) -> int:
         engine = build_bm25_engine(units, index_root=a.index_root, key=key)
         search = lambda q, k: engine.search(q, k=k)  # noqa: E731
     else:
-        from agent_search.retrievers.dense.dense import DenseRetriever
+        from agent_search.retrievers.dense import DenseRetriever
         if a.subset is not None:
             os.environ.pop("DENSE_INDEX_PATH", None)   # a subset is always encoded fresh
         r = DenseRetriever(a.dense_model, index_root=a.index_root).index(units, key=key)

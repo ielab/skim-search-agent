@@ -7,7 +7,7 @@ import pytest
 
 from agent_search import cli
 from agent_search.retrievers.registry import available
-from agent_search.strategies import DEFAULT_STRATEGY, STRATEGIES
+from agent_search.strategies.names import DEFAULT_STRATEGY, STRATEGIES
 
 REPO = Path(__file__).resolve().parent.parent
 
