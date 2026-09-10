@@ -34,4 +34,4 @@ analysis/.compare_cache/
 analysis/paper_tables_cache.json
 envs-train/
 train_data/
-models/
+/models/

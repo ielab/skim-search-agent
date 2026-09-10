@@ -283,6 +283,11 @@ _trajectory_meta = trajectory_meta
 def build_condition_agent(cfg, condition_name: str):
     """A factory for the harness: `agent_<condition>` from a RetrieverConfig."""
     cond = get_condition(condition_name)
+    if os.environ.get("SKIMSEARCHAGENT_LEGACY_RUNNER") == "1":
+        # the pre-0.3 workspace agent, for a like-for-like comparison of the two codes on one
+        # setting; removed with agent_search.legacy
+        from agent_search.legacy.retriever import _build_legacy_agent
+        return _build_legacy_agent(cfg, f"agent_{condition_name}")
     if cfg.prompt_override:
         cond = Condition(name=cond.name, task=task_for_override(cfg.prompt_override, cond), strategy=cond.strategy)
     from agent_search.evaluation.datasets import default_dense_model
