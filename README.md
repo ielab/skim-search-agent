@@ -302,16 +302,13 @@ storage and is sent per request to OpenAI; the server does not store or log it. 
 
 Two papers run on this library. Each has its own page; the README only points at them.
 
-**Sieve** ([docs/SIEVE.md](docs/SIEVE.md), [docs/REPRODUCING.md](docs/REPRODUCING.md)) is a
-Boolean-filtered search, inspect, fetch strategy: fielded candidate selection (BQL), one ranking
-model, compact result cards with query-biased snippets, and section-level reading. On
-BrowseComp-Plus, HotpotQA and MuSiQue it matched or improved accuracy while reading 30 to 51%
-fewer tokens than Search-Visit.
+### Sieve
 
-**ITER** ([docs/ITER.md](docs/ITER.md), https://github.com/ielab/ITER) trains a dense retriever
-from search-agent trajectories, conditioned on the agent's earlier searches and trained to return
-documents it has not read yet; the library carries its search tools, its training recipe, its
-released checkpoints and its evaluation sets.
+[docs/SIEVE.md](docs/SIEVE.md), [docs/REPRODUCING.md](docs/REPRODUCING.md). A Boolean-filtered
+search, inspect, fetch strategy: fielded candidate selection (BQL), one ranking model, compact
+result cards with query-biased snippets, and section-level reading. On BrowseComp-Plus, HotpotQA
+and MuSiQue it matched or improved accuracy while reading 30 to 51% fewer tokens than
+Search-Visit.
 
 ```bibtex
 @misc{wang2026sieve,
@@ -343,3 +340,23 @@ released checkpoints and its evaluation sets.
 <sup>2</sup>Australian e-Health Research Centre, CSIRO
 
 </div>
+
+### ITER
+
+[docs/ITER.md](docs/ITER.md), https://github.com/ielab/ITER. Interaction-aware retrieval for
+agentic search: a dense retriever trained from search-agent trajectories, conditioned on the
+agent's earlier searches and trained to return documents it has not read yet. The library
+carries its search tools, its training recipe, its released checkpoints and its evaluation sets.
+
+```bibtex
+@misc{chen2026iter,
+  title         = {ITER: Interaction-Aware Retrieval for Agentic Search},
+  author        = {Chen, Haodong and Wang, Shuai and Yin, Yu and Zhuang, Shengyao and
+                   Zuccon, Guido and Leelanupab, Teerapong},
+  year          = {2026},
+  eprint        = {2608.27912},
+  archivePrefix = {arXiv},
+  primaryClass  = {cs.IR},
+  url           = {https://arxiv.org/abs/2608.27912}
+}
+```

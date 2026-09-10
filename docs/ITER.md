@@ -1,5 +1,9 @@
 # ITER in SkimSearchAgent
 
+Paper: *ITER: Interaction-Aware Retrieval for Agentic Search* (Chen, Wang, Yin, Zhuang, Zuccon,
+Leelanupab, 2026), https://arxiv.org/abs/2608.27912; code and released checkpoints at
+https://github.com/ielab/ITER.
+
 
 ITER (Zhou et al., https://github.com/ielab/ITER) trains a dense retriever from the trajectories
 of a search agent and evaluates it inside the agent loop: the retriever is conditioned on what
