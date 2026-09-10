@@ -17,8 +17,11 @@ MODEL="${MODEL:-models/iter-smoke-qwen3-0.6b}"
 BASE="${BASE:-Qwen/Qwen3-Embedding-0.6B}"
 SUBSET="${SUBSET:-3000}"
 TRIPLES="${TRIPLES:-train_data/iter_smoke_i2.jsonl}"
+DATASET="${DATASET:-infoseek_train}"
+OUT="${OUT:-runs/iter_smoke}"
 export DENSE_QUERY_INSTRUCTION="${DENSE_QUERY_INSTRUCTION:-Given the main question, the current sub-query, and the sub-queries already tried in previous interactions, retrieve documents relevant to the current sub-query that provide NEW information not yet found.}"
 echo "[$(date)] node=$(hostname) gpu=${CUDA_VISIBLE_DEVICES:-none}"
-skimsearchagent-eval-retriever --triples "$TRIPLES" --dataset infoseek_train --dense-model "$MODEL" --subset "$SUBSET" --out runs/iter_smoke/retriever_eval_trained.json
-skimsearchagent-eval-retriever --triples "$TRIPLES" --dataset infoseek_train --dense-model "$BASE" --subset "$SUBSET" --out runs/iter_smoke/retriever_eval_base.json
+mkdir -p "$OUT"
+skimsearchagent-eval-retriever --triples "$TRIPLES" --dataset "$DATASET" --dense-model "$MODEL" --subset "$SUBSET" --out "$OUT/retriever_eval_trained.json"
+skimsearchagent-eval-retriever --triples "$TRIPLES" --dataset "$DATASET" --dense-model "$BASE" --subset "$SUBSET" --out "$OUT/retriever_eval_base.json"
 echo "[$(date)] done"

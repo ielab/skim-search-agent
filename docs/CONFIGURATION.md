@@ -41,7 +41,7 @@ The sections of a file:
 | `agent` | `max_steps`, `prompt_profile`, `ctx_tokens`, `ctx_window`, `ctx_stop_frac` |
 | `budgets` | every length budget: `snippet_tokens`, `max_visit_tokens`, `max_section_tokens`, `bash_max_tokens`, `read_max_line_tokens`, `grep_line_tokens`, `closer_evidence_*_tokens` |
 | `listing` | how many results a search shows: `*_topk`, `hybrid_pool`, `dedup_pool_k` |
-| `retrieval` | which engines and models: `bm25_backend`, `bm25_index`, `structured_backend`, `dense_model`, `dense_query_style`, `dense_query_instruction`, `dense_pooling`, `dense_index`, the `bql_*`, `rrf_k`, `indri_*`, `lucene_mu`, `ann*` and `dense_device` knobs |
+| `retrieval` | which engines and models: `bm25_backend`, `bm25_index`, `structured_backend`, `dense_model`, `dense_query_style`, `dense_query_instruction`, `dense_pooling`, `dense_dtype`, `dense_index`, the `bql_*`, `rrf_k`, `indri_*`, `lucene_mu`, `ann*` and `dense_device` knobs |
 | `evaluation` | `level`, `k`, `workers`, `judge_model`, `judge_api_base`, `rejudge` |
 | `output` | `runs_dir`, `results_dir`, `index_root`, `rebuild`, `allow_config_drift`, `repo_cache`, `allow_clone` |
 | `env` | any other environment variable, exported as is |
@@ -263,6 +263,7 @@ handles that for you.
 | `DENSE_QUERY_STYLE` | `plain` | how the dense query is written from the agent's history (`plain`, `mem`, `docs`, `i1` to `i7`); must match the trained retriever | `agent_search/training/history.py` |
 | `DENSE_QUERY_INSTRUCTION` | unset | the query instruction prefix; unset means the checkpoint's serving note or the built-in table | `agent_search/retrievers/dense/dense.py` |
 | `DENSE_POOLING` | unset | `last_token`, `mean` or `cls` for a checkpoint without a sentence-transformers config; unset means the serving note, then a guess from the model type | `agent_search/retrievers/dense/dense.py` |
+| `DENSE_DTYPE` | unset | the precision the dense encoder runs in: `float32`, `float16` or `bfloat16`. Unset means the checkpoint's serving note (a model trained with bf16 is served in bf16), else float32. Caches and index metadata carry it. | `agent_search/retrievers/dense/dense.py` |
 | `DENSE_INDEX_PATH` | unset | a prebuilt vector index to serve instead of the per-corpus cache (this library's cache directory, or ITER's `index.faiss` plus `index.lookup.pkl`); required for an on-disk corpus | `agent_search/retrievers/dense/dense.py` |
 | `AGENT_SEARCH_ANN_EF_SEARCH` | 0 | HNSW `efSearch` for a prebuilt index; 0 keeps the built-in value | `agent_search/retrievers/dense/vector_index.py` |
 | `AGENT_SEARCH_FAISS_MMAP` | unset | `1` memory-maps a prebuilt FAISS index instead of reading it into RAM | `agent_search/retrievers/dense/vector_index.py` |

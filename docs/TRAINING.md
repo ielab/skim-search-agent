@@ -103,7 +103,9 @@ passages. The 0.6B model takes about nine hours on one H100.
 running it.
 
 The trainer writes `skimsearchagent_dense.json` into the output directory: the query
-instruction, pooling, normalisation and lengths the model was trained with.
+instruction, pooling, normalisation, lengths and precision the model was trained with. A model
+trained with `bf16: true` is loaded and served in bfloat16, and the embedding caches it builds
+are kept apart from float32 ones; `retrieval.dense_dtype` overrides the note.
 `skimsearchagent-train-retriever serving-note train.yaml` regenerates it from the config.
 
 ## 4. Use the checkpoint
@@ -163,7 +165,8 @@ Any embedding model is `retrieval.dense_model`. ITER's released checkpoints
 (`ielabgroup/ITER-Qwen3-Embedding-0.6B`, `-4B`), the plain `Qwen/Qwen3-Embedding-*` baselines and
 LRAT (`Yuqi-Zhou/LRAT-Qwen3-Embedding-0.6B`) are decoder checkpoints without a sentence-transformers
 config; the library detects that from `config.json` and serves them with last-token pooling and
-normalisation (`retrieval.dense_pooling` overrides). The query side is the pair
+normalisation (`retrieval.dense_pooling` overrides). ITER encoded its corpora in bfloat16, so the
+shipped files set `retrieval.dense_dtype: bfloat16` for these checkpoints. The query side is the pair
 `retrieval.dense_query_style` + `retrieval.dense_query_instruction`: `i2` with ITER's instruction
 for the trained models, `plain` for the baselines. Pull a released checkpoint once on a node with
 internet (`hf download ielabgroup/ITER-Qwen3-Embedding-0.6B`); the runs themselves
@@ -225,6 +228,9 @@ job, express queue):
 | smoke, stage 1 | 8 InfoSeek training questions, `dedup_dense`, Tongyi via vLLM, DIVER's i2 checkpoint and its HNSW index over all 11.2M wiki chunks | 8/8 scored, 0 errors, 23 steps per question, 49 min |
 | smoke, stage 2 | 9 triples (answer labeller), Qwen3-Embedding-0.6B, patched FlagEmbedding, 1 epoch | 4 steps, checkpoint with serving note |
 | smoke, stage 3 | trained vs base retriever on the triples, 3,010-document subset | recall@1 0.667 both; novelty@5 0.822 vs 0.844 (four steps do not move a retriever; the loop works) |
+| training check | 48 triples from every trajectory above (oracle labels on BrowseComp-Plus, answer labels on InfoSeek), Qwen3-Embedding-0.6B, bf16, 3 epochs, lr 5e-6 | loss per epoch 1.34, 0.29, 0.09 (72 steps); the checkpoint's serving note records bfloat16, last-token pooling, the i2 style |
+| training check, eval | the trained checkpoint loaded in bfloat16 vs its base, on the 19 BrowseComp-Plus triples (in-sample) over the 20,092-chunk sample corpus | recall@1 0.26 vs 0.11, recall@5 0.68 vs 0.37, recall@10 0.74 vs 0.47 |
+| training check, agent | the trained checkpoint (bfloat16) as the retriever of `dedup_dense` on the BrowseComp-Plus sample, Tongyi, 40 steps | 20/20 scored, 0 errors, hit@5 0.45, judged 15% (3/20); a 48-triple model, not a contender, the loop closes |
 | InfoSeek-Eval sample | 20 questions, released `ielabgroup/ITER-Qwen3-Embedding-0.6B`, Tongyi, 40 steps | judged accuracy 70% (14/20), 24 steps per question |
 | BrowseComp-Plus sample | 20 questions with qrels, the same retriever and backbone, 40 steps | judged accuracy 25% (5/20), hit@1 0.20, gold-document coverage 0.41; 90% of episodes used all 40 steps (the paper allows 100) |
 

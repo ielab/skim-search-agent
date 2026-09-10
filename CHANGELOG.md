@@ -151,6 +151,9 @@ Breaking changes are marked **[breaking]**.
   fetched block on its own.
 - The Tongyi ITER files set `agent.ctx_window` to the served 98,304-token window so the loop
   stops before the server rejects an over-long prompt.
+- Precision follows the checkpoint: the trainer records `dtype` in the serving note, the encoder
+  loads with it (bf16-trained models are served in bf16), caches and index metadata carry it,
+  `retrieval.dense_dtype` overrides it. The ITER files use bfloat16, as ITER did.
 
 ### Removed
 - Stale tests and configuration for conditions that no longer exist, the SLURM shell test, and the

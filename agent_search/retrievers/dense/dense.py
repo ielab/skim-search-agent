@@ -107,6 +107,46 @@ def external_index_path() -> Optional[str]:
     return p or None
 
 
+_DTYPES = {"float32": "float32", "fp32": "float32", "float16": "float16", "fp16": "float16", "half": "float16",
+           "bfloat16": "bfloat16", "bf16": "bfloat16"}
+
+
+def resolve_dtype(model_id: str, note: Optional[dict] = None, device: Optional[str] = None) -> str:
+    """The precision the encoder runs in: `DENSE_DTYPE` wins; then the checkpoint's serving note
+    (`dtype`, written by the trainer: a model trained with bf16 autocast is served in bf16); else
+    float32. float16 on a CPU becomes bfloat16 (CPUs have no fp16 matmul)."""
+    env = (os.environ.get("DENSE_DTYPE") or "").strip().lower()
+    chosen = None
+    if env and env != "auto":
+        if env not in _DTYPES:
+            raise ValueError(f"unknown DENSE_DTYPE={env!r}; choose float32, float16 or bfloat16")
+        chosen = _DTYPES[env]
+    else:
+        note = note if note is not None else serving_note(model_id)
+        v = str(note.get("dtype") or "").lower()
+        chosen = _DTYPES.get(v, "float32") if v else "float32"
+    if chosen == "float16" and (device or "").lower() == "cpu":
+        chosen = "bfloat16"
+    return chosen
+
+
+def _torch_dtype(name: str):
+    import torch
+    return {"float32": torch.float32, "float16": torch.float16, "bfloat16": torch.bfloat16}[name]
+
+
+def _to_numpy(embeddings):
+    """sentence-transformers output to float32 numpy (bf16/fp16 tensors cannot convert directly)."""
+    import numpy as np
+    try:
+        import torch
+        if isinstance(embeddings, torch.Tensor):
+            return embeddings.detach().float().cpu().numpy()
+    except ImportError:
+        pass
+    return np.asarray(embeddings, dtype="float32")
+
+
 def query_seq_length(model_id: str, default: int) -> int:
     """The token length queries are encoded with: the checkpoint's `query_max_len` (history-
     conditioned styles train with long queries) when its serving note has one, else `default`."""
@@ -128,10 +168,10 @@ def _encode_query(model, text: str, query_len: int):
         if doc_len is not None and query_len and query_len != doc_len:
             try:
                 model.max_seq_length = query_len
-                return model.encode([text], convert_to_numpy=True, normalize_embeddings=True)[0]
+                return _to_numpy(model.encode([text], convert_to_tensor=True, normalize_embeddings=True))[0]
             finally:
                 model.max_seq_length = doc_len
-        return model.encode([text], convert_to_numpy=True, normalize_embeddings=True)[0]
+        return _to_numpy(model.encode([text], convert_to_tensor=True, normalize_embeddings=True))[0]
     finally:
         if lock is not None:
             lock.release()
@@ -163,13 +203,16 @@ def _model_max_positions(enc) -> Optional[int]:
     return None
 
 
-def _shared_encoder(model_id: str, device, max_seq_length: int):
-    """One SentenceTransformer per (model, device, seqlen), shared across threads."""
-    key = (model_id, device or "auto", max_seq_length)
+def _shared_encoder(model_id: str, device, max_seq_length: int, dtype: Optional[str] = None):
+    """One SentenceTransformer per (model, device, seqlen, dtype), shared across threads. `dtype`
+    is the precision the weights are loaded in (see `resolve_dtype`)."""
+    dtype = dtype or resolve_dtype(model_id, device=device)
+    key = (model_id, device or "auto", max_seq_length, dtype)
     with _ENCODER_LOCK:
         enc = _ENCODER_CACHE.get(key)
         if enc is None:
             from sentence_transformers import SentenceTransformer  # heavy, cluster-only
+            torch_dtype = _torch_dtype(dtype)
             note = serving_note(model_id)
             # a hub id resolves to its cached snapshot, so a released decoder checkpoint without a
             # sentence-transformers config (ITER, LRAT) gets the same pooling rebuild as a local one
@@ -187,12 +230,13 @@ def _shared_encoder(model_id: str, device, max_seq_length: int):
                 mode = modes[note["pooling"]]
                 from sentence_transformers import models as st_models
                 word = st_models.Transformer(snap or model_id, max_seq_length=int(note.get("max_seq_length") or max_seq_length),
-                                             model_args={"trust_remote_code": True})
+                                             model_args={"trust_remote_code": True, "torch_dtype": torch_dtype})
                 pool = st_models.Pooling(word.get_word_embedding_dimension(), pooling_mode=mode)
                 mods = [word, pool] + ([st_models.Normalize()] if note.get("normalize", True) else [])
                 enc = SentenceTransformer(modules=mods, device=device)
             else:
-                enc = SentenceTransformer(model_id, trust_remote_code=True, device=device)
+                enc = SentenceTransformer(model_id, trust_remote_code=True, device=device,
+                                          model_kwargs={"torch_dtype": torch_dtype})
             # Clamp the requested length to the model's ACTUAL position capacity.
             # Forcing 1024 (the CoRNStack code protocol) onto a 512-position model
             # (e.g. bge-base for documents) overruns the position-embedding table ->
@@ -201,6 +245,7 @@ def _shared_encoder(model_id: str, device, max_seq_length: int):
             cap = _model_max_positions(enc)
             enc.max_seq_length = min(max_seq_length, cap) if cap else max_seq_length
             enc._agent_search_lock = threading.Lock()   # serialize encode on the shared model
+            enc._agent_search_dtype = dtype
             _ENCODER_CACHE[key] = enc
         return enc
 
@@ -210,11 +255,12 @@ class DenseRetriever(Retriever):
 
     def __init__(self, model: str = "nomic-ai/CodeRankEmbed", batch_size: int = 64,
                  index_root: str = "indexes", rebuild: bool = False, encoder=None,
-                 max_seq_length: int = 1024, device: str | None = None):
+                 max_seq_length: int = 1024, device: str | None = None, dtype: str | None = None):
         self.model_id = model
         self.max_seq_length = max_seq_length
         self._model = encoder
         self._device = device
+        self.dtype = dtype or resolve_dtype(model, device=device or os.environ.get("AGENT_SEARCH_DENSE_DEVICE"))
         self._batch = batch_size
         self.index_root = index_root
         self.rebuild = rebuild
@@ -228,7 +274,7 @@ class DenseRetriever(Retriever):
             device = self._device or os.environ.get("AGENT_SEARCH_DENSE_DEVICE") or None
             # SHARED across all worker threads: a fresh load per instance meant up
             # to WORKERS copies of the model in (host) RAM -> OOM on agent_dense.
-            self._model = _shared_encoder(self.model_id, device, self.max_seq_length)
+            self._model = _shared_encoder(self.model_id, device, self.max_seq_length, self.dtype)
         return self._model
 
     def index(self, units: Sequence[CodeUnit], key: Optional[str] = None) -> "DenseRetriever":
@@ -238,6 +284,10 @@ class DenseRetriever(Retriever):
             # index.lookup.pkl): open it, never touch the units
             from agent_search.retrievers.dense.vector_index import load_external_index
             self._index = load_external_index(external)
+            built_dtype = (self._index.meta or {}).get("dense_dtype")
+            if built_dtype and built_dtype != self.dtype:
+                print(f"  [dense] WARNING: {external} was built in {built_dtype} but queries are encoded in "
+                      f"{self.dtype}; set retrieval.dense_dtype={built_dtype} to match", file=sys.stderr, flush=True)
             built_with = (self._index.meta or {}).get("dense_model")
             if built_with and built_with != self.model_id:
                 raise ValueError(
@@ -314,10 +364,10 @@ class DenseRetriever(Retriever):
         if lock is not None:
             lock.acquire()
         try:
-            emb = model.encode(
-                texts, batch_size=self._batch, convert_to_numpy=True,
+            emb = _to_numpy(model.encode(
+                texts, batch_size=self._batch, convert_to_tensor=True,
                 normalize_embeddings=True, show_progress_bar=big,
-            )
+            ))
         finally:
             if lock is not None:
                 lock.release()
@@ -327,7 +377,8 @@ class DenseRetriever(Retriever):
             print(f"  [dense] built {self._index.backend} index for {len(texts)} units",
                   file=sys.stderr, flush=True)
         try:
-            save_index(self._index, cache_dir, extra_meta={"corpus_fingerprint": fp, "dense_model": self.model_id})
+            save_index(self._index, cache_dir, extra_meta={"corpus_fingerprint": fp, "dense_model": self.model_id,
+                                                           "dense_dtype": self.dtype})
         except Exception:
             pass                # best-effort persistence; the in-memory index still serves
         return self
@@ -340,6 +391,8 @@ class DenseRetriever(Retriever):
     def _cache_dir(self, key: Optional[str]) -> str:
         model_key = re.sub(r"[^A-Za-z0-9_.@-]+", "__", self.model_id)
         model_key += f"-sl{self.max_seq_length}"   # seq len changes the embeddings
+        if self.dtype != "float32":
+            model_key += f"-{self.dtype}"           # so do the weights' precision
         corpus_key = re.sub(r"[^A-Za-z0-9_.@-]+", "__", key or "default")
         return os.path.join(self.index_root, self.name, model_key, corpus_key)
 

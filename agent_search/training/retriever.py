@@ -245,6 +245,7 @@ def write_serving_note(cfg: TrainConfig, output_dir: Optional[str] = None) -> st
     note = {"query_instruction": cfg.instruction, "query_style": cfg.query_style,
             "pooling": cfg.pooling, "normalize": cfg.normalize,
             "max_seq_length": cfg.passage_max_len, "query_max_len": cfg.query_max_len,
+            "dtype": "bfloat16" if cfg.bf16 else "float32",     # served in the precision it was trained in
             "base_model": cfg.base_model, "recipe": "iter", "trainer": f"FlagEmbedding=={FLAGEMBEDDING_VERSION}+iter-patch"}
     path = out / SERVING_NOTE
     path.write_text(json.dumps(note, indent=2))

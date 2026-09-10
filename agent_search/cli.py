@@ -40,7 +40,7 @@ ENV_KNOBS = (
     "indri_dense", "indri_dense_w", "indri_dense_expand_k", "indri_mu", "indri_pool_cap",
     "indri_rescore_m", "lucene_mu",
     # engine selection / models
-    "structured_backend", "bm25_backend", "dense_model", "dense_query_style", "dense_query_instruction", "dense_pooling",
+    "structured_backend", "bm25_backend", "dense_model", "dense_query_style", "dense_query_instruction", "dense_pooling", "dense_dtype",
     "dense_index", "ann_ef_search", "bm25_index",
     "agent_driver", "reasoning_effort",
     "agent_default_condition", "vllm_api_base", "skimsearchagent_plugins",

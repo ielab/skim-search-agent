@@ -50,6 +50,7 @@ retrieval:
   dense_query_style: plain               # how the dense query is written from the agent's history: plain | mem | docs | i1..i7 (must match the trained retriever)
   dense_query_instruction: null          # override the query instruction prefix (null = the checkpoint's serving note or the built-in table)
   dense_pooling: null                    # pooling for a local checkpoint: last_token | mean | cls (null = serving note, else auto from config.json)
+  dense_dtype: null                      # precision the dense encoder runs in: float32 | float16 | bfloat16 (null = the checkpoint's serving note, else float32)
   dense_index: null                      # prebuilt vector index to serve (this library's cache dir, or ITER's index.faiss + index.lookup.pkl); null = the per-corpus cache under index_root
   ann_ef_search: 0                       # HNSW efSearch for a prebuilt index (0 = as built)
   bql_soft_fallback: true                # rank the closest docs (same ranker) when a Boolean query matches nothing; false = strict-Boolean ablation
