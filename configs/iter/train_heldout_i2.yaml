@@ -1,0 +1,31 @@
+# Held-out check: train on the InfoSeek trajectories only, evaluate on the BrowseComp-Plus triples.
+# Run: skimsearchagent-train-retriever run configs/iter/train_check_i2.yaml
+train_data: train_data/heldout_train_i2.jsonl
+output_dir: models/iter-heldout-qwen3-0.6b
+base_model: Qwen/Qwen3-Embedding-0.6B
+query_style: i2
+query_instruction: null
+query_max_len: 2048
+passage_max_len: 512
+train_group_size: 6
+per_device_batch_size: 2
+learning_rate: 5.0e-06
+epochs: 3
+warmup_ratio: 0.1
+temperature: 0.02
+pooling: last_token
+normalize: true
+neg_w_div: 3.0
+neg_w_hard: 1.0
+neg_w_weak: 0.3
+div_neg_cap: 3
+hard_neg_cap: 3
+bf16: true
+gradient_checkpointing: true
+nproc_per_node: 1
+deepspeed: null
+report_to: none
+run_name: iter-heldout
+resume_from_checkpoint: null
+seed: 42
+extra_args: []

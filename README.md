@@ -99,26 +99,6 @@ agent:
   max_steps: 100
 ```
 
-**ITER's search tools** (de-duplicated `search`, `get_document` by id) with ITER's released retriever:
-
-```yaml
-strategy: dedup_dense         # or dedup_bm25
-retrieval:
-  dense_model: ielabgroup/ITER-Qwen3-Embedding-0.6B
-  dense_query_style: i2       # the query carries the earlier sub-queries, as the model was trained
-  dense_query_instruction: "Given the main question, the current sub-query, and the sub-queries already tried in previous interactions, retrieve documents relevant to the current sub-query that provide NEW information not yet found."
-```
-
-**A corpus that does not fit in memory** (served from disk, searched through prebuilt indexes, nothing encoded during the run):
-
-```yaml
-dataset:
-  name: infoseek_eval         # data/infoseek_eval/topics.tsv over data/corpora/wiki25_512/corpus.jsonl (11.2M chunks)
-retrieval:
-  dense_index: indexes/external/iter06b_wiki25_512   # index.faiss + index.lookup.pkl, ITER's layout
-  bm25_index: indexes/external/wiki25_512_lucene     # for dedup_bm25 / search_visit with bm25_backend: pyserini
-```
-
 **The corpus**, from Python, with your own documents:
 
 ```python
@@ -245,39 +225,32 @@ agent.search(question, k=10)
 | **Sieve** | `sieve`, `sieve_bm25`, `sieve_dense`, `sieve_nosnip` | BQL candidate filtering, one ranking model, result cards, section fetch |
 | Structured control | `indri` | Indri-QL retrieval with cards and section fetch |
 | Code localization | `codefix`, `codefix_grep`, `codefix_patch` | search or grep a repository, read functions, propose a fix (`dataset=code_fixture`) |
-| ITER search | `dedup_bm25`, `dedup_dense` | ITER's tool setup: keyword search that hides documents surfaced earlier (listed under "Already-seen"), then `get_document` by id |
+| ITER search | `dedup_bm25`, `dedup_dense` | ITER's tool setup; see [docs/ITER.md](docs/ITER.md) |
 
 Dense strategies need an embedding cache built once per dataset
 (`skimsearchagent-build-indexes --dataset <name> --retriever dense`). Lucene backends need Java
 21+ and their own index. A missing artifact stops the run before the first step and prints the
 build command.
 
-A corpus too large for memory (ITER's 11.2M-chunk Wikipedia) is served from disk: the loader
-switches to an on-disk document store above 1 GiB, and retrieval goes through prebuilt indexes
-named in the file (`retrieval.dense_index` for a FAISS index, `retrieval.bm25_index` for a
-Lucene one). Nothing is encoded during a run. See `configs/iter/` and docs/TRAINING.md
-section 5.
+A corpus too large for memory is served from disk and searched through prebuilt indexes named
+in the file; nothing is encoded during a run. See [docs/ITER.md](docs/ITER.md).
 
 ## Train a retriever
 
-Every run is a trajectory, so it is also training data. The ITER recipe (history-conditioned
-queries, tiered negatives, a patched FlagEmbedding trainer) ships as four commands:
+Every run is a trajectory, so it is also training data. Triples with tiered negatives come out
+of any run directory, a patched FlagEmbedding trainer fits a dense retriever on them, and the
+checkpoint plugs back in as the dense model of any strategy, served with the query style,
+instruction and precision it was trained with:
 
 ```bash
-skimsearchagent-build-triples --runs runs/paper/agent/hotpotqa_structured/... --dataset hotpotqa_structured \
-    --out train_data/hotpotqa_i2.jsonl --query-style i2 --labeller oracle
+skimsearchagent-build-triples --runs runs/... --dataset hotpotqa_structured --out train_data/hotpotqa_i2.jsonl --query-style i2 --labeller oracle
 skimsearchagent-train-retriever template > train.yaml
 sbatch --export=ALL,TRAIN=train.yaml,TRAIN_ENV=$PWD/envs-train scripts/slurm/train_retriever.sbatch
-skimsearchagent run configs/paper/hotpotqa_structured_sieve.yaml \
-    retrieval.dense_model=models/my-retriever retrieval.dense_query_style=i2
+skimsearchagent run configs/paper/hotpotqa_structured_sieve.yaml retrieval.dense_model=models/my-retriever retrieval.dense_query_style=i2
 ```
 
-The checkpoint carries its query instruction, pooling and lengths, so it plugs back in as the
-dense model of any strategy. `skimsearchagent-eval-retriever` scores a checkpoint on the triples
-without an agent (recall and novelty of the positives); `skimsearchagent-sample-dataset` cuts a
-paper setting down to a few questions so a retriever or backbone can be tried in minutes. ITER's own setting, its backbones,
-released retrievers and evaluation sets are covered in [docs/TRAINING.md](docs/TRAINING.md),
-section 5.
+[docs/TRAINING.md](docs/TRAINING.md) is the recipe; [docs/ITER.md](docs/ITER.md) is the paper it
+comes from, with its backbones, released retrievers, datasets and the verified runs.
 
 ## Reproducibility
 
@@ -320,16 +293,25 @@ storage and is sent per request to OpenAI; the server does not store or log it. 
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | modules, contracts, one episode end to end |
 | [docs/RUN_RECORD.md](docs/RUN_RECORD.md) | the fields of `rows.jsonl`, `config.json`, `results.json` |
 | [docs/TRAINING.md](docs/TRAINING.md) | retriever training from run records |
-| [docs/SIEVE.md](docs/SIEVE.md) | the Sieve method and its ablations |
-| [docs/REPRODUCING.md](docs/REPRODUCING.md) | the paper's runs, judging, statistics and tables |
+| [docs/SIEVE.md](docs/SIEVE.md) | the Sieve paper: the method and its ablations |
+| [docs/REPRODUCING.md](docs/REPRODUCING.md) | the Sieve paper: its runs, judging, statistics and tables |
+| [docs/ITER.md](docs/ITER.md) | the ITER paper: its search tools, backbones, retrievers, datasets, training and the verified runs |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | development setup and how to add components |
 
-## Paper
+## Papers
 
-Sieve is a Boolean-filtered search–inspect–fetch strategy: fielded candidate selection (BQL), one
-ranking model, compact result cards with query-biased snippets, and section-level reading. On
-BrowseComp-Plus, HotpotQA and MuSiQue it matched or improved accuracy while reading 30–51% fewer
-tokens than Search–Visit.
+Two papers run on this library. Each has its own page; the README only points at them.
+
+**Sieve** ([docs/SIEVE.md](docs/SIEVE.md), [docs/REPRODUCING.md](docs/REPRODUCING.md)) is a
+Boolean-filtered search, inspect, fetch strategy: fielded candidate selection (BQL), one ranking
+model, compact result cards with query-biased snippets, and section-level reading. On
+BrowseComp-Plus, HotpotQA and MuSiQue it matched or improved accuracy while reading 30 to 51%
+fewer tokens than Search-Visit.
+
+**ITER** ([docs/ITER.md](docs/ITER.md), https://github.com/ielab/ITER) trains a dense retriever
+from search-agent trajectories, conditioned on the agent's earlier searches and trained to return
+documents it has not read yet; the library carries its search tools, its training recipe, its
+released checkpoints and its evaluation sets.
 
 ```bibtex
 @misc{wang2026sieve,

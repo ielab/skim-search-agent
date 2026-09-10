@@ -125,6 +125,11 @@ Breaking changes are marked **[breaking]**.
 - Every SLURM launcher sources `_common.sh` through `SLURM_SUBMIT_DIR`; the old `dirname $0`
   form broke under sbatch, which copies the script to a spool directory.
 
+### Documentation split by paper
+- `docs/ITER.md` holds everything about the ITER paper (tools, backbones, retrievers, datasets,
+  samples, verified runs); `docs/SIEVE.md` and `docs/REPRODUCING.md` hold the Sieve paper; the
+  README only points at them.
+
 ### Fixes from the review pass
 - `section.key=value` overrides on `skimsearchagent run FILE` are recorded in `config.json`
   (`experiment` is the setting that ran, `experiment_overrides` lists them, `experiment_file_sha256`
