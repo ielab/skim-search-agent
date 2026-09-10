@@ -4,7 +4,7 @@
 
 **A research framework for deep-search agents. Change one component, keep the rest of the experiment fixed.**
 
-[![CI](https://github.com/ielab/skim-search-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/ielab/skim-search-agent/actions/workflows/ci.yml)
+[![CI](https://github.com/ielab/skim-search-agent/actions/workflows/ci.yml/badge.svg?branch=dev)](https://github.com/ielab/skim-search-agent/actions/workflows/ci.yml)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-3776AB.svg)](#install)
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-00897B.svg)](LICENSE)
 
