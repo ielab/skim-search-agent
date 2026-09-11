@@ -49,18 +49,29 @@ class _NeverIterate(LazyUnits):
 
 
 def test_workspaces_do_not_materialise_a_lazy_corpus(tmp_path):
-    from agent_search.legacy.workspaces.doc_dedup import DedupSearchWorkspace
-    from agent_search.legacy.workspaces.search_visit import Bm25Visit
+    from agent_search.tools.base import EpisodeState
+    from agent_search.tools.get_document.tool import GetDocument
+    from agent_search.tools.search_bm25.tool import SearchBm25
+    from agent_search.tools.search_dedup.tool import SearchDedup
+    from agent_search.tools.visit.tool import Visit
     units = _NeverIterate(_store(tmp_path))
 
     class Engine:
         def search(self, q, k=5):
             return ["3", "7"]
 
-    ws = Bm25Visit(units, engine=Engine(), ubyid=units.by_id)
-    assert "Doc 3" in ws.run("bm25_search", {"query": "x"})
-    dd = DedupSearchWorkspace(units, lambda q, k: ["3"], ubyid=units.by_id)
-    assert "DocID:3" in dd.search("x")
+    state = EpisodeState(question="x")
+    search = SearchBm25(name="bm25_search").bind(state, units, units.by_id, {"bm25": Engine()})
+    visit = Visit(name="visit").bind(state, units, units.by_id, {})
+    assert "Doc 3" in search.run({"query": "x"})
+
+    class PoolEngine:
+        def search(self, q, k=5):
+            return ["3"]
+
+    dd_state = EpisodeState(question="x")
+    dedup = SearchDedup(ranking="bm25").bind(dd_state, units, units.by_id, {"bm25": PoolEngine()})
+    assert "DocID:3" in dedup.run({"query": "x"})
 
 
 def test_in_memory_engines_refuse_a_lazy_corpus(tmp_path):
@@ -78,14 +89,20 @@ def test_in_memory_engines_refuse_a_lazy_corpus(tmp_path):
 # --- tools ------------------------------------------------------------------------------
 
 def test_float_rank_gives_a_clean_error_not_a_crash():
-    from agent_search.legacy.workspaces.search_visit import Bm25Visit
+    from agent_search.tools.base import EpisodeState, ToolBox
+    from agent_search.tools.search_bm25.tool import SearchBm25
+    from agent_search.tools.visit.tool import Visit
 
     class Engine:
         def search(self, q, k=5):
             return ["1", "2"]
 
     units = units_from_documents(DOCS[:5])
-    ws = Bm25Visit(units, engine=Engine())
+    ubyid = {u.doc_id: u for u in units}
+    state = EpisodeState(question="x")
+    search = SearchBm25(name="bm25_search").bind(state, units, ubyid, {"bm25": Engine()})
+    visit = Visit(name="visit").bind(state, units, ubyid, {})
+    ws = ToolBox([search, visit], state)
     ws.run("bm25_search", {"query": "x"})
     out = ws.run("visit", {"rank": 1.0})
     assert "AttributeError" not in out and "Doc 1" in out

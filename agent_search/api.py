@@ -66,14 +66,10 @@ def build_agent(strategy: str = DEFAULT_STRATEGY, *,
     retriever_name = resolve_strategy(strategy)
     cond_name = condition_of(retriever_name) or (strategy if strategy in CONDITIONS else None)
     cond = CONDITIONS.get(cond_name) if cond_name else None
-    if cond is None and cond_name is not None:
-        # a condition known only to the legacy YAML prompt registry (agent_search.legacy.prompts),
-        # not to agent_search.strategies.conditions
-        return _build_legacy_agent(cond_name, retriever_name, generate=generate, model=model, backend=backend,
-                                   api_base=api_base, tp=tp, temperature=temperature, seed=seed,
-                                   max_steps=max_steps, dense_model=dense_model, index_root=index_root,
-                                   rebuild=rebuild, field_profile=field_profile, driver=driver)
-    if cond is None or (not cond.strategy.loop and cond.strategy.retriever):
+    if cond is None:
+        raise ValueError(f"{strategy!r} is not a registered condition; choose from "
+                         f"{sorted(CONDITIONS)}")
+    if not cond.strategy.loop and cond.strategy.retriever:
         raise ValueError(f"{strategy!r} is a retrieval-only floor, not an agent strategy; "
                          f"use agent_search.retrievers.registry.build_factory for it")
     domain = cond.domain
@@ -102,41 +98,6 @@ def build_agent(strategy: str = DEFAULT_STRATEGY, *,
     return ConditionAgent(cond, policy_factory, max_steps=max_steps, dense_model=dense,
                           index_root=index_root, rebuild=rebuild, driver=chosen_driver,
                           field_profile=profile, model=model, api_base=api_base)
-
-
-def _build_legacy_agent(cond, retriever_name, *, generate, model, backend, api_base, tp, temperature, seed,
-                        max_steps, dense_model, index_root, rebuild, field_profile, driver):
-    """The legacy ``AgentRetriever`` for a condition declared only in the YAML prompt registry
-    (`agent_search.legacy.prompts`); current conditions are declared in
-    `agent_search.strategies.conditions`."""
-    from agent_search.legacy.retriever import AgentRetriever
-    from agent_search.legacy.prompts import get_prompt_spec, load_prompt_profile
-
-    spec = get_prompt_spec(cond, "general")
-    domain = spec.domain
-    prompt_path = spec.path
-    toolset = tuple(load_prompt_profile(prompt_path).tool_names)
-    profile = field_profile or domain
-    if generate is None and model is None:
-        from agent_search.agent.policies import KeywordPolicy
-        policy_factory = lambda: KeywordPolicy(toolset)  # noqa: E731
-        chosen_driver = "loop"
-    else:
-        from agent_search.agent.policies import AgentPolicy
-        if generate is None:
-            from agent_search.models import make_generate
-            generate = make_generate(model=model, backend=backend, api_base=api_base, tp=tp,
-                                     temperature=temperature, seed=seed)
-        gen = generate
-        policy_factory = lambda: AgentPolicy(  # noqa: E731
-            generate=gen, prompt_path=prompt_path, field_profile=profile)
-        chosen_driver = driver or "loop"
-    from agent_search.evaluation.datasets import default_dense_model
-    return AgentRetriever(
-        policy_factory=policy_factory, toolset=toolset, max_steps=max_steps,
-        prompt_path=prompt_path, dense_model=dense_model or default_dense_model(domain),
-        index_root=index_root, rebuild=rebuild, domain=domain, tool=retriever_name,
-        model=model, api_base=api_base, field_profile=profile, driver=chosen_driver)
 
 
 def as_units(docs: Iterable[Any]) -> list[CodeUnit]:

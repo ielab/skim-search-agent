@@ -47,7 +47,8 @@ Prompt reconstruction (the task spec's "acceptable simplification": system + que
 compacted transcript, documented here):
 
   `rows.jsonl`'s `trajectory[i]["observation"]` was display-capped to 600 chars for rows written
-  before 2026-09 by `agent_search/legacy/retriever.py::_trajectory_meta`, so it is not usable
+  before 2026-09 by the retriever's `_trajectory_meta` (now `agent_search/evaluation/agent_runner.py`),
+  so it is not usable
   for a faithful replay. The full, uncapped observation for step `i` lives in the row's
   top-level `observations[i]` (same order, same length; see `_trajectory_meta`), and that is
   what this script uses instead. `trajectory[i]["raw_output"]` is already the full raw model
@@ -56,16 +57,17 @@ compacted transcript, documented here):
   Rather than hand-rolling the history-window/truncation logic, this script imports and reuses
   `agent_search.agent.policies.AgentPolicy.build_messages` directly: it rebuilds the row's
   `trajectory`/`observations` into real `agent_search.agent.loop.Step` objects and a real
-  `Task(query=row["question"])`, constructs an `AgentPolicy` with the same `prompt_path`
-  (`row["prompt_profile_path"]`, the condition name, e.g. `"research_indri"`, carried verbatim
-  in every row) and the same `field_profile` (derived from the dataset name found in the
-  condition-dir path via `agent_search.evaluation.datasets.dataset_field_profile`, since the row
-  itself does not carry the profile; see `_infer_field_profile`), then calls
-  `.build_messages(task, steps)`. This is the exact code path that built the system prompt plus
-  the newest-first, whole-(assistant,tool_response)-pair, token-budget-windowed history the
-  model actually saw during the live episode, so the replayed prompt matches the real
-  loop/policies wiring by construction rather than by a parallel reimplementation that could
-  drift from it.
+  `Task(query=row["question"])`, renders the same system prompt the episode used (from
+  `agent_search.strategies.CONDITIONS[row["prompt_profile_path"]]`, the condition name, e.g.
+  `"research_indri"`, carried verbatim in every row, `.render(field_profile)`, with
+  `field_profile` derived from the dataset name found in the condition-dir path via
+  `agent_search.evaluation.datasets.dataset_field_profile`, since the row itself does not carry
+  the profile; see `infer_field_profile`), constructs an `AgentPolicy` with that rendered
+  `system` text, then calls `.build_messages(task, steps)`. This is the exact code path that
+  built the system prompt plus the newest-first, whole-(assistant,tool_response)-pair,
+  token-budget-windowed history the model actually saw during the live episode, so the replayed
+  prompt matches the real loop/policies wiring by construction rather than by a parallel
+  reimplementation that could drift from it.
 
   Context cap: `AgentPolicy`'s own default `ctx_tokens=450_000` (about 128k tokens by its own
   token ruler; see `policies.py`) is already close to the ~120k-token cap this task asks for.
@@ -264,15 +266,17 @@ def reconstruct_messages(row: dict, field_profile: Optional[str],
     trajectory (FULL `observations`, never the 600-char-capped `trajectory[i]['observation']`),
     plus the forced-terminal-elicitation turn appended at the end. Raises KeyError if the row has
     no `prompt_profile_path` (an older/foreign row shape this tool does not support)."""
-    prompt_path = row.get("prompt_profile_path") or (row.get("tool_condition") or "").removeprefix("agent_")
-    if not prompt_path:
+    from agent_search.strategies import CONDITIONS
+    cond_name = row.get("prompt_profile_path") or (row.get("tool_condition") or "").removeprefix("agent_")
+    if not cond_name:
         raise KeyError(f"row {row.get('instance_id')!r} has neither prompt_profile_path nor tool_condition")
     task = Task(task_id=row.get("instance_id") or "q", query=row.get("question") or "")
     steps = _row_to_steps(row)
+    cond = CONDITIONS[cond_name]
+    system = cond.render(field_profile)
     # generate is never called through this policy object, only .build_messages is used, so a
     # stub is fine (and keeps this function import-cheap / offline-safe for --dry-run).
-    policy = AgentPolicy(generate=lambda _msgs: "", prompt_path=prompt_path,
-                         field_profile=field_profile, ctx_tokens=ctx_tokens)
+    policy = AgentPolicy(generate=lambda _msgs: "", system=system, ctx_tokens=ctx_tokens)
     messages = policy.build_messages(task, steps)
     messages.append({"role": "user", "content": f"<tool_response>\n{FORCE_MSG}\n</tool_response>"})
     return messages
@@ -281,7 +285,7 @@ def reconstruct_messages(row: dict, field_profile: Optional[str],
 def _row_to_steps(row: dict) -> list:
     """Real `agent_search.agent.loop.Step` objects from `row['trajectory']`, with each step's
     observation swapped for the FULL, uncapped text in `row['observations']` (same index, same
-    order, see `agent_search/legacy/retriever.py::_trajectory_meta`). Falls back to the capped
+    order, see `agent_search/evaluation/agent_runner.py::_trajectory_meta`). Falls back to the capped
     `trajectory[i]['observation']` only if `observations` is shorter (defensive; should not happen
     on a well-formed row)."""
     traj = row.get("trajectory") or []

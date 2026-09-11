@@ -1,9 +1,11 @@
 """Observation -> card-dict parsers used by the live SSE server (demo/server.py).
 
-Each function parses one workspace observation string, the exact text renderings of
-`DocSearchFetch.search`/`.fetch` (agent_search/legacy/workspaces/sieve.py) and
-`Bm25Visit.search`/`.visit` (agent_search/legacy/workspaces/search_visit.py), into the dict shape the React player's cards render. Parsers are lenient:
-an unparseable observation degrades to a raw-text dict, never a raised exception."""
+Each function parses one tool's observation string, the exact text renderings of the
+`search_s`/`fetch_s` tools (the sieve strategy, `agent_search/tools/search_bql/tool.py` and
+`agent_search/tools/fetch/tool.py`) and the `bm25_search`/`visit` tools (the search_visit
+strategy, `agent_search/tools/search_bm25/tool.py` and `agent_search/tools/visit/tool.py`),
+into the dict shape the React player's cards render. Parsers are lenient: an unparseable
+observation degrades to a raw-text dict, never a raised exception."""
 from __future__ import annotations
 
 import re
@@ -11,15 +13,15 @@ import re
 HIT = re.compile(r"^\s*(\d+)\s+(\S+)\s+'([^']*)'\s+§\[([^\]]*)\]\s+ib\[([^\]]*)\]"
                  r"(?:\s+matched:\s+(\S+))?\s+»\s+(.*)$")
 FETCH = re.compile(r"^\s*\[(\S+)\s+§(.*?)\]\s+(.*)$", re.S)
-# Bm25Visit.search line: "  {rank}  {id}  {title!r}  {snippet}…", {title!r} is Python repr,
+# bm25_search line: "  {rank}  {id}  {title!r}  {snippet}…", {title!r} is Python repr,
 # so both quote styles must match (repr picks double quotes when the title has an apostrophe).
 BM25_HIT = re.compile(r"^\s*(\d+)\s+(\S+)\s+(?:'([^']*)'|\"([^\"]*)\")\s+(.*?)…?\s*$")
-# Bm25Visit.visit header: "{doc_id}  {title!r}:" then the full text on following lines.
+# visit header: "{doc_id}  {title!r}:" then the full text on following lines.
 VISIT = re.compile(r"^(\S+)\s+(?:'([^']*)'|\"([^\"]*)\"):\n(.*)$", re.S)
 
 
 def parse_search(obs: str) -> dict:
-    """DocSearchFetch.search observation -> {compiled, status, hits:[{rank,id,title,sections,
+    """search_s observation -> {compiled, status, hits:[{rank,id,title,sections,
     infobox,matched,snippet}]}, as rendered by demo/server.py."""
     lines = obs.split("\n")
     m = re.match(r"search:\s*(.*?)\s+->\s+(.*?)(?:\s{2,}\((.*)\))?\s*$", lines[0])
@@ -37,8 +39,7 @@ def parse_search(obs: str) -> dict:
 
 
 def parse_fetch(obs: str) -> dict:
-    """DocSearchFetch.fetch observation -> {doc, section, text, error}, as rendered by
-    demo/server.py."""
+    """fetch_s observation -> {doc, section, text, error}, as rendered by demo/server.py."""
     body = obs.split("fetch:", 1)[-1].strip()
     m = FETCH.match(body)
     if not m:
@@ -49,7 +50,7 @@ def parse_fetch(obs: str) -> dict:
 
 
 def parse_bm25_search(obs: str) -> dict:
-    """Bm25Visit.search observation (flat listing, NO structure chips) -> the same hit shape
+    """bm25_search observation (flat listing, NO structure chips) -> the same hit shape
     parse_search emits (sections/infobox empty, matched "") so HitCard renders both."""
     lines = obs.split("\n")
     m = re.match(r"search:\s*(.*?)\s+\((.*?)\)", lines[0])
@@ -66,7 +67,7 @@ def parse_bm25_search(obs: str) -> dict:
 
 
 def parse_visit(obs: str) -> dict:
-    """Bm25Visit.visit observation (whole-document read) -> {doc, title, text, error}."""
+    """visit observation (whole-document read) -> {doc, title, text, error}."""
     if obs.startswith("ERROR"):
         return {"doc": "?", "title": "", "text": obs, "error": True}
     m = VISIT.match(obs)

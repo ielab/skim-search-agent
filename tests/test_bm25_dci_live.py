@@ -1,18 +1,23 @@
-"""Live-retrieval test for `Bm25DciWorkspace` (agent_search.legacy.workspaces.doc_bm25_dci).
+"""Live-retrieval test for the bounded_dci strategy's `bm25_search` tool
+(agent_search.tools.search_bm25_dci) paired with `bash`/`read` over its staging directory.
 
 `bm25_search` retrieves live on every call rather than replaying a ranking fixed at
 construction on the raw episode query: a tool call with a different query string must
 re-rank, so a doc outside the construction-time top-k can still surface. This matches its
-live-retrieval sibling `Bm25Visit`, which re-runs bm25 per call.
+live-retrieval sibling `search_bm25` (agent_search.tools.search_bm25), which re-runs bm25
+per call.
 
-This file builds a small multi-topic corpus where the construction-time query and a later
-in-episode query are deliberately disjoint (near-zero term overlap), so a doc that could only
-ever be found by the later query is a direct probe of whether re-searching changes the
-ranking.
+This file builds a small multi-topic corpus where the construction-time query (the episode
+question, seeded by `on_bind`) and a later in-episode query are deliberately disjoint
+(near-zero term overlap), so a doc that could only ever be found by the later query is a
+direct probe of whether re-searching changes the ranking.
 """
-from agent_search.legacy.workspaces.doc_bm25_dci import Bm25DciWorkspace
 from agent_search.corpus.units import units_from_documents
 from agent_search.retrievers.lexical.bm25 import BM25Local
+from agent_search.tools.bash.tool import Bash
+from agent_search.tools.base import EpisodeState, ToolBox
+from agent_search.tools.read.tool import Read
+from agent_search.tools.search_bm25_dci.tool import SearchBm25Dci
 
 # doc_a is strongly on-topic for the CONSTRUCTION query ("solarflare mission alpha"); doc_b
 # shares NO vocabulary with it at all, so at construction time (topk small) doc_b is reliably
@@ -46,8 +51,12 @@ def _engine():
 
 def _ws(query=QUERY_INIT, topk=3, engine=None):
     units = _units()
-    return Bm25DciWorkspace(units, query, engine=engine or _engine(),
-                            ubyid={u.doc_id: u for u in units}, topk=topk)
+    ubyid = {u.doc_id: u for u in units}
+    state = EpisodeState(question=query)
+    search = SearchBm25Dci(topk=topk).bind(state, units, ubyid, {"bm25": engine or _engine()})
+    bash = Bash(bounded=True).bind(state, units, ubyid, {})
+    read = Read().bind(state, units, ubyid, {})
+    return ToolBox([search, bash, read], state)
 
 
 # --- 1. live retrieval: a later query genuinely re-retrieves ------------------
@@ -60,7 +69,7 @@ def test_construction_query_does_not_surface_doc_b():
 def test_later_search_surfaces_doc_b_the_one_shot_bug_could_not():
     ws = _ws(topk=3)
     assert "doc_b" not in ws.last_hits          # sanity: not present before the later search
-    out = ws.search(QUERY_LATER)
+    out = ws.run("bm25_search", {"query": QUERY_LATER})
     assert "doc_b" in out
     assert "doc_b" in ws.last_hits               # last_hits reflects the NEW ranking, live
 
@@ -68,26 +77,31 @@ def test_later_search_surfaces_doc_b_the_one_shot_bug_could_not():
 def test_last_hits_reflects_new_ranking_not_the_old_one():
     ws = _ws(topk=3)
     initial_hits = list(ws.last_hits)
-    ws.search(QUERY_LATER)
+    ws.run("bm25_search", {"query": QUERY_LATER})
     assert ws.last_hits != initial_hits
     assert "doc_a" not in ws.last_hits or ws.last_hits != initial_hits
 
 
 # --- 2. incremental staging: newly-surfaced docs land on disk immediately ----
 
+def _rel_to_doc(ws):
+    return ws.state.scratch["dci_rel_to_doc"]
+
+
 def test_doc_b_file_exists_and_is_readable_after_later_search():
     ws = _ws(topk=3)
-    ws.search(QUERY_LATER)
-    assert "doc_b" in ws._rel_to_doc.values()
-    rel = [r for r, d in ws._rel_to_doc.items() if d == "doc_b"][0]
-    out = ws.read(rel)
+    ws.run("bm25_search", {"query": QUERY_LATER})
+    rel_to_doc = _rel_to_doc(ws)
+    assert "doc_b" in rel_to_doc.values()
+    rel = [r for r, d in rel_to_doc.items() if d == "doc_b"][0]
+    out = ws.run("read", {"path": rel})
     assert "gizmo" in out.lower()
 
 
 def test_doc_b_is_greppable_via_bash_after_later_search():
     ws = _ws(topk=3)
-    ws.search(QUERY_LATER)
-    out = ws.bash("grep -rl 'gizmo' .")
+    ws.run("bm25_search", {"query": QUERY_LATER})
+    out = ws.run("bash", {"command": "grep -rl 'gizmo' ."})
     assert ".txt" in out
 
 
@@ -104,10 +118,11 @@ def test_initial_docs_stay_staged_and_readable_after_later_search():
     ws = _ws(topk=3)
     initial_hits = list(ws.last_hits)
     assert initial_hits, "construction query should have staged at least one doc"
-    ws.search(QUERY_LATER)                       # a DIFFERENT search happens afterward
+    ws.run("bm25_search", {"query": QUERY_LATER})    # a DIFFERENT search happens afterward
+    rel_to_doc = _rel_to_doc(ws)
     for doc_id in initial_hits:
-        rel = [r for r, d in ws._rel_to_doc.items() if d == doc_id][0]
-        out = ws.read(rel)
+        rel = [r for r, d in rel_to_doc.items() if d == doc_id][0]
+        out = ws.run("read", {"path": rel})
         assert not out.startswith("Error")
 
 
@@ -117,7 +132,7 @@ def test_zero_match_query_is_reported_with_query_text():
     # a query built entirely from tokens absent from every doc's vocabulary scores 0 for
     # everything (bm25's `score > 0` filter), so this must report "(0 matches)", not an error.
     ws = _ws(topk=3)
-    out = ws.search("zzz_nonexistent_token_qqq")
+    out = ws.run("bm25_search", {"query": "zzz_nonexistent_token_qqq"})
     assert "0 matches" in out
 
 
@@ -127,7 +142,7 @@ def test_seen_accumulates_across_init_and_later_search():
     ws = _ws(topk=3)
     init_hits = set(ws.last_hits)
     assert init_hits <= set(ws.seen)
-    ws.search(QUERY_LATER)
+    ws.run("bm25_search", {"query": QUERY_LATER})
     assert "doc_b" in ws.seen
     # both the construction-time hits AND the later hit are present simultaneously
     assert init_hits <= set(ws.seen)
@@ -138,8 +153,9 @@ def test_seen_accumulates_across_init_and_later_search():
 
 def test_doc_never_searched_for_is_not_staged():
     ws = _ws(topk=3)
-    ws.search(QUERY_LATER)
+    ws.run("bm25_search", {"query": QUERY_LATER})
     # doc_filler19 shares vocabulary with neither query and was never in any top-k
-    assert "doc_filler19" not in ws._rel_to_doc.values()
-    out = ws.bash("grep -rl 'filler19' .")
+    rel_to_doc = _rel_to_doc(ws)
+    assert "doc_filler19" not in rel_to_doc.values()
+    out = ws.run("bash", {"command": "grep -rl 'filler19' ."})
     assert "no matches found" in out or ".txt" not in out

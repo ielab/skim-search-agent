@@ -28,10 +28,10 @@ from typing import Literal
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent))
 
-DEFAULT_SNIPPET_TOKENS = 32   # mirrors agent_search.legacy.workspaces.budgets.SNIPPET_TOKENS
+DEFAULT_SNIPPET_TOKENS = 32   # mirrors agent_search.tools.budgets.SNIPPET_TOKENS
 
 # THE PAPER'S READ BUDGET. Both caps are read at IMPORT time by
-# agent_search/legacy/workspaces/budgets.py, so they must be set BEFORE that import below.
+# agent_search/tools/budgets.py, so they must be set BEFORE that import below.
 # The library default is 1200 tokens; the paper runs 12,000. That difference is not cosmetic
 # for this demo: it is the baseline's whole-document `visit` budget, so leaving it at 1200
 # silently truncated Search-Visit's reads ~10x and made the expensive-baseline contrast, the
@@ -50,11 +50,11 @@ from pydantic import BaseModel, Field                          # noqa: E402
 
 from agent_search.agent.loop import Task, run_episode          # noqa: E402
 from agent_search.agent.policies import AgentPolicy            # noqa: E402
-from agent_search.legacy.workspaces.search_visit import Bm25Visit
-from agent_search.legacy.workspaces.sieve import DocSearchFetch  # noqa: E402
 from agent_search.core.tokens import count_tokens               # noqa: E402
 import agent_search.models as backends                       # noqa: E402
-from agent_search.legacy.prompts import get_prompt_spec               # noqa: E402
+from agent_search.retrievers.engines import Engines             # noqa: E402
+from agent_search.strategies.conditions import get_condition   # noqa: E402
+from agent_search.tools.base import EpisodeState                # noqa: E402
 from demo.corpus import CORPUS, QUESTIONS                      # noqa: E402
 from demo.parse import (parse_bm25_search, parse_fetch,        # noqa: E402
                         parse_search, parse_visit)
@@ -137,10 +137,11 @@ sentence.
 """
 
 STRATEGIES = {
-    # name -> (workspace builder, prompt condition). The condition fixes the tool names the
-    # model calls (search_s/fetch_s vs bm25_search/visit), see conditions.yaml.
-    "sieve": (lambda: DocSearchFetch(CORPUS, snippets=True), "research_snip"),
-    "search_visit": (lambda: Bm25Visit(CORPUS), "research_bm25"),
+    # name -> the paper condition (a task with a strategy, agent_search/strategies/paper.py).
+    # The condition fixes the tool names the model calls: search_s/fetch_s for sieve,
+    # bm25_search/visit for search_visit.
+    "sieve": "research_snip",
+    "search_visit": "research_bm25",
 }
 
 
@@ -209,7 +210,7 @@ def _step_payload(step) -> dict:
         return {"type": "visit", **parse_visit(obs)}
     # submit/answer/stop/budget/none/... -> the frontend's generic fallback renderer. The full
     # observation is sent uncapped: the real read caps live in
-    # agent_search/legacy/workspaces/budgets.py's token budgets, not here.
+    # agent_search/tools/budgets.py's token budgets, not here.
     return {"type": "generic", "name": name, "observation": obs}
 
 
@@ -218,8 +219,13 @@ def _run_strategy(strategy: str, req: RunRequest, out: queue.Queue) -> None:
     `_finished` sentinel so the SSE generator can never wait forever."""
     try:
         backends.reset_usage()
-        build_ws, condition = STRATEGIES[strategy]
-        workspace = build_ws()
+        cond = get_condition(STRATEGIES[strategy])
+        # a fresh in-memory engine per request (no index_root persistence): the demo corpus
+        # is ~250 documents, cheap to index on the spot.
+        engines = Engines(CORPUS, None, index_root="indexes", domain=cond.domain)
+        engine_map = engines.build(cond.strategy.engines)
+        ubyid = {u.doc_id: u for u in CORPUS}
+        workspace = cond.strategy.toolbox(EpisodeState(question=req.question), CORPUS, ubyid, engine_map)
         # api_base pinned: even a model name make_generate doesn't recognise (custom
         # fine-tunes, new releases) goes to OpenAI's endpoint with the user's key, never
         # to the localhost fallback that api_base would otherwise default to.
@@ -232,8 +238,7 @@ def _run_strategy(strategy: str, req: RunRequest, out: queue.Queue) -> None:
         # the SECTIONED build (doc 51481 has 37 named sections), so that manual made every
         # fetch fail with "no section 'body'". `wiki` (skills/bql_doc.md) is the named-section
         # variant: "fetch a named section ... a name from that doc's list".
-        policy = AgentPolicy(generate, prompt_path=get_prompt_spec(condition).path,
-                             field_profile="wiki")
+        policy = AgentPolicy(generate, system=cond.render("wiki"))
         policy.system += CORPUS_NOTE
         steps_seen = {"n": 0}
         # Document text pulled into context, the axis the two strategies actually differ on (a

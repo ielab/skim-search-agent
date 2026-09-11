@@ -14,8 +14,8 @@ _DATA = json.loads((Path(__file__).resolve().parent / "corpus_data.json").read_t
 
 
 def _unit(d: dict) -> CodeUnit:
-    # the body is derived from the sections (## markers are what DocSearchFetch/Bm25Visit
-    # and the demo UIs use as section boundaries), the JSON stores each doc only once
+    # the body is derived from the sections (## markers are what the search_bql/search_bm25
+    # tools and the demo UIs use as section boundaries), the JSON stores each doc only once
     body = d.get("body") or "\n".join(f"## {h}\n{t}" for h, t in d["sections"])
     return CodeUnit(doc_id=d["_id"], path=f"{d['_id']}.md", qualname=d["_id"],
                     start_line=1, end_line=1, code=body, body=body,

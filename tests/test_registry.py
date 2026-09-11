@@ -1,8 +1,8 @@
-"""The retriever registry and prompt auto-discovery: the extension points.
+"""The retriever registry and condition discovery: the extension points.
 
 These pin the contract that adding a method/condition needs no harness edit: a
-builder registered with @register becomes selectable, and a YAML prompt profile
-dropped on disk becomes resolvable, without touching evaluation/ or this registry.
+builder registered with @register becomes selectable, and a condition declared in
+`agent_search.strategies` becomes resolvable, without touching evaluation/ or this registry.
 """
 import sys
 
@@ -156,27 +156,24 @@ def test_plugin_env_var_unknown_module_warns_but_does_not_crash_discovery(monkey
     assert "no_such_plugin_module_at_all" in capsys.readouterr().err
 
 
-# --- prompt auto-discovery ---------------------------------------------------
+# --- condition discovery ------------------------------------------------------
 
-def test_prompt_profiles_discovered_from_disk():
-    from agent_search.legacy.prompts import DOMAINS, get_prompt_spec
-    assert {"general"} <= set(DOMAINS)
+def test_condition_names_are_discoverable():
+    from agent_search.strategies import CONDITIONS
+    domains = {c.domain for c in CONDITIONS.values()}
+    assert {"general"} <= domains
     for name in ("research_snip", "research_bm25", "research_dci"):
-        spec = get_prompt_spec(name)
-        # path is now the condition name (loader composes task x toolset from it)
-        assert spec.name == name and spec.path == name
+        assert name in CONDITIONS and CONDITIONS[name].name == name
 
 
-def test_every_discovered_profile_loads_and_renders():
-    from agent_search.legacy.prompts import load_prompt_profile
-    from agent_search.legacy.prompts.registry import PROMPTS
-    for domain_specs in PROMPTS.values():           # every domain, not just "code"
-        for spec in domain_specs.values():
-            prof = load_prompt_profile(spec.path)
-            assert prof.system.strip(), f"{spec.name} renders an empty system prompt"
+def test_every_condition_loads_and_renders():
+    from agent_search.strategies import CONDITIONS
+    for cond in CONDITIONS.values():           # every domain, not just "code"
+        system = cond.render()
+        assert system.strip(), f"{cond.name} renders an empty system prompt"
 
 
-def test_unknown_prompt_profile_raises():
-    from agent_search.legacy.prompts import get_prompt_spec
+def test_unknown_condition_raises():
+    from agent_search.strategies import get_condition
     with pytest.raises(ValueError):
-        get_prompt_spec("__nope__")
+        get_condition("__nope__")

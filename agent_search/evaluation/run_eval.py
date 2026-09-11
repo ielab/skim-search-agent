@@ -145,7 +145,8 @@ def main() -> None:
                          "Each seed is a SEPARATE run dir (seed=<N>); pass e.g. '0,1,2' if you ever "
                          "want a seed-to-seed variance band. Ignored for deterministic floors.")
     ap.add_argument("--prompt-profile", dest="prompt_profile", default=None,
-                    help="override the YAML prompt profile or legacy markdown prompt "
+                    help="override the condition's task: a registered task name, a registered "
+                         "condition's task, or a template file (front matter + body) "
                          "(operator-ablation variants)")
     ap.add_argument("--backend", default="vllm", choices=["vllm", "api"],
                     help="LLM backend: in-process vLLM on the GPU node (no server), "

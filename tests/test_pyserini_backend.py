@@ -20,8 +20,8 @@ Covers the four things "make pyserini a selectable bm25 engine" needs pinned:
                      point of having two engines) or disagree completely (something broke)
                      is caught.
   2. selection       env BM25_BACKEND resolves to the right engine class, both at the shared
-                     `build_bm25_engine` helper and through `agent_search.legacy.retriever`'s
-                     real per-episode construction path.
+                     `build_bm25_engine` helper and through `ConditionAgent`'s real
+                     per-episode construction path (agent_search.evaluation.agent_runner).
   3. offline safety  BM25Pyserini.search() makes no network call (a local Lucene index read
                      only), verified by blocking socket creation during a real search, and by
                      importing the module in a subprocess with no `OPENAI_API_KEY` set (the
@@ -67,12 +67,32 @@ def _jvm_available() -> bool:
 if not _jvm_available():
     pytest.skip("no working JVM — BM25_BACKEND=pyserini needs Java 11+", allow_module_level=True)
 
-from agent_search.legacy.retriever import AgentRetriever
-from agent_search.legacy.workspaces.search_visit import Bm25Visit
 from agent_search.corpus.units import units_from_documents
+from agent_search.evaluation.agent_runner import ConditionAgent
 from agent_search.retrievers.lexical import build_bm25_engine
 from agent_search.retrievers.lexical.bm25 import BM25Local
 from agent_search.retrievers.lexical.pyserini import BM25Pyserini
+from agent_search.strategies.base import STRATEGIES
+from agent_search.strategies.conditions import Condition
+from agent_search.tasks.base import TASKS
+from agent_search.tools.base import EpisodeState, ToolBox
+from agent_search.tools.search_bm25.tool import SearchBm25
+from agent_search.tools.visit.tool import Visit
+
+
+def _cond(strategy_name: str) -> Condition:
+    """An ad-hoc research condition over a registered strategy, without touching the global
+    `CONDITIONS` registry (`ConditionAgent` accepts a `Condition` object directly)."""
+    return Condition(name=strategy_name, task=TASKS["research"], strategy=STRATEGIES[strategy_name])
+
+
+def _bm25_visit_toolbox(units, engine):
+    """`bm25_search`/`visit`: the plain search-then-visit tool pair, bound directly to `engine`."""
+    state = EpisodeState(question="q")
+    ubyid = {u.doc_id: u for u in units}
+    search = SearchBm25(name="bm25_search").bind(state, units, ubyid, {"bm25": engine})
+    visit = Visit(name="visit").bind(state, units, ubyid, {})
+    return ToolBox([search, visit], state)
 
 
 # --- a small, deterministic corpus reproducing the browsecomp_plus divergence mechanism -------
@@ -241,29 +261,29 @@ def test_build_bm25_engine_unknown_backend_raises(monkeypatch):
         build_bm25_engine(units)
 
 
-@pytest.mark.parametrize("toolset", [
-    ("bm25_search", "visit"),          # bm25 arm
-    ("bm25_search", "fetch"),          # bm25fetch arm
-    ("bm25q_search", "visit_q"),       # bm25q arm
-    ("bm25_search_snip", "fetch"),     # bm25fetchsnip arm
+@pytest.mark.parametrize("strategy_name", [
+    "search_visit",              # bm25 arm
+    "search_fetch_bm25_plain",   # bm25fetch arm
+    "search_visit_snippets",     # bm25q arm
+    "search_fetch",              # bm25fetchsnip arm
 ])
-def test_agent_retriever_bm25_family_arms_respect_backend_local(toolset):
-    """The real per-episode construction site (agent_search.legacy.retriever) — every
-    bm25-family arm's `self._bm25` is BM25Local when BM25_BACKEND is unset/local, whatever the
-    specific arm (bm25/bm25fetch/bm25q/bm25fetchsnip all funnel through the SAME
-    `_build_bm25_engine` call in AgentRetriever.index())."""
+def test_condition_agent_bm25_family_arms_respect_backend_local(strategy_name):
+    """The real per-episode construction site (`ConditionAgent.index()`,
+    agent_search.evaluation.agent_runner) — every bm25-family arm's `bm25` engine is BM25Local
+    when BM25_BACKEND is unset/local, whatever the specific arm (bm25/bm25fetch/bm25q/
+    bm25fetchsnip all funnel through the SAME `build_bm25_engine` call via `Engines`)."""
     os.environ.pop("BM25_BACKEND", None)
     units = units_from_documents([{"_id": "d1", "title": "T", "text": "hello world"}])
-    r = AgentRetriever(policy_factory=lambda: None, toolset=toolset, domain="general").index(units)
-    assert isinstance(r._bm25, BM25Local)
+    r = ConditionAgent(_cond(strategy_name), lambda: None).index(units)
+    assert isinstance(r.engines.get("bm25"), BM25Local)
 
 
-def test_agent_retriever_bm25_arm_respects_backend_pyserini(engines, monkeypatch):
+def test_condition_agent_bm25_arm_respects_backend_pyserini(engines, monkeypatch):
     units, _ubyid, _local, _pys, index_root = engines
     monkeypatch.setenv("BM25_BACKEND", "pyserini")
-    r = AgentRetriever(policy_factory=lambda: None, toolset=("bm25_search", "visit"),
-                       domain="general", index_root=index_root).index(units, key=_AGREEMENT_CORPUS_KEY)
-    assert isinstance(r._bm25, BM25Pyserini)
+    r = ConditionAgent(_cond("search_visit"), lambda: None,
+                       index_root=index_root).index(units, key=_AGREEMENT_CORPUS_KEY)
+    assert isinstance(r.engines.get("bm25"), BM25Pyserini)
 
 
 # --- 3. offline safety: no network call during search() -----------------------------------------
@@ -317,8 +337,8 @@ def test_listing_shape_is_identical_across_backends(engines):
     units, ubyid, local, pys, _root = engines
     query = "climbing Kestrel Valley"
 
-    local_out = Bm25Visit(units, engine=local, ubyid=ubyid).search(query, k=5)
-    pys_out = Bm25Visit(units, engine=pys, ubyid=ubyid).search(query, k=5)
+    local_out = _bm25_visit_toolbox(units, local).run("bm25_search", {"query": query})
+    pys_out = _bm25_visit_toolbox(units, pys).run("bm25_search", {"query": query})
 
     assert _LISTING_RE.match(local_out), f"local listing didn't match the expected shape:\n{local_out}"
     assert _LISTING_RE.match(pys_out), f"pyserini listing didn't match the expected shape:\n{pys_out}"
@@ -336,22 +356,22 @@ def test_listing_ranks_are_1_indexed_and_sequential_for_both_backends(engines):
     units, ubyid, local, pys, _root = engines
     query = "climbing Kestrel Valley"
     for engine in (local, pys):
-        ws = Bm25Visit(units, engine=engine, ubyid=ubyid)
-        out = ws.search(query, k=5)
+        ws = _bm25_visit_toolbox(units, engine)
+        out = ws.run("bm25_search", {"query": query})
         ranks = [int(m.group(1)) for m in re.finditer(r"^  (\d+)  ", out, re.MULTILINE)]
         assert ranks == list(range(1, len(ranks) + 1))
 
 
 def test_visit_whole_doc_read_works_for_both_backends(engines):
-    """The read side (`visit`) is engine-agnostic by construction (it never touches `self.bm`),
-    but confirm end to end: a doc surfaced by EITHER engine's search is visitable."""
+    """The read side (`visit`) is engine-agnostic by construction (it never touches the bm25
+    engine), but confirm end to end: a doc surfaced by EITHER engine's search is visitable."""
     units, ubyid, local, pys, _root = engines
     query = "climbing Kestrel Valley"
     for engine in (local, pys):
-        ws = Bm25Visit(units, engine=engine, ubyid=ubyid)
-        ws.search(query, k=5)
+        ws = _bm25_visit_toolbox(units, engine)
+        ws.run("bm25_search", {"query": query})
         assert ws.last_hits
-        out = ws.visit(1)
+        out = ws.run("visit", {"rank": 1})
         assert not out.startswith("ERROR")
 
 

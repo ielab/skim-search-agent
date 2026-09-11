@@ -6,10 +6,13 @@ from types import SimpleNamespace
 from agent_search.agent.loop import Step, Task, run_episode
 from agent_search.agent.policies import AgentPolicy
 from agent_search.core.tokens import count_tokens
-from agent_search.legacy.workspaces.code_fix import CodeFixWorkspace
-from agent_search.legacy.prompts import get_prompt_spec
 from agent_search.retrievers.bql.executor import StructuralExecutor, execute_bql
 from agent_search.corpus.units import units_from_python_source
+from agent_search.strategies import CONDITIONS
+from agent_search.tools.base import EpisodeState, ToolBox
+from agent_search.tools.fetch_code.tool import FetchCode, SearchCode
+
+RESEARCH_SNIP_SYSTEM = CONDITIONS["research_snip"].render()
 
 SRC = ("def make_token(user):\n    return str(user)\n"
        "def create_session_token(user):\n    return make_token(user)\n")
@@ -56,7 +59,12 @@ def test_execute_bql_n_hits_is_untruncated_total():
 def _fixws():
     units = _units()
     files = {"a.py": SRC}
-    return CodeFixWorkspace(units, files), units
+    ubyid = {u.doc_id: u for u in units}
+    ex = StructuralExecutor(units).prewarm()
+    state = EpisodeState(question="q")
+    sc = SearchCode(name="search").bind(state, units, ubyid, {"bql_plain": ex}, files=files)
+    fc = FetchCode(name="fetch").bind(state, units, ubyid, {}, files=files)
+    return ToolBox([sc, fc], state), units
 
 
 def test_run_episode_search_fetch_fix_terminates():
@@ -107,7 +115,7 @@ def test_agent_policy_uses_prompt_profile_and_fake_model():
         seen["messages"] = messages
         return '<tool_call>{"name":"search","arguments":{"query":"make_token[def]"}}</tool_call>'
 
-    p = AgentPolicy(generate=fake_generate, prompt_path=get_prompt_spec("research_snip").path)
+    p = AgentPolicy(generate=fake_generate, system=RESEARCH_SNIP_SYSTEM)
     out = p.propose(Task("t", "find the bug"), [])
     assert "search" in out
     sysmsg = seen["messages"][0]["content"].lower()
@@ -116,8 +124,7 @@ def test_agent_policy_uses_prompt_profile_and_fake_model():
 
 
 def test_agent_policy_history_is_alternating_messages():
-    p = AgentPolicy(generate=lambda m: "<answer></answer>",
-                    prompt_path=get_prompt_spec("research_snip").path)
+    p = AgentPolicy(generate=lambda m: "<answer></answer>", system=RESEARCH_SNIP_SYSTEM)
     hist = [Step(name="search", args={"query": "x[title]"}, observation="3 matches",
                  raw_output='<tool_call>{"name":"search","arguments":{"query":"x[title]"}}</tool_call>')]
     msgs = p.build_messages(Task("t", "q"), hist)
@@ -165,7 +172,7 @@ def test_run_episode_nudge_compliance_tags_elicitation_nudge():
             return '<tool_call>{"name":"search","arguments":{"query":"x"}}</tool_call>'
         return "<answer>Paris</answer>"
 
-    policy = AgentPolicy(generate=fake_generate, prompt_path=get_prompt_spec("research_snip").path)
+    policy = AgentPolicy(generate=fake_generate, system=RESEARCH_SNIP_SYSTEM)
     traj = run_episode(policy, Task("t", "capital of France?"), _AnyToolWS(), units=[],
                        max_steps=3, domain="general")
     assert traj.stopped_reason == "answer"
@@ -183,7 +190,7 @@ def test_run_episode_ignored_nudge_triggers_inline_prefill_and_fills_answer():
     fake_generate.client = _fake_client(["Paris"])
     fake_generate.model = "m"
 
-    policy = AgentPolicy(generate=fake_generate, prompt_path=get_prompt_spec("research_snip").path)
+    policy = AgentPolicy(generate=fake_generate, system=RESEARCH_SNIP_SYSTEM)
     traj = run_episode(policy, Task("t", "capital of France?"), _AnyToolWS(), units=[],
                        max_steps=3, domain="general")
     assert traj.stopped_reason == "max_steps"        # the underlying episode outcome is unchanged
@@ -206,7 +213,7 @@ def test_run_episode_inline_elicitation_message_list_matches_live_build_messages
     fake_generate.client = _fake_client(["Paris"])
     fake_generate.model = "m"
 
-    policy = AgentPolicy(generate=fake_generate, prompt_path=get_prompt_spec("research_snip").path)
+    policy = AgentPolicy(generate=fake_generate, system=RESEARCH_SNIP_SYSTEM)
     run_episode(policy, Task("t", "capital of France?"), _AnyToolWS(), units=[],
                max_steps=3, domain="general")
     sent = fake_generate.client._calls[0]["messages"][:-1]   # strip the "<answer>" prefill turn
@@ -221,7 +228,7 @@ def test_run_episode_prefill_failure_is_tagged_not_crashed():
     def fake_generate(messages):
         return '<tool_call>{"name":"search","arguments":{"query":"x"}}</tool_call>'
 
-    policy = AgentPolicy(generate=fake_generate, prompt_path=get_prompt_spec("research_snip").path)
+    policy = AgentPolicy(generate=fake_generate, system=RESEARCH_SNIP_SYSTEM)
     traj = run_episode(policy, Task("t", "q"), _AnyToolWS(), units=[], max_steps=3, domain="general")
     assert traj.stopped_reason == "max_steps"
     assert traj.final_answer == ""
@@ -240,7 +247,7 @@ def test_run_episode_prefill_call_exception_is_tagged_not_crashed():
         chat=SimpleNamespace(completions=SimpleNamespace(create=_boom)))
     fake_generate.model = "m"
 
-    policy = AgentPolicy(generate=fake_generate, prompt_path=get_prompt_spec("research_snip").path)
+    policy = AgentPolicy(generate=fake_generate, system=RESEARCH_SNIP_SYSTEM)
     traj = run_episode(policy, Task("t", "q"), _AnyToolWS(), units=[], max_steps=3, domain="general")
     assert traj.final_answer == ""
     assert traj.elicitation == "prefill_failed"
@@ -255,7 +262,7 @@ def test_run_episode_code_domain_never_tags_elicitation():
     fake_generate.client = _fake_client(["should never be called"])
     fake_generate.model = "m"
 
-    policy = AgentPolicy(generate=fake_generate, prompt_path=get_prompt_spec("research_snip").path)
+    policy = AgentPolicy(generate=fake_generate, system=RESEARCH_SNIP_SYSTEM)
     traj = run_episode(policy, Task("t", "q"), _AnyToolWS(), units=[], max_steps=3, domain="code")
     assert traj.elicitation is None
     assert not fake_generate.client._calls           # the inline elicitation never fired at all
@@ -267,7 +274,7 @@ def test_run_episode_organic_answer_before_budget_has_no_elicitation_tag():
     def fake_generate(messages):
         return "<answer>Paris</answer>"
 
-    policy = AgentPolicy(generate=fake_generate, prompt_path=get_prompt_spec("research_snip").path)
+    policy = AgentPolicy(generate=fake_generate, system=RESEARCH_SNIP_SYSTEM)
     traj = run_episode(policy, Task("t", "q"), _AnyToolWS(), units=[], max_steps=10, domain="general")
     assert traj.stopped_reason == "answer"
     assert traj.final_answer == "Paris"
@@ -276,7 +283,7 @@ def test_run_episode_organic_answer_before_budget_has_no_elicitation_tag():
 
 # --- inline elicitation context-overflow shrink-retry (the DCI live-job bug) --------------------
 #
-# `agent_search/legacy/retriever.py`'s live loop-driver wiring is exactly `fake_generate.client`/
+# The condition agent's live loop-driver wiring is exactly `fake_generate.client`/
 # `fake_generate.model` attached to `AgentPolicy.generate`, same as `openai_compat_generate`
 # (agent_search/models/openai_chat.py) does for real. `_elicit_inline` (agent_search/agent/loop.py)
 # used to call `elicit_final_answer` ONCE at the policy's full, unshrunk `ctx_tokens` and let its
@@ -335,7 +342,7 @@ def test_run_episode_inline_elicitation_shrinks_on_context_overflow_then_recover
     fake_generate.client = client
     fake_generate.model = "m"
 
-    policy = AgentPolicy(generate=fake_generate, prompt_path=get_prompt_spec("research_snip").path,
+    policy = AgentPolicy(generate=fake_generate, system=RESEARCH_SNIP_SYSTEM,
                          ctx_tokens=20_000)
     traj = run_episode(policy, Task("t", "q"), _BigObsWS(), units=[], max_steps=15, domain="general")
 
@@ -364,7 +371,7 @@ def test_run_episode_inline_elicitation_all_shrinks_still_overflow_stays_prefill
     fake_generate.client = client
     fake_generate.model = "m"
 
-    policy = AgentPolicy(generate=fake_generate, prompt_path=get_prompt_spec("research_snip").path,
+    policy = AgentPolicy(generate=fake_generate, system=RESEARCH_SNIP_SYSTEM,
                          ctx_tokens=20_000)
     traj = run_episode(policy, Task("t", "q"), _BigObsWS(), units=[], max_steps=15, domain="general")
 
@@ -418,7 +425,7 @@ def test_run_episode_ctx_budget_early_stop_triggers_elicitation_before_max_steps
     fake_generate.client = _fake_client(["Paris"])
     fake_generate.model = "m"
 
-    policy = AgentPolicy(generate=fake_generate, prompt_path=get_prompt_spec("research_snip").path)
+    policy = AgentPolicy(generate=fake_generate, system=RESEARCH_SNIP_SYSTEM)
     traj = run_episode(policy, Task("t", "capital of France?"), _AnyToolWS(), units=[],
                        max_steps=20, usage_fn=usage_fn, domain="general")
 
@@ -443,7 +450,7 @@ def test_run_episode_ctx_budget_subthreshold_behaves_like_max_steps_today():
     fake_generate.client = _fake_client(["Paris"])
     fake_generate.model = "m"
 
-    policy = AgentPolicy(generate=fake_generate, prompt_path=get_prompt_spec("research_snip").path)
+    policy = AgentPolicy(generate=fake_generate, system=RESEARCH_SNIP_SYSTEM)
     traj = run_episode(policy, Task("t", "capital of France?"), _AnyToolWS(), units=[],
                        max_steps=3, usage_fn=usage_fn, domain="general")
 
@@ -466,7 +473,7 @@ def test_run_episode_ctx_stop_frac_ge_1_disables_early_stop(monkeypatch):
     fake_generate.client = _fake_client(["Paris"])
     fake_generate.model = "m"
 
-    policy = AgentPolicy(generate=fake_generate, prompt_path=get_prompt_spec("research_snip").path)
+    policy = AgentPolicy(generate=fake_generate, system=RESEARCH_SNIP_SYSTEM)
     traj = run_episode(policy, Task("t", "capital of France?"), _AnyToolWS(), units=[],
                        max_steps=3, usage_fn=usage_fn, domain="general")
 
@@ -489,7 +496,7 @@ def test_run_episode_ctx_threshold_scales_with_window(monkeypatch):
     fake_generate.client = _fake_client(["Paris"])
     fake_generate.model = "m"
 
-    policy = AgentPolicy(generate=fake_generate, prompt_path=get_prompt_spec("research_snip").path)
+    policy = AgentPolicy(generate=fake_generate, system=RESEARCH_SNIP_SYSTEM)
     traj = run_episode(policy, Task("t", "capital of France?"), _AnyToolWS(), units=[],
                        max_steps=20, usage_fn=usage_fn, domain="general")
     assert traj.stopped_reason == "ctx_budget"
@@ -504,7 +511,7 @@ def test_run_episode_ctx_threshold_scales_with_window(monkeypatch):
     fake_generate2.client = _fake_client(["Paris"])
     fake_generate2.model = "m"
 
-    policy2 = AgentPolicy(generate=fake_generate2, prompt_path=get_prompt_spec("research_snip").path)
+    policy2 = AgentPolicy(generate=fake_generate2, system=RESEARCH_SNIP_SYSTEM)
     traj2 = run_episode(policy2, Task("t", "capital of France?"), _AnyToolWS(), units=[],
                         max_steps=3, usage_fn=usage_fn2, domain="general")
     # the SAME reported values (1_000, 1_900) never approach 0.90*131072 -- no early trigger, so
@@ -524,7 +531,7 @@ def test_run_episode_on_step_fires_once_per_step_with_same_objects():
         return "<answer>Paris</answer>"
 
     seen = []
-    policy = AgentPolicy(generate=fake_generate, prompt_path=get_prompt_spec("research_snip").path)
+    policy = AgentPolicy(generate=fake_generate, system=RESEARCH_SNIP_SYSTEM)
     traj = run_episode(policy, Task("t", "capital of France?"), _AnyToolWS(), units=[],
                        max_steps=5, domain="general", on_step=seen.append)
     assert len(seen) == len(traj.steps)
@@ -539,7 +546,7 @@ def test_run_episode_broken_on_step_never_crashes_episode():
     def boom(step):
         raise RuntimeError("listener died")
 
-    policy = AgentPolicy(generate=fake_generate, prompt_path=get_prompt_spec("research_snip").path)
+    policy = AgentPolicy(generate=fake_generate, system=RESEARCH_SNIP_SYSTEM)
     traj = run_episode(policy, Task("t", "q"), _AnyToolWS(), units=[],
                        max_steps=3, domain="general", on_step=boom)
     assert traj.final_answer == "Paris"

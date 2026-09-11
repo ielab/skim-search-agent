@@ -1,4 +1,5 @@
-"""The deep-research doc ACI: DocSearchFetch (search -> fetch a section) + Bm25Visit baseline.
+"""The deep-research doc ACI: `SearchBql` + `Fetch` (search -> fetch a section) + `SearchBm25` +
+`Visit` baseline.
 
 search(query) returns ranked articles and their section structure, no bodies; fetch([rank,
 section]) pulls a named section (or infobox). Sections are derived live from the body's `##`
@@ -6,10 +7,15 @@ markers. The bm25 baseline is search plus visit-the-whole-doc. Fetch references 
 rank or doc_id/title; an integer doc_id must not be mis-read as a rank."""
 import os
 
-from agent_search.legacy.workspaces.search_visit import Bm25Visit, DenseVisit
-from agent_search.legacy.workspaces.sieve import DocSearchFetch
-from agent_search.legacy.workspaces.common import sections_from_body
 from agent_search.corpus.units import units_from_documents
+from agent_search.retrievers.bql.executor import StructuralExecutor
+from agent_search.retrievers.lexical.bm25 import BM25Local
+from agent_search.tools.base import EpisodeState, ToolBox
+from agent_search.tools.common import sections_from_body
+from agent_search.tools.fetch.tool import Fetch
+from agent_search.tools.search_bql.tool import SearchBql
+from agent_search.tools.search_bm25.tool import SearchBm25
+from agent_search.tools.visit.tool import Visit
 
 # a structured doc (## markers in the body) + a flat doc (no markers), one integer-id doc.
 DOCS = [
@@ -24,8 +30,61 @@ DOCS = [
 ]
 
 
+class _DocToolbox:
+    """Call-shape wrapper over a (search, fetch) `ToolBox`: `.search(query, k)`, `.fetch(specs)`,
+    `.seen`, `.surfaced`, `.run(name, args)` — the same shape `DocSearchFetch` exposed."""
+
+    def __init__(self, docs, **search_opts):
+        units = list(units_from_documents(docs)) if docs and isinstance(docs[0], dict) else list(docs)
+        self.ubyid = {u.doc_id: u for u in units}
+        ex = StructuralExecutor(units).prewarm()
+        state = EpisodeState(question="q")
+        self._search = SearchBql(name="search", **search_opts).bind(state, units, self.ubyid, {"bql": ex})
+        self._fetch = Fetch(name="fetch").bind(state, units, self.ubyid, {})
+        self.box = ToolBox([self._search, self._fetch], state)
+
+    def search(self, query, k=5):
+        return self.box.run("search", {"query": query, "k": k})
+
+    def fetch(self, specs):
+        return self.box.run("fetch", {"specs": specs})
+
+    def run(self, name, args):
+        return self.box.run(name, args)
+
+    @property
+    def seen(self):
+        return self.box.seen
+
+    @property
+    def surfaced(self):
+        return self.box.surfaced
+
+
+class _Bm25VisitToolbox:
+    """Call-shape wrapper over a (bm25_search, visit) `ToolBox`, like `Bm25Visit`."""
+
+    def __init__(self, docs):
+        units = list(units_from_documents(docs)) if docs and isinstance(docs[0], dict) else list(docs)
+        ubyid = {u.doc_id: u for u in units}
+        engine = BM25Local().index(units)
+        state = EpisodeState(question="q")
+        sb = SearchBm25(name="bm25_search").bind(state, units, ubyid, {"bm25": engine})
+        vb = Visit(name="visit").bind(state, units, ubyid, {})
+        self.box = ToolBox([sb, vb], state)
+
+    def search(self, query, k=5):
+        return self.box.run("bm25_search", {"query": query, "k": k})
+
+    def visit(self, rank):
+        return self.box.run("visit", {"rank": rank})
+
+    def run(self, name, args):
+        return self.box.run(name, args)
+
+
 def _ws():
-    return DocSearchFetch(units_from_documents(DOCS))
+    return _DocToolbox(DOCS)
 
 
 # --- sections derived live from ## markers ----------------------------------
@@ -67,7 +126,7 @@ def test_explicit_sections_carry_to_unit_as_matched_pairs():
 
 
 def test_fetch_uses_explicit_matched_section_not_rederived():
-    ws = DocSearchFetch(units_from_documents(MATCHED_DOC))
+    ws = _DocToolbox(MATCHED_DOC)
     ws.search("blue[title]", k=5)
     out = ws.fetch([["d_bt", "Recording"]])
     assert "Cut in 1957 at Van Gelder" in out and "§Recording" in out
@@ -103,7 +162,7 @@ def test_zero_hit_search_preserves_prior_ranking():
 
 def test_bm25_zero_hit_search_preserves_prior_ranking():
     """REGRESSION (baseline parity): a 0-hit bm25 search likewise keeps the prior ranking."""
-    bw = Bm25Visit(units_from_documents(DOCS))
+    bw = _Bm25VisitToolbox(DOCS)
     bw.search("harbor festival annual event", k=5)        # establishes last_hits
     zero = bw.search("zzznotarealword", k=5)
     assert "0 matches" in zero
@@ -173,7 +232,7 @@ def test_surfaced_is_first_seen_order_across_two_searches():
 # --- bm25 baseline: search + visit the whole doc ----------------------------
 
 def test_bm25_search_then_visit_whole_doc():
-    bw = Bm25Visit(units_from_documents(DOCS))
+    bw = _Bm25VisitToolbox(DOCS)
     out = bw.search("harbor festival annual event", k=5)
     assert "d_harbor" in out
     visited = bw.visit(1)
@@ -181,7 +240,7 @@ def test_bm25_search_then_visit_whole_doc():
 
 
 def test_bm25_visit_integer_doc_id_not_mistaken_for_rank():
-    bw = Bm25Visit(units_from_documents(DOCS))
+    bw = _Bm25VisitToolbox(DOCS)
     bw.search("harbor", k=1)
     out = bw.visit("65405")
     assert "integer string" in out and "out of range" not in out
@@ -214,7 +273,7 @@ def test_max_section_tokens_env_resolution_fresh_process():
     import subprocess
     import sys as _sys
 
-    code = ("import agent_search.legacy.workspaces.budgets as m; "
+    code = ("import agent_search.tools.budgets as m; "
             "print(m.MAX_SECTION_TOKENS, m.MAX_VISIT_TOKENS)")
 
     def _run(env_overrides):
@@ -246,8 +305,7 @@ def test_fetch_of_a_long_flat_section_is_not_truncated_at_the_old_180_cap():
     the parity-scale (12000-token) budget must now come back whole, not truncated — otherwise a
     `fetch("")` on a flat doc is silently still a lossy whole-doc read, defeating the fix."""
     long_body = " ".join(f"word{i}" for i in range(300))     # > 180, < 12000
-    ws = DocSearchFetch(units_from_documents(
-        [{"_id": "d_long_flat", "title": "Long Flat Doc", "text": long_body}]))
+    ws = _DocToolbox([{"_id": "d_long_flat", "title": "Long Flat Doc", "text": long_body}])
     ws.search("word0[title]", k=5)
     out = ws.fetch([[1, ""]])
     assert "truncated" not in out
@@ -267,14 +325,14 @@ SERP_DOCS = [{"_id": f"d{i:02d}", "title": f"Common Topic {i}",
 
 
 def _listing_count(out: str) -> int:
-    """Number of listed hits in a Bm25Visit/DenseVisit SERP rendering (lines minus header)."""
+    """Number of listed hits in a SearchBm25/SearchDense SERP rendering (lines minus header)."""
     lines = out.strip().splitlines()
     assert lines and lines[0].startswith("search:"), out
     return len(lines) - 1
 
 
 class _StubDenseEngine:
-    """CPU-only stand-in exposing ONLY what DenseVisit calls (`top_k_doc_ids(query, k)`) —
+    """CPU-only stand-in exposing ONLY what SearchDense calls (`top_k_doc_ids(query, k)`) —
     the same injection pattern test_dense_baseline.py uses; no torch import."""
 
     def __init__(self, ids):
@@ -299,18 +357,27 @@ def test_serp_listing_default_five_and_env_ten_in_a_fresh_process():
     import sys as _sys
 
     code = (
-        "import agent_search.legacy.workspaces.search_visit as m\n"
-        "import agent_search.legacy.workspaces.budgets as b\n"
+        "import agent_search.tools.budgets as b\n"
         "from agent_search.corpus.units import units_from_documents\n"
+        "from agent_search.retrievers.lexical.bm25 import BM25Local\n"
+        "from agent_search.tools.base import EpisodeState, ToolBox\n"
+        "from agent_search.tools.search_bm25.tool import SearchBm25\n"
+        "from agent_search.tools.search_dense.tool import SearchDense\n"
         "docs = [{'_id': f'd{i:02d}', 'title': f'Common Topic {i}',\n"
         "         'text': f'common topic document number {i}'} for i in range(12)]\n"
         "units = units_from_documents(docs)\n"
-        "bm_out = m.Bm25Visit(units).run('bm25_search', {'query': 'common topic'})\n"
+        "ubyid = {u.doc_id: u for u in units}\n"
+        "engine = BM25Local().index(units)\n"
+        "st = EpisodeState(question='q')\n"
+        "sb = SearchBm25(name='bm25_search').bind(st, units, ubyid, {'bm25': engine})\n"
+        "bm_out = ToolBox([sb], st).run('bm25_search', {'query': 'common topic'})\n"
         "class Stub:\n"
         "    def top_k_doc_ids(self, query, k=None):\n"
         "        ids = [u.doc_id for u in units]\n"
         "        return ids[: (k or len(ids))]\n"
-        "d_out = m.DenseVisit(units, engine=Stub()).run('dense_search', {'query': 'common topic'})\n"
+        "st2 = EpisodeState(question='q')\n"
+        "sd = SearchDense(name='dense_search').bind(st2, units, ubyid, {'dense': Stub()})\n"
+        "d_out = ToolBox([sd], st2).run('dense_search', {'query': 'common topic'})\n"
         "print(b.BM25_VISIT_TOPK, b.DENSE_VISIT_TOPK,\n"
         "      len(bm_out.strip().splitlines()) - 1, len(d_out.strip().splitlines()) - 1)\n")
 
@@ -335,8 +402,8 @@ def test_serp_listing_default_five_and_env_ten_in_a_fresh_process():
 def test_bm25_serp_listing_ignores_a_hallucinated_k_arg():
     """tools.yaml's bm25_search schema exposes ONLY `query`; a hallucinated `k` in the model's
     tool-call args must NOT resize the SERP listing — depth is the env knob's alone."""
-    import agent_search.legacy.workspaces.budgets as m
-    bw = Bm25Visit(units_from_documents(SERP_DOCS))
+    import agent_search.tools.budgets as m
+    bw = _Bm25VisitToolbox(SERP_DOCS)
     baseline = _listing_count(bw.run("bm25_search", {"query": "common topic"}))
     assert baseline == m.BM25_VISIT_TOPK          # the resolved knob (5 unless env-overridden)
     assert _listing_count(bw.run("bm25_search", {"query": "common topic", "k": 2})) == baseline
@@ -346,10 +413,16 @@ def test_bm25_serp_listing_ignores_a_hallucinated_k_arg():
 def test_dense_serp_listing_ignores_a_hallucinated_k_arg():
     """The dense twin of the bm25 test above (dense_search's schema likewise exposes only
     `query`; DENSE_VISIT_TOPK alone sets the depth)."""
-    import agent_search.legacy.workspaces.budgets as m
+    import agent_search.tools.budgets as m
+    from agent_search.tools.search_dense.tool import SearchDense
+
     units = units_from_documents(SERP_DOCS)
-    dv = DenseVisit(units, engine=_StubDenseEngine([u.doc_id for u in units]))
-    baseline = _listing_count(dv.run("dense_search", {"query": "common topic"}))
+    ubyid = {u.doc_id: u for u in units}
+    state = EpisodeState(question="q")
+    sd = SearchDense(name="dense_search").bind(
+        state, units, ubyid, {"dense": _StubDenseEngine([u.doc_id for u in units])})
+    box = ToolBox([sd], state)
+    baseline = _listing_count(box.run("dense_search", {"query": "common topic"}))
     assert baseline == m.DENSE_VISIT_TOPK
-    assert _listing_count(dv.run("dense_search", {"query": "common topic", "k": 2})) == baseline
-    assert _listing_count(dv.run("dense_search", {"query": "common topic", "k": 50})) == baseline
+    assert _listing_count(box.run("dense_search", {"query": "common topic", "k": 2})) == baseline
+    assert _listing_count(box.run("dense_search", {"query": "common topic", "k": 50})) == baseline

@@ -7,33 +7,33 @@ and a semantic ranking, so the honest baseline to beat is that fusion.
 Retrieval is Reciprocal Rank Fusion (RRF, k=60, the standard constant) over two independent
 top-`HYBRID_POOL` (100) pools: the pyserini/Lucene canonical BM25 ranking and the FAISS/dense
 ranking (same BAAI/bge-base-en-v1.5 embedder and persisted cache research_dense/research_dense_fetch
-use). `HybridVisit` (agent_search/legacy/workspaces/search_visit.py) mirrors `Bm25Visit`'s
-retrieve-then-visit listing format byte-for-byte (only the ranking differs; `visit`/`_resolve`
-are inherited unchanged); `HybridFetchSnipWorkspace` is its fetch-mode twin, mirroring
-`Bm25FetchSnipWorkspace`'s structure-table-plus-excerpt listing, paired with the same structured
-section-`fetch` read every method/fetch cell uses.
+use). `search_hybrid` (`agent_search/tools/search_hybrid/tool.py`) mirrors `search_bm25`'s
+retrieve-then-visit listing format byte-for-byte (only the ranking differs); with
+`structure=True` it is `search_bm25_snip`'s fetch-mode twin, mirroring its structure-table-
+plus-excerpt listing, paired with the same structured section-`fetch` read every method/fetch
+cell uses.
 
 CPU-only throughout: BM25 is a real (but tiny, in-memory) `BM25Local`; dense is a stub exposing
-only `top_k_doc_ids(query, k)` (the same stub pattern test_dense_baseline.py uses for DenseVisit/
-DenseFetchWorkspace); no torch/sentence-transformers import anywhere in this file."""
+only `top_k_doc_ids(query, k)`; no torch/sentence-transformers import anywhere in this file."""
 from __future__ import annotations
 
 import math
 
 import pytest
 
-from agent_search.legacy.workspaces.search_fetch import Bm25FetchSnipWorkspace, Bm25FetchWorkspace, HybridFetchSnipWorkspace
-from agent_search.legacy.workspaces.search_visit import Bm25Visit, HybridVisit
-from agent_search.legacy.workspaces.sieve import DocSearchFetch
-from agent_search.legacy.workspaces.budgets import RRF_K
-from agent_search.legacy.workspaces.common import rrf_fuse
 from agent_search.corpus.units import units_from_documents
-from agent_search.legacy.prompts import load_condition, render_manuals
 from agent_search.retrievers.lexical.bm25 import BM25Local
 from agent_search.retrievers.registry import RetrieverConfig, build_factory
+from agent_search.tools.base import EpisodeState, ToolBox
+from agent_search.tools.budgets import RRF_K
+from agent_search.tools.common import rrf_fuse
+from agent_search.tools.fetch.tool import Fetch
+from agent_search.tools.search_bm25.tool import SearchBm25
+from agent_search.tools.search_hybrid.tool import SearchHybrid
+from agent_search.tools.visit.tool import Visit
 
-# SAME fixture docs as test_doc_bm25_fetch_tools.py / test_bm25_fetch_snip.py (a structured doc, a
-# flat doc, an off-topic doc) — keeps rendering comparisons directly comparable.
+# SAME fixture docs as the bm25-fetch tool tests (a structured doc, a flat doc, an off-topic
+# doc) — keeps rendering comparisons directly comparable.
 DOCS = [
     {"_id": "d_harbor", "title": "Harbor Festival",
      "text": "Harbor Festival is an annual harbor event.\n\n## History\nFounded in 1897 by A. Smith.\n"
@@ -55,8 +55,7 @@ def _bm25_engine():
 
 
 class _StubDenseEngine:
-    """A CPU-only stand-in for DenseBelief exposing ONLY `top_k_doc_ids(query, k)` — the SAME
-    stub shape test_dense_baseline.py uses for DenseVisit/DenseFetchWorkspace."""
+    """A CPU-only stand-in for DenseBelief exposing ONLY `top_k_doc_ids(query, k)`."""
 
     def __init__(self, ranking):
         self._ranking = ranking
@@ -183,152 +182,156 @@ def test_rrf_k_env_default_is_60():
 
 
 # =============================================================================================
-# 2. HybridVisit (research_hybrid) — mirrors Bm25Visit's retrieve-then-visit shape exactly
+# 2. search_hybrid (research_hybrid) — mirrors the plain search_bm25+visit shape exactly
 # =============================================================================================
 
-def _hybrid_visit(bm25_ranking=("d_harbor",), dense_ranking=()):
-    return HybridVisit(_units(), bm25_engine=_StubBm25Engine(bm25_ranking),
-                       dense_engine=_StubDenseEngine(dense_ranking))
+def _hybrid_visit_box(bm25_ranking=("d_harbor",), dense_ranking=()):
+    units = _units()
+    ubyid = {u.doc_id: u for u in units}
+    state = EpisodeState(question="q")
+    search = SearchHybrid(name="hybrid_search").bind(
+        state, units, ubyid, {"bm25": _StubBm25Engine(bm25_ranking), "dense": _StubDenseEngine(dense_ranking)})
+    visit = Visit(name="visit_h").bind(state, units, ubyid, {})
+    return ToolBox([search, visit], state), search
 
 
 def test_hybridvisit_tools_tuple():
-    assert HybridVisit.tools == ("hybrid_search", "visit_h")
-
-
-def test_hybridvisit_is_a_bm25visit_subclass_reusing_visit_and_resolve_verbatim():
-    """visit()/_resolve() are INHERITED from Bm25Visit unchanged — only search()/run()/__init__/
-    tools differ (the fused retrieval)."""
-    assert issubclass(HybridVisit, Bm25Visit)
-    assert HybridVisit.visit is Bm25Visit.visit
-    assert HybridVisit._resolve is Bm25Visit._resolve
+    box, _ = _hybrid_visit_box()
+    assert box.tools == ("hybrid_search", "visit_h")
 
 
 def test_hybridvisit_both_rankers_are_consulted_at_the_hybrid_pool_depth():
     bm25 = _StubBm25Engine(("d_harbor", "d_flat"))
     dense = _StubDenseEngine(("d_flat", "d_outside"))
-    ws = HybridVisit(_units(), bm25_engine=bm25, dense_engine=dense)
-    ws.run("hybrid_search", {"query": "harbor festival", "k": 5})
-    assert bm25.calls == [("harbor festival", ws.pool)]
-    assert dense.calls == [("harbor festival", ws.pool)]
-    assert ws.pool == 100                          # HYBRID_POOL default
+    units = _units()
+    ubyid = {u.doc_id: u for u in units}
+    state = EpisodeState(question="q")
+    search = SearchHybrid(name="hybrid_search").bind(state, units, ubyid, {"bm25": bm25, "dense": dense})
+    search.run({"query": "harbor festival", "k": 5})
+    assert bm25.calls == [("harbor festival", search.pool)]
+    assert dense.calls == [("harbor festival", search.pool)]
+    assert search.pool == 100                          # HYBRID_POOL default
 
 
 def test_hybridvisit_fuses_both_rankers_not_just_one():
     """A doc found ONLY by dense (never by bm25) must still surface — proof both rankers
     actually feed the final ranking, not just bm25 with dense along for the ride."""
-    bm25 = _StubBm25Engine(("d_harbor",))
-    dense = _StubDenseEngine(("d_outside",))
-    ws = HybridVisit(_units(), bm25_engine=bm25, dense_engine=dense)
-    ws.run("hybrid_search", {"query": "q", "k": 5})
-    assert set(ws.last_hits) == {"d_harbor", "d_outside"}
+    box, _ = _hybrid_visit_box(bm25_ranking=("d_harbor",), dense_ranking=("d_outside",))
+    box.run("hybrid_search", {"query": "q", "k": 5})
+    assert set(box.last_hits) == {"d_harbor", "d_outside"}
 
 
-def test_hybridvisit_search_matches_bm25visits_listing_format_byte_for_byte():
-    """Given the SAME resulting ranking, HybridVisit's listing must render IDENTICALLY to
-    Bm25Visit's (title + opening snippet, no query bias) — mirrors Bm25Visit's format exactly."""
-    bm25_engine = _StubBm25Engine(("d_harbor", "d_flat"))
-    hybrid_out = HybridVisit(_units(), bm25_engine=bm25_engine,
-                             dense_engine=_StubDenseEngine([])).search("harbor festival", k=5)
-    bm25_out = Bm25Visit(_units(), engine=_StubBm25Engine(("d_harbor", "d_flat"))).search(
-        "harbor festival", k=5)
+def test_hybridvisit_search_matches_plain_bm25_listing_format_byte_for_byte():
+    """Given the SAME resulting ranking, search_hybrid's listing must render IDENTICALLY to
+    the plain search_bm25 listing's (title + opening snippet, no query bias) — mirrors its
+    format exactly."""
+    units = _units()
+    ubyid = {u.doc_id: u for u in units}
+
+    hybrid_state = EpisodeState(question="q")
+    hybrid_search = SearchHybrid(name="hybrid_search").bind(
+        hybrid_state, units, ubyid, {"bm25": _StubBm25Engine(("d_harbor", "d_flat")),
+                                     "dense": _StubDenseEngine([])})
+    hybrid_out = hybrid_search.run({"query": "harbor festival", "k": 5})
+
+    bm25_state = EpisodeState(question="q")
+    bm25_search = SearchBm25(name="bm25_search").bind(
+        bm25_state, units, ubyid, {"bm25": _StubBm25Engine(("d_harbor", "d_flat"))})
+    bm25_out = bm25_search.run({"query": "harbor festival", "k": 5})
+
     assert hybrid_out == bm25_out
 
 
 def test_hybridvisit_empty_query_message():
-    ws = _hybrid_visit()
-    assert ws.run("hybrid_search", {"query": ""}) == "empty query"
+    box, _ = _hybrid_visit_box()
+    assert box.run("hybrid_search", {"query": ""}) == "empty query"
 
 
 def test_hybridvisit_zero_hits_message():
-    ws = HybridVisit(_units(), bm25_engine=_StubBm25Engine([]), dense_engine=_StubDenseEngine([]))
-    out = ws.run("hybrid_search", {"query": "nothing matches"})
+    box, _ = _hybrid_visit_box(bm25_ranking=[], dense_ranking=[])
+    out = box.run("hybrid_search", {"query": "nothing matches"})
     assert "0 matches" in out
 
 
 def test_hybridvisit_zero_hits_after_prior_search_notes_previous_results():
-    bm25 = _StubBm25Engine({"harbor": ["d_harbor"], "zzz": []})
-    dense = _StubDenseEngine({"harbor": [], "zzz": []})
-    ws = HybridVisit(_units(), bm25_engine=bm25, dense_engine=dense)
-    ws.run("hybrid_search", {"query": "harbor"})
-    out = ws.run("hybrid_search", {"query": "zzz"})
+    box, _ = _hybrid_visit_box(bm25_ranking={"harbor": ["d_harbor"], "zzz": []},
+                               dense_ranking={"harbor": [], "zzz": []})
+    box.run("hybrid_search", {"query": "harbor"})
+    out = box.run("hybrid_search", {"query": "zzz"})
     assert "0 matches" in out and "previous results still available" in out
 
 
 def test_hybridvisit_marks_hits_seen():
-    ws = _hybrid_visit(bm25_ranking=("d_harbor", "d_flat"))
-    ws.run("hybrid_search", {"query": "harbor"})
-    assert {"d_harbor", "d_flat"} <= set(ws.seen)
+    box, _ = _hybrid_visit_box(bm25_ranking=("d_harbor", "d_flat"))
+    box.run("hybrid_search", {"query": "harbor"})
+    assert {"d_harbor", "d_flat"} <= set(box.seen)
 
 
 def test_hybridvisit_run_aliases_search_and_visit_names():
-    bm25_ranking = ("d_harbor",)
-    out1 = HybridVisit(_units(), bm25_engine=_StubBm25Engine(bm25_ranking),
-                       dense_engine=_StubDenseEngine([])).run(
-        "hybrid_search", {"query": "harbor"})
-    out2 = HybridVisit(_units(), bm25_engine=_StubBm25Engine(bm25_ranking),
-                       dense_engine=_StubDenseEngine([])).run(
-        "search", {"query": "harbor"})
+    box1, _ = _hybrid_visit_box(("d_harbor",))
+    out1 = box1.run("hybrid_search", {"query": "harbor"})
+    box2, _ = _hybrid_visit_box(("d_harbor",))
+    out2 = box2.run("search", {"query": "harbor"})
     assert out1 == out2
 
-    ws1 = HybridVisit(_units(), bm25_engine=_StubBm25Engine(bm25_ranking),
-                      dense_engine=_StubDenseEngine([]))
-    ws1.run("hybrid_search", {"query": "harbor"})
-    out3 = ws1.run("visit_h", {"rank": 1})
-    ws2 = HybridVisit(_units(), bm25_engine=_StubBm25Engine(bm25_ranking),
-                      dense_engine=_StubDenseEngine([]))
-    ws2.run("hybrid_search", {"query": "harbor"})
-    out4 = ws2.run("visit", {"rank": 1})
+    box3, _ = _hybrid_visit_box(("d_harbor",))
+    box3.run("hybrid_search", {"query": "harbor"})
+    out3 = box3.run("visit_h", {"rank": 1})
+    box4, _ = _hybrid_visit_box(("d_harbor",))
+    box4.run("hybrid_search", {"query": "harbor"})
+    out4 = box4.run("visit", {"rank": 1})
     assert out3 == out4
     assert "Founded in 1897" in out3
 
 
 def test_hybridvisit_run_unknown_tool_errors():
-    out = _hybrid_visit().run("fetch", {"specs": [[1, "History"]]})
+    box, _ = _hybrid_visit_box()
+    out = box.run("bogus_tool_name", {"specs": [[1, "History"]]})
     assert "unknown tool" in out.lower()
 
 
 # =============================================================================================
-# 3. HybridFetchSnipWorkspace (research_hybrid_fetch_snip) — mirrors Bm25FetchSnipWorkspace
+# 3. search_hybrid_snip (research_hybrid_fetch_snip) — mirrors search_bm25_snip's fetch shape
 # =============================================================================================
 
-def _hybrid_fetch_snip(query="harbor festival annual event history",
-                       bm25_ranking=("d_harbor",), dense_ranking=(), topk=5):
-    return HybridFetchSnipWorkspace(_units(), query, bm25_engine=_StubBm25Engine(bm25_ranking),
-                                    dense_engine=_StubDenseEngine(dense_ranking), topk=topk)
+def _hybrid_fetch_snip_box(bm25_ranking=("d_harbor",), dense_ranking=(), topk=5):
+    units = _units()
+    ubyid = {u.doc_id: u for u in units}
+    state = EpisodeState(question="q")
+    search = SearchHybrid(name="hybrid_search_snip", structure=True, snippets=True, k=topk).bind(
+        state, units, ubyid, {"bm25": _StubBm25Engine(bm25_ranking), "dense": _StubDenseEngine(dense_ranking)})
+    fetch = Fetch(name="fetch").bind(state, units, ubyid, {})
+    return ToolBox([search, fetch], state), search
 
 
 def test_hybridfetchsnip_tools_tuple():
-    assert HybridFetchSnipWorkspace.tools == ("hybrid_search_snip", "fetch")
-
-
-def test_hybridfetchsnip_is_a_docsearchfetch_subclass_reusing_fetch_verbatim():
-    assert issubclass(HybridFetchSnipWorkspace, DocSearchFetch)
-    assert HybridFetchSnipWorkspace.fetch is DocSearchFetch.fetch
-    assert HybridFetchSnipWorkspace._fetch_one is DocSearchFetch._fetch_one
-    assert HybridFetchSnipWorkspace._resolve_doc is DocSearchFetch._resolve_doc
+    box, _ = _hybrid_fetch_snip_box()
+    assert box.tools == ("hybrid_search_snip", "fetch")
 
 
 def test_hybridfetchsnip_both_rankers_consulted_at_pool_depth():
     bm25 = _StubBm25Engine(("d_harbor",))
     dense = _StubDenseEngine(("d_flat",))
-    ws = HybridFetchSnipWorkspace(_units(), "q", bm25_engine=bm25, dense_engine=dense)
-    ws.run("hybrid_search_snip", {"query": "harbor festival"})
-    assert bm25.calls == [("harbor festival", ws.pool)]
-    assert dense.calls == [("harbor festival", ws.pool)]
-    assert ws.pool == 100
+    units = _units()
+    ubyid = {u.doc_id: u for u in units}
+    state = EpisodeState(question="q")
+    search = SearchHybrid(name="hybrid_search_snip", structure=True, snippets=True).bind(
+        state, units, ubyid, {"bm25": bm25, "dense": dense})
+    search.run({"query": "harbor festival"})
+    assert bm25.calls == [("harbor festival", search.pool)]
+    assert dense.calls == [("harbor festival", search.pool)]
+    assert search.pool == 100
 
 
 def test_hybridfetchsnip_fuses_both_rankers():
-    bm25 = _StubBm25Engine(("d_harbor",))
-    dense = _StubDenseEngine(("d_outside",))
-    ws = HybridFetchSnipWorkspace(_units(), "q", bm25_engine=bm25, dense_engine=dense, topk=5)
-    ws.run("hybrid_search_snip", {"query": "q"})
-    assert set(ws.last_hits) == {"d_harbor", "d_outside"}
+    box, _ = _hybrid_fetch_snip_box(bm25_ranking=("d_harbor",), dense_ranking=("d_outside",), topk=5)
+    box.run("hybrid_search_snip", {"query": "q"})
+    assert set(box.last_hits) == {"d_harbor", "d_outside"}
 
 
 def test_hybridfetchsnip_search_lists_sections_and_infobox_no_body_and_an_excerpt():
-    ws = _hybrid_fetch_snip(bm25_ranking=("d_harbor",))
-    out = ws.run("hybrid_search_snip", {"query": "harbor festival"})
+    box, _ = _hybrid_fetch_snip_box(bm25_ranking=("d_harbor",))
+    out = box.run("hybrid_search_snip", {"query": "harbor festival"})
     assert "d_harbor" in out and "'Harbor Festival'" in out
     assert "History" in out and "Legacy" in out          # section names shown
     assert "Founded" in out                              # infobox key shown
@@ -336,120 +339,130 @@ def test_hybridfetchsnip_search_lists_sections_and_infobox_no_body_and_an_excerp
 
 
 def test_hybridfetchsnip_excerpt_overlaps_query_terms():
-    ws = _hybrid_fetch_snip(bm25_ranking=("d_harbor",))
-    out = ws.run("hybrid_search_snip", {"query": "founded 1897"})
+    box, _ = _hybrid_fetch_snip_box(bm25_ranking=("d_harbor",))
+    out = box.run("hybrid_search_snip", {"query": "founded 1897"})
     hit_line = next(l for l in out.splitlines() if "d_harbor" in l)
     excerpt = hit_line.split("»", 1)[1].strip()
     assert "founded" in excerpt.lower() or "1897" in excerpt
 
 
-def test_hybridfetchsnip_matches_bm25fetchsnipworkspaces_listing_shape():
-    """Given the SAME (post-fusion) ranking, HybridFetchSnipWorkspace's structure-table-plus-
-    excerpt listing must have the SAME shape as Bm25FetchSnipWorkspace's — only the section that
+def test_hybridfetchsnip_matches_plain_bm25_fetch_snip_listing_shape():
+    """Given the SAME (post-fusion) ranking, search_hybrid_snip's structure-table-plus-
+    excerpt listing must have the SAME shape as search_bm25_snip's — only the section that
     ranked it (bm25 vs bm25+dense fusion) differs, never the rendering."""
-    bm25_engine = _bm25_engine()
+    units = _units()
+    ubyid = {u.doc_id: u for u in units}
     query = "harbor festival annual event history"
-    hybrid_ws = HybridFetchSnipWorkspace(_units(), query, bm25_engine=bm25_engine,
-                                         dense_engine=_StubDenseEngine([]), topk=3)
-    hybrid_out = hybrid_ws.run("hybrid_search_snip", {"query": query})
-    plain_ws = Bm25FetchSnipWorkspace(_units(), query, engine=_bm25_engine(), topk=3)
-    plain_out = plain_ws.run("bm25_search_snip", {"query": query})
+
+    hybrid_state = EpisodeState(question="q")
+    hybrid_search = SearchHybrid(name="hybrid_search_snip", structure=True, snippets=True, k=3).bind(
+        hybrid_state, units, ubyid, {"bm25": _bm25_engine(), "dense": _StubDenseEngine([])})
+    hybrid_out = hybrid_search.run({"query": query})
+
+    plain_state = EpisodeState(question="q")
+    plain_search = SearchBm25(name="bm25_search_snip", structure=True, snippets=True, k=3).bind(
+        plain_state, units, ubyid, {"bm25": _bm25_engine()})
+    plain_out = plain_search.run({"query": query})
+
     # SAME ranking (dense contributes nothing here) -> byte-identical rendering modulo the
     # header's "matches" count, which is identical too since ranking is identical.
-    assert hybrid_ws.last_hits == plain_ws.last_hits
+    assert hybrid_state.last_hits == plain_state.last_hits
     assert hybrid_out == plain_out
 
 
 def test_hybridfetchsnip_search_is_live_and_re_retrieves():
-    bm25 = _StubBm25Engine({"harbor festival history": ["d_harbor"],
-                            "quantum chromodynamics particle physics": ["d_outside"]})
-    dense = _StubDenseEngine([])
-    ws = HybridFetchSnipWorkspace(_units(), "harbor festival history",
-                                  bm25_engine=bm25, dense_engine=dense, topk=5)
-    ws.run("hybrid_search_snip", {"query": "harbor festival history"})
-    first = list(ws.last_hits)
-    ws.run("hybrid_search_snip", {"query": "quantum chromodynamics particle physics"})
-    assert ws.last_hits != first
-    assert "d_outside" in ws.last_hits
+    box, _ = _hybrid_fetch_snip_box(
+        bm25_ranking={"harbor festival history": ["d_harbor"],
+                     "quantum chromodynamics particle physics": ["d_outside"]},
+        dense_ranking=[])
+    box.run("hybrid_search_snip", {"query": "harbor festival history"})
+    first = list(box.last_hits)
+    box.run("hybrid_search_snip", {"query": "quantum chromodynamics particle physics"})
+    assert box.last_hits != first
+    assert "d_outside" in box.last_hits
 
 
 def test_hybridfetchsnip_topk_marks_hits_seen_immediately():
-    ws = _hybrid_fetch_snip(bm25_ranking=("d_harbor",))
-    assert ws.last_hits == []
-    ws.run("hybrid_search_snip", {"query": "harbor festival annual event history"})
-    assert ws.last_hits
-    assert set(ws.last_hits) <= set(ws.seen)
+    box, _ = _hybrid_fetch_snip_box(bm25_ranking=("d_harbor",))
+    assert box.last_hits == []
+    box.run("hybrid_search_snip", {"query": "harbor festival annual event history"})
+    assert box.last_hits
+    assert set(box.last_hits) <= set(box.seen)
 
 
 def test_hybridfetchsnip_empty_query_yields_no_hits():
-    ws = _hybrid_fetch_snip(query="", bm25_ranking=("d_harbor",))
-    assert ws.last_hits == []
-    assert ws.search("") == "empty query"
+    box, _ = _hybrid_fetch_snip_box(bm25_ranking=("d_harbor",))
+    assert box.last_hits == []
+    assert box.run("hybrid_search_snip", {"query": ""}) == "empty query"
 
 
 def test_hybridfetchsnip_fetch_by_rank_after_search():
-    ws = _hybrid_fetch_snip(bm25_ranking=("d_harbor",))
-    ws.run("hybrid_search_snip", {"query": "harbor festival"})
-    out = ws.run("fetch", {"specs": [[1, "History"]]})
+    box, _ = _hybrid_fetch_snip_box(bm25_ranking=("d_harbor",))
+    box.run("hybrid_search_snip", {"query": "harbor festival"})
+    out = box.run("fetch", {"specs": [[1, "History"]]})
     assert "History" in out and "ERROR" not in out
 
 
 def test_hybridfetchsnip_run_aliases_search_names():
-    bm25_ranking = ("d_harbor",)
-    q = "harbor festival"
-    out1 = HybridFetchSnipWorkspace(_units(), q, bm25_engine=_StubBm25Engine(bm25_ranking),
-                                    dense_engine=_StubDenseEngine([])).run(
-        "hybrid_search_snip", {"query": q})
-    out2 = HybridFetchSnipWorkspace(_units(), q, bm25_engine=_StubBm25Engine(bm25_ranking),
-                                    dense_engine=_StubDenseEngine([])).run(
-        "hybrid_search", {"query": q})
-    out3 = HybridFetchSnipWorkspace(_units(), q, bm25_engine=_StubBm25Engine(bm25_ranking),
-                                    dense_engine=_StubDenseEngine([])).run(
-        "search", {"query": q})
+    box1, _ = _hybrid_fetch_snip_box(("d_harbor",))
+    out1 = box1.run("hybrid_search_snip", {"query": "harbor festival"})
+    box2, _ = _hybrid_fetch_snip_box(("d_harbor",))
+    out2 = box2.run("hybrid_search", {"query": "harbor festival"})
+    box3, _ = _hybrid_fetch_snip_box(("d_harbor",))
+    out3 = box3.run("search", {"query": "harbor festival"})
     assert out1 == out2 == out3
 
 
 def test_hybridfetchsnip_run_unknown_tool_errors():
-    out = _hybrid_fetch_snip().run("bogus_tool", {})
+    box, _ = _hybrid_fetch_snip_box()
+    out = box.run("bogus_tool", {})
     assert "unknown tool" in out.lower()
 
 
 # =============================================================================================
-# 4. Condition loading (conditions.yaml/tools.yaml) — UNCOACHED, like bm25/dense
+# 4. Condition loading — UNCOACHED, like bm25/dense
 # =============================================================================================
 
 def test_research_hybrid_condition_loads():
-    p = load_condition("research_hybrid")
-    assert p.toolset == "hybrid_visit"
+    from agent_search.strategies import CONDITIONS
+    from agent_search.tasks.render import render_manuals
+
+    p = CONDITIONS["research_hybrid"]
+    assert p.strategy.toolset_name == "hybrid_visit"
     assert p.tool_names == ("hybrid_search", "visit_h")
-    assert render_manuals(p.tool_names, domain="general") == ""
-    assert "term[field]" not in p.system
+    assert render_manuals([t.manual_path("general") for t in p.strategy.tools]) == ""
+    assert "term[field]" not in p.render()
 
 
 def test_research_hybrid_fetch_snip_condition_loads():
-    p = load_condition("research_hybrid_fetch_snip")
-    assert p.toolset == "hybrid_fetch_snip"
+    from agent_search.strategies import CONDITIONS
+    from agent_search.tasks.render import render_manuals
+
+    p = CONDITIONS["research_hybrid_fetch_snip"]
+    assert p.strategy.toolset_name == "hybrid_fetch_snip"
     assert p.tool_names == ("hybrid_search_snip", "fetch")
-    assert render_manuals(p.tool_names, domain="general") == ""
-    assert "term[field]" not in p.system
+    assert render_manuals([t.manual_path("general") for t in p.strategy.tools]) == ""
+    assert "term[field]" not in p.render()
 
 
 def test_existing_sibling_conditions_are_unaffected():
-    """Additive-only check: adding research_hybrid/research_hybrid_fetch_snip must not disturb
-    any existing bm25/dense-family condition binding."""
+    """Additive-only check: research_hybrid/research_hybrid_fetch_snip must not disturb any
+    existing bm25/dense-family condition binding."""
+    from agent_search.strategies import CONDITIONS
+
     for name, toolset, tools in (
         ("research_bm25", "research_bm25", ("bm25_search", "visit")),
         ("research_bm25_fetch_snip", "bm25_fetch_snip", ("bm25_search_snip", "fetch")),
         ("research_dense", "dense_visit", ("dense_search", "visit_d")),
         ("research_dense_fetch", "dense_fetch", ("dense_search_f", "fetch")),
     ):
-        p = load_condition(name)
-        assert p.toolset == toolset
+        p = CONDITIONS[name]
+        assert p.strategy.toolset_name == toolset
         assert p.tool_names == tools
 
 
 # =============================================================================================
-# 5. Arm resolution via the retriever registry (agent_search.legacy.retriever.AgentRetriever)
+# 5. Arm resolution via the retriever registry
 # =============================================================================================
 
 def test_research_hybrid_resolves_via_registry():
@@ -502,12 +515,11 @@ def test_hybridfetchsnip_index_raises_clear_error_when_dense_cache_missing(tmp_p
 
 
 # =============================================================================================
-# 7. Workspace construction + offline (no-model) answer, via AgentRetriever — dense build/cache
-#    is faked (no torch/sentence-transformers import) exactly like `DenseRetriever`'s own
-#    `encoder=` injection point (test_eval_dense.py's FakeEncoder), just one level up: we swap
-#    the whole `DenseBelief`/`DenseRetriever.is_cached` the way production code constructs them,
-#    so `AgentRetriever.index()`'s cache-validation + build path runs UNMODIFIED, never encoding
-#    anything for real.
+# 7. Workspace construction + offline (no-model) answer, via the retriever registry — dense
+#    build/cache is faked (no torch/sentence-transformers import) the same way DenseRetriever's
+#    own `encoder=` injection point works, just one level up: we swap the whole `DenseBelief`/
+#    `DenseRetriever.is_cached` the way production code constructs them, so `Engines.build()`'s
+#    cache-validation + build path runs UNMODIFIED, never encoding anything for real.
 # =============================================================================================
 
 @pytest.fixture
@@ -540,7 +552,6 @@ def fake_dense_stack(monkeypatch):
 
 def test_research_hybrid_workspace_builds_and_answers_via_stub(tmp_path, fake_dense_stack):
     from agent_search.retrievers.registry import RetrieverConfig, build_factory
-    from agent_search.tools.search_hybrid.tool import SearchHybrid
 
     cfg = RetrieverConfig(policy="stub", index_root=str(tmp_path))
     r = build_factory("agent_research_hybrid", cfg)()
@@ -553,7 +564,6 @@ def test_research_hybrid_workspace_builds_and_answers_via_stub(tmp_path, fake_de
 
 def test_research_hybrid_fetch_snip_workspace_builds_and_answers_via_stub(tmp_path, fake_dense_stack):
     from agent_search.retrievers.registry import RetrieverConfig, build_factory
-    from agent_search.tools.search_hybrid.tool import SearchHybrid
 
     cfg = RetrieverConfig(policy="stub", index_root=str(tmp_path))
     r = build_factory("agent_research_hybrid_fetch_snip", cfg)()
@@ -567,13 +577,12 @@ def test_research_hybrid_fetch_snip_workspace_builds_and_answers_via_stub(tmp_pa
 # =============================================================================================
 # 8. Offline end-to-end smoke: one fixture instance through run_config (no model, no vLLM).
 #    research_hybrid_fetch_snip's toolset carries a literal "fetch" marker, so KeywordPolicy
-#    (agent_search.agent.policies) correctly drives search -> fetch -> answer (the SAME reason
-#    test_bm25_fetch_snip.py's own smoke test works); research_hybrid's toolset (hybrid_search,
-#    visit_h) has no literal "visit"/"fetch" marker, so — like every other renamed-visit sibling
-#    (research_bm25q, research_dense, research_bql_visit) — KeywordPolicy searches once then
-#    submits a blank <answer> without ever calling visit_h; that's still a valid NO-CRASH smoke
-#    (covered by the direct r.search() calls in section 7 above), so the full run_config smoke
-#    is exercised here for the fetch_snip twin.
+#    (agent_search.agent.policies) correctly drives search -> fetch -> answer; research_hybrid's
+#    toolset (hybrid_search, visit_h) has no literal "visit"/"fetch" marker, so — like every
+#    other renamed-visit sibling — KeywordPolicy searches once then submits a blank <answer>
+#    without ever calling visit_h; that's still a valid NO-CRASH smoke (covered by the direct
+#    r.search() calls in section 7 above), so the full run_config smoke is exercised here for
+#    the fetch_snip twin.
 # =============================================================================================
 
 def test_research_hybrid_fetch_snip_smoke_via_fixture_dataset(tmp_path, fake_dense_stack):

@@ -52,8 +52,8 @@ def _lucene_engine(index_root: str, key: Optional[str]):
             "STRUCTURED_BACKEND=lucene needs a real corpus `key` (the dataset name, e.g. "
             "'hotpotqa_structured') to open a prebuilt indexes/lucene_structured/<key>/ "
             "index -- got key=None. This is the ad-hoc/test in-memory-fallback code path; "
-            "production callers (agent_search.legacy.retriever.AgentRetriever.index()) always "
-            "pass the real corpus key.")
+            "production callers (agent_search.evaluation.agent_runner.ConditionAgent.index()) "
+            "always pass the real corpus key.")
     eng = get_engine(index_root=index_root, dataset=key)
     # Open (and validate) the index now, at construction time, instead of lazily on the
     # first search: otherwise a missing prebuilt index turns every search call into an

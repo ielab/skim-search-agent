@@ -1,21 +1,24 @@
-"""IndriVisitWorkspace (graded Indri search plus whole-doc visit read; once exposed as the
-condition `research_indri_visit`, now pruned from conditions.yaml) and `research_indri_snip`
-(graded Indri search with content snippets plus structured section fetch). Both disentangle
-"search interface" from "read granularity", where the plain cells conflate them (bm25 =
-keyword search + whole-doc read; indri = graded search + section read).
+"""`indri_visit` (isearch_v/visit_v: graded Indri search plus whole-doc visit read) and
+`research_indri_snip` (isearch_s/fetch: graded Indri search with content snippets plus
+structured section fetch). Both disentangle "search interface" from "read granularity", where
+the plain cells conflate them (bm25 = keyword search + whole-doc read; indri = graded search +
+section read).
 
-CPU-only. The `research_indri_snip` condition's IndriFetchWorkspace default behavior
+CPU-only. The `research_indri_snip` condition's `SearchIndri` default behavior
 (snippets=False) must be byte-identical to plain search, asserted explicitly below.
 """
 from __future__ import annotations
 
 import pytest
 
-from agent_search.legacy.workspaces.doc_indri import (
-    IndriFetchWorkspace, IndriVisitWorkspace, _indri_query_terms)
 from agent_search.corpus.units import CodeUnit
-from agent_search.legacy.prompts import load_condition
+from agent_search.retrievers.indri.model import IndriExecutor
 from agent_search.retrievers.registry import RetrieverConfig, build_factory
+from agent_search.strategies import CONDITIONS
+from agent_search.tools.base import EpisodeState, ToolBox
+from agent_search.tools.fetch.tool import Fetch
+from agent_search.tools.search_indri.tool import SearchIndri, _indri_query_terms
+from agent_search.tools.visit.tool import Visit
 
 
 def _mk(doc_id: str, body: str, title: str | None = None) -> CodeUnit:
@@ -43,11 +46,34 @@ def units() -> list[CodeUnit]:
     return _corpus()
 
 
-# --- 1. IndriVisitWorkspace: isearch_v (ranked, content-bearing) + visit_v (whole-doc read) ---
+def _visit_toolbox(units):
+    """isearch_v (snippets forced on) + visit_v -- the `indri_visit` strategy's tools."""
+    ubyid = {u.doc_id: u for u in units}
+    state = EpisodeState(question="q")
+    engines = {"indri": IndriExecutor(units)}
+    sv = SearchIndri(name="isearch_v", snippets=True).bind(state, units, ubyid, engines)
+    vv = Visit(name="visit_v").bind(state, units, ubyid, {})
+    return ToolBox([sv, vv], state), ubyid
+
+
+def _fetch_toolbox(units, snippets: bool = False, op_nudge: bool = True):
+    """A search_indri + fetch pair, bound as isearch_s when snippets, else isearch (the
+    `indri`/`indri_plain` strategies' tools). `SearchIndri.aliases` covers both names either
+    way, so `.run("isearch", ...)` / `.run("isearch_s", ...)` both resolve regardless."""
+    ubyid = {u.doc_id: u for u in units}
+    state = EpisodeState(question="q")
+    engines = {"indri": IndriExecutor(units)}
+    name = "isearch_s" if snippets else "isearch"
+    sc = SearchIndri(name=name, snippets=snippets, op_nudge=op_nudge).bind(state, units, ubyid, engines)
+    fc = Fetch(name="fetch").bind(state, units, ubyid, {})
+    return ToolBox([sc, fc], state)
+
+
+# --- 1. indri_visit: isearch_v (ranked, content-bearing) + visit_v (whole-doc read) ---
 
 def test_isearch_v_returns_ranked_hits_with_snippet(units):
-    ws = IndriVisitWorkspace(units)
-    out = ws.run("isearch_v", {"query": "#combine(bank management)"})
+    box, _ = _visit_toolbox(units)
+    out = box.run("isearch_v", {"query": "#combine(bank management)"})
     assert "ERROR" not in out
     assert "hits):" in out
     assert "weakest constraint for top hit:" in out
@@ -56,61 +82,61 @@ def test_isearch_v_returns_ranked_hits_with_snippet(units):
 
 
 def test_visit_v_by_rank_returns_full_body_and_marks_seen(units):
-    ws = IndriVisitWorkspace(units)
-    ws.run("isearch_v", {"query": "#combine(bank management)"})
-    out = ws.run("visit_v", {"rank": 1})
+    box, ubyid = _visit_toolbox(units)
+    box.run("isearch_v", {"query": "#combine(bank management)"})
+    out = box.run("visit_v", {"rank": 1})
     assert "ERROR" not in out
-    u = ws.ubyid[ws.last_hits[0]]
+    u = ubyid[box.last_hits[0]]
     assert (u.body or "").strip() in out
-    assert ws.last_hits[0] in ws.seen
+    assert box.last_hits[0] in box.seen
 
 
 def test_visit_v_by_doc_id_works(units):
-    ws = IndriVisitWorkspace(units)
-    ws.run("isearch_v", {"query": "#combine(bank management)"})
-    out = ws.run("visit_v", {"rank": "d2002"})
+    box, _ = _visit_toolbox(units)
+    box.run("isearch_v", {"query": "#combine(bank management)"})
+    out = box.run("visit_v", {"rank": "d2002"})
     assert "ERROR" not in out
     assert "bank management ceremony held in 2002" in out
-    assert "d2002" in ws.seen
+    assert "d2002" in box.seen
 
 
 def test_visit_v_bad_rank_errors_like_bm25visit(units):
-    ws = IndriVisitWorkspace(units)
-    ws.run("isearch_v", {"query": "#combine(bank management)"})
-    out = ws.run("visit_v", {"rank": 999})
+    box, _ = _visit_toolbox(units)
+    box.run("isearch_v", {"query": "#combine(bank management)"})
+    out = box.run("visit_v", {"rank": 999})
     assert out.startswith("ERROR:")
     assert "out of range" in out
 
 
 def test_visit_v_no_prior_search_errors(units):
-    ws = IndriVisitWorkspace(units)
-    out = ws.run("visit_v", {"rank": 1})
+    box, _ = _visit_toolbox(units)
+    out = box.run("visit_v", {"rank": 1})
     assert out.startswith("ERROR:")
     assert "no prior search" in out
 
 
 def test_isearch_v_aliases_search_and_isearch_names(units):
-    ws = IndriVisitWorkspace(units)
-    out = ws.run("search", {"query": "#combine(bank management)"})
+    box, _ = _visit_toolbox(units)
+    out = box.run("search", {"query": "#combine(bank management)"})
     assert "ERROR" not in out
-    out2 = ws.run("isearch", {"query": "#combine(bank management)"})
+    out2 = box.run("isearch", {"query": "#combine(bank management)"})
     assert "ERROR" not in out2
 
 
 def test_visit_v_aliases_visit_name(units):
-    ws = IndriVisitWorkspace(units)
-    ws.run("isearch_v", {"query": "#combine(bank management)"})
-    out = ws.run("visit", {"rank": 1})
+    box, _ = _visit_toolbox(units)
+    box.run("isearch_v", {"query": "#combine(bank management)"})
+    out = box.run("visit", {"rank": 1})
     assert "ERROR" not in out
 
 
 # --- 2. conditions load + retriever factory builds both new arms ------------------------
 
 def test_research_indri_snip_condition_loads():
-    p = load_condition("research_indri_snip")
-    assert p.toolset == "indri_snip"
-    assert p.tool_names == ("isearch_s", "fetch")
-    assert "#combine" in p.system
+    cond = CONDITIONS["research_indri_snip"]
+    assert cond.strategy.toolset_name == "indri_snip"
+    assert cond.tool_names == ("isearch_s", "fetch")
+    assert "#combine" in cond.render()
 
 
 def test_research_indri_snip_resolves_via_registry():
@@ -126,8 +152,6 @@ def test_research_indri_snip_resolves_via_registry():
 
 
 def test_research_indri_snip_workspace_builds_and_answers_via_stub(units, tmp_path):
-    from agent_search.tools.search_indri.tool import SearchIndri
-
     cfg = RetrieverConfig(policy="stub", index_root=str(tmp_path))
     r = build_factory("agent_research_indri_snip", cfg)()
     r.index(units, key="test-indri-hybrids-corpus")
@@ -138,11 +162,11 @@ def test_research_indri_snip_workspace_builds_and_answers_via_stub(units, tmp_pa
     assert isinstance(ranking, list)
 
 
-# --- 3. IndriFetchWorkspace(snippets=True): hits carry '»' + query-overlap; False unchanged ---
+# --- 3. SearchIndri(snippets=True): hits carry '»' + query-overlap; False unchanged ---
 
 def test_snippets_true_shows_excerpt_overlapping_query_terms(units):
-    ws = IndriFetchWorkspace(units, snippets=True)
-    out = ws.run("isearch_s", {"query": "#combine(bank management)"})
+    box = _fetch_toolbox(units, snippets=True)
+    out = box.run("isearch_s", {"query": "#combine(bank management)"})
     assert "»" in out
     hit_line = next(l for l in out.splitlines() if "d2002" in l or "d1999" in l)
     excerpt = hit_line.split("»", 1)[1].strip()
@@ -152,19 +176,19 @@ def test_snippets_true_shows_excerpt_overlapping_query_terms(units):
 def test_snippets_false_is_byte_identical_to_captured_render(units):
     # byte-parity guard: snippets=False (the plain research_indri default) must reproduce
     # the pre-existing (no-snippets) rendering exactly — no '»' anywhere, same header/body.
-    ws_off = IndriFetchWorkspace(units, snippets=False)
-    ws_default = IndriFetchWorkspace(units)          # old default (no snippets kwarg at all)
-    out_off = ws_off.run("isearch", {"query": "#combine(bank management)"})
-    out_default = ws_default.run("isearch", {"query": "#combine(bank management)"})
+    box_off = _fetch_toolbox(units, snippets=False)
+    box_default = _fetch_toolbox(units)          # snippets=False is SearchIndri's own default
+    out_off = box_off.run("isearch", {"query": "#combine(bank management)"})
+    out_default = box_default.run("isearch", {"query": "#combine(bank management)"})
     assert out_off == out_default
     assert "»" not in out_off
 
 
 def test_isearch_s_alias_works_and_fetch_is_inherited(units):
-    ws = IndriFetchWorkspace(units, snippets=True)
-    out = ws.run("isearch_s", {"query": "#combine(bank management)"})
+    box = _fetch_toolbox(units, snippets=True)
+    out = box.run("isearch_s", {"query": "#combine(bank management)"})
     assert "»" in out
-    fetched = ws.run("fetch", {"specs": [[1, "History"]]})
+    fetched = box.run("fetch", {"specs": [[1, "History"]]})
     assert "ERROR" not in fetched
 
 
@@ -194,12 +218,11 @@ def test_indri_query_terms_plain_keywords_pass_through():
 # `.bogusfield`) is a VALID Indri QL query -- neither engine errors -- but python "searches
 # anyway" (smoothing never hard-zeros) while Lucene silently returns 0 hits, and nothing in
 # the old rendered text distinguished either case from a normal, deliberately-zero-hit
-# query. `IndriFetchWorkspace._search_impl` now appends the engine's `.warning` on every
-# return path.
+# query. `SearchIndri._search_impl` appends the engine's `.warning` on every return path.
 
 def test_isearch_unknown_field_warning_appears_with_hits(units):
-    ws = IndriFetchWorkspace(units, op_nudge=False)
-    out = ws.run("isearch", {"query": "bank.bogusfield"})
+    box = _fetch_toolbox(units, op_nudge=False)
+    out = box.run("isearch", {"query": "bank.bogusfield"})
     assert "ERROR" not in out
     assert "hits" in out                 # smoothing still returns real hits (python engine)
     assert "warning" in out.lower() and "bogusfield" in out
@@ -211,27 +234,26 @@ def test_isearch_unknown_field_warning_survives_a_nonsense_query(units):
     # returns k hits from the whole pool -- the TRUE 0-hit case only manifests under the
     # `lucene` backend (see tests/test_lucene_structured.py's analogous test, which needs
     # a real JVM/index). Here we just confirm the warning survives regardless of hit count.
-    ws = IndriFetchWorkspace(units, op_nudge=False)
-    out = ws.run("isearch", {"query": "zzz_definitely_not_a_term_zzz.bogusfield"})
+    box = _fetch_toolbox(units, op_nudge=False)
+    out = box.run("isearch", {"query": "zzz_definitely_not_a_term_zzz.bogusfield"})
     assert "warning" in out.lower() and "bogusfield" in out
 
 
 def test_isearch_known_field_has_no_warning(units):
-    ws = IndriFetchWorkspace(units, op_nudge=False)
-    out = ws.run("isearch", {"query": "bank.title"})
+    box = _fetch_toolbox(units, op_nudge=False)
+    out = box.run("isearch", {"query": "bank.title"})
     assert "warning" not in out.lower()
 
 
-# --- 5. INDRI_DENSE env-gated dense-belief attachment (agent_search/legacy/retriever.py) --
-# NEW, ADDITIVE-only: the indri-family arms ('indri'/'indrivisit'/'indrisnip') optionally
+# --- 5. INDRI_DENSE env-gated dense-belief attachment (agent_search/retrievers/engines.py) --
+# NEW, ADDITIVE-only: the indri-family arms ('indri'/'indri_visit'/'indri_plain') optionally
 # attach a `DenseBelief` to the shared `IndriExecutor` when `INDRI_DENSE` is truthy. OFF by
-# default — all three tests below patch
-# `agent_search.retrievers.dense.DenseBelief` (the class the
-# `index()` branch imports LOCALLY at call time, so patching the module attribute is
-# sufficient) rather than touching real GPU/model code.
+# default — all three tests below patch `agent_search.retrievers.dense.DenseBelief` (the class
+# the `Engines.indri()` builder imports LOCALLY at call time, so patching the module attribute
+# is sufficient) rather than touching real GPU/model code.
 
 class _RaisingDenseBelief:
-    """Stand-in for DenseBelief that must NEVER be constructed when INDRI_DENSE is unset."""
+    """Stand-in for DenseBelief that must NEVER be constructed when INDRI_DENSE is off."""
 
     def __init__(self, *a, **kw):
         raise AssertionError("DenseBelief() must not be constructed when INDRI_DENSE is off")
@@ -281,8 +303,8 @@ def test_indri_dense_off_by_default_does_not_construct_dense_belief(units, tmp_p
 def test_indri_dense_on_attaches_stub_dense_belief_to_executor(units, tmp_path, monkeypatch):
     """INDRI_DENSE=1 attaches the run's dense belief to the Indri executor when the persisted
     embedding cache exists. The engine registry probes `DenseRetriever.is_cached` first and
-    degrades with a warning when it is missing (the pre-0.3 agent built the belief without the
-    probe), so the stub here also stands in for the cache check."""
+    degrades with a warning when it is missing, so the stub here also stands in for the cache
+    check."""
     from agent_search.retrievers.dense import DenseRetriever
     monkeypatch.setattr(DenseRetriever, "is_cached", lambda self, key=None: True)
     _StubDenseBelief.instances = []
@@ -299,7 +321,7 @@ def test_indri_dense_on_attaches_stub_dense_belief_to_executor(units, tmp_path, 
     stub = _StubDenseBelief.instances[0]
     assert stub.model == "BAAI/bge-base-en-v1.5"
     assert stub.built_key == "test-indri-hybrids-dense-on"
-    # attached on the executor the workspace receives ('the attribute the engine stores it
+    # attached on the executor the toolbox receives ('the attribute the engine stores it
     # on' is IndriExecutor.dense, per model.py's attach_dense/`dense=` constructor kwarg)
     assert r.engines.get("indri").dense is stub
     ws = r.toolbox("bank management ceremony")

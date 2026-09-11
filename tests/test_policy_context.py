@@ -10,13 +10,13 @@ import pytest
 from agent_search.agent.loop import Step, Task
 from agent_search.agent.policies import AgentPolicy, default_ctx_tokens
 from agent_search.core.tokens import count_tokens
-from agent_search.legacy.prompts import get_prompt_spec
+from agent_search.strategies import CONDITIONS
 
-PROMPT_PATH = get_prompt_spec("research_snip").path
+SYSTEM = CONDITIONS["research_snip"].render()
 
 
 def _policy(**kw):
-    return AgentPolicy(generate=lambda m: "<answer></answer>", prompt_path=PROMPT_PATH, **kw)
+    return AgentPolicy(generate=lambda m: "<answer></answer>", system=SYSTEM, **kw)
 
 
 def _obs(n_words: int, word: str = "alpha") -> str:
@@ -127,7 +127,7 @@ def test_propose_shrinks_window_on_context_overflow():
         return "<answer>ok</answer>"
 
     budget = sum(_pair_tokens(s) for s in hist) + 10
-    p = AgentPolicy(generate=gen, prompt_path=PROMPT_PATH, ctx_tokens=budget, max_history=40)
+    p = AgentPolicy(generate=gen, system=SYSTEM, ctx_tokens=budget, max_history=40)
     out = p.propose(Task("t", "q"), hist)
     assert out == "<answer>ok</answer>"
     assert len(seen) >= 2 and seen[-1] <= limit             # shrank until it fit
@@ -140,6 +140,6 @@ def test_propose_shrinks_window_on_context_overflow():
 def test_propose_reraises_non_overflow_errors():
     def gen(msgs):
         raise RuntimeError("connection reset")
-    p = AgentPolicy(generate=gen, prompt_path=PROMPT_PATH, ctx_tokens=8_000)
+    p = AgentPolicy(generate=gen, system=SYSTEM, ctx_tokens=8_000)
     with pytest.raises(RuntimeError, match="connection reset"):
         p.propose(Task("t", "q"), [_step(0, 10)])

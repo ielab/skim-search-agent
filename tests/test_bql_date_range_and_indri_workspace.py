@@ -1,19 +1,23 @@
 """Tests for the BQL v2 toolset (typed date[RANGE] ranges plus constraint-coverage feedback,
 formerly the `research_v2` condition) and the Indri graded query-language backend (formerly
 `research_indri`). Both conditions were later pruned from conditions.yaml; the underlying
-toolsets and workspaces are still tested directly here.
+tools (`SearchBql`/`SearchIndri` + `Fetch`) are still tested directly here.
 
 CPU-only; a small (~25-doc) synthetic corpus with dates/sections. The plain `research`
-condition/toolset/DocSearchFetch default behavior must match exactly regardless of these
+condition/toolset/`SearchBql` default behavior must match exactly regardless of these
 additions; several assertions below pin that explicitly.
 """
 from __future__ import annotations
 
 import pytest
 
-from agent_search.legacy.workspaces.doc_indri import IndriFetchWorkspace
-from agent_search.legacy.workspaces.sieve import DocSearchFetch
 from agent_search.corpus.units import CodeUnit
+from agent_search.retrievers.bql.executor import StructuralExecutor
+from agent_search.retrievers.indri.model import IndriExecutor
+from agent_search.tools.base import EpisodeState, ToolBox
+from agent_search.tools.fetch.tool import Fetch
+from agent_search.tools.search_bql.tool import SearchBql
+from agent_search.tools.search_indri.tool import SearchIndri
 
 
 # --- shared ~25-doc corpus: dates + sections ------------------------------------------
@@ -60,15 +64,52 @@ def units() -> list[CodeUnit]:
     return _corpus()
 
 
+class _BqlToolbox:
+    """Call-shape wrapper over a (search, fetch) `ToolBox`, like `DocSearchFetch`."""
+
+    def __init__(self, units, **search_opts):
+        units = list(units)
+        ubyid = {u.doc_id: u for u in units}
+        ex = StructuralExecutor(units).prewarm()
+        state = EpisodeState(question="q")
+        self._search = SearchBql(name="search", **search_opts).bind(state, units, ubyid, {"bql": ex})
+        self.date_nudge = self._search.date_nudge
+        fe = Fetch(name="fetch").bind(state, units, ubyid, {})
+        self.box = ToolBox([self._search, fe], state)
+
+    def search(self, query, k=5):
+        return self.box.run("search", {"query": query, "k": k})
+
+    def fetch(self, specs):
+        return self.box.run("fetch", {"specs": specs})
+
+
+class _IndriToolbox:
+    """Call-shape wrapper over an (isearch, fetch) `ToolBox`, like `IndriFetchWorkspace`."""
+
+    def __init__(self, units, **search_opts):
+        units = list(units)
+        ubyid = {u.doc_id: u for u in units}
+        ex = IndriExecutor(units)
+        state = EpisodeState(question="q")
+        self._search = SearchIndri(name="isearch", **search_opts).bind(state, units, ubyid, {"indri": ex})
+        self.op_nudge = self._search.op_nudge
+        fe = Fetch(name="fetch").bind(state, units, ubyid, {})
+        self.box = ToolBox([self._search, fe], state)
+
+    def run(self, name, args):
+        return self.box.run(name, args)
+
+
 # --- 1. condition loading: `research_v2`/`research_indri` were pruned from conditions.yaml
 # (paper's 15 kept conditions) — the coverage/date-nudge/indri machinery they exercised is
 # still tested directly on the underlying classes below (sections 2/3/5/6).
 
 
-# --- 2. DocSearchFetch(coverage=True): constraint-coverage rendering --------------------
+# --- 2. SearchBql(coverage=True): constraint-coverage rendering --------------------
 
 def test_coverage_true_renders_cov_and_miss_on_0_hit_and(units):
-    ws = DocSearchFetch(units, coverage=True)
+    ws = _BqlToolbox(units, coverage=True)
     obs = ws.search("foo[body] AND bar[body] AND baz[body] AND qux[body]")
     assert "CONSTRAINT COVERAGE" in obs
     assert "miss=[" in obs
@@ -80,7 +121,7 @@ def test_coverage_true_renders_cov_and_miss_on_0_hit_and(units):
 
 
 def test_coverage_hits_are_fetchable_by_rank(units):
-    ws = DocSearchFetch(units, coverage=True)
+    ws = _BqlToolbox(units, coverage=True)
     ws.search("foo[body] AND bar[body] AND baz[body] AND qux[body]")
     out = ws.fetch([[1, "History"]])
     assert "ERROR" not in out
@@ -88,17 +129,17 @@ def test_coverage_hits_are_fetchable_by_rank(units):
 
 
 def test_coverage_false_reproduces_old_fallback_header_exactly(units):
-    ws = DocSearchFetch(units, coverage=False)
+    ws = _BqlToolbox(units, coverage=False)
     obs = ws.search("foo[body] AND bar[body] AND baz[body] AND qux[body]")
     assert "CONSTRAINT COVERAGE" not in obs
     assert "0 exact matches — showing top" in obs
     assert "CLOSEST docs by term relevance" in obs
 
 
-# --- 3. IndriFetchWorkspace: isearch (graded, never 0-hit) + fetch ----------------------
+# --- 3. SearchIndri: isearch (graded, never 0-hit) + fetch ----------------------
 
 def test_isearch_combine_never_hard_zeros_on_no_full_match(units):
-    ws = IndriFetchWorkspace(units)
+    ws = _IndriToolbox(units)
     out = ws.run("isearch", {"query": "#combine(alpha bravo charlie delta echo)"})
     assert "ERROR" not in out
     assert "hits):" in out
@@ -106,14 +147,14 @@ def test_isearch_combine_never_hard_zeros_on_no_full_match(units):
 
 
 def test_isearch_unsupported_op_errors_naming_the_op(units):
-    ws = IndriFetchWorkspace(units)
+    ws = _IndriToolbox(units)
     out = ws.run("isearch", {"query": "#prior(RECENT)"})
     assert out.startswith("ERROR:")
     assert "prior" in out.lower()
 
 
 def test_isearch_date_between_filters(units):
-    ws = IndriFetchWorkspace(units)
+    ws = _IndriToolbox(units)
     out = ws.run("isearch", {
         "query": "#combine(bank management ceremony #date:between(2002-01-01 2002-12-31))",
         "k": 10})
@@ -122,7 +163,7 @@ def test_isearch_date_between_filters(units):
 
 
 def test_isearch_then_fetch_by_rank_works(units):
-    ws = IndriFetchWorkspace(units)
+    ws = _IndriToolbox(units)
     ws.run("isearch", {"query": "#combine(alpha bravo)"})
     out = ws.run("fetch", {"specs": [[1, "History"]]})
     assert "ERROR" not in out
@@ -130,19 +171,19 @@ def test_isearch_then_fetch_by_rank_works(units):
 
 
 def test_isearch_aliases_search_name_too(units):
-    ws = IndriFetchWorkspace(units)
+    ws = _IndriToolbox(units)
     out = ws.run("search", {"query": "#combine(alpha bravo)"})
     assert "ERROR" not in out
     assert "hits):" in out
 
 
-# --- 5. v2 date-nudge: mechanical, corpus-free mid-episode hint (DocSearchFetch.date_nudge) --
+# --- 5. v2 date-nudge: mechanical, corpus-free mid-episode hint (SearchBql.date_nudge) --
 
 _DATE_HINT = "hint: temporal clues match documents by METADATA date"
 
 
 def test_date_nudge_true_hints_on_bare_temporal_clue_and_caps_at_3(units):
-    ws = DocSearchFetch(units, date_nudge=True)
+    ws = _BqlToolbox(units, date_nudge=True)
 
     out1 = ws.search("founded 2018 ceremony")           # bare year -> nudge #1
     assert _DATE_HINT in out1
@@ -161,14 +202,14 @@ def test_date_nudge_true_hints_on_bare_temporal_clue_and_caps_at_3(units):
 
 
 def test_date_nudge_detects_decade_and_month_year_forms(units):
-    ws = DocSearchFetch(units, date_nudge=True)
+    ws = _BqlToolbox(units, date_nudge=True)
     assert _DATE_HINT in ws.search("history in the 1980s")
-    ws2 = DocSearchFetch(units, date_nudge=True)
+    ws2 = _BqlToolbox(units, date_nudge=True)
     assert _DATE_HINT in ws2.search("as of December 2023")
 
 
 def test_date_nudge_default_false_never_hints(units):
-    ws = DocSearchFetch(units)
+    ws = _BqlToolbox(units)
     assert ws.date_nudge is False
     out = ws.search("founded 2018 ceremony")
     assert _DATE_HINT not in out
@@ -177,7 +218,7 @@ def test_date_nudge_default_false_never_hints(units):
 def test_date_nudge_false_explicit_never_hints_even_with_coverage(units):
     # coverage=True (the docv2 arm's OTHER kwarg) must not implicitly turn the nudge on —
     # the two are independent knobs; only retriever.py's docv2 branch passes both True.
-    ws = DocSearchFetch(units, coverage=True, date_nudge=False)
+    ws = _BqlToolbox(units, coverage=True, date_nudge=False)
     out = ws.search("founded 2018 ceremony")
     assert _DATE_HINT not in out
 
@@ -188,7 +229,7 @@ _OP_HINT = "hint: bare keywords work, but structure is sharper"
 
 
 def test_indri_op_nudge_default_true_hints_on_bare_keywords_and_caps_at_3(units):
-    ws = IndriFetchWorkspace(units)
+    ws = _IndriToolbox(units)
     assert ws.op_nudge is True
 
     out1 = ws.run("isearch", {"query": "alpha bravo"})           # bare -> nudge #1
@@ -208,13 +249,13 @@ def test_indri_op_nudge_default_true_hints_on_bare_keywords_and_caps_at_3(units)
 
 
 def test_indri_op_nudge_field_suffix_also_suppresses_hint(units):
-    ws = IndriFetchWorkspace(units)
+    ws = _IndriToolbox(units)
     out = ws.run("isearch", {"query": "alpha.title"})
     assert _OP_HINT not in out
 
 
 def test_indri_op_nudge_false_never_hints(units):
-    ws = IndriFetchWorkspace(units, op_nudge=False)
+    ws = _IndriToolbox(units, op_nudge=False)
     out = ws.run("isearch", {"query": "alpha bravo"})
     assert _OP_HINT not in out
 

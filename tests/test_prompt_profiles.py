@@ -1,80 +1,74 @@
-"""Prompt conditions = task template x toolset (loader composition).
+"""Conditions = task template x strategy (tools + options) composition.
 
 The method, both arms: the BQL field-tagged Boolean surface + search -> fetch.
-  code  : task=taskfix,  toolset=search_fetch      (files -> functions, <fix>)
-  docs  : task=research, toolset=research           (articles -> sections, <answer>)
-          task=research, toolset=research_bm25      (retrieve-then-visit baseline)
-Per-tool teaching lives in a tool's manual (skills/*.md) and renders only when the tool is in
-the toolset; the field-tagged surface lowers to the same executor AST via
-retrievers/bql/surface.to_bql, so the parser/typechecker/executor are reused.
+  code  : task=codefix,  strategy=codefix          (files -> functions, <fix>)
+  docs  : task=research, strategy=sieve_bm25       (articles -> sections, <answer>)
+          task=research, strategy=search_visit     (retrieve-then-visit baseline)
+Per-tool teaching lives in a tool's manual (a markdown file next to its tool.py) and renders
+only when the tool is in the strategy; the field-tagged surface lowers to the same executor AST
+via retrievers/bql/surface.to_bql, so the parser/typechecker/executor are reused.
 """
 import re
 
 import pytest
 
-from agent_search.legacy.prompts import (DOMAINS, get_prompt_spec, load_condition,
-                                   load_prompt_profile, load_prompt_text,
-                                   render_manuals)
-from agent_search.legacy.prompts.loader import load_task
+from agent_search.strategies import CONDITIONS, get_condition
+from agent_search.tasks.base import TASKS
+from agent_search.tasks.render import render_manuals
 from agent_search.retrievers.bql.parser import parse
 from agent_search.retrievers.bql.surface import to_bql
 from agent_search.retrievers.bql.types import check
 
 # Document conditions live in the "general" domain; the code-localization arm
-# (codefix / codefix_grep / codefix_patch over the taskfix templates) in "code".
+# (codefix / codefix_grep / codefix_patch over the codefix templates) in "code".
 GEN_CONDS = ("research_snip", "research_bm25", "research_dci")
 CODE_CONDS = ("codefix", "codefix_grep", "codefix_patch")
 ALL_CONDS = GEN_CONDS + CODE_CONDS
 
 
 def test_domains():
-    assert set(DOMAINS) == {"general", "code"}
+    assert {c.domain for c in CONDITIONS.values()} == {"general", "code"}
 
 
 def test_code_conditions_compose_the_code_toolsets():
     for name, tools in (("codefix", ("search", "fetch")), ("codefix_grep", ("grep", "read")),
                         ("codefix_patch", ("search", "fetch"))):
-        prof = load_condition(name)
-        assert prof.domain == "code" and prof.tool_names == tools
-        assert '"name":"' + tools[0] + '"' in prof.system
-    assert "bql_code" not in load_condition("codefix_grep").system.lower()
+        cond = get_condition(name)
+        assert cond.domain == "code" and cond.tool_names == tools
+        assert '"name":"' + tools[0] + '"' in cond.render()
+    assert "bql_code" not in get_condition("codefix_grep").render().lower()
 
 
 @pytest.mark.parametrize("cond", ALL_CONDS)
 def test_every_condition_resolves_and_composes(cond):
-    spec = get_prompt_spec(cond)
-    prof = load_condition(cond)
-    assert prof.name == cond
-    assert prof.domain == spec.domain
-    assert "<tools>" in prof.system
-    assert prof.system.strip()
-    assert load_prompt_profile(spec.path).system == prof.system
+    c = get_condition(cond)
+    assert c.name == cond
+    assert c.domain in ("general", "code")
+    assert "<tools>" in c.render()
+    assert c.render().strip()
 
 
 def test_condition_domains_are_correct():
     for c in GEN_CONDS:
-        assert get_prompt_spec(c).domain == "general"
+        assert get_condition(c).domain == "general"
 
 
 def test_unknown_condition_rejected():
     with pytest.raises(ValueError):
-        get_prompt_spec("nonsense")
-    with pytest.raises(ValueError):
-        load_condition("nonsense")
+        get_condition("nonsense")
 
 
 def test_retired_conditions_are_gone():
-    """The old prefix-surface / one-shot-search / localization conditions are retired for
-    BOTH arms — they must no longer resolve.
+    """The old prefix-surface / one-shot-search / localization conditions are retired.
 
-    NOTE: `research_dense` is NOT in this list — that name was reclaimed (additively) for the
-    NEW dense retrieve-then-visit baseline (toolset `dense_visit`, DenseVisit in
-    doc_research.py; see tests/test_dense_baseline.py), the modern-RAG-default analogue of
-    `research_bm25`. It is a live condition now, not a retired one."""
-    for gone in ("bql", "grep", "bm25", "dense", "tools", "tools_bql",
+    NOTE: `bm25` and `dense` are NOT in this list — those bare names now name the loop-free
+    retrieval-only floors (`agent_search/strategies/retrieval_only.py`, aliased in paper.py),
+    a live condition, not a retired one (mirrors how `research_dense` was reclaimed for the
+    modern dense retrieve-then-visit baseline)."""
+    for gone in ("bql", "grep", "tools", "tools_bql",
                  "tools_nodense", "research_bql", "research_tools"):
         with pytest.raises(ValueError):
-            get_prompt_spec(gone)
+            get_condition(gone)
 
 
 # --- tasks are tool-agnostic; manuals carry the per-tool teaching -----------
@@ -84,7 +78,7 @@ def test_tasks_are_tool_agnostic():
     language (that lives in the manuals) — a single illustrative example call is fine, but the
     operator reference / field table constructs must not appear in the task body."""
     for task in ("research",):
-        _, body = load_task(task)
+        _, body = TASKS[task].template()
         assert "{{tools}}" in body and "{{tool_manuals}}" in body
         for marker in ("IN(def", "term[field]", "| `def` |", "| `title` |",
                        "## Field", "## Combine"):
@@ -92,7 +86,7 @@ def test_tasks_are_tool_agnostic():
 
 
 def test_research_output_contract():
-    _, body = load_task("research")
+    _, body = TASKS["research"].template()
     assert "<answer>" in body
 
 
@@ -114,11 +108,16 @@ def _worked_examples(manual: str) -> list[str]:
     return out
 
 
+def _manual_of(tool, domain: str = "general") -> str:
+    return render_manuals([tool.manual_path(domain)])
+
+
 def test_doc_manual_worked_examples_lower_and_typecheck():
-    manual = render_manuals(("search_s",), domain="general")
+    from agent_search.tools.search_bql.tool import SearchBql
+    manual = _manual_of(SearchBql(name="search_s", snippets=True))
     assert manual and "term[field]" in manual, "doc `search_s` must declare the field-tagged manual"
     ex = _worked_examples(manual)
-    assert ex, "no worked term[field] examples found in skills/bql_doc.md"
+    assert ex, "no worked term[field] examples found in the BQL doc manual"
     for q in ex:
         bql = to_bql(q, domain="doc")
         r = parse(bql)
@@ -127,7 +126,8 @@ def test_doc_manual_worked_examples_lower_and_typecheck():
 
 
 def test_doc_manual_advertises_its_fields():
-    docs = render_manuals(("search_s",), domain="general")
+    from agent_search.tools.search_bql.tool import SearchBql
+    docs = _manual_of(SearchBql(name="search_s", snippets=True))
     assert docs
     for f in ("title", "section", "body", "infobox"):
         assert f"`{f}`" in docs or f"[{f}]" in docs, f"doc manual missing field {f!r}"
@@ -138,36 +138,34 @@ def test_only_search_family_tools_have_a_manual():
     """`search_s` (research_snip's excerpt-listing field-tagged surface) carries a manual; so
     do its siblings `isearch_s` (research_indri_snip's Indri graded query language) and the
     BQL_DENSE dense-fused twins `search_bqld{f,os}`/`search_bqlds` (research_bql_dense_fetch/
-    research_bql_donly_snip/research_bql_dense_snip — SAME bql_doc.md manual VALUES, only the
+    research_bql_donly_snip/research_bql_dense_snip — SAME BQL doc manual VALUES, only the
     ranking underneath differs, see agent_search/retrievers/bql/dense_fuse.py).
     `fetch`/`fetch_s`/`fetch_bqld{f,os,s}` carry none — they're plain reads, no new coaching.
-    The code arm's `search` carries the code BQL manual (skills/bql_code.md)."""
-    from agent_search.legacy.prompts.loader import _registry
-    tools = _registry()["tools"]
-    with_manual = sorted(n for n, s in tools.items() if s.get("manual"))
+    The code arm's `search` carries the code BQL manual (bql_code.md)."""
+    with_manual = sorted({t.name for cond in CONDITIONS.values() for t in cond.strategy.tools if t.manual})
     assert with_manual == ["isearch_s", "search", "search_bqldf", "search_bqldos", "search_bqlds",
                            "search_s"]
 
 
 def test_research_baseline_is_uncoached():
     """research_bm25 is the retrieve-then-visit baseline: BM25 search + visit, NO manual."""
-    base = load_condition("research_bm25")
+    base = get_condition("research_bm25")
     assert set(base.tool_names) == {"bm25_search", "visit"}
-    assert render_manuals(base.tool_names, domain="general") == ""
-    assert base.system.count("term[field]") == 0
+    assert all(not t.manual for t in base.strategy.tools)
+    assert base.render().count("term[field]") == 0
 
 
 def test_research_dci_is_uncoached():
     """research_dci is the brute-force baseline: bash + read over the raw corpus filesystem,
     NO retriever, NO manual (a shell needs no teaching)."""
-    base = load_condition("research_dci")
+    base = get_condition("research_dci")
     assert set(base.tool_names) == {"bash", "read"}
-    assert render_manuals(base.tool_names, domain="general") == ""
-    assert base.system.count("term[field]") == 0
+    assert all(not t.manual for t in base.strategy.tools)
+    assert base.render().count("term[field]") == 0
 
 
 def test_research_dci_exposes_only_bash_and_read():
-    text = load_prompt_text(get_prompt_spec("research_dci").path)
+    text = get_condition("research_dci").render()
     flat = text.replace(" ", "")
     assert '"name":"bash"' in flat and '"name":"read"' in flat
     assert '"name":"search"' not in flat and '"name":"fetch"' not in flat
@@ -175,9 +173,9 @@ def test_research_dci_exposes_only_bash_and_read():
 
 
 def test_research_method_carries_the_doc_manual_baselines_do_not():
-    method = load_condition("research_snip").system
-    bm25_base = load_condition("research_bm25").system
-    dci_base = load_condition("research_dci").system
+    method = get_condition("research_snip").render()
+    bm25_base = get_condition("research_bm25").render()
+    dci_base = get_condition("research_dci").render()
     assert "term[field]" in method
     assert "term[field]" not in bm25_base and "term[field]" not in dci_base
 
@@ -186,7 +184,7 @@ def test_research_and_its_baselines_share_the_same_answer_contract():
     """All three doc conditions must share the identical <answer> output contract — only the
     search instrument (structured / retrieve-then-visit / brute-force shell) differs."""
     for cond in GEN_CONDS:
-        assert "<answer>" in load_condition(cond).system
+        assert "<answer>" in get_condition(cond).render()
 
 
 # --- surface lowering: the translator agrees with the manuals' promises ------

@@ -120,12 +120,6 @@ def _ensure_loaded() -> None:
         except Exception as e:                     # noqa: BLE001, same skip-and-continue policy
             print(f"  [registry] WARNING: failed to import retriever module {_m.name!r}: "
                   f"{e!r} — skipping it", file=sys.stderr, flush=True)
-    # the agent-as-retriever lives outside retrievers/ (it composes tools), import it too
-    try:
-        from agent_search.legacy import retriever as _agent_ret                 # noqa: F401
-    except Exception as e:
-        print(f"  [registry] WARNING: failed to import agent_search.legacy.retriever: "
-              f"{e!r} — skipping it", file=sys.stderr, flush=True)
     # conditions declared in agent_search.strategies (tasks x strategies) register as agent_<name>
     try:
         from agent_search.evaluation.agent_runner import register_conditions

@@ -1,15 +1,13 @@
-"""Coverage for sdk_driver's toolsets ("search_v2", "fetch_v2") and ("isearch", "fetch"), once
-exposed as the `research_v2` and `research_indri` conditions and now pruned from
-conditions.yaml, but still valid tool names on the underlying workspaces: see
-agent_search/legacy/workspaces/sieve.py (search_v2/fetch_v2 alias search/fetch on
-DocSearchFetch.run) and agent_search/legacy/workspaces/doc_indri.py (isearch on
-IndriFetchWorkspace.run). `_tools_for` must recognize these tool names, so an OpenAI-backbone
-SDK run over either workspace gets its tools.
+"""Coverage for sdk_driver's toolsets ("search_v2", "fetch_v2") and ("isearch", "fetch"): the
+`sieve_v2` strategy's `SearchBql(name="search_v2", ...)`/`Fetch(name="fetch_v2")` pair
+(agent_search/strategies/sieve.py) and the `indri_plain` strategy's `SearchIndri(name="isearch")`/
+`Fetch(name="fetch")` pair (agent_search/strategies/indri.py). `_tools_for` must recognize these
+tool names, so an OpenAI-backbone SDK run over either toolbox gets its tools.
 
 CPU-only, no network: a tiny fake workspace (tools attribute + run(name, args) recording calls,
-returning a canned string) stands in for the real DocSearchFetch/IndriFetchWorkspace. Each SDK
-`function_tool`'s underlying callable is invoked via its `.on_invoke_tool(ctx, json_args)`, the
-`agents` library's own invocation path, never a real model/API call.
+returning a canned string) stands in for a real `ToolBox`. Each SDK `function_tool`'s underlying
+callable is invoked via its `.on_invoke_tool(ctx, json_args)`, the `agents` library's own
+invocation path, never a real model/API call.
 """
 from __future__ import annotations
 
@@ -112,8 +110,8 @@ def test_isearch_fetch_tools():
     assert trace[-1][0] == "fetch"
 
 
-# --- name-set 4: research_bql_visit's ("search_bv", "visit_bv") — the {BQL search} x
-# {whole-doc visit} factorial cell (doc_research.py's BqlVisitWorkspace) ------------------
+# --- name-set 4: the sieve_visit strategy's ("search_bv", "visit_bv") — the {BQL search} x
+# {whole-doc visit} factorial cell (agent_search/strategies/sieve.py's sieve_visit) ---------
 
 def test_search_bv_visit_bv_tools():
     ws = FakeWS(("search_bv", "visit_bv"))

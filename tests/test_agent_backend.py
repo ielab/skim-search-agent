@@ -10,7 +10,7 @@ from types import ModuleType, SimpleNamespace
 from agent_search.models import openai_compat_generate, vllm_generate
 from agent_search.agent.loop import Task, run_episode
 from agent_search.agent.policies import AgentPolicy
-from agent_search.legacy.prompts import get_prompt_spec
+from agent_search.strategies import CONDITIONS
 
 
 def _fake_client(responses):
@@ -130,18 +130,24 @@ def test_make_generate_routes_backbone_through_vllm_for_any_condition(monkeypatc
 def test_research_dci_episode_drives_through_agentpolicy_and_run_episode():
     """The DCI baseline's full episode shape: bash -> read -> <answer>, through the SAME
     AgentPolicy/run_episode chain as the method (only the workspace + toolset differ)."""
-    from agent_search.legacy.workspaces.doc_dci import DciWorkspace
     from agent_search.corpus.units import units_from_documents
+    from agent_search.tools.base import EpisodeState, ToolBox
+    from agent_search.tools.bash.tool import Bash
+    from agent_search.tools.read.tool import Read
 
     docs = [{"_id": "d1", "title": "Doc One", "text": "The answer is forty-two."}]
     units = units_from_documents(docs)
-    ws = DciWorkspace(units)
+    ubyid = {u.doc_id: u for u in units}
+    state = EpisodeState(question="What is the answer?")
+    bash = Bash().bind(state, units, ubyid, {}, corpus_key="agent_backend_dci")
+    read = Read().bind(state, units, ubyid, {}, corpus_key="agent_backend_dci")
+    ws = ToolBox([bash, read], state)
     gen = openai_compat_generate(model="x", client=_fake_client([
         '<tool_call>{"name":"bash","arguments":{"command":"grep -rl \'answer\' ."}}</tool_call>',
         '<tool_call>{"name":"read","arguments":{"path":"d1.txt"}}</tool_call>',
         "<answer>forty-two</answer>",
     ]))
-    traj = run_episode(AgentPolicy(generate=gen, prompt_path=get_prompt_spec("research_dci").path),
+    traj = run_episode(AgentPolicy(generate=gen, system=CONDITIONS["research_dci"].render()),
                        Task("q", "What is the answer?"), ws, units, domain="general")
     assert traj.stopped_reason == "answer"
     assert traj.final_answer == "forty-two"

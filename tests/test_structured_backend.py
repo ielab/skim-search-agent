@@ -1,16 +1,15 @@
 """Tests for `STRUCTURED_BACKEND` (python|lucene): the env knob that swaps the pure-Python
 Indri/BQL reference engines for `LuceneStructuredEngine` (`agent_search/retrievers/
-lucene/`) underneath the same doc-arm workspaces (`IndriFetchWorkspace`/`IndriVisitWorkspace`,
-`DocSearchFetch`/`BqlVisitWorkspace`), unchanged. See `structural/backend.py`'s module
+lucene/`) underneath the same doc-arm tools (`search_indri`/`fetch`/`visit`,
+`search_bql`/`fetch`/`visit`), unchanged. See `structural/backend.py`'s module
 docstring (the resolver) and `lucene/adapters.py`'s module docstring (the two
 adapters and documented deviations, including dense-belief score-normalization) for the design.
 
 1. Backend-selection: `structured_backend()`'s env resolution, `build_indri_engine`/
    `build_bql_engine`'s dispatch (python -> the real Python executor class; lucene -> the
-   adapter class, requires a real `key`), and the workspaces' own `executor=None` fallback
-   respecting the knob (same pattern as `build_bm25_engine`'s fallback).
+   adapter class, requires a real `key`).
 2. Interface parity: the same tool calls (`search_bv`/`visit_bv`, `isearch_v`/`visit_v`)
-   against a python-backed vs lucene-backed workspace over the identical fixture corpus:
+   against a python-backed vs lucene-backed engine over the identical fixture corpus:
    listings render, ranks resolve, and the 0-hit coverage-fallback (delegated to a lazy
    in-memory `StructuralExecutor` under the lucene backend, see adapters.py) still works.
 3. Dense fusion with the lucene backend (`LuceneIndriAdapter`'s score-normalization design):
@@ -27,14 +26,17 @@ from __future__ import annotations
 
 import pytest
 
-from agent_search.legacy.workspaces.doc_indri import IndriFetchWorkspace, IndriVisitWorkspace
-from agent_search.legacy.workspaces.sieve import BqlVisitWorkspace, DocSearchFetch
 from agent_search.corpus.units import CodeUnit
 from agent_search.retrievers.bql.executor import StructuralExecutor
 from agent_search.retrievers.indri.model import IndriExecutor
 from agent_search.retrievers.lucene import index_builder
 from agent_search.retrievers.lucene import jni_utils as _jni
 from agent_search.retrievers.lucene.engine import LuceneStructuredEngine
+from agent_search.tools.base import EpisodeState, ToolBox
+from agent_search.tools.fetch.tool import Fetch
+from agent_search.tools.search_bql.tool import SearchBql
+from agent_search.tools.search_indri.tool import SearchIndri
+from agent_search.tools.visit.tool import Visit
 
 try:
     _jni._boot()
@@ -90,6 +92,36 @@ def index_root(tmp_path_factory, units) -> str:
 @pytest.fixture(scope="module")
 def engine(index_root) -> LuceneStructuredEngine:
     return LuceneStructuredEngine(index_root=index_root, dataset=_DATASET_KEY)
+
+
+def _toolbox(units, tools, engines):
+    state = EpisodeState(question="q")
+    ubyid = {u.doc_id: u for u in units}
+    bound = [t.bind(state, units, ubyid, engines) for t in tools]
+    return ToolBox(bound, state)
+
+
+def _bql_visit_toolbox(units, executor):
+    """`search_bv`/`visit_bv`: the old BqlVisitWorkspace's forced options (coverage, date_nudge,
+    a per-hit snippet) on top of a whole-doc visit read."""
+    return _toolbox(units,
+                    [SearchBql(name="search_bv", coverage=True, date_nudge=True, snippets=True),
+                     Visit(name="visit_bv")],
+                    {"bql": executor})
+
+
+def _docsearchfetch_toolbox(units, executor):
+    """The plain search->fetch method, no per-hit excerpt."""
+    return _toolbox(units, [SearchBql(name="search"), Fetch(name="fetch")], {"bql": executor})
+
+
+def _indri_visit_toolbox(units, executor):
+    return _toolbox(units, [SearchIndri(name="isearch_v", snippets=True), Visit(name="visit_v")],
+                    {"indri": executor})
+
+
+def _indri_fetch_toolbox(units, executor):
+    return _toolbox(units, [SearchIndri(name="isearch"), Fetch(name="fetch")], {"indri": executor})
 
 
 # === 1. backend-selection ==========================================================
@@ -182,51 +214,45 @@ def test_build_indri_engine_lucene_wires_dense_through(units, monkeypatch, index
     assert eng.dense is stub
 
 
-def test_workspace_default_executor_respects_backend(units, monkeypatch):
-    monkeypatch.delenv("STRUCTURED_BACKEND", raising=False)
-    assert isinstance(DocSearchFetch(units).ex, StructuralExecutor)
-    assert isinstance(IndriFetchWorkspace(units).iex, IndriExecutor)
+# NOTE: the pre-0.3 workspace classes did their own lazy `executor=None` -> build_bql_engine()/
+# build_indri_engine() fallback when constructed with no explicit engine, and raised the same
+# "needs a real key" ValueError under STRUCTURED_BACKEND=lucene. A `search_bql`/`search_indri`
+# tool never does this: a strategy's engine is always built explicitly up front (`Engines.build`,
+# agent_search/retrievers/engines.py) and handed to the tool at bind time — there is no
+# tool-level fallback to test. That construction-time resolution is exactly
+# `build_indri_engine`/`build_bql_engine`, already covered directly above (default-returns-
+# python-executor / lucene-needs-a-real-key), so no equivalent test is re-created here.
 
 
-def test_workspace_default_executor_lucene_backend_raises_without_key(units, monkeypatch):
-    # ad-hoc construction (no executor=) under STRUCTURED_BACKEND=lucene has no dataset key
-    # to resolve a prebuilt index from — fails loud rather than silently using python.
-    monkeypatch.setenv("STRUCTURED_BACKEND", "lucene")
-    with pytest.raises(ValueError, match="key"):
-        DocSearchFetch(units)
-    with pytest.raises(ValueError, match="key"):
-        IndriFetchWorkspace(units)
+# === 2. interface parity: same tool calls, python vs lucene backend =====================
 
 
-# === 2. interface parity: same workspace calls, python vs lucene backend =====================
-
-
-def test_bql_visit_workspace_parity_search_and_visit(units, engine):
-    ws_py = BqlVisitWorkspace(units)
-    ws_lu = BqlVisitWorkspace(units, executor=LuceneBqlAdapter(engine, units))
-    for ws in (ws_py, ws_lu):
-        out = ws.run("search_bv", {"query": "harbor[title]"})
+def test_bql_visit_parity_search_and_visit(units, engine):
+    tb_py = _bql_visit_toolbox(units, build_bql_engine(units))
+    tb_lu = _bql_visit_toolbox(units, LuceneBqlAdapter(engine, units))
+    for tb in (tb_py, tb_lu):
+        out = tb.run("search_bv", {"query": "harbor[title]"})
         assert "ERROR" not in out
         assert "d_harbor" in out
         assert "§[" in out and "ib[" in out         # SAME structure table shape
-        assert "matched:" in out                     # computed by the workspace, not the engine
+        assert "matched:" in out                     # computed by the tool, not the engine
         assert "»" in out                             # content excerpt (forced, fairness parity)
-        visit_out = ws.run("visit_bv", {"rank": 1})
+        visit_out = tb.run("visit_bv", {"rank": 1})
         assert "ERROR" not in visit_out
         assert "d_harbor" in visit_out
         assert "Harbor Festival" in visit_out
 
 
-def test_bql_visit_workspace_parity_coverage_fallback(units, engine):
+def test_bql_visit_parity_coverage_fallback(units, engine):
     """The 0-exact-hit constraint-COVERAGE path (BQL v2 Feature 2) — under the lucene
     backend this is served by `LuceneBqlAdapter`'s lazily-built in-memory fallback
     executor (see adapters.py's documented BQL-surface deviation), so the rendering must
     be IDENTICAL to the python backend's own native coverage_topk."""
-    ws_py = BqlVisitWorkspace(units)
-    ws_lu = BqlVisitWorkspace(units, executor=LuceneBqlAdapter(engine, units))
+    tb_py = _bql_visit_toolbox(units, build_bql_engine(units))
+    tb_lu = _bql_visit_toolbox(units, LuceneBqlAdapter(engine, units))
     query = {"query": "foo[body] AND bar[body] AND baz[body] AND qux[body]"}
-    for ws in (ws_py, ws_lu):
-        out = ws.run("search_bv", query)
+    for tb in (tb_py, tb_lu):
+        out = tb.run("search_bv", query)
         assert "CONSTRAINT COVERAGE" in out
         assert "miss=[" in out
         lines = out.split("\n")
@@ -238,34 +264,34 @@ def test_docsearchfetch_parity_n_hits_header_matches(units, engine):
     """`obs.n_hits` (the search listing's "(N matches, top K)" count) must be the EXACT
     total, not a truncated `len(hits)`, under lucene too (`LuceneBqlAdapter.run_with_count`
     uses `LuceneStructuredEngine.count_bql_expr`, not `len(top-k hits)`)."""
-    ws_py = DocSearchFetch(units)
-    ws_lu = DocSearchFetch(units, executor=LuceneBqlAdapter(engine, units))
-    for ws in (ws_py, ws_lu):
-        out = ws.run("search", {"query": "doc[title]", "k": 2})
+    tb_py = _docsearchfetch_toolbox(units, build_bql_engine(units))
+    tb_lu = _docsearchfetch_toolbox(units, LuceneBqlAdapter(engine, units))
+    for tb in (tb_py, tb_lu):
+        out = tb.run("search", {"query": "doc[title]", "k": 2})
         assert "ERROR" not in out
         # docA/docB/docC/docD all title-match "doc" exactly; k=2 truncates the listing.
         assert "4 matches, top 2" in out
 
 
-def test_indri_visit_workspace_parity_search_and_visit(units, engine):
-    ws_py = IndriVisitWorkspace(units)
-    ws_lu = IndriVisitWorkspace(units, executor=LuceneIndriAdapter(engine))
-    for ws in (ws_py, ws_lu):
-        out = ws.run("isearch_v", {"query": "#combine(dog train)"})
+def test_indri_visit_parity_search_and_visit(units, engine):
+    tb_py = _indri_visit_toolbox(units, IndriExecutor(units))
+    tb_lu = _indri_visit_toolbox(units, LuceneIndriAdapter(engine))
+    for tb in (tb_py, tb_lu):
+        out = tb.run("isearch_v", {"query": "#combine(dog train)"})
         assert "ERROR" not in out
         assert "hits):" in out
         assert "»" in out
-        visit_out = ws.run("visit_v", {"rank": 1})
+        visit_out = tb.run("visit_v", {"rank": 1})
         assert "ERROR" not in visit_out
 
 
-def test_indri_fetch_workspace_parity_section_fetch(units, engine):
-    ws_py = IndriFetchWorkspace(units)
-    ws_lu = IndriFetchWorkspace(units, executor=LuceneIndriAdapter(engine))
-    for ws in (ws_py, ws_lu):
-        out = ws.run("isearch", {"query": "#combine(dog train)"})
+def test_indri_fetch_parity_section_fetch(units, engine):
+    tb_py = _indri_fetch_toolbox(units, IndriExecutor(units))
+    tb_lu = _indri_fetch_toolbox(units, LuceneIndriAdapter(engine))
+    for tb in (tb_py, tb_lu):
+        out = tb.run("isearch", {"query": "#combine(dog train)"})
         assert "ERROR" not in out
-        fetch_out = ws.run("fetch", {"specs": [[1, ""]]})
+        fetch_out = tb.run("fetch", {"specs": [[1, ""]]})
         assert "ERROR" not in fetch_out
 
 

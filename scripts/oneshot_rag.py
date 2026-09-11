@@ -7,30 +7,31 @@ loading the agent harness uses (agent_search.evaluation.datasets.load_dataset_by
 comparable to the agent_research*/agent_research_bm25/agent_research_dense/agent_research_hybrid
 conditions run through agent_search/evaluation/run_eval.py:
 
-  bm25   Same text blob (title+body) agent_search.legacy.workspaces.search_visit.Bm25Visit builds,
-         through the same env `BM25_BACKEND`-selectable engine the agent harness's bm25-family
-         arms use (agent_search.retrievers.lexical.build_bm25_engine): 'local' (default)
+  bm25   Same text blob (title+body) the `search_visit` strategy's `bm25_search` tool builds
+         (agent_search/tools/search_bm25/tool.py), through the same env `BM25_BACKEND`-selectable
+         engine the agent harness's bm25-family arms use
+         (agent_search.retrievers.lexical.build_bm25_engine): 'local' (default)
          BM25Local, the dependency-free approximation; 'pyserini', canonical Lucene BM25,
          persisted under indexes/bm25_pyserini/<corpus_key>/lucene/ (built once, reused).
          Override with --bm25-backend {local,pyserini} (defaults from env BM25_BACKEND).
   dense  DenseBelief (agent_search.retrievers.dense.belief), the same
-         persisted doc-embedding cache Baseline 1's `research_dense` condition
-         (agent_search.legacy.workspaces.search_visit.DenseVisit) uses, default BAAI/bge-base-en-v1.5,
+         persisted doc-embedding cache Baseline 1's `research_dense` condition (the
+         `search_visit_dense` strategy's `dense_search` tool) uses, default BAAI/bge-base-en-v1.5,
          indexes/dense/BAAI__bge-base-en-v1.5-sl1024/<corpus_key>/ (env `DENSE_MODEL` overrides,
          e.g. Qwen/Qwen3-Embedding-0.6B -> indexes/dense/Qwen__Qwen3-Embedding-0.6B-sl1024/).
          Missing cache -> a clear error (this baseline does not live-encode a whole corpus at
          eval time either).
-  hybrid Reciprocal Rank Fusion (RRF, k=`doc_research.RRF_K`=60) of the same
+  hybrid Reciprocal Rank Fusion (RRF, k=`agent_search.tools.budgets.RRF_K`=60) of the same
          bm25 engine (above) and the same dense engine (above), each queried to
-         `doc_research.HYBRID_POOL`=100 depth before fusion, the same formula/pool depths
-         `agent_search.legacy.workspaces.search_visit.HybridVisit`/`rrf_fuse` use for the
+         `agent_search.tools.budgets.HYBRID_POOL`=100 depth before fusion, the same formula/pool
+         depths the `search_visit_hybrid` strategy's `hybrid_search` tool/`rrf_fuse` use for the
          `research_hybrid` condition (reused via import, not reimplemented). Needs both the bm25
          engine and the persisted dense cache the two variants above need individually; a missing
          dense cache raises the same clear error as --retriever dense.
 
-Each retrieved doc is capped at MAX_VISIT_TOKENS (the same whitespace-token cap doc_research.py's
-Bm25Visit/DenseVisit use for a whole-doc `visit`), so the k=5 stuffed docs are comparable in size
-to what the agent arms see per fetch/visit call.
+Each retrieved doc is capped at MAX_VISIT_TOKENS (the same whitespace-token cap
+agent_search.tools.budgets uses for a whole-doc `visit`), so the k=5 stuffed docs are comparable
+in size to what the agent arms see per fetch/visit call.
 
 Usage (PYTHONPATH=${REPO_ROOT:-.}, the project's `python`):
   python scripts/oneshot_rag.py --dataset hotpotqa_structured --retriever bm25 \\
@@ -59,7 +60,6 @@ import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Callable, Optional, Sequence
 
-from agent_search.legacy.workspaces.budgets import MAX_VISIT_TOKENS
 from agent_search.core.tokens import cap_tokens as _cap_tokens
 from agent_search.corpus.units import CodeUnit, units_from_documents
 from agent_search.retrievers.dense.belief import default_model as _default_dense_model
@@ -71,8 +71,9 @@ DENSE_MODEL = _default_dense_model()
 TOP_K = 5                          # fixed retrieval depth (not a CLI knob, see module docstring)
 DEFAULT_MODEL = "Alibaba-NLP/Tongyi-DeepResearch-30B-A3B"
 DEFAULT_API_BASE = "http://127.0.0.1:8101/v1"     # matches oneshot_rag.sbatch's served port
-# DENSE_MODEL: resolved from dense.belief.default_model() (same model DenseVisit/DenseBelief use,
-# env `DENSE_MODEL`-overridable, see that module) rather than a second hardcoded literal here.
+# DENSE_MODEL: resolved from dense.belief.default_model() (same model the `dense_search` tool/
+# DenseBelief use, env `DENSE_MODEL`-overridable, see that module) rather than a second
+# hardcoded literal here.
 
 # The completion budget must be env-configurable: a hardcoded max_tokens=512 lets the Tongyi
 # reasoning model burn its whole completion budget inside <think>...</think> and never reach
@@ -122,12 +123,12 @@ def _units_and_key(instances: Sequence[Instance]) -> tuple[list[CodeUnit], str]:
 
 def _build_bm25_engine(units: Sequence[CodeUnit], index_root: str = "indexes",
                        key: Optional[str] = None, backend: Optional[str] = None):
-    """Exactly how Bm25Visit builds its engine (doc_research.py), same text blob
+    """Exactly how the `bm25_search` tool builds its engine, same text blob
     (`qualname code`, i.e. title+body). `backend` (default: env BM25_BACKEND, else 'local')
     selects BM25Local (dependency-free approximation) vs BM25Pyserini (canonical Lucene BM25,
     persisted under `index_root/bm25_pyserini/<key>/lucene/`) via the same
     `agent_search.retrievers.lexical.build_bm25_engine` the agent harness's bm25-family arms
-    use (agent_search/legacy/retriever.py), so a oneshot bm25 run and an agent_research_bm25
+    use (agent_search/tools/search_bm25/tool.py), so a oneshot bm25 run and an agent_research_bm25
     run backed by the same BM25_BACKEND are the same retrieval engine."""
     from agent_search.retrievers.lexical import build_bm25_engine
     resolved = (backend or os.environ.get("BM25_BACKEND") or "local").strip().lower()
@@ -153,10 +154,11 @@ def _env_override(name: str, value: str):
 
 
 def _build_dense_engine(units: Sequence[CodeUnit], key: str, index_root: str = "indexes"):
-    """The same cached-embedding path Baseline 1's `research_dense`/DenseVisit uses, a
+    """The same cached-embedding path Baseline 1's `research_dense` condition (the
+    `search_visit_dense` strategy's `dense_search` tool) uses, a
     persisted `indexes/dense/BAAI__bge-base-en-v1.5-sl1024/<key>/` cache. FAILS LOUD (does
-    not live-encode the corpus) if that cache is missing, mirroring
-    agent_search.legacy.retriever.AgentRetriever.index()'s 'densevisit' arm."""
+    not live-encode the corpus) if that cache is missing, mirroring the `search_visit_dense`
+    strategy's own dense-cache check."""
     from agent_search.retrievers.dense import DenseRetriever
     from agent_search.retrievers.dense.belief import DenseBelief
 
@@ -183,18 +185,18 @@ def _build_hybrid_engine(units: Sequence[CodeUnit], index_root: str = "indexes",
 
 def retrieve_top_k(retriever: str, engine, query: str, k: int = TOP_K) -> list[str]:
     """doc_ids, ranked, for `query`, `bm25`: BM25Local.search; `dense`: DenseBelief's
-    memoized-encode cosine top-k (same call DenseVisit.search makes); `hybrid`
+    memoized-encode cosine top-k (same call the `dense_search` tool makes); `hybrid`
     RRF-fuses a bm25 pool and a dense pool, `engine` a `(bm25_engine,
     dense_engine)` pair (see `_build_hybrid_engine`), same `HYBRID_POOL`/`RRF_K`/`rrf_fuse`
-    formula `agent_search.legacy.workspaces.search_visit.HybridVisit` uses for research_hybrid,
+    formula the `hybrid_search` tool uses for research_hybrid,
     imported (not reimplemented) so the two stay byte-identical by construction."""
     if retriever == "bm25":
         return list(engine.search(query, k=k) or [])
     if retriever == "dense":
         return list(engine.top_k_doc_ids(query, k=k) or [])
     if retriever == "hybrid":
-        from agent_search.legacy.workspaces.budgets import HYBRID_POOL, RRF_K
-        from agent_search.legacy.workspaces.common import rrf_fuse
+        from agent_search.tools.budgets import HYBRID_POOL, RRF_K
+        from agent_search.tools.common import rrf_fuse
         bm25_engine, dense_engine = engine
         bm25_ids = list(bm25_engine.search(query, k=HYBRID_POOL) or [])
         dense_ids = list(dense_engine.top_k_doc_ids(query, k=HYBRID_POOL) or [])
@@ -276,7 +278,7 @@ def stuff_docs(doc_ids: Sequence[str], ubyid: dict,
     `model`'s own tokenizer when available); 0 (the default, env ONESHOT_DOC_CAP) means UNCAPPED
    , the classic one-shot RAG stuffs FULL documents (user-set design: the no-agent baseline must
     feed literal everything; only guard is the model's own context). Non-zero mirrors convention
-    Bm25Visit/DenseVisit's whole-doc `visit` caps (doc_research.py's `_cap_tokens`/MAX_VISIT_TOKENS),
+    the `visit` tool's whole-doc read caps (`agent_search.core.tokens.cap_tokens`/MAX_VISIT_TOKENS),
     so a stuffed doc here is comparable in size to what an agent arm sees per fetch/visit."""
     out = []
     for doc_id in doc_ids:

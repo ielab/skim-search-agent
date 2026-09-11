@@ -3,8 +3,7 @@ trained on.
 
 `agent_search.evaluation.agent_runner.ConditionAgent` opens a `QueryContext` for every episode and
 feeds it each step as it happens (what was searched, what was read, what the model said
-afterwards); `agent_search.legacy.retriever.AgentRetriever` does the same for its own runs.
-`agent_search.retrievers.dense.belief.DenseBelief` asks `current_query_for` how
+afterwards). `agent_search.retrievers.dense.belief.DenseBelief` asks `current_query_for` how
 to write the retriever query for the sub-query it is about to encode. When the dense query style
 is ``plain`` (the default) nothing changes; with any other style the query is rendered by
 `queries.render_query` with the history so far, byte-identical to how `triples.py` rendered it

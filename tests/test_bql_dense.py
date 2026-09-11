@@ -430,10 +430,10 @@ def test_load_or_build_default_dense_none_and_attach_works(units, tmp_path, dens
 # =============================================================================================
 
 def test_research_bql_dense_snip_condition_loads_and_mirrors_snip():
-    from agent_search.legacy.prompts import load_condition
+    from agent_search.strategies import get_condition
 
-    p = load_condition("research_bql_dense_snip")
-    assert p.toolset == "bql_dense_snip"
+    p = get_condition("research_bql_dense_snip")
+    assert p.strategy.toolset_name == "bql_dense_snip"
     assert set(p.tool_names) == {"search_bqlds", "fetch_bqlds"}
 
 
@@ -493,19 +493,17 @@ def test_agentretriever_bqldensesnip_end_to_end_offline_smoke(tmp_path, monkeypa
 # =============================================================================================
 
 def test_research_snip_condition_unaffected():
-    from agent_search.legacy.prompts import load_condition
+    from agent_search.strategies import get_condition
 
-    snip = load_condition("research_snip")
-    assert snip.toolset == "search_fetch_s"
+    snip = get_condition("research_snip")
+    assert snip.strategy.toolset_name == "search_fetch_s"
     assert set(snip.tool_names) == {"search_s", "fetch_s"}
 
 
 def test_bqlvisit_workspace_default_tool_names_unaffected_by_new_param():
-    from agent_search.legacy.workspaces.sieve import BqlVisitWorkspace
+    from agent_search.strategies.sieve import sieve_visit
 
-    assert BqlVisitWorkspace.tools == ("search_bv", "visit_bv")
-    ws = BqlVisitWorkspace(_corpus())
-    assert ws.tools == ("search_bv", "visit_bv")
+    assert sieve_visit.tool_names == ("search_bv", "visit_bv")
 
 
 # =============================================================================================
@@ -516,19 +514,22 @@ def test_bqlvisit_workspace_default_tool_names_unaffected_by_new_param():
 # unlike 'bqldensesnip', which forces it True).
 # =============================================================================================
 
-def test_research_bql_dense_fetch_condition_loads_and_mirrors_plain_doc():
-    from agent_search.legacy.prompts import load_condition
-    from agent_search.legacy.prompts.loader import render_manuals
+def _manuals_of(cond) -> str:
+    from agent_search.tasks.render import render_manuals
+    return render_manuals([t.manual_path("general") for t in cond.strategy.tools])
 
-    p = load_condition("research_bql_dense_fetch")
-    assert p.toolset == "bql_dense_fetch"
+
+def test_research_bql_dense_fetch_condition_loads_and_mirrors_plain_doc():
+    from agent_search.strategies import get_condition
+
+    p = get_condition("research_bql_dense_fetch")
+    assert p.strategy.toolset_name == "bql_dense_fetch"
     assert set(p.tool_names) == {"search_bqldf", "fetch_bqldf"}
     # same skill manual BODY as the plain BQL doc search+fetch condition (`research_snip`;
     # BQL_DENSE changes ranking, not coaching) — compare the rendered manual text directly
-    # rather than the full `.system` (which also embeds each tool's own NAME in its <tools>
+    # rather than the full `.render()` (which also embeds each tool's own NAME in its <tools>
     # JSON schema, so it differs byte-for-byte even though the coaching content is identical).
-    assert (render_manuals(("search_s", "fetch_s"), domain="general")
-            == render_manuals(("search_bqldf", "fetch_bqldf"), domain="general"))
+    assert _manuals_of(get_condition("research_snip")) == _manuals_of(p)
 
 
 def test_research_bql_dense_fetch_resolves_via_registry_as_bqldensefetch_arm():
@@ -643,10 +644,10 @@ def test_bqldensefetch_workspace_hallucinated_tool_name_errors(tmp_path, monkeyp
 
 def test_research_bql_dense_snip_and_visit_conditions_unaffected_by_new_fetch_cell():
     """Adding 'bqldensefetch' must not touch the pre-existing dense-BQL snip condition."""
-    from agent_search.legacy.prompts import load_condition
+    from agent_search.strategies import get_condition
 
-    snip = load_condition("research_bql_dense_snip")
-    assert snip.toolset == "bql_dense_snip"
+    snip = get_condition("research_bql_dense_snip")
+    assert snip.strategy.toolset_name == "bql_dense_snip"
     assert set(snip.tool_names) == {"search_bqlds", "fetch_bqlds"}
 
 

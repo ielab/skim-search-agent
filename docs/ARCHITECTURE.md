@@ -129,11 +129,6 @@ agent_search/
   experiment.py    the experiment-file schema; cli.py; api.py
 ```
 
-The pre-0.3 code lives in `agent_search/legacy/` under its own name: the old workspaces
-(`legacy/workspaces/`), the old `AgentRetriever` (`legacy/retriever.py`), and the YAML prompt
-registry (`legacy/prompts/`). Nothing else is aliased. Every other module lives at one path,
-and every importer uses that path directly.
-
 ## One episode, end to end
 
 1. **Dataset to instances.** A dataset loader returns `Instance`s: a question, the shared document
@@ -165,11 +160,7 @@ prompts the model once or returns the ranking as is.
 The paper's task templates and manuals are files, moved with no byte changed. Each tool carries
 the exact declaration text the paper prompts showed under each exposed name.
 `tests/test_prompt_fidelity.py` pins the rendered system prompt of every paper condition to its
-hash and fails if any change moves it. `tests/test_tool_parity.py` drives each new tool and its
-old workspace with the same calls and requires identical observations;
-`tests/test_episode_parity.py` does the same for whole stub episodes, and
-`scripts/replay_check.py` replays a run's recorded generations through both codes on a real
-corpus.
+hash and fails if any change moves it.
 
 ## Length is measured in tokens, never characters
 

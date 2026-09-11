@@ -578,12 +578,19 @@ def test_lucene_and_python_warn_identically_for_the_same_unknown_field(indri_ex,
 
 
 def test_isearch_tool_text_shows_zero_hits_and_warning_under_lucene_backend(lucene_eng, units):
-    """End-to-end through the agent-facing tool layer (doc_indri.IndriFetchWorkspace):
+    """End-to-end through the agent-facing tool layer (`search_indri`/`fetch`):
     the Lucene backend's 0-hit result must render a VISIBLE warning line, not just
     silently report "(0 hits)" indistinguishable from a normal empty-result query."""
-    from agent_search.legacy.workspaces.doc_indri import IndriFetchWorkspace
+    from agent_search.tools.base import EpisodeState, ToolBox
+    from agent_search.tools.fetch.tool import Fetch
+    from agent_search.tools.search_indri.tool import SearchIndri
+
     adapter = LuceneIndriAdapter(lucene_eng)
-    ws = IndriFetchWorkspace(units, executor=adapter, op_nudge=False)
+    state = EpisodeState(question="q")
+    ubyid = {u.doc_id: u for u in units}
+    search = SearchIndri(name="isearch", op_nudge=False).bind(state, units, ubyid, {"indri": adapter})
+    fetch = Fetch(name="fetch").bind(state, units, ubyid, {})
+    ws = ToolBox([search, fetch], state)
     out = ws.run("isearch", {"query": "dog.bogusfield"})
     assert "(0 hits)" in out
     assert "warning" in out.lower() and "bogusfield" in out

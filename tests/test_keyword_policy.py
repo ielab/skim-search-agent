@@ -6,12 +6,18 @@ visit), grep->read (the code baseline), or bash->read (the DCI baseline), then t
 terminal (<fix> for code, <answer> for docs)."""
 from agent_search.agent.loop import Task, run_episode
 from agent_search.agent.policies import KeywordPolicy
-from agent_search.legacy.workspaces.code_fix import CodeFixWorkspace
-from agent_search.legacy.workspaces.code_grep import GrepReadWorkspace
-from agent_search.legacy.workspaces.doc_dci import DciWorkspace
-from agent_search.legacy.workspaces.search_visit import Bm25Visit
-from agent_search.legacy.workspaces.sieve import DocSearchFetch
 from agent_search.corpus.units import units_from_documents, units_from_python_source
+from agent_search.tools.base import EpisodeState, ToolBox
+from agent_search.tools.bash.tool import Bash
+from agent_search.tools.fetch.tool import Fetch
+from agent_search.tools.fetch_code.tool import FetchCode, SearchCode
+from agent_search.tools.grep.tool import Grep
+from agent_search.tools.read.tool import Read
+from agent_search.tools.search_bm25.tool import SearchBm25
+from agent_search.tools.search_bql.tool import SearchBql
+from agent_search.tools.visit.tool import Visit
+from agent_search.retrievers.bql.executor import StructuralExecutor
+from agent_search.retrievers.lexical import build_bm25_engine
 
 SRC = (
     "def create_session_token(user):\n"
@@ -33,11 +39,21 @@ def _doc_units():
     return units_from_documents(DOCS)
 
 
+def _toolbox(tools, units, engines=None, files=None):
+    ubyid = {u.doc_id: u for u in units}
+    state = EpisodeState(question="q")
+    bound = [t.bind(state, units, ubyid, engines or {}, files=files) for t in tools]
+    return ToolBox(bound, state)
+
+
 # --- code arms: search->fetch (method) and grep->read (baseline) walk to a <fix> --------
 
 def test_search_fetch_stub_walks_to_a_fix():
     units = _code_units()
-    ws = CodeFixWorkspace(units, {"auth/session.py": SRC})
+    files = {"auth/session.py": SRC}
+    ex = StructuralExecutor(units).prewarm()
+    ws = _toolbox([SearchCode(name="search"), FetchCode(name="fetch")], units,
+                 engines={"bql_plain": ex}, files=files)
     policy = KeywordPolicy(("search", "fetch"))
     traj = run_episode(policy, Task("t", "session token expiry"), ws, units, max_steps=5)
     assert traj.stopped_reason == "fix"
@@ -46,7 +62,8 @@ def test_search_fetch_stub_walks_to_a_fix():
 
 def test_grep_read_stub_walks_to_a_fix():
     units = _code_units()
-    ws = GrepReadWorkspace(units, {"auth/session.py": SRC})
+    files = {"auth/session.py": SRC}
+    ws = _toolbox([Grep(name="grep"), Read(name="read", source="repo")], units, files=files)
     policy = KeywordPolicy(("grep", "read"))
     traj = run_episode(policy, Task("t", "session token expiry"), ws, units, max_steps=5)
     assert traj.stopped_reason == "fix"
@@ -56,9 +73,8 @@ def test_grep_read_stub_walks_to_a_fix():
 
 def test_grep_read_stub_never_calls_search_or_fetch():
     """Regression: the FIRST move must be a grep (or a graceful <answer>), never a hardcoded
-    'search' call the workspace doesn't understand."""
+    'search' call the toolbox doesn't understand."""
     units = _code_units()
-    ws = GrepReadWorkspace(units, {"auth/session.py": SRC})
     policy = KeywordPolicy(("grep", "read"))
     raw = policy.propose(Task("t", "session token expiry"), [])
     assert '"name":"grep"' in raw or '"name": "grep"' in raw
@@ -69,7 +85,8 @@ def test_grep_read_stub_never_calls_search_or_fetch():
 
 def test_doc_search_fetch_stub_walks_to_an_answer():
     units = _doc_units()
-    ws = DocSearchFetch(units)
+    ex = StructuralExecutor(units).prewarm()
+    ws = _toolbox([SearchBql(name="search"), Fetch(name="fetch")], units, engines={"bql": ex})
     policy = KeywordPolicy(("search", "fetch"))
     traj = run_episode(policy, Task("t", "harbor festival history"), ws, units,
                        max_steps=5, domain="general")
@@ -78,7 +95,9 @@ def test_doc_search_fetch_stub_walks_to_an_answer():
 
 def test_bm25_visit_stub_walks_to_an_answer():
     units = _doc_units()
-    ws = Bm25Visit(units)
+    engine = build_bm25_engine(units, "indexes", False, None)
+    ws = _toolbox([SearchBm25(name="bm25_search"), Visit(name="visit")], units,
+                 engines={"bm25": engine})
     policy = KeywordPolicy(("bm25_search", "visit"))
     traj = run_episode(policy, Task("t", "harbor festival history"), ws, units,
                        max_steps=5, domain="general")
@@ -86,9 +105,10 @@ def test_bm25_visit_stub_walks_to_an_answer():
     assert [s.name for s in traj.steps][:2] == ["bm25_search", "visit"]
 
 
-def test_bash_read_stub_walks_to_an_answer():
+def test_bash_read_stub_walks_to_an_answer(monkeypatch, tmp_path):
+    monkeypatch.setenv("AGENT_SEARCH_DCI_CACHE", str(tmp_path))
     units = _doc_units()
-    ws = DciWorkspace(units)
+    ws = _toolbox([Bash(), Read()], units)
     policy = KeywordPolicy(("bash", "read"))
     traj = run_episode(policy, Task("t", "harbor festival history"), ws, units,
                        max_steps=5, domain="general")
@@ -98,8 +118,7 @@ def test_bash_read_stub_walks_to_an_answer():
 
 def test_bash_read_stub_never_calls_search():
     """Regression: the FIRST move must be a bash call, never a hardcoded 'search' the
-    DciWorkspace rejects as unknown."""
-    units = _doc_units()
+    bash/read toolbox rejects as unknown."""
     policy = KeywordPolicy(("bash", "read"))
     raw = policy.propose(Task("t", "harbor festival history"), [])
     assert '"name":"bash"' in raw or '"name": "bash"' in raw

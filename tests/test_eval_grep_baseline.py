@@ -25,9 +25,9 @@ def test_grep_returns_nothing_when_no_keyword_hits():
     assert g.search("kubernetes deployment yaml", k=10) == []
 
 
-def test_grep_is_index_free(tmp_path):
+def test_grep_is_index_free(tmp_path, monkeypatch):
     import os
-    os.chdir(tmp_path)
+    monkeypatch.chdir(tmp_path)                    # restored on teardown, unlike a bare os.chdir
     before = set(os.listdir("."))
     GrepBaseline().index(_units()).search("token", k=5)
     assert set(os.listdir(".")) == before          # nothing written

@@ -2,7 +2,7 @@
 
 All policies return a raw generation string (a `<tool_call>...`/`<answer>...` text);
 the loop parses it. Three flavours:
-  - AgentPolicy   : prompt-profile-driven LLM (the paper experiments).
+  - AgentPolicy   : an LLM driven by a rendered system prompt (the paper experiments).
   - ScriptPolicy  : replays a fixed list of (name, args) calls (deterministic tests).
   - KeywordPolicy : no model, one cheap search over the toolset, then submit (if the
                     toolset has submit) or end (so a search-only toolset accumulates).
@@ -53,7 +53,7 @@ def default_ctx_tokens() -> int:
 
 
 class AgentPolicy:
-    """Prompt-profile-driven policy. `generate(messages) -> raw text`.
+    """A rendered-system-prompt policy. `generate(messages) -> raw text`.
 
     Length is governed in tokens only. ``ctx_tokens`` is the total token budget for the
     (assistant, observation) history pairs kept in the prompt, never a per-observation
@@ -61,18 +61,10 @@ class AgentPolicy:
     (``agent_search.core.tokens.count_tokens``: tiktoken ``o200k_base`` when installed,
     whitespace tokens otherwise)."""
 
-    def __init__(self, generate: Callable[[list], str], prompt_path: str = "",
-                 max_history: int = 40, ctx_tokens: int | None = None,
-                 field_profile: str | None = None, system: str | None = None):
+    def __init__(self, generate: Callable[[list], str], system: str,
+                 max_history: int = 40, ctx_tokens: int | None = None):
         self.generate = generate
-        self.prompt_path = prompt_path
-        # field_profile selects the per-dataset field-tagged manual variant (e.g. structured
-        # "wiki"/"browsecomp" vs flat "general"); None means the task's own domain.
-        # `system`: a prerendered system prompt (a condition's render). When it is not given,
-        # the prompt is instead loaded from the legacy YAML prompt registry below.
-        if system is None:
-            from agent_search.legacy.prompts import load_prompt_text
-            system = load_prompt_text(prompt_path, field_profile)
+        # `system`: the rendered system prompt (a condition's render).
         self.system = system
         self.max_history = max_history
         self.ctx_tokens = int(ctx_tokens) if ctx_tokens is not None else default_ctx_tokens()
