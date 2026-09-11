@@ -119,6 +119,27 @@ Table 1. The paper uses these:
 | `agent_research_indri_snip` | Indri-executor comparison |
 | one-shot floors | the `rag_bm25`, `rag_dense` and `rag_hybrid` strategies (`skimsearchagent run`) |
 
+### Retrieval floors on BrowseComp-Plus structured
+
+The floors rank once with the raw question and no agent (`strategy=bm25`, `dense`, `hybrid`,
+`reranked`; `python scripts/checks_matrix.py write_floors` writes the files, `scripts/slurm/floors.sbatch`
+runs them). All 830 questions, seed 42, gold documents are the questions' evidence documents;
+`recall@10` is the share of gold documents in the top 10, `hit@k` whether any gold document is
+in the top k. These are the numbers a fresh clone of `dev` reproduces.
+
+| floor | encoder or reranker | recall@10 | hit@5 | hit@10 |
+|---|---|---|---|---|
+| `bm25` | Lucene BM25 (Pyserini, k1=0.9, b=0.4) | 0.027 | 0.036 | 0.049 |
+| `dense` | `BAAI/bge-base-en-v1.5` | 0.092 | 0.102 | 0.152 |
+| `dense` | `ielabgroup/ITER-Qwen3-Embedding-0.6B` (i2 query style) | 0.047 | 0.072 | 0.107 |
+| `hybrid` | BM25 + bge-base, RRF k=60, pools of 100 | 0.074 | 0.083 | 0.127 |
+| `hybrid` | BM25 + ITER-0.6B, RRF k=60, pools of 100 | 0.050 | 0.077 | 0.106 |
+| `reranked` | BM25 pool of 100, `BAAI/bge-reranker-v2-m3` | 0.046 | 0.060 | 0.080 |
+
+A single-shot ranking barely reaches the evidence on this collection, which is why every
+agent strategy searches many times. ITER's encoder is trained on the history-shaped queries its
+agent writes, not on raw questions, so it trails bge-base here and leads inside the agent.
+
 To run one cell locally:
 
 ```bash

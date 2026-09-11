@@ -68,7 +68,8 @@ DENSE = {"search_visit_dense", "search_visit_hybrid", "autoread_dense", "search_
          "sieve", "sieve_dense", "dedup_dense", "rag_dense", "rag_hybrid"}
 # the retrieval-only floors, on the full structured set (830 questions), through floors.sbatch
 # (dataset, strategy, dense model or None for the default): the paper's default encoder and ITER's
-FLOORS = ([("browsecomp_plus_structured", s, None) for s in ("bm25", "dense", "hybrid", "reranked", "bql")]
+# (the bql floor takes BQL strings, not questions, so it is not a floor for a question set)
+FLOORS = ([("browsecomp_plus_structured", s, None) for s in ("bm25", "dense", "hybrid", "reranked")]
           + [("browsecomp_plus_structured", s, ITER) for s in ("dense", "hybrid")])
 FLOOR_RUNS = "runs/floors"
 
