@@ -26,7 +26,9 @@ runs/<agent|retrieval_only>/<dataset>/<model>/<retriever>[/seed=N]/
 A run's **identity** is the subset of those keys listed in `RUN_IDENTITY_KEYS`
 (`agent_search/evaluation/identity.py`): dataset, retriever, model, dense model, policy, backend,
 max steps, temperature, seed, level, k, corpus limit, prompt profile, prompt hash and env knobs.
-The harness refuses to resume into a directory whose identity differs.
+The served endpoint's address is not part of it: the same model on another port is the same
+experiment. The harness refuses to resume into a directory whose identity differs and that has
+scored rows; a directory left by an attempt that scored nothing is a fresh start.
 
 ## `rows.jsonl`: one row per instance
 

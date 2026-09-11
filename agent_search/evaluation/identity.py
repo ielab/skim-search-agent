@@ -243,8 +243,10 @@ def _run_config_dict(args, domain: str) -> dict:
 # differs on any of them is a different experiment and is refused (see _check_run_identity);
 # keys that only change how much of the same experiment runs (limit, only_instances, workers,
 # runs_dir, progress flags, timestamps) are deliberately excluded.
+# what makes two invocations the same experiment. The served endpoint's address (api_base) is
+# not in it: a model served on another port or host is the same experiment.
 RUN_IDENTITY_KEYS = (
-    "dataset", "retriever", "model", "dense_model", "policy", "backend", "api_base",
+    "dataset", "retriever", "model", "dense_model", "policy", "backend",
     "max_steps", "temperature", "seed", "level", "k", "corpus_limit", "prompt_profile",
     "prompt_task", "prompt_toolset", "prompt_sha256", "resolved_domain", "env_knobs",
 )

@@ -43,11 +43,12 @@ def test_a_failed_first_attempt_does_not_block_a_rerun(tmp_path):
     import json
     from agent_search.evaluation.identity import _check_run_identity
     d = tmp_path / "run"; d.mkdir()
-    (d / "config.json").write_text(json.dumps({"api_base": "http://127.0.0.1:8000/v1", "seed": 42}))
-    _check_run_identity(str(d), {"api_base": "http://127.0.0.1:8123/v1", "seed": 42})      # no rows: allowed
+    (d / "config.json").write_text(json.dumps({"seed": 42}))
+    _check_run_identity(str(d), {"seed": 7})                    # no rows: allowed
     (d / "rows.jsonl").write_text("")
-    _check_run_identity(str(d), {"api_base": "http://127.0.0.1:8123/v1", "seed": 42})      # empty rows: allowed
+    _check_run_identity(str(d), {"seed": 7})                    # empty rows: allowed
     (d / "rows.jsonl").write_text('{"instance_id": "x"}\n')
     import pytest
     with pytest.raises(SystemExit):
-        _check_run_identity(str(d), {"api_base": "http://127.0.0.1:8123/v1", "seed": 42})  # scored rows: refused
+        _check_run_identity(str(d), {"seed": 7})                # scored rows: refused
+    _check_run_identity(str(d), {"seed": 42, "api_base": "http://127.0.0.1:8123/v1"})   # the endpoint address is not identity
