@@ -2,8 +2,8 @@
 
 Every run is a full trajectory: the searches the agent issued, the documents it read, what it
 generated after each read, and whether the answer was right. This page turns that record into a
-dense retriever that conditions on the agent's history (the ITER recipe: memory-conditioned
-queries, tiered negatives, a patched FlagEmbedding trainer) and plugs the result back into any
+dense retriever that conditions on the agent's history. That is the ITER recipe: memory-conditioned
+queries, tiered negatives, a patched FlagEmbedding trainer. The retriever plugs back into any
 strategy. Heavy steps run as SLURM jobs.
 
 ```
@@ -55,8 +55,8 @@ least one negative:
 
 Relevance comes from a labeller. `oracle` uses the gold document ids in the run record. `answer`
 checks whether the gold answer string appears in the document. `judge:<model>` is ITER's
-protocol, an LLM classifying the agent's post-read generation; use it when there are no gold
-ids (for example `judge:gpt-4o-mini`; the model is routed like any other).
+protocol: an LLM classifies the agent's post-read generation. Use it when there are no gold
+ids, for example `judge:gpt-4o-mini`. The model is routed like any other.
 
 Query styles (ITER's names):
 
@@ -96,16 +96,16 @@ sbatch --account=YOUR_ACCOUNT --partition=h24gpu --gres=gpu:1 \
 ```
 
 Defaults are the paper's: `Qwen/Qwen3-Embedding-0.6B`, learning rate 1e-6, 2 epochs, group size
-10, batch 32, temperature 0.02, last-token pooling, normalised embeddings, tier weights 3.0 /
-1.0 / 0.3, caps 3 / 3, 8192-token queries for history styles (512 for `plain`), 512-token
-passages. The 0.6B model takes about nine hours on one H100.
+10, batch 32, temperature 0.02, last-token pooling, normalised embeddings. Tier weights are
+3.0 / 1.0 / 0.3, caps are 3 / 3, queries are 8192 tokens for history styles (512 for `plain`),
+and passages are 512 tokens. The 0.6B model takes about nine hours on one H100.
 `skimsearchagent-train-retriever run train.yaml --dry-run` prints the `torchrun` command without
 running it.
 
 The trainer writes `skimsearchagent_dense.json` into the output directory: the query
 instruction, pooling, normalisation, lengths and precision the model was trained with. A model
-trained with `bf16: true` is loaded and served in bfloat16, and the embedding caches it builds
-are kept apart from float32 ones; `retrieval.dense_dtype` overrides the note.
+trained with `bf16: true` is loaded and served in bfloat16. Its embedding caches are kept apart
+from float32 ones. `retrieval.dense_dtype` overrides the note.
 `skimsearchagent-train-retriever serving-note train.yaml` regenerates it from the config.
 
 ## 4. Use the checkpoint
@@ -116,16 +116,16 @@ skimsearchagent run configs/paper/hotpotqa_structured_sieve.yaml \
     retrieval.dense_model=models/my-retriever retrieval.dense_query_style=i2 output.runs_dir=runs/mine
 ```
 
-The dense retriever reads the serving note, builds the same pooling pipeline, prefixes every query
-with the trained instruction, and for any style other than `plain` renders the query from the
-live episode's history with the same code the builder used. One model serves every dense arm:
-Sieve's ranker and its fallback, the dense and hybrid baselines, Indri's dense belief. Both
-knobs are recorded in `config.json` and are part of the run's identity.
+The dense retriever reads the serving note and builds the same pooling pipeline. It prefixes
+every query with the trained instruction. For any style other than `plain`, it renders the
+query from the live episode's history, using the same code the builder used. One model serves
+every dense arm: Sieve's ranker and its fallback, the dense and hybrid baselines, Indri's dense
+belief. Both knobs are recorded in `config.json` and are part of the run's identity.
 
 ## 5. ITER
 
-ITER's own setting (its search tools, backbones, released retrievers, datasets, the sample
-runs and what was verified) has its own page: [ITER.md](ITER.md).
+ITER's own setting has its own page: [ITER.md](ITER.md). That page covers its search tools,
+backbones, released retrievers, datasets, the sample runs, and what was verified.
 
 ## Components
 
