@@ -137,7 +137,7 @@ def test_config_json_records_env_knobs(tmp_path):
     assert "env_knobs" in written
     knobs = written["env_knobs"]
     # the knobs this task's audit named explicitly
-    for key in ("MAX_VISIT_TOKENS", "INDRI_DENSE", "INDRI_DENSE_W", "INDRI_RESCORE_M",
+    for key in ("MAX_VISIT_TOKENS", "INDRI_DENSE", "INDRI_DENSE_W", "INDRI_MU", "RERANK_MODEL",
                 "BQL_DATE_RANGE", "BQL_SOFT_FALLBACK", "AGENT_DRIVER"):
         assert key in knobs
     assert knobs["MAX_VISIT_TOKENS"] == 12000     # the doc_research.py default, unset here

@@ -14,70 +14,47 @@ from __future__ import annotations
 
 import argparse
 import sys
-from typing import Sequence
+from typing import Optional, Sequence
 
 from agent_search.corpus.code_repo import RepoError, get_files
 
-from .datasets import Instance, available_datasets, load_dataset_by_name
+from .datasets import Instance, available_datasets, dataset_domain, load_dataset_by_name
 from .run_eval import _build_corpus, _build_document_corpus, _corpus_key, _progress
 
 
-def _bm25_backend_is_pyserini() -> bool:
-    """Resolve the BM25 backend the same way agent_search.retrievers.lexical.build_bm25_engine
-    does (default 'local'), without importing pyserini eagerly. Step 0 has to answer 'does this
-    run need a Lucene prebuild' from just the env var, cheaply."""
-    import os
-    return (os.environ.get("BM25_BACKEND") or "local").strip().lower() == "pyserini"
-
-
-def _structured_backend_is_lucene() -> bool:
-    """Resolve the structured backend the same way agent_search.retrievers.backend
-    .structured_backend does (default 'python'), without importing the structured retrieval
-    package eagerly. Same cheap-answer-from-env-var reasoning as `_bm25_backend_is_pyserini`
-    above."""
-    import os
-    return (os.environ.get("STRUCTURED_BACKEND") or "python").strip().lower() == "lucene"
-
-
-def prebuildable_for(retriever: str) -> list[str]:
-    """Which persistent indexes a run of `retriever` should materialize in step 0.
-
-    The "step 0" pre-build stage is the same for code and documents: only the corpora count
-    differs. A floor maps to itself; an agent condition pre-builds `dense` if its
-    toolset uses embedding search, and `search_bql` if its toolset uses BQL (its
-    O(N) postings+BM25 index is otherwise built inside the first episode, on the clock).
-    grep / bm25_local are in-memory, so they need no step 0 (return []). A bm25-family
-    toolset (bm25_search/bm25q_search/bm25_search_snip) pre-builds `bm25_pyserini` too, but
-    only when env `BM25_BACKEND=pyserini`: with the default 'local' backend the bm25 engine
-    stays in-memory, needing no step 0.
-    """
-    if retriever in ("dense", "bm25_pyserini", "search_bql", "search_indri", "search_lucene"):
+def prebuildable_for(retriever: str, dataset: Optional[str] = None) -> list[str]:
+    """Which persistent indexes a run of `retriever` materialises in step 0, before any
+    episode: `dense` (the embedding cache), `bm25_pyserini` (the Lucene BM25 index) and
+    `search_lucene` (the Lucene structured index behind BQL and Indri). A floor maps to
+    itself; an agent condition is read off its strategy's engine kinds. A code repository
+    (`dataset` in the code domain) needs no structured index: its Boolean executor is in
+    memory. The grep ranker is in memory too and needs nothing."""
+    code = dataset is not None and dataset_domain(dataset) == "code"
+    if retriever in ("dense", "bm25_pyserini", "search_lucene"):
         return [retriever]
-    if retriever == "bql":                       # the direct BQL floor loads the same artifact
-        return ["search_lucene" if _structured_backend_is_lucene() else "search_bql"]
+    if retriever == "bql":
+        return [] if code else ["search_lucene"]
     if retriever == "agent" or retriever.startswith("agent_"):
         try:
             from agent_search.strategies.conditions import get_condition
             cond = get_condition(retriever)
-            toolset = set(cond.tool_names)
             engines = set(cond.strategy.engines)
+            code = code or cond.strategy.domain == "code"
         except Exception:
             return []
-        # the strategy's engine kinds say which artifacts a run will load: a condition using
-        # dense retrieval (or BQL fused with the dense model) reads the persisted embedding
-        # cache; BQL and Indri read their own artifact, or the shared Lucene index under
-        # STRUCTURED_BACKEND=lucene; a condition using BM25 reads the Pyserini index only
-        # under BM25_BACKEND=pyserini.
         kinds = []
+        if "reranked" in engines:            # the base retriever's own artifacts
+            from agent_search.retrievers.reranked import base_from_env
+            engines = (engines - {"reranked"}) | {base_from_env()}
+        if "hybrid" in engines:              # the fused retrievers' own artifacts
+            from agent_search.retrievers.hybrid import components_from_env
+            engines = (engines - {"hybrid"}) | set(components_from_env())
         if engines & {"dense", "bql_fused", "bql_dense"}:
             kinds.append("dense")
-        if engines & {"bql", "bql_fused", "bql_dense", "bql_plain"}:
-            kinds.append("search_lucene" if _structured_backend_is_lucene() else "search_bql")
-        if "indri" in engines:
-            kinds.append("search_lucene" if _structured_backend_is_lucene() else "search_indri")
-        if "bm25" in engines and _bm25_backend_is_pyserini():
+        if engines & {"bql", "bql_fused", "bql_dense", "bql_plain", "indri"} and not code:
+            kinds.append("search_lucene")
+        if "bm25" in engines:
             kinds.append("bm25_pyserini")
-        del toolset
         return kinds
     return []
 
@@ -113,12 +90,6 @@ def build(instances, index_root="indexes", rebuild=False, cache_dir="data/repos"
         from agent_search.retrievers.dense import DenseRetriever
         make_retriever = lambda: DenseRetriever(model or "nomic-ai/CodeRankEmbed",
                                                 index_root=index_root, rebuild=rebuild)
-    elif retriever == "search_bql":
-        from agent_search.retrievers.bql.executor import BQLIndexBuilder
-        make_retriever = lambda: BQLIndexBuilder(index_root=index_root, rebuild=rebuild)
-    elif retriever == "search_indri":
-        from agent_search.retrievers.indri.model import IndriIndexBuilder
-        make_retriever = lambda: IndriIndexBuilder(index_root=index_root, rebuild=rebuild)
     elif retriever == "search_lucene":
         from agent_search.retrievers.lucene.index_builder import LuceneIndexBuilder
         make_retriever = lambda: LuceneIndexBuilder(index_root=index_root, rebuild=rebuild)
@@ -165,8 +136,7 @@ def main() -> None:
     ap.add_argument("--repo-cache", default="data/repos",
                     help="pre-staged repo clones (default: data/repos)")
     ap.add_argument("--retriever", default="bm25_pyserini",
-                    choices=["bm25_pyserini", "dense", "search_bql", "search_indri",
-                            "search_lucene"],
+                    choices=["bm25_pyserini", "dense", "search_lucene"],
                     help="which persistent index to pre-build")
     ap.add_argument("--model", default=None,
                     help="dense model id (only for --retriever dense)")

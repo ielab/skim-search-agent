@@ -33,16 +33,18 @@ configuration, and the metrics.
 git clone https://github.com/ielab/skim-search-agent.git && cd skim-search-agent
 python -m pip install -e .                 # core: PyYAML only
 python -m pip install -e ".[api]"          # OpenAI, Gemini, OpenAI-compatible servers
-python -m pip install -e ".[retrieval]"    # Lucene BM25, dense and hybrid retrieval (Java 21+, torch)
+python -m pip install -e ".[retrieval]"    # Lucene (BM25, BQL, Indri), dense and hybrid retrieval (Java 21+, torch)
 ```
 
 Other extras: `eval` (dataset staging, statistics), `serve` (vLLM), `demo-live`, `dev`
 (tests), `train` (retriever training, separate environment), `all`. Pins match
 [`requirements.txt`](requirements.txt), the environment used for the paper.
 
-With the `retrieval` extra installed, point `JAVA_HOME` at a JDK 21 or newer before running
-anything that touches Lucene, the test suite included. Pyserini starts a JVM on import, and an
-older Java aborts the process without a message.
+Every document run needs the `retrieval` extra: document corpora rank on Lucene only (BM25
+through Pyserini, and the structured index behind BQL and Indri). The core install runs code
+repositories, which are indexed in memory. Point `JAVA_HOME` at a JDK 21 or newer before
+running anything that touches Lucene, the test suite included. Pyserini starts a JVM on
+import, and an older Java aborts the process without a message.
 
 ## Run an experiment
 
@@ -218,9 +220,9 @@ agent.search(question, k=10)
 
 | family | `strategy=` | what the agent does |
 |---|---|---|
-| Retrieval-only | `bm25`, `bm25_lucene`, `dense`, `bql`, `grep`, `hybrid` | rank once, no agent loop, no model; `hybrid` fuses the retrievers named in `retrieval.hybrid_retrievers` with `retrieval.hybrid_fusion` (`rrf` or `interpolation`) |
+| Retrieval-only | `bm25`, `dense`, `bql`, `grep`, `hybrid`, `reranked` | rank once, no agent loop, no model; `reranked` reorders the pool of the retriever named in `retrieval.rerank_base` with the reranker in `retrieval.rerank_model`; `hybrid` fuses the retrievers named in `retrieval.hybrid_retrievers` with `retrieval.hybrid_fusion` (`rrf` or `interpolation`) |
 | One-shot RAG | `rag_bm25`, `rag_dense`, `rag_hybrid` | rank once, put the top five documents in one prompt, one model call |
-| Search–Visit | `search_visit`, `search_visit_dense`, `search_visit_hybrid`, `search_visit_snippets` | read a result list, open whole documents |
+| Search–Visit | `search_visit`, `search_visit_dense`, `search_visit_hybrid`, `search_visit_reranked`, `search_visit_snippets` | read a result list, open whole documents |
 | Search–AutoRead | `autoread`, `autoread_dense`, `autoread_hybrid` | every search returns full text |
 | Direct corpus interaction | `dci`, `bounded_dci` | shell commands over exported files, optionally within a BM25 working set |
 | Search–Fetch | `search_fetch`, `search_fetch_dense`, `search_fetch_hybrid`, `search_fetch_bm25_plain`, `search_fetch_dense_plain` | result cards with snippets (or, for the plain arms, without), then named sections |
@@ -228,11 +230,14 @@ agent.search(question, k=10)
 | Structured control | `indri`, `indri_plain`, `indri_visit` | Indri-QL retrieval with cards and section fetch (or whole documents) |
 | Code localization | `codefix`, `codefix_grep`, `codefix_patch` | search or grep a repository, read functions, propose a fix (`dataset=code_fixture`) |
 | ITER search | `dedup_bm25`, `dedup_dense` | ITER's tool setup; see [docs/ITER.md](docs/ITER.md) |
+| Multi-agent | `plan_and_search`, `plan_and_search_visit` | a planner splits the question, one agent per sub-question (Sieve, or search-visit), a synthesizer answers; every member episode is recorded |
 
-Dense strategies need an embedding cache built once per dataset
-(`skimsearchagent-build-indexes --dataset <name> --retriever dense`). Lucene backends need Java
-21+ and their own index. A missing artifact stops the run before the first step and prints the
-build command.
+Every index is built once per dataset, before any run: the dense embedding cache
+(`skimsearchagent-build-indexes --dataset <name> --retriever dense`), the Lucene BM25 index
+(`--retriever bm25_pyserini`) and the Lucene structured index behind BQL and Indri
+(`--retriever search_lucene`). A run builds what it needs in its first step; a missing dense
+cache stops the run before the first episode and prints the build command. A code repository
+is indexed in memory and re-indexed only for the files that change.
 
 A corpus too large for memory is served from disk and searched through prebuilt indexes named
 in the file; nothing is encoded during a run. See [docs/ITER.md](docs/ITER.md).
@@ -271,7 +276,7 @@ comes from, with its backbones, released retrievers, datasets and the verified r
 
 ```bash
 python -m pip install -e ".[dev]"
-python -m pytest -q                            # about 1,400 tests; no GPU or API key needed (Java 21 only with the retrieval extra)
+python -m pytest -q                            # no GPU or API key needed; the document tests need the retrieval extra and Java 21, and skip without them
 ```
 
 ## Demo

@@ -10,14 +10,15 @@ no operator at all; the nudge is on by default. Pairs with `fetch`
 the toolset a strategy assembles.
 
 Options:
-  snippets -- append a one-line best-matching excerpt per hit (`isearch_s`, `isearch_v`).
+  snippet  -- the excerpt under each hit (agent_search.snippets); `TermWindow()` for `isearch_s`, `isearch_v`.
 """
 from __future__ import annotations
 
 import re
 
 from agent_search.tools.base import Tool
-from agent_search.tools.common import _INTRO, _infobox, best_line, sections_from_body
+from agent_search.snippets import NoSnippet, Snippet
+from agent_search.tools.common import _INTRO, _infobox, sections_from_body
 
 # a mechanical, corpus-free mid-episode nudge, derived only from the agent's own raw query
 # text, toward the `#combine`/`.field`/`#date:between` operator surface the manual teaches,
@@ -40,8 +41,8 @@ def _is_bare_keyword_query(query: str) -> bool:
     return not _HASH_OP_RE.search(query) and not _FIELD_SUFFIX_RE.search(query)
 
 
-# plain word terms from a raw Indri query (`snippets=True`): the query surface text stripped
-# of `#operator` names and `.field` suffixes, leaving the plain content words `best_line`
+# plain word terms from a raw Indri query (an excerpt-showing snippet): the query surface text stripped
+# of `#operator` names and `.field` suffixes, leaving the plain content words the snippet
 # scores a doc's best-matching window against -- e.g. '#combine( #1(bank management)
 # treaty.title )' -> ['bank', 'management', 'treaty'].
 _INDRI_OP_TOKEN_RE = re.compile(r"#[\w:]+")
@@ -82,12 +83,12 @@ class SearchIndri(Tool):
     aliases = ("isearch", "isearch_s", "isearch_v", "search")
 
     # options a strategy sets
-    snippets: bool = False         # a one-line best-matching excerpt per hit
+    snippet: Snippet = NoSnippet()  # the excerpt under each hit (agent_search.snippets)
     op_nudge: bool = True          # the operator-syntax hint; no baseline needs it off
 
     def __init__(self, name=None, **options):
         super().__init__(name, **options)
-        self.description = self.DESCRIPTION + (self.SNIPPET_SENTENCE if self.snippets else "")
+        self.description = self.DESCRIPTION + (self.SNIPPET_SENTENCE if self.snippet.shows_excerpt else "")
         self._op_nudge_emitted = 0
 
     def on_bind(self) -> None:
@@ -98,7 +99,7 @@ class SearchIndri(Tool):
         return self.engine["indri"]
 
     def _best_line(self, u, terms: list) -> str:
-        return best_line(u, terms)
+        return self.snippet.render(u, terms)
 
     # -- section/infobox cache, shared with the paired `fetch` tool via state.listing -----
 
@@ -151,7 +152,7 @@ class SearchIndri(Tool):
             return f"{text}\n{warning}" if warning else text
         state.last_hits = [doc_id for doc_id, _ in res.hits]
         state.seen.update(state.last_hits)
-        terms = _indri_query_terms(query) if self.snippets else []
+        terms = _indri_query_terms(query) if self.snippet.shows_excerpt else []
         lines = [f"isearch: {query}   ({len(res.hits)} hits):"]
         for rank, (doc_id, _score) in enumerate(res.hits, start=1):
             u = self.ubyid.get(doc_id)
@@ -163,7 +164,7 @@ class SearchIndri(Tool):
             ib_str = "·".join(keys[:6]) + (",…" if len(keys) > 6 else "")
             title = u.title or u.qualname or doc_id
             line = f"  {rank}  {doc_id}  {title!r}  §[{sec_str}]  ib[{ib_str}]"
-            if self.snippets:
+            if self.snippet.shows_excerpt:
                 snip = self._best_line(u, terms)
                 if snip:
                     line += f"  » {snip}"

@@ -7,6 +7,7 @@ excerpt left off. `indri_visit` (isearch_v/visit_v) crosses the same graded sear
 forced on, for fairness parity with the bm25 baseline's opening-snippet listing) with a
 whole-doc `visit` instead, disentangling the search engine from the read granularity.
 """
+from agent_search.snippets import TermWindow
 from agent_search.strategies.base import Strategy, register_strategy
 from agent_search.tools.fetch.tool import Fetch
 from agent_search.tools.search_indri.tool import SearchIndri
@@ -15,7 +16,7 @@ from agent_search.tools.visit.tool import Visit
 indri = register_strategy(Strategy(
     name="indri", toolset_name="indri_snip",
     description="search (Indri graded query language, with excerpt) then fetch a named section",
-    tools=(SearchIndri(name="isearch_s", snippets=True), Fetch(name="fetch"))))
+    tools=(SearchIndri(name="isearch_s", snippet=TermWindow()), Fetch(name="fetch"))))
 
 indri_plain = register_strategy(Strategy(
     name="indri_plain",
@@ -25,4 +26,4 @@ indri_plain = register_strategy(Strategy(
 indri_visit = register_strategy(Strategy(
     name="indri_visit",
     description="search (Indri graded query language, with excerpt) then read the whole document",
-    tools=(SearchIndri(name="isearch_v", snippets=True), Visit(name="visit_v"))))
+    tools=(SearchIndri(name="isearch_v", snippet=TermWindow()), Visit(name="visit_v"))))

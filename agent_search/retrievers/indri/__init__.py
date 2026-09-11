@@ -1,38 +1,21 @@
-"""Indri retrieval-model backend: a sibling of the Boolean `bql/` engine.
+"""The Indri query language: `parser.py` (the AST and parser), `fields.py` (the fields a
+query can restrict to), `result.py` (what a search returns). Scoring runs on the Lucene
+structured index: `agent_search/retrievers/lucene/indri_compiler.py` compiles the AST to
+Lucene queries scored with LMDirichlet, and `lucene/adapters.py`'s `LuceneIndriAdapter` is
+the engine the `search_indri` tool calls.
 
-Faithful (documented-deviations) reimplementation of Indri Query Language semantics:
-parsing (`parser.py`), index building (`index.py`) and Dirichlet-smoothed scoring
-(`model.py`). See `agent_search/tools/search_indri/indri_doc.md` for the source-of-truth operator
-syntax and belief-combination math this package implements.
-
-This package only imports from `agent_search.corpus.units` (`CodeUnit`, `code_tokenize`); it
-does not depend on `agent_search/retrievers/bql/` or any other retriever family.
-
-Public API the `search_indri` tool (`agent_search/tools/search_indri/tool.py`) builds against:
-    IndriExecutor(units, mu=None)
-    IndriExecutor.search(query, k=5) -> IndriResult(hits, error, diagnostics)
-    IndriExecutor.save(path) / IndriExecutor.load(path) [staticmethod]
-    IndriExecutor.attach_units(units)
-    indri_index_path(index_root, key) -> str
-    load_or_build(units, index_root=None, key=None) -> IndriExecutor
+See `agent_search/tools/search_indri/indri_doc.md` for the operator syntax.
 """
-from agent_search.retrievers.indri.model import (
-    IndriExecutor,
-    IndriResult,
-    indri_index_path,
-    load_or_build,
-)
-from agent_search.retrievers.indri.parser import (
-    IndriParseError,
-    ParseResult,
-    parse,
-)
+from agent_search.retrievers.indri.fields import FIELDS, field_text
+from agent_search.retrievers.indri.parser import IndriParseError, ParseResult, parse
+from agent_search.retrievers.indri.result import IndriResult, field_warning, unknown_query_fields
 
 __all__ = [
-    "IndriExecutor",
+    "FIELDS",
+    "field_text",
     "IndriResult",
-    "indri_index_path",
-    "load_or_build",
+    "field_warning",
+    "unknown_query_fields",
     "IndriParseError",
     "ParseResult",
     "parse",

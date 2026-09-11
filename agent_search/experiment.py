@@ -85,14 +85,14 @@ SCHEMA: dict[str, dict[str, Key]] = {
         "hybrid_visit_topk": Key(5, "env", "HYBRID_VISIT_TOPK", "results per search, hybrid search->visit arm"),
         "hybrid_fetch_topk": Key(10, "env", "HYBRID_FETCH_TOPK", "results per search, hybrid search->fetch arm"),
         "hybrid_pool": Key(100, "env", "HYBRID_POOL", "candidates per side before reciprocal-rank fusion"),
+        "rerank_visit_topk": Key(5, "env", "RERANK_VISIT_TOPK", "results per search, reranked search->visit arm"),
+        "rerank_fetch_topk": Key(10, "env", "RERANK_FETCH_TOPK", "results per search, reranked search->fetch arm"),
         "autoread_topk": Key(5, "env", "AUTOREAD_TOPK", "documents returned in full per search, autoread arms"),
         "bm25_dci_topk": Key(10, "env", "BM25_DCI_TOPK", "documents staged per search, bounded DCI arm"),
         "dedup_topk": Key(10, "env", "DEDUP_TOPK", "results per search, dedup arms (ITER: 10)"),
         "dedup_pool_k": Key(100, "env", "DEDUP_POOL_K", "over-fetch pool before dropping already-seen docs, dedup arms (ITER: 100)"),
     },
     "retrieval": {
-        "bm25_backend": Key("local", "env", "BM25_BACKEND", "local (pure Python) | pyserini (Lucene, Java 21+; paper)"),
-        "structured_backend": Key("python", "env", "STRUCTURED_BACKEND", "BQL/Indri executor: python (reference) | lucene (paper; needs the lucene_structured index)"),
         "dense_model": Key(None, "flag", "--dense-model", "the ONE dense model for every dense arm (ranker, fallback, baselines); null = BAAI/bge-base-en-v1.5 for documents; a directory trained by skimsearchagent-train-retriever works too"),
         "dense_query_style": Key("plain", "env", "DENSE_QUERY_STYLE", "how the dense query is written from the agent's history: plain | mem | docs | i1..i7 (must match the trained retriever)"),
         "dense_query_instruction": Key(None, "env", "DENSE_QUERY_INSTRUCTION", "override the query instruction prefix (null = the checkpoint's serving note or the built-in table)"),
@@ -110,14 +110,16 @@ SCHEMA: dict[str, dict[str, Key]] = {
         "hybrid_retrievers": Key("bm25,dense", "env", "HYBRID_RETRIEVERS", "the retrievers a hybrid fuses, comma-separated engine kinds (bm25, dense, bql, indri)"),
         "hybrid_fusion": Key("rrf", "env", "HYBRID_FUSION", "how a hybrid fuses them: rrf | interpolation"),
         "hybrid_weights": Key("", "env", "HYBRID_WEIGHTS", "interpolation weights, comma-separated floats, one per retriever (empty = equal)"),
-        "bql_prefilter_min": Key(5000, "env", "AGENT_SEARCH_BQL_PREFILTER_MIN", "corpus size above which the BQL inverted-index prefilter is used"),
+        "rerank_base": Key("bm25", "env", "RERANK_BASE", "the retriever whose pool a reranker reorders (bm25, dense, hybrid, bql, indri)"),
+        "rerank_method": Key("cross_encoder", "env", "RERANK_METHOD", "the reranker: cross_encoder (a sequence-classification model over (query, document) pairs)"),
+        "rerank_model": Key("BAAI/bge-reranker-v2-m3", "env", "RERANK_MODEL", "the reranker model id or local directory"),
+        "rerank_pool": Key(100, "env", "RERANK_POOL", "candidates taken from the base retriever before reranking"),
+        "rerank_batch_size": Key(32, "env", "RERANK_BATCH_SIZE", "pairs scored per forward pass"),
+        "rerank_max_length": Key(512, "env", "RERANK_MAX_LENGTH", "tokens per (query, document) pair the reranker reads"),
         "indri_dense": Key(False, "env", "INDRI_DENSE", "attach the dense belief to the Indri arm"),
         "indri_dense_w": Key(0.35, "env", "INDRI_DENSE_W", "Indri dense belief weight"),
         "indri_dense_expand_k": Key(50, "env", "INDRI_DENSE_EXPAND_K", "Indri dense pool expansion"),
-        "indri_mu": Key(2500, "env", "INDRI_MU", "Dirichlet smoothing (Python Indri executor)"),
-        "lucene_mu": Key(2500, "env", "LUCENE_MU", "Dirichlet smoothing (Lucene Indri compiler)"),
-        "indri_pool_cap": Key(5000, "env", "INDRI_POOL_CAP", "Indri candidate pool cap"),
-        "indri_rescore_m": Key(300, "env", "INDRI_RESCORE_M", "Indri rescoring depth"),
+        "lucene_mu": Key(2500, "env", "LUCENE_MU", "Dirichlet smoothing of the Indri scorer"),
         "ann": Key("auto", "env", "AGENT_SEARCH_ANN", "vector index backend: auto | flat | hnsw | ivfpq"),
         "ann_min": Key(1000000, "env", "AGENT_SEARCH_ANN_MIN", "corpus size above which an ANN index is used"),
         "ann_pq_min": Key(8000000, "env", "AGENT_SEARCH_ANN_PQ_MIN", "corpus size above which IVF-PQ is used"),
@@ -157,7 +159,6 @@ SECTION_HELP = {
 
 PAPER_PRESET = {
     "agent": {"max_steps": 100},
-    "retrieval": {"bm25_backend": "pyserini", "structured_backend": "lucene"},
     "output": {"runs_dir": "runs/paper"},
 }
 
@@ -190,31 +191,34 @@ class ExperimentError(ValueError):
 # --- which keys a strategy reads ------------------------------------------------------------
 # A file is complete when it names every key its strategy reads. Keys absent from this map apply
 # to every strategy; a key mapped to a set applies to those friendly strategy names only.
-_DOC_AGENTS = {"search_visit", "search_visit_dense", "search_visit_hybrid", "search_visit_snippets",
+_DOC_AGENTS = {"search_visit", "search_visit_dense", "search_visit_hybrid", "search_visit_snippets", "search_visit_reranked",
                "autoread", "autoread_dense", "autoread_hybrid",
                "dci", "bounded_dci", "search_fetch", "search_fetch_dense", "search_fetch_hybrid",
                "search_fetch_bm25_plain", "search_fetch_dense_plain",
                "sieve", "sieve_bm25", "sieve_dense", "sieve_nosnip", "sieve_plain", "sieve_v2",
                "sieve_visit", "sieve_visit_fused", "sieve_visit_dense",
-               "indri", "indri_plain", "indri_visit", "dedup_bm25", "dedup_dense"}
+               "indri", "indri_plain", "indri_visit", "dedup_bm25", "dedup_dense",
+               "plan_and_search", "plan_and_search_visit"}
 _CODE_AGENTS = {"codefix", "codefix_grep", "codefix_patch"}
 _RAG = {"rag_bm25", "rag_dense", "rag_hybrid"}          # one model call, no loop
-_AGENTS = _DOC_AGENTS | _CODE_AGENTS
+_TEAMS = {"plan_and_search", "plan_and_search_visit"}  # procedures whose members are agents
+_AGENTS = _DOC_AGENTS | _CODE_AGENTS | _TEAMS
 _MODEL_USERS = _AGENTS | _RAG
 _DENSE = set(DENSE_STRATEGIES) | {"sieve_visit_fused", "sieve_visit_dense", "search_fetch_dense_plain",
                                   "autoread_hybrid", "rag_dense", "rag_hybrid"}
-_BM25_USERS = {"search_visit", "search_visit_snippets", "search_fetch", "search_fetch_bm25_plain", "autoread",
+_BM25_USERS = {"search_visit", "search_visit_snippets", "search_fetch", "search_fetch_bm25_plain", "autoread", "plan_and_search_visit",
                "autoread_hybrid", "bounded_dci", "search_visit_hybrid", "search_fetch_hybrid", "dedup_bm25",
-               "bm25", "bm25_lucene", "rag_bm25", "rag_hybrid"}
-_BQL = {"sieve", "sieve_bm25", "sieve_dense", "sieve_nosnip", "sieve_plain", "sieve_v2", "sieve_visit",
+               "bm25", "rag_bm25", "rag_hybrid"}
+_BQL = {"sieve", "sieve_bm25", "sieve_dense", "sieve_nosnip", "sieve_plain", "sieve_v2", "sieve_visit", "plan_and_search",
         "sieve_visit_fused", "sieve_visit_dense", "codefix", "codefix_patch"}
 _HYBRID = {"search_visit_hybrid", "search_fetch_hybrid", "autoread_hybrid", "rag_hybrid", "hybrid"}
-_VISIT = {"search_visit", "search_visit_dense", "search_visit_hybrid", "search_visit_snippets", "autoread",
+_RERANK = {"search_visit_reranked", "reranked"}
+_VISIT = {"search_visit", "search_visit_dense", "search_visit_hybrid", "search_visit_snippets", "search_visit_reranked", "plan_and_search_visit", "autoread",
           "autoread_dense", "autoread_hybrid", "sieve_visit", "sieve_visit_fused", "sieve_visit_dense",
           "indri_visit", "dedup_bm25", "dedup_dense"}
 _FETCH = {"search_fetch", "search_fetch_dense", "search_fetch_hybrid", "search_fetch_bm25_plain",
           "search_fetch_dense_plain", "sieve", "sieve_bm25", "sieve_dense", "sieve_nosnip", "sieve_plain",
-          "sieve_v2", "indri", "indri_plain"}
+          "sieve_v2", "indri", "indri_plain", "plan_and_search"}
 _INDRI = {"indri", "indri_plain", "indri_visit"}
 APPLIES: dict[str, set] = {
     "model.name": _MODEL_USERS, "model.policy": _MODEL_USERS, "model.backend": _MODEL_USERS,
@@ -229,15 +233,17 @@ APPLIES: dict[str, set] = {
     "budgets.bash_max_tokens": {"dci", "bounded_dci"}, "budgets.read_max_line_tokens": {"dci", "bounded_dci"},
     "budgets.grep_line_tokens": {"codefix_grep"},
     "budgets.closer_evidence_arg_tokens": _AGENTS, "budgets.closer_evidence_obs_tokens": _AGENTS,
-    "listing.bm25_visit_topk": {"search_visit", "search_visit_snippets"},
+    "listing.bm25_visit_topk": {"search_visit", "search_visit_snippets", "plan_and_search_visit"},
     "listing.bm25_fetch_topk": {"search_fetch", "search_fetch_bm25_plain"},
     "listing.dense_visit_topk": {"search_visit_dense"},
     "listing.dense_fetch_topk": {"search_fetch_dense", "search_fetch_dense_plain"},
     "listing.hybrid_visit_topk": {"search_visit_hybrid"}, "listing.hybrid_fetch_topk": {"search_fetch_hybrid"},
+    "listing.rerank_visit_topk": {"search_visit_reranked"}, "listing.rerank_fetch_topk": set(),
+    "retrieval.rerank_base": _RERANK, "retrieval.rerank_method": _RERANK, "retrieval.rerank_model": _RERANK,
+    "retrieval.rerank_pool": _RERANK, "retrieval.rerank_batch_size": _RERANK, "retrieval.rerank_max_length": _RERANK,
     "listing.hybrid_pool": _HYBRID, "listing.autoread_topk": {"autoread", "autoread_dense", "autoread_hybrid"},
     "listing.bm25_dci_topk": {"bounded_dci"},
     "listing.dedup_topk": {"dedup_bm25", "dedup_dense"}, "listing.dedup_pool_k": {"dedup_bm25", "dedup_dense"},
-    "retrieval.bm25_backend": _BM25_USERS, "retrieval.structured_backend": _BQL | {"indri", "indri_plain", "indri_visit"},
     "retrieval.dense_model": _DENSE, "retrieval.dense_query_style": _DENSE,
     "retrieval.dense_query_instruction": _DENSE, "retrieval.dense_pooling": _DENSE, "retrieval.dense_dtype": _DENSE,
     "retrieval.dense_index": _DENSE, "retrieval.ann_ef_search": _DENSE, "retrieval.bm25_index": _BM25_USERS,
@@ -245,10 +251,9 @@ APPLIES: dict[str, set] = {
     "retrieval.bql_dense": {"sieve_bm25", "sieve_plain", "sieve_v2", "sieve_visit"},
     "retrieval.bql_dense_rrf_k": {"sieve", "sieve_nosnip", "sieve_bm25", "sieve_visit_fused"},
     "retrieval.rrf_k": _HYBRID, "retrieval.hybrid_retrievers": _HYBRID, "retrieval.hybrid_fusion": _HYBRID,
-    "retrieval.hybrid_weights": _HYBRID, "retrieval.bql_prefilter_min": _BQL,
+    "retrieval.hybrid_weights": _HYBRID,
     "retrieval.indri_dense": _INDRI, "retrieval.indri_dense_w": _INDRI, "retrieval.indri_dense_expand_k": _INDRI,
-    "retrieval.indri_mu": _INDRI, "retrieval.lucene_mu": _INDRI, "retrieval.indri_pool_cap": _INDRI,
-    "retrieval.indri_rescore_m": _INDRI,
+    "retrieval.lucene_mu": _INDRI,
     "retrieval.ann": _DENSE, "retrieval.ann_min": _DENSE, "retrieval.ann_pq_min": _DENSE, "retrieval.dense_device": _DENSE,
     "output.repo_cache": _CODE_AGENTS, "output.allow_clone": _CODE_AGENTS,
 }
@@ -498,10 +503,11 @@ def requirements(exp: Experiment) -> list[str]:
                          "(skimsearchagent-build-indexes --retriever dense)")
     if exp.get("retrieval", "bm25_index"):
         notes.append(f"the prebuilt Lucene index at {exp.get('retrieval', 'bm25_index')} (retrieval.bm25_index)")
-    if exp.get("retrieval", "structured_backend") == "lucene":
-        notes.append("the Lucene structured index (python -m agent_search.retrievers.lucene"
-                     ".index_builder --dataset <name>) and Java 21+")
-    if exp.get("retrieval", "bm25_backend") == "pyserini":
+    strategy = _friendly(exp.strategy) or exp.strategy
+    if strategy in (_BQL | _INDRI) and strategy not in _CODE_AGENTS:
+        notes.append("the Lucene structured index (skimsearchagent-build-indexes --retriever "
+                     "search_lucene --dataset <name>) and Java 21+")
+    if strategy in _BM25_USERS:
         notes.append("Pyserini and Java 21+ (pip install -e '.[retrieval]')")
     m = exp.get("model", "name")
     if m and str(m).startswith("gpt-"):

@@ -57,13 +57,11 @@ class LuceneHit:
 class LuceneResult:
     hits: list = dc_field(default_factory=list)     # list[LuceneHit], best-first
     error: Optional[str] = None
-    # See `indri.model.IndriResult.warning`'s docstring: an unrecognized `.field`
+    # See `indri.result.IndriResult.warning`: an unrecognized `.field`
     # name silently resolves to Lucene's filter-only "no scoring field" path
     # (`indri_compiler._resolve_fields`) and just returns zero or fewer hits with no
     # error, indistinguishable from a genuinely zero-hit query. Populated by
-    # `search_indri` via the same `indri.model.unknown_query_fields` walk the Python
-    # engine uses (both compile the identical parsed AST), so the two engines warn
-    # identically.
+    # `search_indri` via `indri.result.unknown_query_fields`.
     warning: Optional[str] = None
 
 
@@ -152,9 +150,8 @@ class LuceneStructuredEngine:
         r = indri_parse(query)
         if not r.ok:
             return LuceneResult(hits=[], error=str(r.error))
-        from agent_search.retrievers.indri.model import (
-            _field_warning, unknown_query_fields)
-        warning = _field_warning(unknown_query_fields(r.expr))
+        from agent_search.retrievers.indri.result import field_warning, unknown_query_fields
+        warning = field_warning(unknown_query_fields(r.expr))
         try:
             self._ensure_open()
             q = indri_compiler.compile_score(r.expr)
@@ -182,7 +179,7 @@ class LuceneStructuredEngine:
     def search_bql_expr(self, expr, k: int = 100) -> LuceneResult:
         """Like `search_bql`, but takes an already parsed and typechecked BQL `Expr`,
         skipping the string round-trip. Used by `agent_search.retrievers.lucene.adapters.
-        LuceneBqlAdapter` (the STRUCTURED_BACKEND=lucene BQL surface): its caller
+        LuceneBqlAdapter` (the document BQL engine): its caller
         (`execute_bql`, bql/executor.py) already parsed and typechecked the query
         string before calling the executor, so re-parsing here would be redundant
         work on every `search` tool call."""
@@ -195,10 +192,52 @@ class LuceneStructuredEngine:
         except Exception as e:
             return LuceneResult(hits=[], error=f"execution error: {e}")
 
+    def rank_by_terms(self, expr, k: int = 100) -> LuceneResult:
+        """Rank the whole index by the BQL scoring clause alone (`bql_compiler.compile_score`:
+        BM25 over the query's positive leaf terms on body and title), with no boolean filter.
+        A document with none of the terms is not returned. This is the ranking behind the BQL
+        adapter's zero-hit fallback (`LuceneBqlAdapter.soft_topk`) and the candidate pool of
+        its coverage ranking."""
+        try:
+            self._ensure_open()
+            q = bql_compiler.compile_score(expr)
+            return self._run(self._searcher_bql, q, k)
+        except bql_compiler.LuceneCompileError as e:
+            return LuceneResult(hits=[], error=str(e))
+        except Exception as e:
+            return LuceneResult(hits=[], error=f"execution error: {e}")
+
+    def match_ids(self, expr, doc_ids) -> set:
+        """The subset of `doc_ids` whose documents match `expr` exactly
+        (`bql_compiler.compile_exact`). One boolean query: the exact clause as MUST, the id
+        set as a FILTER (`TermInSetQuery` on the stored `id` field). The BQL adapter's coverage
+        ranking calls this once per AND child over its candidate pool, which is how it learns
+        which constraints each candidate satisfies without a Python executor."""
+        ids = [d for d in doc_ids if d]
+        if not ids:
+            return set()
+        self._ensure_open()
+        BytesRef, ArrayList = J.J("BytesRef"), J.J("ArrayList")
+        refs = ArrayList()
+        for d in ids:
+            refs.add(BytesRef(d.encode("utf-8")))
+        in_set = J.J("TermInSetQuery")(F_ID, refs)
+        exact = bql_compiler.compile_exact(expr, None)
+        b = J.J("BooleanQueryBuilder")()
+        Occur = J.J("Occur")
+        # `exact` and `in_set` stay bound to locals until the search returns: pyjnius drops
+        # a clause whose Python handle was a temporary.
+        b.add(exact, Occur.MUST)
+        b.add(in_set, Occur.FILTER)
+        q = b.build()
+        top = self._searcher_bql.search(q, len(ids))
+        sf = self._searcher_bql.storedFields()
+        return {sf.document(sd.doc).get(F_ID) for sd in top.scoreDocs}
+
     def count_bql_expr(self, expr) -> int:
         """Exact total-match count for an already-compiled BQL `Expr`
         (`IndexSearcher.count` evaluates the query without collecting or scoring a
-        top-k), so the STRUCTURED_BACKEND=lucene BQL adapter's search listing can
+        top-k), so the BQL adapter's search listing can
         show the same accurate "(N matches, top K)" header the Python engine's
         `run_with_count` provides, instead of a truncated `len(hits)`."""
         self._ensure_open()

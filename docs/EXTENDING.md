@@ -66,7 +66,7 @@ from agent_search.retrievers.registry import RetrieverConfig, register
 class MyRetriever(Retriever):
     name = "my_method"
 
-    def index(self, units, key=None):         # key: corpus identity for on-disk caches; None = in memory
+    def index(self, units, key=None):         # key: corpus identity for on-disk caches
         self._ids = [u.doc_id for u in units]
         return self
 
@@ -79,7 +79,7 @@ def build(cfg: RetrieverConfig, name: str):
 ```
 
 `strategy=my_method` runs it as a retrieval-only condition with the same rank metrics as
-`bm25_local`. To use it inside an agent, give it to a tool (section 3). A persistent index
+`bm25`. To use it inside an agent, give it to a tool (section 3). A persistent index
 should be keyed by `key` and by `agent_search.corpus.fingerprint.corpus_fingerprint(units)`, so an
 edited document is never served from a stale cache; the built-in retrievers do this.
 
@@ -136,6 +136,31 @@ Then, in an experiment file: `retrieval.hybrid_retrievers: bm25,dense` (any engi
 `retrieval.hybrid_fusion: combsum`. Every hybrid strategy (`search_visit_hybrid`,
 `search_fetch_hybrid`, `autoread_hybrid`, `rag_hybrid`) and the `hybrid` floor use them.
 
+### A reranker
+
+A reranked retriever is one retriever and one reranker. The rerankers live one file each under
+`agent_search/retrievers/rerankers/`; a new one is a `Reranker` subclass that scores
+`(doc_id, text)` candidates for a query. A listwise reranker that asks the run's model to order
+the candidates would be the next file in that folder:
+
+```python
+from agent_search.retrievers.rerankers import Reranker, register_reranker
+
+@register_reranker
+class TitleLength(Reranker):
+    name = "title_length"
+
+    def rerank(self, query, candidates, k=None):
+        ranked = sorted(((d, float(len(t))) for d, t in candidates), key=lambda x: (-x[1], x[0]))
+        return ranked[:k] if k is not None else ranked
+```
+
+Then, in an experiment file: `retrieval.rerank_base: bm25` (any engine kind),
+`retrieval.rerank_method: title_length`, `retrieval.rerank_pool: 100`. The `reranked` floor and
+the `search_visit_reranked` strategy use them; the shipped method is `cross_encoder`
+(`retrieval.rerank_model`, default `BAAI/bge-reranker-v2-m3`). A reranker reads the documents
+during the run, so it costs a forward pass per candidate per search.
+
 ## 3. A tool
 
 A tool is one action the agent can call. It owns three things: its declaration (the name the
@@ -174,6 +199,30 @@ The engines a tool can name are the kinds in `agent_search/retrievers/engines.py
 `dense`, `bql`, `bql_fused`, `bql_dense`, `bql_plain`, `indri`. To use a retriever registered in
 section 2 from a tool, add a kind for it there.
 
+### A snippet method
+
+The excerpt a listing shows under each hit is a `Snippet` from `agent_search/snippets/`, one
+file per method: `OpeningLine` (the first tokens), `TermWindow` (the best window for the query
+terms), `NoSnippet` (structure only). A search tool takes one as `snippet=`, so a strategy
+decides the presentation:
+
+```python
+from agent_search.snippets import Snippet, register_snippet
+
+@register_snippet
+class LastLine(Snippet):
+    name = "last_line"
+
+    def render(self, u, terms=None, width=32):
+        toks = ((u.body if u.body is not None else u.code) or "").split()
+        return " ".join(toks[-width:])
+
+register_strategy(Strategy(name="search_visit_tail", description="search (BM25), last lines as snippets",
+                           tools=(SearchBm25(name="bm25_search", snippet=LastLine()), Visit(name="visit"))))
+```
+
+The width is always `SNIPPET_TOKENS` tokens; a method never caps by characters.
+
 ## 4. A task
 
 A task is the goal and the answer protocol: a folder with `prompt.md` (front matter `name`,
@@ -208,8 +257,33 @@ register_strategy(Strategy(name="title_only", description="look documents up by 
 condition("title_agent", task="research", strategy="title_only")
 ```
 
-A strategy with no loop is a procedure (`agent_search/strategies/rag.py`) or a plain retriever
-(`retrieval_only.py`): set `loop=False` and either `procedure=` or `retriever=`.
+A strategy with no loop is a floor (`retrieval_only.py`, `retriever=`) or a procedure
+(`procedure=`, a `Procedure` from `agent_search/procedures/`).
+
+### A procedure or a team
+
+A procedure is a program over the engines and the model. It gets a `ProcedureContext` (the
+engines the run built, the corpus, `generate`, and `policy_for(condition)` to make a policy for
+a member) and returns a `ProcedureResult` (a ranking, the raw text the answer is read from, the
+steps for the record, the member episodes). One-shot RAG is `procedures/rag.py`; a team is
+`procedures/plan_and_search.py`: a planner splits the question, one member condition runs per
+sub-question through `agent_search.agent.episode.run_condition_episode`, a synthesizer
+answers. A team with a different member is one line:
+
+```python
+from agent_search.procedures.plan_and_search import PlanAndSearch
+from agent_search.strategies.base import Strategy, register_strategy
+
+register_strategy(Strategy(name="plan_and_search_dense", loop=False,
+                           description="a planner, one dense search-visit agent per sub-question, a synthesizer",
+                           procedure=PlanAndSearch(searcher="search_visit_dense", max_subquestions=4)))
+```
+
+A team with different roles is a new file: subclass `Procedure`, list the member strategies in
+`members` (the run builds their engines), and write `run(question, ctx)`. The record then
+carries the member trajectories under `members`, the union of their surfaced documents, and the
+steps you return; the harness judges it like any agent. Members can differ in strategy; they
+share the run's model.
 
 The paper's condition names are aliases in `agent_search/strategies/paper.py`
 (`alias("research_snip", "research", "sieve_bm25")`). To change only the prompt of an existing

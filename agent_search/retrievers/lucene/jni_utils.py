@@ -150,6 +150,8 @@ _CLASS_PATHS = {
     "SynonymQueryBuilder": "org.apache.lucene.search.SynonymQuery$Builder",
     "MatchNoDocsQuery": "org.apache.lucene.search.MatchNoDocsQuery",
     "MatchAllDocsQuery": "org.apache.lucene.search.MatchAllDocsQuery",
+    "TermInSetQuery": "org.apache.lucene.search.TermInSetQuery",
+    "BytesRef": "org.apache.lucene.util.BytesRef",
     # spans -- Lucene 9 package (see module docstring)
     "SpanTermQuery": "org.apache.lucene.queries.spans.SpanTermQuery",
     "SpanNearQuery": "org.apache.lucene.queries.spans.SpanNearQuery",

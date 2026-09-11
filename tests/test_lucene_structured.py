@@ -1,56 +1,40 @@
-"""Semantics validation for the `lucene` structured backend
-(`agent_search/retrievers/lucene/`) against both pure-Python reference
-engines (`indri`, `bql`) it compiles for; see that package's `__init__.py`.
+"""Known-answer tests for the Lucene structured engine (`agent_search/retrievers/lucene/`),
+the engine behind the document BQL and Indri tools.
 
-Per the task's validation contract (documented, not exact-ranking equality):
-  1. Pure-boolean/filter queries (analyzer-light: `#band`, `#filreq`/`#filrej`,
-     date ranges, `AND`/`OR`/`NOT`) must return the same match set as the Python
-     reference.
-  2. Graded queries (`#combine`/`#weight`/BM25 ranking) must be directionally
-     consistent: a rank correlation threshold, not exact score/order equality
-     (the Lucene compiler documents real approximations, sum-of-scores vs
-     weighted-mean-of-log-beliefs; see `indri_compiler.py`'s module docstring).
-  3. Span/date/field ops are checked on hand-built docs with known answers.
+Every test asserts the match set (and, where the semantic demands it, the order) a
+hand-built fixture corpus must produce for a query:
+  1. Boolean and filter Indri queries (`#band`, `#filreq`/`#filrej`, date ranges).
+  2. Span, field and wildcard Indri queries on their exact positional/field semantics.
+  3. BQL queries over every document region the schema indexes (title, body, section,
+     author, date ranges), plus the documented rejection of the code-AST regions.
+  4. Date operators inside `#combine`/`#weight`/`#filreq` as hard gates.
+  5. Index congruence: a stale index (doc count or fingerprint) is rebuilt, never reused.
+  6. The unknown-field warning, through the engine and through the `isearch` tool.
 
-Requires a real JVM (pyserini/pyjnius). Module-scoped fixtures build one small
-Lucene index and reuse it for every test in this file; JVM boot plus a ~30-doc index
-build is the expensive part, not the per-test queries.
+Requires a real JVM (pyserini/pyjnius). The shared fixture index is built once per corpus
+under `tests/lucene_support.py`'s session root; JVM boot plus the ~30-doc index build is the
+expensive part, not the per-test queries.
 """
 from __future__ import annotations
 
 import json
 import os
-import shutil
 
 import pytest
 
 from agent_search.corpus.units import units_from_documents
-from agent_search.retrievers.bql.executor import StructuralExecutor
-from agent_search.retrievers.bql.parser import parse as bql_parse
-from agent_search.retrievers.bql.types import check as bql_check
-from agent_search.retrievers.indri.model import IndriExecutor
 from agent_search.retrievers.lucene import index_builder
-from agent_search.retrievers.lucene import jni_utils as _jni
 from agent_search.retrievers.lucene.adapters import LuceneIndriAdapter
 from agent_search.retrievers.lucene.engine import LuceneStructuredEngine
+from tests import lucene_support
+from tests.lucene_support import require_jvm
 
-# NOT `pytest.importorskip("jnius", ...)`: a bare `import jnius` starts the JVM with
-# NO classpath (pyjnius auto-starts on module import in this environment) --
-# `pyserini.pyclass`'s classpath configuration only takes effect if IT is the first
-# thing to touch jnius. `_boot()` goes through that same pyserini-classpath-aware
-# path, so it must run before anything else in the process bare-imports `jnius`
-# (see `jni_utils.py`'s module docstring for this "one JVM per process" landmine).
-try:
-    _jni._boot()
-except Exception as e:                          # pragma: no cover - environment-dependent
-    pytest.skip(f"lucene backend needs a working JVM (pyserini/pyjnius): {e}",
-                allow_module_level=True)
+require_jvm()
 
 
-# --- shared fixture corpus: built via `units_from_documents`, the SAME path a real
-# dataset takes (agent_search/evaluation/datasets.py), so `code` = title+body join exactly like
-# production -- unlike a hand-rolled CodeUnit fixture, this makes the BQL default/
-# DOC-scope comparison meaningful (see module docstring point 1). --------------
+# --- shared fixture corpus: built via `units_from_documents`, the same path a real dataset
+# takes (agent_search/evaluation/datasets.py), so title and body land in the same fields they
+# do in production. -------------------------------------------------------------------
 
 def _docs() -> list[dict]:
     return [
@@ -96,7 +80,7 @@ def _docs() -> list[dict]:
          "author": "Jane Smith"},
         {"_id": "authored2", "title": "Authored doc two", "text": "other unrelated content",
          "author": "John Doe"},
-        # --- no-zero-hit-pathology ---
+        # --- graded ranking with no full match ---
         {"_id": "nz1", "title": "nz1", "text": "kappa lambda filler filler filler"},
         {"_id": "nz2", "title": "nz2", "text": "mu nu filler filler filler"},
         {"_id": "nz3", "title": "nz3", "text": "xi filler filler filler filler"},
@@ -109,253 +93,152 @@ def units():
 
 
 @pytest.fixture(scope="module")
-def indri_ex(units) -> IndriExecutor:
-    return IndriExecutor(units, mu=2500)
+def lucene_eng(units) -> LuceneStructuredEngine:
+    key = lucene_support.build_structured_index(units)
+    return LuceneStructuredEngine(index_root=lucene_support.index_root(), dataset=key, mu=2500)
 
 
-@pytest.fixture(scope="module")
-def bql_ex(units) -> StructuralExecutor:
-    return StructuralExecutor(units)
+N = 40   # > corpus size, so search(k=N) always returns the full match set
 
 
-@pytest.fixture(scope="module")
-def lucene_eng(tmp_path_factory, units) -> LuceneStructuredEngine:
-    idx_root = str(tmp_path_factory.mktemp("lucene_structured_validation"))
-    index_builder.build(units, idx_root, "fixture", rebuild=True, progress=False)
-    eng = LuceneStructuredEngine(index_root=idx_root, dataset="fixture", mu=2500)
-    yield eng
-    eng.close()
-    shutil.rmtree(idx_root, ignore_errors=True)
-
-
-N = 40   # > corpus size, so search(k=N) always returns the FULL match set
-
-
-def _indri_set(indri_ex, q: str) -> set:
-    r = indri_ex.search(q, k=N)
-    assert r.error is None, f"indri reference error for {q!r}: {r.error}"
-    return {d for d, _ in r.hits}
-
-
-def _lucene_indri_set(lucene_eng, q: str) -> set:
-    r = lucene_eng.search_indri(q, k=N)
-    assert r.error is None, f"lucene indri compile/exec error for {q!r}: {r.error}"
+def _indri_set(eng, q: str) -> set:
+    r = eng.search_indri(q, k=N)
+    assert r.error is None, f"indri compile/exec error for {q!r}: {r.error}"
     return {h.doc_id for h in r.hits}
 
 
-def _bql_set(bql_ex, q: str) -> set:
-    r = bql_parse(q)
-    assert r.ok, f"bql reference parse error for {q!r}: {r.error}"
-    t = bql_check(r.expr)
-    assert t.ok, f"bql reference type error for {q!r}: {t.error}"
-    ranked, _ = bql_ex.run_with_count(r.expr, k=N)
-    return {d for d, _ in ranked}
+def _indri_ids(eng, q: str) -> list:
+    r = eng.search_indri(q, k=N)
+    assert r.error is None, f"indri compile/exec error for {q!r}: {r.error}"
+    return [h.doc_id for h in r.hits]
 
 
-def _lucene_bql_set(lucene_eng, q: str) -> set:
-    r = lucene_eng.search_bql(q, k=N)
-    assert r.error is None, f"lucene bql compile/exec error for {q!r}: {r.error}"
+def _bql_set(eng, q: str) -> set:
+    r = eng.search_bql(q, k=N)
+    assert r.error is None, f"bql compile/exec error for {q!r}: {r.error}"
     return {h.doc_id for h in r.hits}
 
 
-def _spearman(a: list, b: list) -> float:
-    """Spearman rank correlation over the doc_ids common to both lists `a`/`b`
-    (best-first doc_id lists). Returns 1.0 if fewer than 2 docs overlap (nothing to
-    disagree on)."""
-    common = [d for d in a if d in set(b)]
-    if len(common) < 2:
-        return 1.0
-    ra = {d: i for i, d in enumerate(a)}
-    rb = {d: i for i, d in enumerate(b)}
-    xs = [ra[d] for d in common]
-    ys = [rb[d] for d in common]
-    n = len(xs)
-    mean_x, mean_y = sum(xs) / n, sum(ys) / n
-    cov = sum((x - mean_x) * (y - mean_y) for x, y in zip(xs, ys))
-    var_x = sum((x - mean_x) ** 2 for x in xs)
-    var_y = sum((y - mean_y) ** 2 for y in ys)
-    if var_x == 0 or var_y == 0:
-        return 1.0
-    return cov / (var_x * var_y) ** 0.5
+# --- (1) boolean / filter Indri queries -------------------------------------------
+# Bare `#odN`/`#uwN`/`.field`/`#syn` are graded queries; wrapped in `#band` the child's
+# "matches" test is a hard boolean gate on the exact (unstemmed) field.
+
+@pytest.mark.parametrize("q,expected", [
+    ("#band(dog train)", {"both"}),
+    ("#band(red blue)", {"bandboth"}),
+    ("#band(#od1(white house))", {"phrase"}),
+    ("#band(#1(white house))", {"phrase"}),
+    ("#band(#uw8(white house))", {"phrase", "scrambled", "gap1"}),
+    ("#band(dog.title)", {"onlydog", "titlehit"}),          # exact field: "Dogs" is not "dog"
+    ("#date:before(1985)", {"d1979", "d1980"}),
+    ("#date:after(1985)", {"d1989", "d1990"}),
+    ("#date:between(1980 1989)", {"d1980", "d1985", "d1989"}),
+])
+def test_indri_boolean_match_set(lucene_eng, q, expected):
+    assert _indri_set(lucene_eng, q) == expected
 
 
-# --- (1) match-set parity: pure-boolean / filter Indri queries ------------------
-
-INDRI_BOOLEAN_QUERIES = [
-    "#band(dog train)",
-    "#band(red blue)",
-    "#filreq(sheep dolly)",
-    "#filrej(sheep dolly)",
-    "#date:before(1985)",
-    "#date:after(1985)",
-    "#date:between(1980 1989)",
-    # NOTE: bare #odN/#uwN/.field/#syn (NOT wrapped in #band/#filreq) are GRADED
-    # queries in Indri, not boolean filters -- the Python reference's candidate
-    # POOL includes every doc containing the window's/field's INDIVIDUAL terms
-    # (even with zero actual ordered/positional match), because Dirichlet
-    # smoothing gives every pooled doc a finite belief ("never a hard zero", see
-    # indri/model.py's Deviations). Lucene's SpanNearQuery/field TermQuery, by
-    # contrast, can ONLY match docs with an actual literal/positional occurrence
-    # -- it has no mechanism to "smooth in" a doc that doesn't structurally
-    # satisfy the query, which is standard (and desirable, at corpus scale) Lucene
-    # behavior, not a bug. So bare window/field-restricted queries are tested for
-    # their TRUE positional/field semantics directly (see the "known answer"
-    # tests below), and for exact match-SET parity only when wrapped in #band
-    # (whose "matches" test IS a hard boolean gate in BOTH engines):
-    "#band(#od1(white house))",
-    "#band(#1(white house))",
-    "#band(#uw8(white house))",
-    "#band(dog.title)",
-]
+def test_filreq_filrej_known_answer(lucene_eng):
+    """`A` (sheep) filters the match set; `Q` (dolly) only ranks it (Occur.SHOULD, not MUST),
+    so an A-matching doc lacking Q's terms is still included, just ranked last. `#filrej`
+    keeps every doc without `sheep` and ranks the one carrying `dolly` first."""
+    filreq = _indri_ids(lucene_eng, "#filreq(sheep dolly)")
+    assert set(filreq) == {"sheepdolly", "sheepwool"}
+    assert filreq[0] == "sheepdolly"
+    filrej = _indri_ids(lucene_eng, "#filrej(sheep dolly)")
+    assert "sheepdolly" not in filrej and "sheepwool" not in filrej
+    assert filrej[0] == "dollynosheep"
+    assert set(filrej) == {u.doc_id for u in units_from_documents(_docs())} - {"sheepdolly", "sheepwool"}
 
 
-@pytest.mark.parametrize("q", INDRI_BOOLEAN_QUERIES)
-def test_indri_lucene_match_set_parity(indri_ex, lucene_eng, q):
-    ref = _indri_set(indri_ex, q)
-    got = _lucene_indri_set(lucene_eng, q)
-    assert got == ref, f"{q!r}: lucene={sorted(got)} vs reference={sorted(ref)}"
+# --- (2) span, field and wildcard Indri queries -------------------------------------
 
 
-def test_indri_lucene_field_restriction_exact_match_set(indri_ex, lucene_eng):
-    """`#band(dog.title)` forces the EXACT (unstemmed) field path in both engines
-    -- true match-set parity. The BARE (unwrapped) `dog.title` is a GRADED query
-    (see INDRI_BOOLEAN_QUERIES's note) and additionally uses Lucene's STEMMED
-    `title` field for scoring (documented in indri_compiler.py's compile table:
-    "broader recall, standard IR practice"), so an English-stemmed plural like
-    "Dogs" legitimately matches a `dog` query in Lucene but not in the
-    never-stems Python reference -- a real, accepted, documented divergence
-    checked here (not asserted equal, just bounded: the reference's exact hits
-    must be a SUBSET of Lucene's broader stemmed hits)."""
-    ref = _indri_set(indri_ex, "#band(dog.title)")
-    got = _lucene_indri_set(lucene_eng, "#band(dog.title)")
-    assert got == ref == {"onlydog", "titlehit"}
-
-    ref_bare = _indri_set(indri_ex, "dog.title")
-    got_bare = _lucene_indri_set(lucene_eng, "dog.title")
-    assert "titlehit" in got_bare and "bodyhit" not in got_bare
-    assert ref_bare <= got_bare, (
-        "lucene's stemmed-field scoring should be a strict superset of the "
-        f"reference's unstemmed matches -- ref={ref_bare} got={got_bare}")
+def test_span_od_vs_uw_known_answer(lucene_eng):
+    """#od1 (exact phrase) matches neither the scrambled nor the gapped doc; #od2 admits the
+    one-word gap; #uw8 matches all three (unordered within the window)."""
+    assert _indri_set(lucene_eng, "#od1(white house)") == {"phrase"}
+    assert _indri_set(lucene_eng, "#od2(white house)") == {"phrase", "gap1"}
+    assert _indri_set(lucene_eng, "#uw8(white house)") == {"phrase", "scrambled", "gap1"}
 
 
-def test_indri_lucene_section_restriction_match_set(indri_ex, lucene_eng):
-    ref = _indri_set(indri_ex, "kangaroo.section")
-    got = _lucene_indri_set(lucene_eng, "kangaroo.section")
-    assert got == ref == {"sectionhit"}
+def test_syn_known_answer(lucene_eng):
+    r = lucene_eng.search_indri("#syn(car automobile)", k=N)
+    assert r.error is None
+    scores = {h.doc_id: h.score for h in r.hits}
+    assert set(scores) == {"hascar", "hasauto"}
+    # one term for scoring purposes: equal-length docs with one occurrence each score alike
+    assert scores["hascar"] == pytest.approx(scores["hasauto"], rel=1e-6)
 
 
-def test_indri_lucene_wildcard_match_set(indri_ex, lucene_eng):
-    ref = _indri_set(indri_ex, "wild*")
-    got = _lucene_indri_set(lucene_eng, "wild*")
-    assert got == ref == {"wild1"}
+def test_bare_term_scores_the_body_only(lucene_eng):
+    assert _indri_set(lucene_eng, "dog") == {"both", "onlydog", "bodyhit"}
+    assert _indri_set(lucene_eng, "#or(dog cat)") == {"both", "onlydog", "bodyhit", "neither"}
 
 
-# --- (2) graded ranking: rank-correlation threshold (documented approximation) ---
-# Threshold chosen empirically for this fixture + the SUM-vs-weighted-MEAN
-# approximation documented in indri_compiler.py; a hard 1.0 would fail on the
-# documented deviation alone, and 0.0 would let a broken compiler pass.
-RANK_CORR_THRESHOLD = 0.6
-
-INDRI_GRADED_QUERIES = [
-    "#combine(dog train)",
-    "#weight(1.0 dog 0.5 train)",
-    "dog",
-    "#max(dog train)",
-]
+def test_field_restriction_known_answer(lucene_eng):
+    """A bare `.title` restriction scores the stemmed `title` field (broader recall, standard
+    IR practice), so the plural "Dogs" also matches; `#band(dog.title)` (above) is the exact
+    unstemmed gate. Either way the body-only hit is out."""
+    got = _indri_set(lucene_eng, "dog.title")
+    assert got == {"both", "onlydog", "titlehit"}
+    assert "bodyhit" not in got
 
 
-@pytest.mark.parametrize("q", INDRI_GRADED_QUERIES)
-def test_indri_lucene_rank_correlation(indri_ex, lucene_eng, q):
-    ref = indri_ex.search(q, k=N)
-    got = lucene_eng.search_indri(q, k=N)
-    assert got.error is None
-    ref_ids = [d for d, _ in ref.hits]
-    got_ids = [h.doc_id for h in got.hits]
-    assert set(got_ids) == set(ref_ids), (
-        f"{q!r}: graded queries should still cover the SAME candidate set "
-        f"(no zero-hit pathology) -- lucene={sorted(got_ids)} ref={sorted(ref_ids)}")
-    rho = _spearman(ref_ids, got_ids)
-    assert rho >= RANK_CORR_THRESHOLD, f"{q!r}: spearman={rho:.3f} ref={ref_ids} got={got_ids}"
+def test_section_restriction_known_answer(lucene_eng):
+    assert _indri_set(lucene_eng, "kangaroo.section") == {"sectionhit"}
 
 
-def test_indri_lucene_or_candidate_set_parity(indri_ex, lucene_eng):
-    """`#or` is excluded from the strict rank-correlation check above: the
-    reference's `#or(a b)` belief (`log(1 - (1-p_a)(1-p_b))`) gives EVERY pooled
-    doc a contribution from BOTH `a` and `b` (Dirichlet smoothing never zeroes
-    out an absent term -- see indri/model.py's Deviations). Lucene's SHOULD-
-    composed disjunction, by contrast, only scores the clauses a doc ACTUALLY
-    matches -- a doc matching only `a` gets NO credit for `b` at all. On a small
-    fixture (n=4 candidates here) that materially reorders results (confirmed:
-    an ordinary rank-correlation run measured rho=-0.2 on this exact query,
-    despite an otherwise-correct compiler -- see git history), so only candidate-
-    SET parity (not ranking direction) is asserted for `#or`."""
-    ref = _indri_set(indri_ex, "#or(dog cat)")
-    got = _lucene_indri_set(lucene_eng, "#or(dog cat)")
-    assert got == ref
+def test_wildcard_known_answer(lucene_eng):
+    assert _indri_set(lucene_eng, "wild*") == {"wild1"}
 
 
-# --- (3) BQL: match-set parity ----------------------------------------------------
-
-BQL_QUERIES = [
-    "dog",
-    "AND(dog, train)",
-    "AND(dog, NOT(cat))",
-    "OR(dog, cat)",
-    "IN(title, dog)",
-    "IN(section, kangaroo)",
-    "PREFIX(wild)",
-    "NEAR/w5(dog, train)",
-    'PHRASE(white, house)',
-    "IN(author, jane)",
-    "IN(author, smith)",
-]
+def test_graded_queries_rank_the_full_match_above_the_partial(lucene_eng):
+    for q in ("#combine(dog train)", "#max(dog train)"):
+        ids = _indri_ids(lucene_eng, q)
+        assert set(ids) == {"both", "onlydog", "onlytrain", "bodyhit"}, q
+        assert ids[0] == "both", q
 
 
-@pytest.mark.parametrize("q", BQL_QUERIES)
-def test_bql_lucene_match_set_parity(bql_ex, lucene_eng, q):
-    ref = _bql_set(bql_ex, q)
-    got = _lucene_bql_set(lucene_eng, q)
-    assert got == ref, f"{q!r}: lucene={sorted(got)} vs reference={sorted(ref)}"
+def test_weight_order_follows_weights(lucene_eng):
+    favour_dog = _indri_ids(lucene_eng, "#weight(5.0 dog 1.0 train)")
+    favour_train = _indri_ids(lucene_eng, "#weight(1.0 dog 5.0 train)")
+    assert favour_dog.index("onlydog") < favour_dog.index("onlytrain")
+    assert favour_train.index("onlytrain") < favour_train.index("onlydog")
 
 
-def test_bql_lucene_date_range(bql_ex, lucene_eng):
-    q = "IN(date, __daterange__1980-01-01__1989-12-31)"
-    ref = _bql_set(bql_ex, q)
-    got = _lucene_bql_set(lucene_eng, q)
-    assert got == ref == {"d1980", "d1985", "d1989"}
+def test_combine_with_no_full_match_still_returns_hits(lucene_eng):
+    got = _indri_set(lucene_eng, "#combine(kappa lambda mu nu xi)")
+    assert got == {"nz1", "nz2", "nz3"}
 
 
-def test_bql_lucene_unsupported_region_raises_documented_error(lucene_eng):
+# --- (3) BQL: every indexed region ---------------------------------------------------
+
+@pytest.mark.parametrize("q,expected", [
+    ("dog", {"both", "onlydog", "titlehit", "bodyhit"}),          # unscoped: body or title
+    ("AND(dog, train)", {"both"}),
+    ("AND(dog, NOT(cat))", {"both", "onlydog", "titlehit", "bodyhit"}),
+    ("OR(dog, cat)", {"both", "onlydog", "titlehit", "bodyhit", "neither"}),
+    ("IN(title, dog)", {"onlydog", "titlehit"}),
+    ("IN(section, kangaroo)", {"sectionhit"}),
+    ("PREFIX(wild)", {"wild1", "wild2"}),                          # both titles start "Wild"
+    ("NEAR/w5(dog, train)", {"both"}),
+    ('PHRASE(white, house)', {"phrase"}),
+    ("IN(author, jane)", {"authored"}),
+    ("IN(author, smith)", {"authored"}),
+    ("IN(date, __daterange__1980-01-01__1989-12-31)", {"d1980", "d1985", "d1989"}),
+])
+def test_bql_match_set(lucene_eng, q, expected):
+    assert _bql_set(lucene_eng, q) == expected
+
+
+def test_bql_unsupported_region_raises_documented_error(lucene_eng):
     r = lucene_eng.search_bql("IN(def, dog)", k=5)
     assert r.error is not None and "code-AST regions" in r.error
 
 
-# --- (4) hand-built docs with known answers (spans / date / field ops) ----------
-
-def test_span_od_vs_uw_known_answer(lucene_eng):
-    """#od1 (exact phrase) must NOT match the scrambled/gapped docs; #uw8 must
-    match all three (unordered-within-window)."""
-    od = _lucene_indri_set(lucene_eng, "#od1(white house)")
-    uw = _lucene_indri_set(lucene_eng, "#uw8(white house)")
-    assert od == {"phrase"}
-    assert {"phrase", "scrambled"} <= uw
-
-
-def test_date_before_after_between_known_answer(lucene_eng):
-    before = _lucene_indri_set(lucene_eng, "#date:before(1985)")
-    after = _lucene_indri_set(lucene_eng, "#date:after(1985)")
-    between = _lucene_indri_set(lucene_eng, "#date:between(1980 1989)")
-    assert before == {"d1979", "d1980"}
-    assert after == {"d1989", "d1990"}
-    assert between == {"d1980", "d1985", "d1989"}
-
-
-# --- date-inside-combine regression: a SEPARATE small corpus/index (not the
-# shared `units`/`lucene_eng` fixtures) so its dates don't collide with the
-# `before(1985)`/`after(1985)`/`between(1980,1989)` known-answer assertions
-# above -- this is the exact adversarial-verification HIGH finding's repro
-# shape: `#combine(#date:between(...) TERM)` must exclude out-of-range docs
-# that match TERM, not leak them in via a scored SHOULD clause. -------------
+# --- (4) date operators inside #combine / #weight / #filreq are hard gates ------------
+# A separate small corpus, so its dates cannot collide with the range assertions above.
 
 def _date_combine_docs() -> list[dict]:
     return [
@@ -367,121 +250,58 @@ def _date_combine_docs() -> list[dict]:
 
 
 @pytest.fixture(scope="module")
-def date_combine_units():
-    return units_from_documents(_date_combine_docs())
+def date_combine_lucene_eng() -> LuceneStructuredEngine:
+    units = units_from_documents(_date_combine_docs())
+    key = lucene_support.build_structured_index(units)
+    return LuceneStructuredEngine(index_root=lucene_support.index_root(), dataset=key, mu=2500)
 
 
-@pytest.fixture(scope="module")
-def date_combine_indri_ex(date_combine_units) -> IndriExecutor:
-    return IndriExecutor(date_combine_units, mu=2500)
-
-
-@pytest.fixture(scope="module")
-def date_combine_lucene_eng(tmp_path_factory, date_combine_units) -> LuceneStructuredEngine:
-    idx_root = str(tmp_path_factory.mktemp("lucene_date_combine_validation"))
-    index_builder.build(date_combine_units, idx_root, "fixture2", rebuild=True, progress=False)
-    eng = LuceneStructuredEngine(index_root=idx_root, dataset="fixture2", mu=2500)
-    yield eng
-    eng.close()
-    shutil.rmtree(idx_root, ignore_errors=True)
-
-
-def test_date_filter_inside_combine_is_hard_gate_not_should(
-        date_combine_indri_ex, date_combine_lucene_eng):
-    """Regression for the adversarial-verification HIGH finding: a `#date:...`
-    operator embedded inside `#combine(...)` was compiling to a constant-score
-    `Occur.SHOULD` clause -- an OPTIONAL scored clause, not a filter -- so any
-    doc matching the OTHER #combine term (e.g. "university") leaked into the
-    results regardless of date. Live repro that caught this:
-    `#combine(#date:between(2002-01-01 2002-12-31) university)` returned
-    61/80 out-of-range docs against a real corpus (python reference returns 0).
-    Here: "out_range_univ" (dated 1999, outside [2002-01-01,2002-12-31])
-    matches "university" and must NOT appear; "in_range_univ" (dated 2002)
-    must appear; "in_range_plain" (in range, no "university") must still
-    appear via the filter alone (date is a hard gate, "university" only ranks
-    -- matching model.py's `Combine` belief: `mean()` collapses to `NEG_INF`,
-    i.e. excluded, the instant the date child fails, regardless of the other
-    child's score)."""
-    q = "#combine(#date:between(2002-01-01 2002-12-31) university)"
-    ref = _indri_set(date_combine_indri_ex, q)
-    got = _lucene_indri_set(date_combine_lucene_eng, q)
-    assert got == ref, f"lucene={sorted(got)} vs reference={sorted(ref)}"
+def test_date_filter_inside_combine_is_hard_gate_not_should(date_combine_lucene_eng):
+    """Regression: a `#date:...` operator inside `#combine(...)` once compiled to a
+    constant-score `Occur.SHOULD` clause, so any doc matching the other term leaked in
+    regardless of date. The date child is a filter: "out_range_univ" (1999) matches
+    "university" and must not appear; "in_range_plain" (in range, no "university") must
+    still appear through the filter alone."""
+    got = _indri_set(date_combine_lucene_eng,
+                     "#combine(#date:between(2002-01-01 2002-12-31) university)")
     assert got == {"in_range_plain", "in_range_univ"}
-    assert "out_range_univ" not in got, (
-        "out-of-range doc leaked into #combine results via the date operator's "
-        "SHOULD clause -- the date filter regression")
 
 
-def test_date_filter_inside_weight_is_hard_gate(date_combine_indri_ex, date_combine_lucene_eng):
-    """Same HIGH-finding regression as `#combine`, but for `#weight` (same
-    weighted-MEAN belief math in model.py -- a nonzero-weight date child still
-    hard-gates the result set)."""
-    q = "#weight(1.0 #date:between(2002-01-01 2002-12-31) 2.0 university)"
-    ref = _indri_set(date_combine_indri_ex, q)
-    got = _lucene_indri_set(date_combine_lucene_eng, q)
-    assert got == ref
-    assert "out_range_univ" not in got
+def test_date_filter_inside_weight_is_hard_gate(date_combine_lucene_eng):
+    got = _indri_set(date_combine_lucene_eng,
+                     "#weight(1.0 #date:between(2002-01-01 2002-12-31) 2.0 university)")
+    assert got == {"in_range_plain", "in_range_univ"}
 
 
-def test_filreq_date_operator_accepted_as_filter(date_combine_indri_ex, date_combine_lucene_eng):
-    """Regression: the Python reference has no first-argument restriction that
-    rejects a date operator as `#filreq`/`#filrej`'s filter argument -- `_matches`
-    falls through to `belief != NEG_INF` for any node it doesn't special-case,
-    and a date operator's belief IS already that hard 0.0-or-NEG_INF gate. The
-    Lucene compiler previously raised `LuceneCompileError` here (`compile_exact`
-    only accepted `_LEAFISH` nodes); it must now ACCEPT it and match the
-    reference's match set exactly."""
+def test_filreq_date_operator_accepted_as_filter(date_combine_lucene_eng):
+    """A date operator is a valid `#filreq`/`#filrej` filter argument (the compiler's
+    `compile_exact` accepts it), with the same hard-gate match set."""
     q = "#filreq(#date:between(2002-01-01 2002-12-31) university)"
-    ref = _indri_set(date_combine_indri_ex, q)
-    got = date_combine_lucene_eng.search_indri(q, k=N)
-    assert got.error is None, f"lucene should accept #filreq(#date:...): {got.error}"
-    got_set = {h.doc_id for h in got.hits}
-    assert got_set == ref == {"in_range_plain", "in_range_univ"}
+    r = date_combine_lucene_eng.search_indri(q, k=N)
+    assert r.error is None, f"lucene should accept #filreq(#date:...): {r.error}"
+    assert {h.doc_id for h in r.hits} == {"in_range_plain", "in_range_univ"}
 
 
-def test_filreq_filrej_known_answer(lucene_eng):
-    """`A` (sheep) FILTERS the match set; `Q` (dolly) only RANKS it (Occur.SHOULD,
-    not MUST -- see indri_compiler.py's Deviations) so an A-matching doc lacking
-    Q's terms is still included, just ranked low. "sheepwool" contains "sheep"
-    (matches A) but not "dolly" -- correctly present in filreq's match set."""
-    filreq = _lucene_indri_set(lucene_eng, "#filreq(sheep dolly)")
-    filrej = _lucene_indri_set(lucene_eng, "#filrej(sheep dolly)")
-    assert filreq == {"sheepdolly", "sheepwool"}
-    filreq_top = lucene_eng.search_indri("#filreq(sheep dolly)", k=1)
-    assert filreq_top.hits[0].doc_id == "sheepdolly"     # Q still ranks "dolly" first
-    assert "sheepdolly" not in filrej and "sheepwool" not in filrej   # A excludes both
-
-
-def test_band_known_answer(lucene_eng):
-    got = _lucene_indri_set(lucene_eng, "#band(red blue)")
-    assert got == {"bandboth"}
-
-
-# --- (5) latency smoke: the compiled query actually executes end-to-end ---------
+# --- result shape --------------------------------------------------------------------
 
 def test_indri_search_returns_scored_hits_with_metadata(lucene_eng):
     r = lucene_eng.search_indri("#combine(dog train)", k=3)
     assert r.error is None
     assert r.hits
-    assert all(h.score >= 0 or h.score <= 0 for h in r.hits)   # score is a real float
+    assert all(isinstance(h.score, float) for h in r.hits)
     assert r.hits[0].doc_id is not None
-    # matched_fields is a best-effort explain()-derived hint, not guaranteed non-empty
-    # for every query shape, but must never raise (see engine.py's _matched_fields).
+    # matched_fields is a best-effort explain()-derived hint, not guaranteed non-empty for
+    # every query shape, but must never raise (see engine.py's _matched_fields).
     assert isinstance(r.hits[0].matched_fields, tuple)
 
 
-# --- doc-count congruence guard (adversarial-verification HIGH-latent finding) --------------
+# --- (5) index congruence ----------------------------------------------------------------
 
 def test_is_built_rejects_stale_doc_count_and_rebuilds(tmp_path):
-    """Regression: `index_builder.is_built`/`has_segments` used to be a bare
-    `segments_*`-file presence check, so an index left on disk under
-    `<index_root>/lucene_structured/<dataset>/` whose corpus later changed (docs
-    added/removed) was silently reused by `build()`'s skip-if-already-built path --
-    serving hits for the WRONG document set with no error anywhere. `is_built` now
-    also cross-checks the index's own `numDocs()` (a cheap `DirectoryReader` open,
-    no postings I/O -- see `_lucene_doc_count`) against the CURRENT corpus size when
-    `build()` calls it, mirroring the doc-count congruence checks added to
-    `retrievers/dense/base.py` and `retrievers/lexical/pyserini.py`."""
+    """An index left on disk under `<index_root>/lucene_structured/<dataset>/` whose corpus
+    later changed (docs added or removed) must not be reused by `build()`'s skip-if-built
+    path. `is_built` cross-checks the index's own `numDocs()` against the current corpus
+    size, mirroring the checks in `retrievers/dense/base.py` and `lexical/pyserini.py`."""
     idx_root = str(tmp_path)
     dataset = "congruence_test"
 
@@ -492,8 +312,8 @@ def test_is_built_rejects_stale_doc_count_and_rebuilds(tmp_path):
     assert index_builder.is_built(idx_root, dataset, expected_n_docs=5)
     assert not index_builder.is_built(idx_root, dataset, expected_n_docs=8)
 
-    # A different-sized corpus reusing the SAME dataset key, rebuild=False (the
-    # normal reuse path) -- build() must detect the incongruence and rebuild.
+    # A different-sized corpus reusing the same dataset key, rebuild=False (the normal reuse
+    # path): build() must detect the incongruence and rebuild.
     docs_b = [{"_id": f"b{i}", "title": f"b{i}", "text": f"filler {i}"} for i in range(8)]
     units_b = units_from_documents(docs_b)
     stats_b = index_builder.build(units_b, idx_root, dataset, rebuild=False, progress=False)
@@ -506,18 +326,17 @@ def test_is_built_rejects_stale_doc_count_and_rebuilds(tmp_path):
         got = {h.doc_id for h in r.hits}
         assert got and got <= {u.doc_id for u in units_b}
         assert not (got & {u.doc_id for u in units_a}), (
-            "stale corpus_a doc_ids leaked through -- the doc-count congruence "
-            "check did not trigger a rebuild")
+            "stale corpus_a doc_ids leaked through: the doc-count congruence check did not "
+            "trigger a rebuild")
     finally:
         eng.close()
 
 
 def test_is_built_rejects_stale_fingerprint_same_doc_count_and_rebuilds(tmp_path):
-    """Same doc COUNT (and same doc_ids) but DIFFERENT content -- the doc-count check above
-    can't see a unit edited in place. `build()` also writes a `corpus_fingerprint`
-    (agent_search.corpus.fingerprint.corpus_fingerprint) into a `meta.json` sidecar and
-    `is_built` cross-checks it; a same-count, different-CONTENT reuse of the same dataset
-    key must still trigger a rebuild instead of silently serving stale postings."""
+    """Same doc count (and same doc_ids) but different content: the doc-count check cannot
+    see a unit edited in place. `build()` also writes a `corpus_fingerprint` into a
+    `meta.json` sidecar and `is_built` cross-checks it, so a same-count, different-content
+    reuse of the same dataset key still triggers a rebuild."""
     idx_root = str(tmp_path)
     dataset = "fingerprint_congruence_test"
 
@@ -531,7 +350,7 @@ def test_is_built_rejects_stale_fingerprint_same_doc_count_and_rebuilds(tmp_path
         meta = json.load(fh)
     assert meta.get("corpus_fingerprint")
 
-    # SAME doc_id, SAME count, DIFFERENT text -- the doc-count check alone would trust this.
+    # same doc_id, same count, different text: the doc-count check alone would trust this
     docs_b = [{"_id": "d0", "title": "d0", "text": "totally different beta wording"}]
     units_b = units_from_documents(docs_b)
     assert not index_builder.is_built(
@@ -550,17 +369,16 @@ def test_is_built_rejects_stale_fingerprint_same_doc_count_and_rebuilds(tmp_path
         eng.close()
 
 
-# --- unknown-field warning: LOW finding (adversarial verification) --------------------
-# `#date:...` aside, an unrecognized `.field` name (e.g. `.bogusfield`) is a VALID Indri
-# QL query in both engines' compilers -- neither raises -- but the two engines diverge
-# SILENTLY on what it returns: python's Dirichlet smoothing never hard-zeros (still
-# returns real hits), Lucene's `_resolve_fields` "unknown -> filter-only, no scoring
-# field" path returns 0 hits. Both must now attach a visible `.warning` either way.
+# --- (6) unknown-field warning ----------------------------------------------------------
+# An unrecognized `.field` name (e.g. `.bogusfield`) is a valid Indri QL query: the compiler
+# does not raise, `_resolve_fields` takes its "unknown -> filter-only, no scoring field" path
+# and the search returns zero hits. The result carries a visible `.warning` so the agent can
+# tell this from a genuinely zero-hit query.
 
 def test_lucene_unknown_field_returns_zero_hits_with_warning(lucene_eng):
     r = lucene_eng.search_indri("dog.bogusfield", k=10)
     assert r.error is None
-    assert r.hits == []                        # Lucene's silent-0-hits half of the finding
+    assert r.hits == []
     assert r.warning is not None and "bogusfield" in r.warning
 
 
@@ -569,18 +387,10 @@ def test_lucene_known_field_has_no_warning(lucene_eng):
     assert r.warning is None
 
 
-def test_lucene_and_python_warn_identically_for_the_same_unknown_field(indri_ex, lucene_eng):
-    ref = indri_ex.search("dog.bogusfield", k=10)
-    got = lucene_eng.search_indri("dog.bogusfield", k=10)
-    assert ref.hits, "python engine should still return hits (never a hard zero)"
-    assert got.hits == [], "lucene engine silently returns zero hits -- the finding"
-    assert ref.warning == got.warning, "both engines must warn identically"
-
-
-def test_isearch_tool_text_shows_zero_hits_and_warning_under_lucene_backend(lucene_eng, units):
-    """End-to-end through the agent-facing tool layer (`search_indri`/`fetch`):
-    the Lucene backend's 0-hit result must render a VISIBLE warning line, not just
-    silently report "(0 hits)" indistinguishable from a normal empty-result query."""
+def test_isearch_tool_text_shows_zero_hits_and_warning(lucene_eng, units):
+    """End-to-end through the agent-facing tool layer (`search_indri`/`fetch`): the 0-hit
+    result renders a visible warning line, not a bare "(0 hits)" indistinguishable from a
+    normal empty result."""
     from agent_search.tools.base import EpisodeState, ToolBox
     from agent_search.tools.fetch.tool import Fetch
     from agent_search.tools.search_indri.tool import SearchIndri

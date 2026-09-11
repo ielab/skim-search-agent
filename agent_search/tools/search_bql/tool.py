@@ -7,7 +7,7 @@ matched fields, an optional excerpt), no body content. Pairs with `fetch`
 whole-doc read) depending on the toolset a strategy assembles.
 
 Options:
-  snippets    -- append a one-line best-matching excerpt per hit (`research_snip`).
+  snippet     -- the excerpt under each hit (agent_search.snippets); `TermWindow()` for `research_snip`.
   coverage    -- on a 0-exact-hit AND, try constraint-coverage ranking before the soft-
                  relevance fallback (BQL v2 Feature 2).
   date_nudge  -- append a one-line hint when the raw query text carries a bare temporal
@@ -33,7 +33,8 @@ from agent_search.retrievers.bql.surface import to_bql
 
 from agent_search.tools.base import Tool
 from agent_search.tools.budgets import SNIPPET_TOKENS
-from agent_search.tools.common import _INTRO, _infobox, best_line, sections_from_body
+from agent_search.snippets import NoSnippet, Snippet
+from agent_search.tools.common import _INTRO, _infobox, sections_from_body
 
 _DATE_RANGE_PREFIX = "__daterange__"
 
@@ -103,8 +104,8 @@ class SearchBql(Tool):
 
     name = "search"
     # the exact text the paper prompts showed for search_s / search_bqlds / search_bqldos
-    # (snippets on) and search_bqldf (snippets off): one shared sentence, plus one more when
-    # each hit carries an excerpt. Set in __init__ from the `snippets` option.
+    # (excerpts on) and search_bqldf (excerpts off): one shared sentence, plus one more when
+    # each hit carries an excerpt. Set in __init__ from the `snippet` option.
     DESCRIPTION = ("Boolean/structural search over the corpus (field-tagged term[field] syntax); "
                    "returns ranked candidates plus their STRUCTURE — code: a file's function/method "
                    "names; docs: an article's section names + infobox keys — no bodies, numbered for "
@@ -137,7 +138,7 @@ class SearchBql(Tool):
     }
 
     # options a strategy sets
-    snippets: bool = False
+    snippet: Snippet = NoSnippet()   # the excerpt under each hit (agent_search.snippets)
     coverage: bool = False
     date_nudge: bool = False
     ranking: str = "bm25"          # bm25 | fused | dense -- selects self.engines
@@ -151,7 +152,7 @@ class SearchBql(Tool):
             raise ValueError(f"unknown ranking {self.ranking!r} — choose bm25, fused or dense.")
         self.engines = (kind,)
         self.manual = self._MANUALS.get(self.manual_set, self._MANUALS["v1"])
-        self.description = self.DESCRIPTION + (self.SNIPPET_SENTENCE if self.snippets else "")
+        self.description = self.DESCRIPTION + (self.SNIPPET_SENTENCE if self.snippet.shows_excerpt else "")
         self._date_nudge_emitted = 0
 
     def on_bind(self) -> None:
@@ -206,8 +207,8 @@ class SearchBql(Tool):
         return ",".join(out) or "-"
 
     def _best_line(self, u, leaf_toks: list, width: int = SNIPPET_TOKENS) -> str:
-        """`snippets=True`: the doc's best-matching ~`width`-token window for `leaf_toks`."""
-        return best_line(u, leaf_toks, width=width)
+        """The excerpt under one hit: the strategy's snippet method over the query's leaf tokens."""
+        return self.snippet.render(u, leaf_toks, width=width)
 
     def _render_hits(self, hit_ids: list, leaf_toks: list, header: str) -> str:
         """Render the structure table (rank, doc_id, title, §section names, ib[infobox
@@ -227,7 +228,7 @@ class SearchBql(Tool):
             matched = self._matched_fields(u, leaf_toks)
             line = (f"  {rank}  {doc_id}  {title!r}  "
                    f"§[{sec_str}]  ib[{ib_str}]  matched: {matched}")
-            if self.snippets:
+            if self.snippet.shows_excerpt:
                 snip = self._best_line(u, leaf_toks)
                 if snip:
                     line += f"  » {snip}"

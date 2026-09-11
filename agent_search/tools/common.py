@@ -1,7 +1,7 @@
 """Shared helpers used by more than one document tool.
 
 `sections_from_body`/`_infobox` parse a document's `##` sections and infobox facts.
-`best_line`/`opening_line` compute the listing snippet (query-biased and opening-window
+The listing snippet is a method from `agent_search/snippets/` (the query-term window and the opening
 respectively) shared by `search_bm25`, `search_dense`, `search_hybrid`, `search_bql`, and
 `search_indri`.
 """
@@ -10,9 +10,8 @@ from __future__ import annotations
 import re
 from typing import Optional, Sequence
 
-from agent_search.corpus.units import CodeUnit, code_tokenize
+from agent_search.corpus.units import CodeUnit
 
-from .budgets import SNIPPET_TOKENS
 
 _INTRO = "(intro)"
 # a markdown/wiki heading line: leading #'s (level) then the heading text. The structured
@@ -48,71 +47,6 @@ def sections_from_body(body: str) -> "dict[str, str]":
     if not out:                                 # empty body -> a single empty intro
         out[_INTRO] = ""
     return out
-
-
-def best_line(u: CodeUnit, terms: "list[str]", width: int = SNIPPET_TOKENS) -> str:
-    """The document's best-matching ~`width`-token window for `terms` (`width` defaults to
-    `SNIPPET_TOKENS`, env-settable). A single pass over the whitespace-tokenized body,
-    incrementally tracking how many distinct `terms` (`code_tokenize`d, case-insensitive) the
-    current window contains as it slides one token at a time (add the entering token, drop the
-    leaving one). The highest-scoring window wins; ties go to the earliest window (a strict `>`
-    keeps the first max). Empty `terms` (an unparseable query) falls back to the document's
-    opening `width` tokens.
-
-    The window is measured in tokens only, with no character cap alongside it, so `width` is
-    the whole story: a `SNIPPET_TOKENS` change always changes the snippet actually shown.
-
-    A module-level function, not a method, so it is shared by every tool that needs a
-    query-biased excerpt: `search_bm25`, `search_dense`, `search_hybrid`, `search_bql`, and
-    `search_indri` each call it (directly, or through their own `_best_line` wrapper) with
-    their own term source."""
-    toks = ((u.body if u.body is not None else u.code) or "").split()
-    if not toks:
-        return ""
-    term_set = {t.lower() for t in (terms or [])}
-    if not term_set:
-        return " ".join(toks[:width])
-    tok_terms = [set(code_tokenize(t)) & term_set for t in toks]
-    counts: dict = {}
-    score = 0
-
-    def _add(i: int) -> None:
-        nonlocal score
-        for t in tok_terms[i]:
-            c = counts.get(t, 0)
-            if c == 0:
-                score += 1
-            counts[t] = c + 1
-
-    def _drop(i: int) -> None:
-        nonlocal score
-        for t in tok_terms[i]:
-            c = counts[t] - 1
-            counts[t] = c
-            if c == 0:
-                score -= 1
-
-    n = len(toks)
-    w = min(width, n)
-    for i in range(w):
-        _add(i)
-    best_start, best_score = 0, score
-    for start in range(1, n - w + 1):
-        _drop(start - 1)
-        _add(start + w - 1)
-        if score > best_score:
-            best_score, best_start = score, start
-    return " ".join(toks[best_start:best_start + w])
-
-
-def opening_line(u: CodeUnit, width: int = SNIPPET_TOKENS) -> str:
-    """The document's opening `width`-token window, the non-query-biased listing snippet used
-    by `search_bm25`, `search_dense`, `search_hybrid`, `search_bm25_dci`, and `search_dedup`.
-
-    Delegates to `best_line` with no terms, using its opening-window fallback, so the two
-    snippet kinds share one window implementation and one knob (`SNIPPET_TOKENS`).
-    """
-    return best_line(u, [], width=width)
 
 
 def _infobox(u: CodeUnit) -> "dict[str, str]":

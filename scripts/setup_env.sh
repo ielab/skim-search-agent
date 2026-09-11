@@ -17,4 +17,4 @@ echo
 echo ">> then VERIFY:"
 echo "     python -m pytest -q                       # pure-Python core (no Java)"
 echo "     skimsearchagent dataset=doc_fixture strategy=sieve_bm25    # eval pipeline, dep-free"
-echo "     skimsearchagent dataset=doc_fixture strategy=bm25_lucene   # the real Pyserini indexing path"
+echo "     skimsearchagent dataset=doc_fixture strategy=bm25   # Lucene BM25 through Pyserini"

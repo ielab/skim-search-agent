@@ -27,7 +27,7 @@ def _toolbox():
     units = units_from_python_source("core/mgmt.py", SRC)
     ubyid = {u.doc_id: u for u in units}
     state = EpisodeState(question="q")
-    executor = StructuralExecutor(units).prewarm()
+    executor = StructuralExecutor(units)
     sc = SearchCode(name="search").bind(state, units, ubyid, {"bql_plain": executor}, files=files)
     fc = FetchCode(name="fetch").bind(state, units, ubyid, {}, files=files)
     return ToolBox([sc, fc], state)

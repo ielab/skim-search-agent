@@ -17,8 +17,10 @@ CLI:
 from __future__ import annotations
 
 import argparse
+import datetime
 import json
 import os
+import re
 import sys
 import threading
 import time
@@ -27,7 +29,7 @@ from typing import Optional, Sequence
 
 from agent_search.corpus.fingerprint import corpus_fingerprint
 from agent_search.corpus.units import CodeUnit
-from agent_search.retrievers.indri.index import field_text
+from agent_search.retrievers.indri.fields import field_text
 from agent_search.retrievers.lucene import jni_utils as J
 from agent_search.retrievers.lucene.schema import (
     F_AUTHOR, F_AUTHOR_TEXT, F_BODY, F_BODY_EXACT, F_DATE, F_DATE_TEXT, F_ID,
@@ -169,6 +171,22 @@ _RAM_BUFFER_MB = float(os.environ.get("LUCENE_INDEX_RAM_MB", "512"))
 _INDEX_THREADS = int(os.environ.get("LUCENE_INDEX_THREADS", "1"))
 
 
+_ISO_DATE_PREFIX_RE = re.compile(r"^(\d{4})-(\d{2})-(\d{2})")
+
+
+def iso_date(raw: str) -> Optional[str]:
+    """`YYYY-MM-DD` when `raw` starts with a real calendar date, else None."""
+    m = _ISO_DATE_PREFIX_RE.match(str(raw or ""))
+    if not m:
+        return None
+    y, mo, d = (int(g) for g in m.groups())
+    try:
+        datetime.date(y, mo, d)
+    except ValueError:
+        return None
+    return f"{y:04d}-{mo:02d}-{d:02d}"
+
+
 def _build_document(u: CodeUnit):
     """One `CodeUnit` -> one Lucene `Document`, entirely local JVM object
     construction (no shared mutable state), safe to call from multiple threads
@@ -208,9 +226,14 @@ def _build_document(u: CodeUnit):
     # corpus in a "before 1985" result. An absent field can never satisfy a
     # Lucene range/term query, which is the contract we want: it matches the
     # Python reference's `_unit_date` -> None -> "never matches any date
-    # filter" behavior (indri/model.py, bql/executor.py's `_unit_date`).
+    # filter" contract. The range field takes only a real calendar date written as
+    # `YYYY-MM-DD` (a longer timestamp keeps its date prefix); any other value would sort
+    # below every ISO date and match every open-lower-bound range. The tokenized `date_text`
+    # field keeps the raw value for `IN(date, x)` term matches.
     if date_text:
-        doc.add(StringField(F_DATE, date_text, FieldStore.NO))
+        iso = iso_date(date_text)
+        if iso:
+            doc.add(StringField(F_DATE, iso, FieldStore.NO))
         doc.add(TextField(F_DATE_TEXT, date_text, FieldStore.NO))
     if author_text:
         doc.add(StringField(F_AUTHOR, author_text, FieldStore.NO))
@@ -302,10 +325,8 @@ def build(units: Sequence[CodeUnit], index_root: str, dataset: str,
 
 
 class LuceneIndexBuilder:
-    """Offline persister with the same shape as `BQLIndexBuilder`/`IndriIndexBuilder`
-    (`.index(units, key)` / `.is_cached(key)`), so this backend plugs into the same
-    `agent_search/evaluation/build_indexes.py` step-0 prebuild pattern the other
-    structured backends use, under the retriever kind `search_lucene`."""
+    """Offline persister (`.index(units, key)` / `.is_cached(key)`) for
+    `agent_search/evaluation/build_indexes.py`, under the retriever kind `search_lucene`."""
     name = "search_lucene"
 
     def __init__(self, index_root: str = "indexes", rebuild: bool = False):

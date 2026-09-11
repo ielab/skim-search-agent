@@ -1,6 +1,11 @@
-# Continuous integration: the dependency-light test suite on every push and pull request,
-# plus a packaging check that builds the wheel, installs it into a clean environment, and
-# loads a prompt condition from the installed package (the prompt files are package data).
+# Continuous integration on every push and pull request.
+#
+# `test` installs the dev extra only (no Java, no torch): the code-repository engines, the
+# agent loop, the strategies and the harness; document tests skip without a JVM.
+# `test-retrieval` installs the retrieval extra with a CPU torch wheel and a JDK 21, so the
+# document tests (Lucene BM25, the structured index behind BQL and Indri) run too.
+# `package` builds the wheel, installs it into a clean environment, and loads a condition
+# from the installed package (the prompt files are package data).
 name: CI
 
 on:
@@ -22,7 +27,7 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
           cache: pip
-      - name: Install (dev extra only — no Java, no torch)
+      - name: Install (dev extra only)
         run: python -m pip install -e ".[dev]"
       - name: Test
         run: python -m pytest -q -p no:cacheprovider --junitxml=report.xml
@@ -31,6 +36,31 @@ jobs:
         with:
           name: junit-${{ matrix.python-version }}
           path: report.xml
+
+  test-retrieval:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install (dev and retrieval extras, CPU torch)
+        run: |
+          python -m pip install --extra-index-url https://download.pytorch.org/whl/cpu -e ".[dev,retrieval]"
+      - name: Test with Lucene
+        env:
+          HF_HUB_OFFLINE: "1"
+        run: python -m pytest -q -p no:cacheprovider --junitxml=report-retrieval.xml
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: junit-retrieval
+          path: report-retrieval.xml
 
   package:
     runs-on: ubuntu-latest

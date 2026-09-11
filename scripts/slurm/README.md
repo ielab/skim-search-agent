@@ -25,6 +25,9 @@ What each one does:
   cache (GPU), the Lucene structured index and the Pyserini BM25 index (CPU, Java 21+). `DATASET`
   is required. `DENSE_MODEL` defaults to `BAAI/bge-base-en-v1.5`, and `WHICH` defaults to
   `dense,lucene,pyserini`; set it to build a subset.
+- `floors.sbatch` runs retrieval-only floors (no model, no server): `EXPERIMENTS` is a
+  space-separated list of experiment files. One GPU for the dense encoder and the reranker.
+  `python scripts/checks_matrix.py write_floors` writes the floor files for BrowseComp-Plus.
 - `serve_and_run.sbatch` starts vLLM inside the job, runs one experiment file against it, and
   stops the server on the way out. `EXPERIMENT` is required. Add `MODEL` to serve an open-weight
   model, or leave it unset to use whatever `model.name` the experiment file already names (an API

@@ -328,7 +328,7 @@ def build_client(api_base: str, api_key: Optional[str] = None):
     compatible endpoint). Deliberately NOT `agent_search.agent.backbone.openai_compat_generate`
    , that helper's stop-sequence/tag-repair post-processing is tool-call-LOOP-specific, and (more
     importantly here) it has no way to pass vLLM's `continue_final_message`/`add_generation_prompt`
-    prefill fields through `extra_body`. Mirrors `scripts/oneshot_rag.py::make_generate`'s plain-
+    prefill fields through `extra_body`. Mirrors the one-shot procedure's plain-
     client construction."""
     from openai import OpenAI
     return OpenAI(base_url=api_base, api_key=api_key or os.environ.get("OPENAI_API_KEY", "EMPTY"))

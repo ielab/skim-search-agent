@@ -9,16 +9,19 @@ With `structure=True` (the search-fetch family, `dense_search_f`/`dense_search_f
 listing shows structure instead of a body snippet: each hit's section names and infobox keys,
 so the paired `fetch` tool (agent_search.tools.fetch) can pull a named section. `k` is then
 also readable per call, and the pool defaults to `DENSE_FETCH_TOPK` instead of
-`DENSE_VISIT_TOPK`. `snippets=True` adds a one-line best-matching excerpt to that structure
-row (`dense_search_f`); `dense_search_fp` (`snippets=False`) is the same listing with the
-excerpt left off. `structure=False` ignores `snippets`.
+`DENSE_VISIT_TOPK`. The snippet is a method from `agent_search/snippets/` (`snippet=`):
+`TermWindow()` adds the best-matching excerpt to the structure row (`dense_search_f`);
+`dense_search_fp` (`NoSnippet()`) is the same listing with the excerpt left off.
 """
 from __future__ import annotations
 
+from typing import Optional
+
 from agent_search.corpus.units import code_tokenize
+from agent_search.snippets import NoSnippet, OpeningLine, Snippet, TermWindow
 from agent_search.tools.base import Tool
 from agent_search.tools.budgets import AUTOREAD_TOPK, DENSE_FETCH_TOPK, DENSE_VISIT_TOPK, MAX_VISIT_TOKENS
-from agent_search.tools.common import _INTRO, _cap_tokens, _infobox, best_line, opening_line, sections_from_body
+from agent_search.tools.common import _INTRO, _cap_tokens, _infobox, sections_from_body
 
 
 class SearchDense(Tool):
@@ -50,10 +53,14 @@ class SearchDense(Tool):
     full_text: bool = False
     k: int = 0
     structure: bool = False        # list structure (sections/infobox), paired with `fetch`
-    snippets: bool = False         # structure=True only: a best-matching excerpt per hit
+    # the excerpt under each hit (agent_search.snippets): the opening line for the plain listing,
+    # nothing for the structure listing, unless the strategy says otherwise
+    snippet: Optional[Snippet] = None
 
     def __init__(self, name=None, **options):
         super().__init__(name, **options)
+        if self.snippet is None:
+            self.snippet = NoSnippet() if self.structure else OpeningLine()
         if self.full_text:
             self.refusals = {n: 'ERROR: no visit tool in this condition — search already returns full documents.' for n in ('visit', 'visit_q', 'visit_d', 'visit_v', 'visit_h', 'visit_bv', 'visit_bqld', 'fetch')}
         if self.structure:
@@ -101,7 +108,7 @@ class SearchDense(Tool):
                     "\nhint: loosen the query — fewer/shorter terms, drop a field "
                     "scope, or OR name variants.")
         state.last_hits = list(ids)
-        terms = code_tokenize(query) if self.snippets else None
+        terms = code_tokenize(query)
         lines = [f"search: {query}   ({len(ids)} matches):"]
         for rank, i in enumerate(ids, start=1):
             u = self.ubyid.get(i)
@@ -114,10 +121,9 @@ class SearchDense(Tool):
             ib_str = "·".join(keys[:6]) + (",…" if len(keys) > 6 else "")
             title = u.title or u.qualname or i
             line = f"  {rank}  {i}  {title!r}  §[{sec_str}]  ib[{ib_str}]"
-            if self.snippets:
-                snip = best_line(u, terms)
-                if snip:
-                    line += f"  » {snip}"
+            snip = self.snippet.render(u, terms)
+            if snip:
+                line += f"  » {snip}"
             lines.append(line)
         return "\n".join(lines)
 
@@ -156,7 +162,7 @@ class SearchDense(Tool):
             if u is None:
                 continue
             state.seen.add(i)
-            lines.append(f"  {rank}  {i}  {(u.title or u.qualname or '')!r}  {opening_line(u)}…")
+            lines.append(f"  {rank}  {i}  {(u.title or u.qualname or '')!r}  {self.snippet.render(u, code_tokenize(query))}…")
         return "\n".join(lines)
 
 

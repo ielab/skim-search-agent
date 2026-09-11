@@ -60,7 +60,7 @@ def _fixws():
     units = _units()
     files = {"a.py": SRC}
     ubyid = {u.doc_id: u for u in units}
-    ex = StructuralExecutor(units).prewarm()
+    ex = StructuralExecutor(units)
     state = EpisodeState(question="q")
     sc = SearchCode(name="search").bind(state, units, ubyid, {"bql_plain": ex}, files=files)
     fc = FetchCode(name="fetch").bind(state, units, ubyid, {}, files=files)

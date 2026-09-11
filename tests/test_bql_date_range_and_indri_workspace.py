@@ -1,7 +1,9 @@
 """Tests for the BQL v2 toolset (typed date[RANGE] ranges plus constraint-coverage feedback,
-formerly the `research_v2` condition) and the Indri graded query-language backend (formerly
+formerly the `research_v2` condition) and the Indri graded query-language tools (formerly
 `research_indri`). Both conditions were later pruned from conditions.yaml; the underlying
-tools (`SearchBql`/`SearchIndri` + `Fetch`) are still tested directly here.
+tools (`SearchBql`/`SearchIndri` + `Fetch`) are still tested directly here, on the document
+engines (`LuceneBqlAdapter`, `LuceneIndriAdapter` over a prebuilt Lucene index built by
+`tests/lucene_support.py`), so the module skips without a JVM.
 
 CPU-only; a small (~25-doc) synthetic corpus with dates/sections. The plain `research`
 condition/toolset/`SearchBql` default behavior must match exactly regardless of these
@@ -12,12 +14,13 @@ from __future__ import annotations
 import pytest
 
 from agent_search.corpus.units import CodeUnit
-from agent_search.retrievers.bql.executor import StructuralExecutor
-from agent_search.retrievers.indri.model import IndriExecutor
 from agent_search.tools.base import EpisodeState, ToolBox
 from agent_search.tools.fetch.tool import Fetch
 from agent_search.tools.search_bql.tool import SearchBql
 from agent_search.tools.search_indri.tool import SearchIndri
+from tests.lucene_support import build_lucene_bql, build_lucene_indri, require_jvm
+
+require_jvm()
 
 
 # --- shared ~25-doc corpus: dates + sections ------------------------------------------
@@ -56,7 +59,7 @@ def _corpus() -> list[CodeUnit]:
     for i, w in enumerate(filler_vocab):
         units.append(_mk(f"filler{i}", f"## History\n{w} placeholder text", title=f"Filler {i}",
                          date=f"200{i % 10}-01-01"))
-    return units          # 14 + 15 = 29 docs, >= the ~25 asked for
+    return units          # 14 + 15 = 29 docs
 
 
 @pytest.fixture(scope="module")
@@ -70,7 +73,7 @@ class _BqlToolbox:
     def __init__(self, units, **search_opts):
         units = list(units)
         ubyid = {u.doc_id: u for u in units}
-        ex = StructuralExecutor(units).prewarm()
+        ex = build_lucene_bql(units)
         state = EpisodeState(question="q")
         self._search = SearchBql(name="search", **search_opts).bind(state, units, ubyid, {"bql": ex})
         self.date_nudge = self._search.date_nudge
@@ -90,7 +93,7 @@ class _IndriToolbox:
     def __init__(self, units, **search_opts):
         units = list(units)
         ubyid = {u.doc_id: u for u in units}
-        ex = IndriExecutor(units)
+        ex = build_lucene_indri(units)
         state = EpisodeState(question="q")
         self._search = SearchIndri(name="isearch", **search_opts).bind(state, units, ubyid, {"indri": ex})
         self.op_nudge = self._search.op_nudge
@@ -102,7 +105,7 @@ class _IndriToolbox:
 
 
 # --- 1. condition loading: `research_v2`/`research_indri` were pruned from conditions.yaml
-# (paper's 15 kept conditions) — the coverage/date-nudge/indri machinery they exercised is
+# (paper's 15 kept conditions). The coverage/date-nudge/indri machinery they exercised is
 # still tested directly on the underlying classes below (sections 2/3/5/6).
 
 
@@ -113,7 +116,7 @@ def test_coverage_true_renders_cov_and_miss_on_0_hit_and(units):
     obs = ws.search("foo[body] AND bar[body] AND baz[body] AND qux[body]")
     assert "CONSTRAINT COVERAGE" in obs
     assert "miss=[" in obs
-    # docA matches foo/bar/baz (misses qux) -> the strongest coverage hit, ranked first
+    # docA matches foo/bar/baz (misses qux): the strongest coverage hit, ranked first
     lines = obs.split("\n")
     assert lines[1].split()[1] == "docA"
     assert "cov=3/4" in lines[1]
@@ -136,14 +139,14 @@ def test_coverage_false_reproduces_old_fallback_header_exactly(units):
     assert "CLOSEST docs by term relevance" in obs
 
 
-# --- 3. SearchIndri: isearch (graded, never 0-hit) + fetch ----------------------
+# --- 3. SearchIndri: isearch (graded) + fetch ----------------------
 
-def test_isearch_combine_never_hard_zeros_on_no_full_match(units):
+def test_isearch_combine_returns_hits_when_no_doc_has_every_term(units):
     ws = _IndriToolbox(units)
     out = ws.run("isearch", {"query": "#combine(alpha bravo charlie delta echo)"})
     assert "ERROR" not in out
     assert "hits):" in out
-    assert "weakest constraint for top hit:" in out
+    assert "(0 hits)" not in out
 
 
 def test_isearch_unsupported_op_errors_naming_the_op(units):
@@ -216,8 +219,8 @@ def test_date_nudge_default_false_never_hints(units):
 
 
 def test_date_nudge_false_explicit_never_hints_even_with_coverage(units):
-    # coverage=True (the docv2 arm's OTHER kwarg) must not implicitly turn the nudge on —
-    # the two are independent knobs; only retriever.py's docv2 branch passes both True.
+    # coverage=True (the docv2 arm's other kwarg) must not implicitly turn the nudge on:
+    # the two are independent knobs; only the docv2 strategy passes both True.
     ws = _BqlToolbox(units, coverage=True, date_nudge=False)
     out = ws.search("founded 2018 ceremony")
     assert _DATE_HINT not in out
@@ -261,4 +264,4 @@ def test_indri_op_nudge_false_never_hints(units):
 
 
 # --- 7. hardened skills: research_v2/research_indri were the only conditions carrying these
-# imperative RULE blocks, and both were pruned from conditions.yaml — nothing left to pin here.
+# imperative RULE blocks, and both were pruned from conditions.yaml; nothing left to pin here.

@@ -4,21 +4,27 @@ structured section fetch). Both disentangle "search interface" from "read granul
 the plain cells conflate them (bm25 = keyword search + whole-doc read; indri = graded search +
 section read).
 
-CPU-only. The `research_indri_snip` condition's `SearchIndri` default behavior
-(snippets=False) must be byte-identical to plain search, asserted explicitly below.
+CPU-only; the Indri engine is `LuceneIndriAdapter` over a prebuilt Lucene index
+(`tests/lucene_support.py`), so the module skips without a JVM. The `research_indri_snip`
+condition's `SearchIndri` default behavior (snippet=NoSnippet()) must be byte-identical to plain
+search, asserted explicitly below.
 """
 from __future__ import annotations
 
 import pytest
 
+from agent_search.snippets import NoSnippet, TermWindow
 from agent_search.corpus.units import CodeUnit
-from agent_search.retrievers.indri.model import IndriExecutor
 from agent_search.retrievers.registry import RetrieverConfig, build_factory
 from agent_search.strategies import CONDITIONS
 from agent_search.tools.base import EpisodeState, ToolBox
 from agent_search.tools.fetch.tool import Fetch
 from agent_search.tools.search_indri.tool import SearchIndri, _indri_query_terms
 from agent_search.tools.visit.tool import Visit
+from tests import lucene_support
+from tests.lucene_support import build_lucene_indri, require_jvm
+
+require_jvm()
 
 
 def _mk(doc_id: str, body: str, title: str | None = None) -> CodeUnit:
@@ -38,7 +44,7 @@ def _corpus() -> list[CodeUnit]:
                     "gutter", "flue", "chimney", "hearth"]
     for i, w in enumerate(filler_vocab):
         units.append(_mk(f"filler{i}", f"## History\n{w} placeholder text", title=f"Filler {i}"))
-    return units          # 3 + 26 = 29 docs, >= the ~25 asked for
+    return units          # 3 + 26 = 29 docs
 
 
 @pytest.fixture(scope="module")
@@ -46,25 +52,31 @@ def units() -> list[CodeUnit]:
     return _corpus()
 
 
+@pytest.fixture(scope="module")
+def corpus_key(units) -> str:
+    """The prebuilt Lucene structured index every strategy-level test below opens."""
+    return lucene_support.build_structured_index(units)
+
+
 def _visit_toolbox(units):
-    """isearch_v (snippets forced on) + visit_v -- the `indri_visit` strategy's tools."""
+    """isearch_v (snippets forced on) + visit_v: the `indri_visit` strategy's tools."""
     ubyid = {u.doc_id: u for u in units}
     state = EpisodeState(question="q")
-    engines = {"indri": IndriExecutor(units)}
-    sv = SearchIndri(name="isearch_v", snippets=True).bind(state, units, ubyid, engines)
+    engines = {"indri": build_lucene_indri(units)}
+    sv = SearchIndri(name="isearch_v", snippet=TermWindow()).bind(state, units, ubyid, engines)
     vv = Visit(name="visit_v").bind(state, units, ubyid, {})
     return ToolBox([sv, vv], state), ubyid
 
 
-def _fetch_toolbox(units, snippets: bool = False, op_nudge: bool = True):
+def _fetch_toolbox(units, snippet=NoSnippet(), op_nudge: bool = True):
     """A search_indri + fetch pair, bound as isearch_s when snippets, else isearch (the
     `indri`/`indri_plain` strategies' tools). `SearchIndri.aliases` covers both names either
     way, so `.run("isearch", ...)` / `.run("isearch_s", ...)` both resolve regardless."""
     ubyid = {u.doc_id: u for u in units}
     state = EpisodeState(question="q")
-    engines = {"indri": IndriExecutor(units)}
-    name = "isearch_s" if snippets else "isearch"
-    sc = SearchIndri(name=name, snippets=snippets, op_nudge=op_nudge).bind(state, units, ubyid, engines)
+    engines = {"indri": build_lucene_indri(units)}
+    name = "isearch_s" if snippet.shows_excerpt else "isearch"
+    sc = SearchIndri(name=name, snippet=snippet, op_nudge=op_nudge).bind(state, units, ubyid, engines)
     fc = Fetch(name="fetch").bind(state, units, ubyid, {})
     return ToolBox([sc, fc], state)
 
@@ -76,7 +88,6 @@ def test_isearch_v_returns_ranked_hits_with_snippet(units):
     out = box.run("isearch_v", {"query": "#combine(bank management)"})
     assert "ERROR" not in out
     assert "hits):" in out
-    assert "weakest constraint for top hit:" in out
     # Content-bearing listing (fairness parity with the bm25 baseline).
     assert "»" in out
 
@@ -151,21 +162,21 @@ def test_research_indri_snip_resolves_via_registry():
     assert not r.needs_files
 
 
-def test_research_indri_snip_workspace_builds_and_answers_via_stub(units, tmp_path):
-    cfg = RetrieverConfig(policy="stub", index_root=str(tmp_path))
+def test_research_indri_snip_workspace_builds_and_answers_via_stub(units, corpus_key):
+    cfg = RetrieverConfig(policy="stub", index_root=lucene_support.index_root())
     r = build_factory("agent_research_indri_snip", cfg)()
-    r.index(units, key="test-indri-hybrids-corpus")
+    r.index(units, key=corpus_key)
     ws = r.toolbox("bank management ceremony")
     assert isinstance(ws["isearch_s"], SearchIndri)
-    assert ws["isearch_s"].snippets is True
+    assert ws["isearch_s"].snippet.shows_excerpt
     ranking = r.search("bank management ceremony", k=5)
     assert isinstance(ranking, list)
 
 
-# --- 3. SearchIndri(snippets=True): hits carry '»' + query-overlap; False unchanged ---
+# --- 3. SearchIndri(snippet=TermWindow()): hits carry '»' + query-overlap; False unchanged ---
 
 def test_snippets_true_shows_excerpt_overlapping_query_terms(units):
-    box = _fetch_toolbox(units, snippets=True)
+    box = _fetch_toolbox(units, snippet=TermWindow())
     out = box.run("isearch_s", {"query": "#combine(bank management)"})
     assert "»" in out
     hit_line = next(l for l in out.splitlines() if "d2002" in l or "d1999" in l)
@@ -174,10 +185,10 @@ def test_snippets_true_shows_excerpt_overlapping_query_terms(units):
 
 
 def test_snippets_false_is_byte_identical_to_captured_render(units):
-    # byte-parity guard: snippets=False (the plain research_indri default) must reproduce
-    # the pre-existing (no-snippets) rendering exactly — no '»' anywhere, same header/body.
-    box_off = _fetch_toolbox(units, snippets=False)
-    box_default = _fetch_toolbox(units)          # snippets=False is SearchIndri's own default
+    # byte-parity guard: snippet=NoSnippet() (the plain research_indri default) must reproduce
+    # the no-snippets rendering exactly: no '»' anywhere, same header/body.
+    box_off = _fetch_toolbox(units, snippet=NoSnippet())
+    box_default = _fetch_toolbox(units)          # snippet=NoSnippet() is SearchIndri's own default
     out_off = box_off.run("isearch", {"query": "#combine(bank management)"})
     out_default = box_default.run("isearch", {"query": "#combine(bank management)"})
     assert out_off == out_default
@@ -185,7 +196,7 @@ def test_snippets_false_is_byte_identical_to_captured_render(units):
 
 
 def test_isearch_s_alias_works_and_fetch_is_inherited(units):
-    box = _fetch_toolbox(units, snippets=True)
+    box = _fetch_toolbox(units, snippet=TermWindow())
     out = box.run("isearch_s", {"query": "#combine(bank management)"})
     assert "»" in out
     fetched = box.run("fetch", {"specs": [[1, "History"]]})
@@ -213,27 +224,21 @@ def test_indri_query_terms_plain_keywords_pass_through():
     assert _indri_query_terms("alpha bravo") == ["alpha", "bravo"]
 
 
-# --- 4b. unknown `.field` warning surfaces in the rendered isearch text (LOW finding) ----
-# Regression for the adversarial-verification finding: an unrecognized field name (e.g.
-# `.bogusfield`) is a VALID Indri QL query -- neither engine errors -- but python "searches
-# anyway" (smoothing never hard-zeros) while Lucene silently returns 0 hits, and nothing in
-# the old rendered text distinguished either case from a normal, deliberately-zero-hit
-# query. `SearchIndri._search_impl` appends the engine's `.warning` on every return path.
+# --- 4b. unknown `.field` warning surfaces in the rendered isearch text -------------------
+# An unrecognized field name (e.g. `.bogusfield`) is a valid Indri QL query: the engine does
+# not error, it restricts to a field with no postings and returns zero hits. Nothing in the
+# hit count alone distinguishes that from a deliberately zero-hit query, so
+# `SearchIndri._search_impl` appends the engine's `.warning` on every return path.
 
-def test_isearch_unknown_field_warning_appears_with_hits(units):
+def test_isearch_unknown_field_warning_appears_on_zero_hits(units):
     box = _fetch_toolbox(units, op_nudge=False)
     out = box.run("isearch", {"query": "bank.bogusfield"})
     assert "ERROR" not in out
-    assert "hits" in out                 # smoothing still returns real hits (python engine)
+    assert "(0 hits)" in out
     assert "warning" in out.lower() and "bogusfield" in out
 
 
 def test_isearch_unknown_field_warning_survives_a_nonsense_query(units):
-    # The python engine's Dirichlet smoothing never hard-zeros (see indri/model.py's
-    # Deviations: "graceful ... never a hard zero"), so even a nonsense query term still
-    # returns k hits from the whole pool -- the TRUE 0-hit case only manifests under the
-    # `lucene` backend (see tests/test_lucene_structured.py's analogous test, which needs
-    # a real JVM/index). Here we just confirm the warning survives regardless of hit count.
     box = _fetch_toolbox(units, op_nudge=False)
     out = box.run("isearch", {"query": "zzz_definitely_not_a_term_zzz.bogusfield"})
     assert "warning" in out.lower() and "bogusfield" in out
@@ -246,14 +251,14 @@ def test_isearch_known_field_has_no_warning(units):
 
 
 # --- 5. INDRI_DENSE env-gated dense-belief attachment (agent_search/retrievers/engines.py) --
-# NEW, ADDITIVE-only: the indri-family arms ('indri'/'indri_visit'/'indri_plain') optionally
-# attach a `DenseBelief` to the shared `IndriExecutor` when `INDRI_DENSE` is truthy. OFF by
-# default — all three tests below patch `agent_search.retrievers.dense.DenseBelief` (the class
-# the `Engines.indri()` builder imports LOCALLY at call time, so patching the module attribute
-# is sufficient) rather than touching real GPU/model code.
+# The indri-family arms ('indri'/'indri_visit'/'indri_plain') optionally attach a
+# `DenseBelief` to the shared Indri engine when `INDRI_DENSE` is truthy. Off by default. The
+# tests below patch `agent_search.retrievers.dense.DenseBelief` (the class `Engines` imports
+# locally at call time, so patching the module attribute is sufficient) rather than touching
+# real GPU/model code.
 
 class _RaisingDenseBelief:
-    """Stand-in for DenseBelief that must NEVER be constructed when INDRI_DENSE is off."""
+    """Stand-in for DenseBelief that must never be constructed when INDRI_DENSE is off."""
 
     def __init__(self, *a, **kw):
         raise AssertionError("DenseBelief() must not be constructed when INDRI_DENSE is off")
@@ -278,65 +283,67 @@ class _StubDenseBelief:
 
 
 class _RaisingBuildDenseBelief:
-    """Stand-in whose `build_or_load` raises (e.g. missing GPU-built embedding cache) —
-    must degrade the run to lexical-only, never break it."""
+    """Stand-in whose `build_or_load` raises (e.g. missing GPU-built embedding cache):
+    the run must degrade to lexical-only, never break."""
 
-    def __init__(self, model=None):
+    def __init__(self, model=None, **_kw):
         self.model = model
 
     def build_or_load(self, units, key=None):
         raise RuntimeError("simulated missing dense doc-embedding cache")
 
 
-def test_indri_dense_off_by_default_does_not_construct_dense_belief(units, tmp_path, monkeypatch):
+def test_indri_dense_off_by_default_does_not_construct_dense_belief(units, corpus_key, monkeypatch):
     monkeypatch.delenv("INDRI_DENSE", raising=False)
     monkeypatch.setattr(
         "agent_search.retrievers.dense.DenseBelief",
         _RaisingDenseBelief)
 
-    cfg = RetrieverConfig(policy="stub", index_root=str(tmp_path))
+    cfg = RetrieverConfig(policy="stub", index_root=lucene_support.index_root())
     r = build_factory("agent_research_indri_snip", cfg)()
-    r.index(units, key="test-indri-hybrids-dense-off")     # would raise if DenseBelief() called
+    r.index(units, key=corpus_key)     # would raise if DenseBelief() were called
     assert r.engines.get("indri").dense is None
 
 
-def test_indri_dense_on_attaches_stub_dense_belief_to_executor(units, tmp_path, monkeypatch):
-    """INDRI_DENSE=1 attaches the run's dense belief to the Indri executor when the persisted
+def test_indri_dense_on_attaches_stub_dense_belief_to_engine(units, corpus_key, monkeypatch):
+    """INDRI_DENSE=1 attaches the run's dense belief to the Indri engine when the persisted
     embedding cache exists. The engine registry probes `DenseRetriever.is_cached` first and
     degrades with a warning when it is missing, so the stub here also stands in for the cache
     check."""
     from agent_search.retrievers.dense import DenseRetriever
     monkeypatch.setattr(DenseRetriever, "is_cached", lambda self, key=None: True)
+    monkeypatch.delenv("DENSE_MODEL", raising=False)
     _StubDenseBelief.instances = []
     monkeypatch.setenv("INDRI_DENSE", "1")
     monkeypatch.setattr(
         "agent_search.retrievers.dense.DenseBelief",
         _StubDenseBelief)
 
-    cfg = RetrieverConfig(policy="stub", index_root=str(tmp_path))
+    cfg = RetrieverConfig(policy="stub", index_root=lucene_support.index_root())
     r = build_factory("agent_research_indri_snip", cfg)()
-    r.index(units, key="test-indri-hybrids-dense-on")
+    r.index(units, key=corpus_key)
 
     assert len(_StubDenseBelief.instances) == 1
     stub = _StubDenseBelief.instances[0]
     assert stub.model == "BAAI/bge-base-en-v1.5"
-    assert stub.built_key == "test-indri-hybrids-dense-on"
-    # attached on the executor the toolbox receives ('the attribute the engine stores it
-    # on' is IndriExecutor.dense, per model.py's attach_dense/`dense=` constructor kwarg)
+    assert stub.built_key == corpus_key
+    # attached on the engine the toolbox receives (`LuceneIndriAdapter.dense`)
     assert r.engines.get("indri").dense is stub
     ws = r.toolbox("bank management ceremony")
     assert ws["isearch_s"].iex.dense is stub
 
 
-def test_indri_dense_on_raising_dense_belief_degrades_with_warning(units, tmp_path, monkeypatch, capsys):
+def test_indri_dense_on_raising_dense_belief_degrades_with_warning(units, corpus_key, monkeypatch, capsys):
+    from agent_search.retrievers.dense import DenseRetriever
+    monkeypatch.setattr(DenseRetriever, "is_cached", lambda self, key=None: True)
     monkeypatch.setenv("INDRI_DENSE", "1")
     monkeypatch.setattr(
         "agent_search.retrievers.dense.DenseBelief",
         _RaisingBuildDenseBelief)
 
-    cfg = RetrieverConfig(policy="stub", index_root=str(tmp_path))
+    cfg = RetrieverConfig(policy="stub", index_root=lucene_support.index_root())
     r = build_factory("agent_research_indri_snip", cfg)()
-    r.index(units, key="test-indri-hybrids-dense-raise")   # must NOT raise -> degrades
+    r.index(units, key=corpus_key)     # must not raise: degrades
 
     assert r.engines.get("indri").dense is None
     captured = capsys.readouterr()

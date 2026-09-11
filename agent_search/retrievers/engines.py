@@ -2,9 +2,13 @@
 
 `Engines(units, key, ...)` hands out the BM25 engine, the dense engine (`DenseBelief`), the BQL
 executor in its three rankings (plain BM25, fused with the dense model, dense only), the Indri
-executor and the hybrid engine (several of the others fused, `agent_search.retrievers.hybrid`). Each is built on first request under a lock, so concurrent episodes never load
-the same index twice, and persisted under `index_root` keyed by the corpus. A missing dense
-cache is a `SetupError`: nothing is encoded during a run.
+executor, the hybrid engine (several of the others fused, `agent_search.retrievers.hybrid`) and
+the reranked engine (one of the others, reordered by a reranker, `agent_search.retrievers.reranked`).
+Each is built on first request under a lock, so concurrent episodes never load the same index
+twice, and persisted under `index_root` keyed by the corpus. Document corpora rank on Lucene
+only; `domain="code"` selects the in-memory Boolean executor for a repository
+(`agent_search.retrievers.backend`). A missing dense cache or Lucene index is a `SetupError`:
+nothing is encoded or indexed during a run.
 """
 from __future__ import annotations
 
@@ -30,7 +34,7 @@ class Engines:
     def get(self, kind: str):
         builders = {"bm25": self.bm25, "dense": self.dense, "bql": self.bql, "bql_fused": self.bql_fused,
                     "bql_dense": self.bql_dense_only, "bql_plain": self.bql_plain, "indri": self.indri,
-                    "hybrid": self.hybrid}
+                    "hybrid": self.hybrid, "reranked": self.reranked}
         if kind not in builders:
             raise ValueError(f"unknown engine kind {kind!r}; choose from {sorted(builders)}")
         return builders[kind]()
@@ -83,7 +87,7 @@ class Engines:
                     except Exception as e:  # noqa: BLE001
                         print(f"WARNING: BQL_DENSE=1 but the dense engine could not be built ({e!r}); "
                               f"degrading to plain bm25 BQL ranking.", file=sys.stderr)
-                self._built["bql"] = build_bql_engine(self.units, self.index_root, self.key, self.rebuild, dense=dense)
+                self._built["bql"] = build_bql_engine(self.units, self.index_root, self.key, dense=dense, domain=self.domain)
         return self._built["bql"]
 
     def bql_plain(self):
@@ -91,7 +95,7 @@ class Engines:
         with self._lock:
             if "bql" not in self._built:
                 from agent_search.retrievers.backend import build_bql_engine
-                self._built["bql"] = build_bql_engine(self.units, self.index_root, self.key, self.rebuild, dense=None)
+                self._built["bql"] = build_bql_engine(self.units, self.index_root, self.key, dense=None, domain=self.domain)
         return self._built["bql"]
 
     def bql_fused(self):
@@ -99,8 +103,8 @@ class Engines:
         with self._lock:
             if "bql" not in self._built:
                 from agent_search.retrievers.backend import build_bql_engine
-                self._built["bql"] = build_bql_engine(self.units, self.index_root, self.key, self.rebuild,
-                                                      dense=self._dense_locked())
+                self._built["bql"] = build_bql_engine(self.units, self.index_root, self.key,
+                                                      dense=self._dense_locked(), domain=self.domain)
         return self._built["bql"]
 
     def bql_dense_only(self):
@@ -108,8 +112,8 @@ class Engines:
         with self._lock:
             if "bql" not in self._built:
                 from agent_search.retrievers.backend import build_bql_engine_dense_only
-                self._built["bql"] = build_bql_engine_dense_only(self.units, self.index_root, self.key, self.rebuild,
-                                                                 dense=self._dense_locked())
+                self._built["bql"] = build_bql_engine_dense_only(self.units, self.index_root, self.key,
+                                                                 dense=self._dense_locked(), domain=self.domain)
         return self._built["bql"]
 
     def indri(self):
@@ -124,7 +128,7 @@ class Engines:
                     except Exception as e:  # noqa: BLE001
                         print(f"WARNING: INDRI_DENSE=1 but the dense engine could not be built ({e!r}); "
                               f"degrading to lexical-only Indri retrieval.", file=sys.stderr)
-                self._built["indri"] = build_indri_engine(self.units, self.index_root, self.key, self.rebuild, dense=dense)
+                self._built["indri"] = build_indri_engine(self.units, self.index_root, self.key, dense=dense, domain=self.domain)
         return self._built["indri"]
 
     def hybrid(self):
@@ -143,6 +147,31 @@ class Engines:
                     components[n] = self._built[n]
                 self._built["hybrid"] = HybridEngine(components, fusion_from_env(), pool_from_env())
         return self._built["hybrid"]
+
+    def reranked(self):
+        """The reranked engine: the base retriever the run names (`RERANK_BASE`, default `bm25`)
+        supplies a pool, the reranker (`RERANK_METHOD`, `RERANK_MODEL`) reorders it
+        (`agent_search.retrievers.reranked`)."""
+        with self._lock:
+            if "reranked" not in self._built:
+                from agent_search.retrievers.reranked import RerankedEngine, base_from_env, pool_from_env, reranker_from_env
+                base = base_from_env()
+                if base not in self._built:
+                    self._built[base] = self._build_unlocked(base)
+                self._built["reranked"] = RerankedEngine(self._built[base], reranker_from_env(), self.text_of,
+                                                         pool_from_env(), base_name=base)
+        return self._built["reranked"]
+
+    def text_of(self, doc_id: str) -> str:
+        """The text of one unit (title and body, or code), what a reranker reads."""
+        from agent_search.retrievers.reranked import unit_text
+        by_id = self.units.by_id if getattr(self.units, "lazy", False) else self._by_id()
+        return unit_text(by_id.get(doc_id))
+
+    def _by_id(self) -> dict:
+        if not hasattr(self, "_ubyid"):
+            self._ubyid = {u.doc_id: u for u in self.units}
+        return self._ubyid
 
     def _build_unlocked(self, kind: str):
         """Build one kind while the lock is already held (the lock is not re-entrant)."""

@@ -17,7 +17,7 @@ from typing import Optional
 
 from agent_search.tools.base import Tool
 from agent_search.tools.budgets import SNIPPET_TOKENS
-from agent_search.tools.common import opening_line
+from agent_search.snippets import OpeningLine, Snippet
 
 DEDUP_POOL_K = int(os.environ.get("DEDUP_POOL_K", "100"))
 DEDUP_TOPK = int(os.environ.get("DEDUP_TOPK", "10"))
@@ -51,6 +51,8 @@ class SearchDedup(Tool):
                        "properties": {"query": {"type": "string",
                                                 "description": "A keyword query, for example: treaty that ended the Mexican-American War."}},
                        "required": ["query"]}
+
+    snippet: Snippet = OpeningLine()   # the excerpt under each hit (agent_search.snippets)
 
     def __init__(self, name: Optional[str] = None, **options):
         super().__init__(name=name, **options)
@@ -95,7 +97,7 @@ class SearchDedup(Tool):
             if u is None:
                 continue
             title = u.title or u.qualname or ""
-            blocks.append(f"DocID:{d}\n[{title}]\n{opening_line(u, SNIPPET_TOKENS)}")
+            blocks.append(f"DocID:{d}\n[{title}]\n{self.snippet.render(u, width=SNIPPET_TOKENS)}")
         out = (f"A search for '{query}' found {len(blocks)} results:\n\n## Web Results\n"
                + "\n\n".join(blocks))
         if hidden:

@@ -2,8 +2,10 @@
 the same searchable input; they differ only in the scopeable fields that BQL uses. This guards
 the headline control (the flat/structured pair isolates BQL's value, not a content difference)."""
 from agent_search.corpus.units import units_from_documents
-from agent_search.retrievers.bql.executor import StructuralExecutor
 from agent_search.retrievers.bql.parser import parse
+from tests.lucene_support import build_lucene_bql, require_jvm
+
+require_jvm()
 
 
 def test_flat_and_structured_units_share_identical_bm25_blob():
@@ -31,10 +33,10 @@ def test_flat_and_structured_units_share_identical_bm25_blob():
 def test_section_still_scopeable_by_bql_after_blob_change():
     su = units_from_documents([{"_id": "Sanaa", "title": "Sanaa",
                                 "section": "History Geography", "text": "founded long ago"}])
-    ex = StructuralExecutor(su)
-    assert [d for d, _ in ex.run(parse("IN(section, history)").expr)] == ["Sanaa"]
+    ex = build_lucene_bql(su)
+    assert [d for d, _ in ex.run_with_count(parse("IN(section, history)").expr)[0]] == ["Sanaa"]
     # body-only token is NOT in the section region (proves section isn't just the whole blob)
-    assert [d for d, _ in ex.run(parse("IN(section, founded)").expr)] == []
+    assert ex.run_with_count(parse("IN(section, founded)").expr) == ([], 0)
 
 
 def test_a_failed_first_attempt_does_not_block_a_rerun(tmp_path):

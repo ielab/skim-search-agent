@@ -6,6 +6,9 @@ import os
 import pytest
 
 from agent_search.evaluation import run_eval as R
+from tests.lucene_support import require_jvm
+
+require_jvm()
 
 
 def _base_args(**over):
@@ -33,19 +36,23 @@ def test_resume_into_a_different_experiment_is_refused(tmp_path, monkeypatch):
     (rd / "rows.jsonl").write_text('{"instance_id": "q1"}\n')     # something was scored under this config
     # same experiment: fine
     R._check_run_identity(str(rd), R._run_config_dict(_base_args(limit=2), "general"))
-    # a changed backend knob is a different experiment
-    monkeypatch.setenv("STRUCTURED_BACKEND", "lucene")
+    # a changed retrieval knob is a different experiment
+    monkeypatch.setenv("BQL_SOFT_FALLBACK", "0")
     other = R._run_config_dict(_base_args(), "general")
     with pytest.raises(SystemExit) as ei:
         R._check_run_identity(str(rd), other)
     assert "env_knobs" in str(ei.value) and "--allow-config-drift" in str(ei.value)
     R._check_run_identity(str(rd), other, allow_drift=True)      # explicit override
-    monkeypatch.delenv("STRUCTURED_BACKEND")
+    monkeypatch.delenv("BQL_SOFT_FALLBACK")
     with pytest.raises(SystemExit):
         R._check_run_identity(str(rd), R._run_config_dict(_base_args(seed=7), "general"))
 
 
 def test_multi_seed_runs_land_in_separate_dirs(tmp_path, monkeypatch):
+    from agent_search.evaluation.build_indexes import build
+    from agent_search.evaluation.datasets import load_dataset_by_name
+    build(load_dataset_by_name("doc_fixture"), index_root=str(tmp_path / "idx"),
+          retriever="search_lucene", progress=False)
     monkeypatch.chdir(tmp_path)
     argv = ["run_eval", "--dataset", "doc_fixture", "--retriever", "agent_research_snip",
             "--policy", "stub", "--seeds", "1,2", "--runs-dir", str(tmp_path / "runs"),

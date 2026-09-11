@@ -1,114 +1,121 @@
-"""The pure-Python BM25 scorer (no Java, no dependencies).
+"""The in-memory BM25 scorer for code repositories.
 
-Used by `BM25Local` (the in-memory BM25 retriever), by the grep baseline, and by the BQL
-executor to order the candidate set a Boolean query selects, so every index-free condition ranks
-with the same scorer and differs only in how it picks candidates. The tokenizer is
-`agent_search.corpus.units.code_tokenize`. For Lucene's BM25 use `pyserini.py`.
+This is the one in-memory scorer in the library, and it exists for one corpus kind: a code
+repository, which is small and can change while an agent works on it. The grep ranker
+(`grep.py`) and the code Boolean executor (`bql/executor.py`) rank with it. Document corpora
+never use it: their BM25 is Lucene (`pyserini.py`), and their structured queries run on the
+Lucene structured index (`agent_search/retrievers/lucene/`).
+
+The index is updated, not rebuilt: `add` and `remove` keep the document frequencies, lengths
+and average length consistent, so a caller that notices a changed file replaces that file's
+units and leaves the rest of the index alone. The tokenizer is
+`agent_search.corpus.units.code_tokenize`.
 """
 from __future__ import annotations
 
 import math
 from collections import Counter
-from typing import Mapping, Sequence
+from typing import Iterable, Mapping, Sequence
 
-from agent_search.corpus.units import code_tokenize  # shared identifier-aware tokenizer
+from agent_search.corpus.units import code_tokenize
 
 
 class BM25:
     def __init__(self, k1: float = 0.9, b: float = 0.4):
         self.k1 = k1
         self.b = b
-        self._doc_ids: list[str] = []
-        self._tfs: list[Counter] = []
-        self._lens: list[int] = []
-        self._df: Counter = Counter()
-        self._avgdl: float = 0.0
-        self._n: int = 0
-        self._pos: dict[str, int] = {}
+        self._tfs: dict[str, Counter] = {}     # doc_id -> term frequencies
+        self._lens: dict[str, int] = {}        # doc_id -> token count
+        self._df: Counter = Counter()          # term -> number of docs holding it
+        self._total_len: int = 0
 
+    # --- building and updating ---------------------------------------------------------
     def index(self, docs: Mapping[str, str]) -> "BM25":
+        """Replace the whole index with `docs` (doc_id -> text)."""
         return self.index_tokenized({d: code_tokenize(t) for d, t in docs.items()})
 
     def index_tokenized(self, docs: Mapping[str, Sequence[str]]) -> "BM25":
-        """Index pre-tokenized docs (callers that already hold token lists,
-        e.g. the structural executor, skip re-tokenization)."""
-        self._doc_ids, self._tfs, self._lens = [], [], []
-        self._df = Counter()
-        for doc_id, toks in docs.items():
-            tf = Counter(toks)
-            self._doc_ids.append(doc_id)
-            self._tfs.append(tf)
-            self._lens.append(len(toks))
-            self._df.update(tf.keys())
-        self._n = len(self._doc_ids)
-        self._avgdl = (sum(self._lens) / self._n) if self._n else 0.0
-        self._pos = {d: i for i, d in enumerate(self._doc_ids)}  # doc_id -> row
+        """Replace the whole index with pre-tokenized docs (doc_id -> tokens)."""
+        self._tfs, self._lens, self._df, self._total_len = {}, {}, Counter(), 0
+        self.add_tokenized(docs)
         return self
 
-    def _score_doc(self, i: int, terms: Sequence[str]) -> float:
-        tf, dl = self._tfs[i], self._lens[i]
+    def add(self, docs: Mapping[str, str]) -> "BM25":
+        return self.add_tokenized({d: code_tokenize(t) for d, t in docs.items()})
+
+    def add_tokenized(self, docs: Mapping[str, Sequence[str]]) -> "BM25":
+        """Add documents. A doc_id already in the index is replaced."""
+        self.remove(d for d in docs if d in self._tfs)
+        for doc_id, toks in docs.items():
+            tf = Counter(toks)
+            self._tfs[doc_id] = tf
+            self._lens[doc_id] = len(toks)
+            self._total_len += len(toks)
+            self._df.update(tf.keys())
+        return self
+
+    def remove(self, doc_ids: Iterable[str]) -> "BM25":
+        """Drop documents; unknown ids are ignored."""
+        for doc_id in list(doc_ids):
+            tf = self._tfs.pop(doc_id, None)
+            if tf is None:
+                continue
+            self._total_len -= self._lens.pop(doc_id)
+            for term in tf:
+                self._df[term] -= 1
+                if self._df[term] <= 0:
+                    del self._df[term]
+        return self
+
+    def __contains__(self, doc_id: str) -> bool:
+        return doc_id in self._tfs
+
+    def __len__(self) -> int:
+        return len(self._tfs)
+
+    # --- scoring --------------------------------------------------------------------------
+    @property
+    def _avgdl(self) -> float:
+        return (self._total_len / len(self._tfs)) if self._tfs else 0.0
+
+    def _idf(self, term: str) -> float:
+        df = self._df.get(term, 0)
+        n = len(self._tfs)
+        # Lucene-style non-negative idf: log(1 + (N - df + 0.5)/(df + 0.5))
+        return math.log(1 + (n - df + 0.5) / (df + 0.5))
+
+    def _score_doc(self, doc_id: str, terms: Sequence[str]) -> float:
+        tf, dl = self._tfs[doc_id], self._lens[doc_id]
+        avgdl = self._avgdl or 1.0
         score = 0.0
         for term in terms:
             f = tf.get(term, 0)
             if not f:
                 continue
-            denom = f + self.k1 * (1 - self.b + self.b * dl / (self._avgdl or 1))
+            denom = f + self.k1 * (1 - self.b + self.b * dl / avgdl)
             score += self._idf(term) * (f * (self.k1 + 1)) / denom
         return score
 
     def score_terms(self, terms: Sequence[str]) -> list[tuple[str, float]]:
-        """Score every indexed doc against `terms`, keeping zero scores.
-
-        Set->ranking use: the docs are a Boolean candidate set, so membership is
-        already decided; a candidate whose own text shares no term with the
-        query (matched via file scope / qualname) must stay in the ranking, not
-        vanish the way `search`'s score>0 filter would make it. Sorted by
-        (-score, doc_id): deterministic."""
-        scored = [(d, self._score_doc(i, terms)) for i, d in enumerate(self._doc_ids)]
+        """Score every indexed doc against `terms`, keeping zero scores, sorted by
+        (-score, doc_id). A Boolean candidate matched through file scope or its qualified
+        name shares no term with the query and must still appear in the ranking."""
+        scored = [(d, self._score_doc(d, terms)) for d in self._tfs]
         scored.sort(key=lambda x: (-x[1], x[0]))
         return scored
 
     def score_subset(self, terms: Sequence[str],
                      doc_ids: Sequence[str]) -> list[tuple[str, float]]:
-        """Score only `doc_ids` (a Boolean candidate set) against this index's
-        corpus statistics: the scorer is built once over the whole corpus and a
-        query just reads off the precomputed per-doc tf/len + corpus idf for its
-        candidates, instead of rebuilding a fresh per-candidate-set index every
-        call (which made a broad query over a large corpus re-tokenize hundreds of
-        big docs each turn). Candidates absent from the corpus, or matched via
-        file/qualname scope with no shared term, keep a 0.0 score and stay ranked.
-        Sorted (-score, doc_id): deterministic."""
-        scored = [(d, self._score_doc(self._pos[d], terms) if d in self._pos else 0.0)
-                  for d in doc_ids]
+        """Score only `doc_ids` against the whole index's statistics, sorted by
+        (-score, doc_id). Ids not in the index keep a 0.0 score and stay ranked."""
+        scored = [(d, self._score_doc(d, terms) if d in self._tfs else 0.0) for d in doc_ids]
         scored.sort(key=lambda x: (-x[1], x[0]))
         return scored
 
-    def _idf(self, term: str) -> float:
-        df = self._df.get(term, 0)
-        # Lucene-style non-negative idf: log(1 + (N - df + 0.5)/(df + 0.5))
-        return math.log(1 + (self._n - df + 0.5) / (df + 0.5))
-
     def search_with_count(self, query: str, k: int = 100) -> tuple[list[tuple[str, float]], int]:
-        """Top-k plus the untruncated number of matching (score>0) docs, so an
-        agent observation can report the true match count, consistent with the
-        grep and BQL tools, instead of a k-capped one."""
-        q_terms = code_tokenize(query)
-        scored = [(d, s) for d, s in self.score_terms(q_terms) if s > 0]
+        """Top-k plus the untruncated number of docs with a positive score."""
+        scored = [(d, s) for d, s in self.score_terms(code_tokenize(query)) if s > 0]
         return scored[:k], len(scored)
 
     def search(self, query: str, k: int = 100) -> list[tuple[str, float]]:
-        q_terms = code_tokenize(query)
-        scored: list[tuple[str, float]] = []
-        for i, doc_id in enumerate(self._doc_ids):
-            tf, dl = self._tfs[i], self._lens[i]
-            score = 0.0
-            for term in q_terms:
-                f = tf.get(term, 0)
-                if not f:
-                    continue
-                denom = f + self.k1 * (1 - self.b + self.b * dl / (self._avgdl or 1))
-                score += self._idf(term) * (f * (self.k1 + 1)) / denom
-            if score > 0:
-                scored.append((doc_id, score))
-        scored.sort(key=lambda x: (-x[1], x[0]))
-        return scored[:k]
+        return self.search_with_count(query, k=k)[0]

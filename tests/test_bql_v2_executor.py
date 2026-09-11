@@ -1,62 +1,55 @@
-"""BQL v2 executor-layer features: typed date-range queries and constraint-coverage
-ranking (see the surface.py / executor.py module docstrings for the design rationale).
+"""BQL v2 executor-layer features on the document engine: typed date-range queries and
+constraint-coverage ranking (see the surface.py and lucene/bql_compiler.py module docstrings
+for the design rationale). Document corpora rank on Lucene only, so every executor-side
+assertion here runs on `LuceneBqlAdapter` built through `tests/lucene_support.py`.
 
 Both features address measured BrowseComp-Plus deficits: (1) temporal clues ("in the
 1980s") were inexpressible against ISO `date` metadata, since only exact-token matching was
 available; (2) a hard multi-constraint AND that matches nothing gave the agent no signal about
 which constraint failed, only `soft_topk`'s undifferentiated bag-of-terms fallback.
 
-CPU-only; a small (~30-unit) synthetic corpus with `metadata={'date': ...}`.
+Needs a JVM; a small (~30-unit) synthetic corpus with `metadata={'date': ...}`.
 """
 from __future__ import annotations
-
-import os
 
 import pytest
 
 from agent_search.corpus.units import CodeUnit
-from agent_search.retrievers.bql import executor as execmod
-from agent_search.retrievers.bql.executor import StructuralExecutor
 from agent_search.retrievers.bql.parser import parse
 from agent_search.retrievers.bql.surface import to_bql
 from agent_search.retrievers.bql.types import check
+from tests import lucene_support
+
+lucene_support.require_jvm()
 
 
 @pytest.fixture(autouse=True)
-def _restore_gate_and_threshold():
-    """Isolate the env gate + the module-global prefilter threshold from other test
-    files (same pattern as tests/test_bql_prefilter.py's `_restore_threshold`)."""
-    gate = os.environ.pop("BQL_DATE_RANGE", None)
-    threshold = execmod._PREFILTER_MIN_UNITS
-    yield
-    if gate is None:
-        os.environ.pop("BQL_DATE_RANGE", None)
-    else:
-        os.environ["BQL_DATE_RANGE"] = gate
-    execmod._PREFILTER_MIN_UNITS = threshold
+def _isolate_date_range_gate(monkeypatch):
+    """Isolate the `BQL_DATE_RANGE` env gate from other test files."""
+    monkeypatch.delenv("BQL_DATE_RANGE", raising=False)
 
 
-def _mk(doc_id: str, code: str, date: str | None = None) -> CodeUnit:
+def _mk(doc_id: str, text: str, date: str | None = None) -> CodeUnit:
     meta = {"date": date} if date is not None else {}
-    return CodeUnit(doc_id=doc_id, path=f"{doc_id}.py", qualname=doc_id,
-                    start_line=1, end_line=1, code=code, metadata=meta)
+    return CodeUnit(doc_id=doc_id, path=f"{doc_id}.txt", qualname=doc_id,
+                    start_line=1, end_line=1, code=text, body=text, metadata=meta)
 
 
 def _corpus() -> list[CodeUnit]:
     units = [
         # --- date-range boundary docs (also double as the "alpha" combined-AND fixture) ---
-        _mk("d1979", "# alpha before", date="1979-12-31"),
-        _mk("d1980", "# alpha instart", date="1980-01-01"),
-        _mk("d1989", "# alpha inend", date="1989-12-31"),
-        _mk("d1990", "# alpha after", date="1990-01-01"),
-        _mk("d1985", "# gamma mid", date="1985-06-15"),
-        _mk("dmissing", "# alpha nodatehere"),                       # no 'date' key at all
-        _mk("dmalformed", "# alpha baddate", date="13/25/2002"),     # not ISO / not a real date
+        _mk("d1979", "alpha before", date="1979-12-31"),
+        _mk("d1980", "alpha instart", date="1980-01-01"),
+        _mk("d1989", "alpha inend", date="1989-12-31"),
+        _mk("d1990", "alpha after", date="1990-01-01"),
+        _mk("d1985", "gamma mid", date="1985-06-15"),
+        _mk("dmissing", "alpha nodatehere"),                       # no 'date' key at all
+        _mk("dmalformed", "alpha baddate", date="13/25/2002"),     # not ISO / not a real date
         # --- constraint-coverage fixture: AND(foo, bar, baz, qux) 0-hits ---
-        _mk("docA", "# foo bar baz", date="2001-01-01"),             # matches foo,bar,baz -> 3/4
-        _mk("docB", "# foo bar", date="2001-01-02"),                 # matches foo,bar -> 2/4
-        _mk("docC", "# nothing relevant here", date="2001-01-03"),   # matches none -> 0/4 (absent)
-        _mk("docD", "# foo only", date="2001-01-04"),                # matches foo -> 1/4
+        _mk("docA", "foo bar baz", date="2001-01-01"),             # matches foo,bar,baz -> 3/4
+        _mk("docB", "foo bar", date="2001-01-02"),                 # matches foo,bar -> 2/4
+        _mk("docC", "nothing relevant here", date="2001-01-03"),   # matches none -> 0/4 (absent)
+        _mk("docD", "foo only", date="2001-01-04"),                # matches foo -> 1/4
     ]
     # filler docs: pad toward ~30 units, distinct vocab so they never contaminate the
     # date/coverage assertions above.
@@ -64,11 +57,11 @@ def _corpus() -> list[CodeUnit]:
                      "spring", "bolt", "nut", "washer", "hinge", "clamp", "bracket",
                      "rivet", "gasket", "valve", "piston", "rotor", "flange"]
     for i, w in enumerate(filler_vocab):
-        units.append(_mk(f"filler{i}", f"# {w} placeholder text", date=f"200{i % 10}-01-01"))
+        units.append(_mk(f"filler{i}", f"{w} placeholder text", date=f"200{i % 10}-01-01"))
     return units
 
 
-def _run(ex: StructuralExecutor, bql: str, k: int = 50):
+def _run(ex, bql: str, k: int = 50):
     r = parse(bql)
     assert r.ok, r.error
     t = check(r.expr)
@@ -102,16 +95,16 @@ def test_surface_date_range_encodings(spec, lo, hi):
     assert r.ok and check(r.expr).ok
 
 
-# --- 2. date semantics against unit.metadata['date'] ------------------------------------
+# --- 2. date semantics against unit.metadata['date'] on the Lucene `date` field ---------
 
 @pytest.fixture(scope="module")
 def units():
     return _corpus()
 
 
-@pytest.fixture()
+@pytest.fixture(scope="module")
 def ex(units):
-    return StructuralExecutor(list(units))
+    return lucene_support.build_lucene_bql(units)
 
 
 def test_date_range_matches_exactly_the_bounded_docs(ex):
@@ -126,7 +119,9 @@ def test_date_range_matches_exactly_the_bounded_docs(ex):
 def test_date_lt_matches_only_before(ex):
     bql = to_bql("date[<1980]", domain="doc")
     hits, n = _run(ex, bql)
-    assert {d for d, _ in hits} == {"d1979"}
+    ids = {d for d, _ in hits}
+    # a malformed date ("13/25/2002") is never written to the range field, so it cannot match
+    assert ids == {"d1979"}
     assert n == 1
 
 
@@ -153,19 +148,6 @@ def test_combined_and_intersects_correctly(ex):
     hits, n = _run(ex, bql)
     ids = {d for d, _ in hits}
     assert ids == {"d1980", "d1989"}
-    assert n == 2
-
-
-def test_date_range_matches_under_the_prefilter_too(units):
-    """Force the inverted-index prefilter on (tiny threshold) so the lazy sorted date
-    index's binary-search candidates path (StructuralExecutor._date_range_indices) is
-    exercised, not just the plain live scan — results must be identical either way."""
-    execmod._PREFILTER_MIN_UNITS = 0
-    e = StructuralExecutor(list(units))
-    assert e._prefilter_on is True
-    bql = to_bql("alpha AND date[1980..1989]", domain="doc")
-    hits, n = _run(e, bql)
-    assert {d for d, _ in hits} == {"d1980", "d1989"}
     assert n == 2
 
 
@@ -244,30 +226,13 @@ def test_coverage_topk_single_term_degrades_to_soft_topk(ex):
 def test_coverage_topk_not_child_counts_as_matched_when_negation_holds():
     # docE has foo, bar but NOT baz -> AND(foo, bar, NOT(baz)) should be a 3/3 full match
     units = [
-        _mk("docE", "# foo bar", date="2005-01-01"),
-        _mk("docF", "# foo bar baz", date="2005-01-02"),   # NOT(baz) fails here -> 2/3
+        _mk("docE", "foo bar", date="2005-01-01"),
+        _mk("docF", "foo bar baz", date="2005-01-02"),   # NOT(baz) fails here -> 2/3
     ]
-    e = StructuralExecutor(units)
+    e = lucene_support.build_lucene_bql(units)
     r = parse("AND(foo, bar, NOT(baz))")
     assert r.ok and check(r.expr).ok
     rows = e.coverage_topk(r.expr, k=5)
     by_id = {row[0]: row for row in rows}
     assert by_id["docE"][2] == 3 and all(by_id["docE"][1])
     assert by_id["docF"][2] == 2
-
-
-# --- 5. slim-pickle path: save() then load()+attach_units() answers identically --------
-
-def test_slim_pickle_date_range_matches_fresh(units, tmp_path):
-    fresh = StructuralExecutor(list(units))
-    bql = to_bql("alpha AND date[1980..1989]", domain="doc")
-    fresh_hits, fresh_n = _run(fresh, bql)
-
-    path = str(tmp_path / "bql_index.pkl")
-    StructuralExecutor(list(units)).save(path)
-    loaded = StructuralExecutor.load(path)
-    loaded.attach_units(list(units))
-    loaded_hits, loaded_n = _run(loaded, bql)
-
-    assert loaded_hits == fresh_hits
-    assert loaded_n == fresh_n == 2

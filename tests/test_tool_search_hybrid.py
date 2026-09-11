@@ -13,16 +13,17 @@ retrieve-then-visit listing format byte-for-byte (only the ranking differs); wit
 plus-excerpt listing, paired with the same structured section-`fetch` read every method/fetch
 cell uses.
 
-CPU-only throughout: BM25 is a real (but tiny, in-memory) `BM25Local`; dense is a stub exposing
-only `top_k_doc_ids(query, k)`; no torch/sentence-transformers import anywhere in this file."""
+No model anywhere in this file: where a real BM25 ranking is needed it is a tiny Lucene index
+(`lucene_support.build_pyserini`, so the module needs a JVM); elsewhere BM25 is a stub; dense is
+a stub exposing only `top_k_doc_ids(query, k)`; no torch/sentence-transformers import."""
 from __future__ import annotations
 
 import math
 
 import pytest
 
+from agent_search.snippets import TermWindow
 from agent_search.corpus.units import units_from_documents
-from agent_search.retrievers.lexical.bm25 import BM25Local
 from agent_search.retrievers.registry import RetrieverConfig, build_factory
 from agent_search.tools.base import EpisodeState, ToolBox
 from agent_search.tools.budgets import RRF_K
@@ -37,6 +38,10 @@ from agent_search.tools.fetch.tool import Fetch
 from agent_search.tools.search_bm25.tool import SearchBm25
 from agent_search.tools.search_hybrid.tool import SearchHybrid
 from agent_search.tools.visit.tool import Visit
+
+from tests import lucene_support
+
+lucene_support.require_jvm()
 
 # SAME fixture docs as the bm25-fetch tool tests (a structured doc, a flat doc, an off-topic
 # doc) — keeps rendering comparisons directly comparable.
@@ -57,7 +62,7 @@ def _units():
 
 
 def _bm25_engine():
-    return BM25Local().index(_units())
+    return lucene_support.build_pyserini(_units())
 
 
 class _StubDenseEngine:
@@ -74,8 +79,8 @@ class _StubDenseEngine:
 
 
 class _StubBm25Engine:
-    """A CPU-only stand-in for BM25Pyserini/BM25Local exposing ONLY `search(query, k)` — used
-    where the fusion inputs must be fully controlled (independent of real BM25 scoring)."""
+    """A stand-in for BM25Pyserini exposing only `search(query, k)`, used where the fusion
+    inputs must be fully controlled (independent of real BM25 scoring)."""
 
     def __init__(self, ranking):
         self._ranking = ranking
@@ -303,7 +308,7 @@ def _hybrid_fetch_snip_box(bm25_ranking=("d_harbor",), dense_ranking=(), topk=5)
     units = _units()
     ubyid = {u.doc_id: u for u in units}
     state = EpisodeState(question="q")
-    search = SearchHybrid(name="hybrid_search_snip", structure=True, snippets=True, k=topk).bind(
+    search = SearchHybrid(name="hybrid_search_snip", structure=True, snippet=TermWindow(), k=topk).bind(
         state, units, ubyid, {"hybrid": HybridEngine({"bm25": _StubBm25Engine(bm25_ranking), "dense": _StubDenseEngine(dense_ranking)}, RRF(k=60), pool=100)})
     fetch = Fetch(name="fetch").bind(state, units, ubyid, {})
     return ToolBox([search, fetch], state), search
@@ -320,7 +325,7 @@ def test_hybridfetchsnip_both_rankers_consulted_at_pool_depth():
     units = _units()
     ubyid = {u.doc_id: u for u in units}
     state = EpisodeState(question="q")
-    search = SearchHybrid(name="hybrid_search_snip", structure=True, snippets=True).bind(
+    search = SearchHybrid(name="hybrid_search_snip", structure=True, snippet=TermWindow()).bind(
         state, units, ubyid, {"hybrid": HybridEngine({"bm25": bm25, "dense": dense}, RRF(k=60), pool=100)})
     search.run({"query": "harbor festival"})
     assert bm25.calls == [("harbor festival", search.pool)]
@@ -360,12 +365,12 @@ def test_hybridfetchsnip_matches_plain_bm25_fetch_snip_listing_shape():
     query = "harbor festival annual event history"
 
     hybrid_state = EpisodeState(question="q")
-    hybrid_search = SearchHybrid(name="hybrid_search_snip", structure=True, snippets=True, k=3).bind(
+    hybrid_search = SearchHybrid(name="hybrid_search_snip", structure=True, snippet=TermWindow(), k=3).bind(
         hybrid_state, units, ubyid, {"hybrid": HybridEngine({"bm25": _bm25_engine(), "dense": _StubDenseEngine([])}, RRF(k=60), pool=100)})
     hybrid_out = hybrid_search.run({"query": query})
 
     plain_state = EpisodeState(question="q")
-    plain_search = SearchBm25(name="bm25_search_snip", structure=True, snippets=True, k=3).bind(
+    plain_search = SearchBm25(name="bm25_search_snip", structure=True, snippet=TermWindow(), k=3).bind(
         plain_state, units, ubyid, {"bm25": _bm25_engine()})
     plain_out = plain_search.run({"query": query})
 
@@ -555,24 +560,24 @@ def fake_dense_stack(monkeypatch):
     return _FakeBelief
 
 
-def test_research_hybrid_workspace_builds_and_answers_via_stub(tmp_path, fake_dense_stack):
+def test_research_hybrid_workspace_builds_and_answers_via_stub(fake_dense_stack):
     from agent_search.retrievers.registry import RetrieverConfig, build_factory
 
-    cfg = RetrieverConfig(policy="stub", index_root=str(tmp_path))
+    cfg = RetrieverConfig(policy="stub", index_root=lucene_support.index_root())
     r = build_factory("agent_research_hybrid", cfg)()
-    r.index(_units(), key="test-hybrid-corpus")
+    r.index(_units(), key=lucene_support.corpus_key(_units()))
     ws = r.toolbox("harbor festival annual event history")
     assert isinstance(ws["hybrid_search"], SearchHybrid)
     ranking = r.search("harbor festival annual event history", k=5)
     assert isinstance(ranking, list)
 
 
-def test_research_hybrid_fetch_snip_workspace_builds_and_answers_via_stub(tmp_path, fake_dense_stack):
+def test_research_hybrid_fetch_snip_workspace_builds_and_answers_via_stub(fake_dense_stack):
     from agent_search.retrievers.registry import RetrieverConfig, build_factory
 
-    cfg = RetrieverConfig(policy="stub", index_root=str(tmp_path))
+    cfg = RetrieverConfig(policy="stub", index_root=lucene_support.index_root())
     r = build_factory("agent_research_hybrid_fetch_snip", cfg)()
-    r.index(_units(), key="test-hybrid-fetch-snip-corpus")
+    r.index(_units(), key=lucene_support.corpus_key(_units()))
     ws = r.toolbox("harbor festival annual event history")
     assert isinstance(ws["hybrid_search_snip"], SearchHybrid)
     ranking = r.search("harbor festival annual event history", k=5)

@@ -12,7 +12,7 @@
 #SBATCH --output=slurm_logs/%x-%j.out
 #SBATCH --error=slurm_logs/%x-%j.err
 # Offline forced-answer backfill (scripts/force_answer_backfill.py): serve Tongyi vLLM on :8102
-# (SAME serve invocation scripts/run.sh / scripts/oneshot_rag.sbatch use), wait for it, then run
+# (SAME serve invocation scripts/run.sh uses), wait for it, then run
 # the backfill over every browsecomp factorial cell (CELLS env, newline- or space-separated glob
 # patterns; default below covers every browsecomp factorial cell known to need recovery).
 # `bash scripts/force_answer_backfill.sbatch` runs interactively; `sbatch scripts/force_answer_backfill.sbatch`

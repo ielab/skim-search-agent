@@ -1,7 +1,7 @@
 """The dense structured-fetch pair: `search_dense` (`structure=True`) then `fetch`.
 
-Two arms share this shape: `dense_search_f` (`snippets=True`, `research_dense_fetch`) always
-renders a best-matching `»` excerpt per hit; `dense_search_fp` (`snippets=False`,
+Two arms share this shape: `dense_search_f` (`snippet=TermWindow()`, `research_dense_fetch`) always
+renders a best-matching `»` excerpt per hit; `dense_search_fp` (`snippet=NoSnippet()`,
 the missing plain sibling — dense was the only query engine among bm25/bql/indri/dense that
 used to lack a plain, no-excerpt fetch cell) renders the identical listing minus that excerpt
 line, the same way `research_bql_dense_fetch` supplies `research_bql_dense_snip`'s missing
@@ -13,6 +13,7 @@ CPU-only via a stub dense engine (no torch import).
 """
 from __future__ import annotations
 
+from agent_search.snippets import NoSnippet, TermWindow
 from agent_search.corpus.units import units_from_documents
 from agent_search.tools.base import EpisodeState, ToolBox
 from agent_search.tools.fetch.tool import Fetch
@@ -52,11 +53,11 @@ class _StubDenseEngine:
         return list(ids[: (k or len(ids))])
 
 
-def _toolbox(name, snippets, ranking=("d_mid",), topk=None, units=None):
+def _toolbox(name, snippet, ranking=("d_mid",), topk=None, units=None):
     units = units if units is not None else _units()
     ubyid = {u.doc_id: u for u in units}
     state = EpisodeState(question="q")
-    opts = {"structure": True, "snippets": snippets}
+    opts = {"structure": True, "snippet": snippet}
     if topk is not None:
         opts["k"] = topk
     search = SearchDense(name=name, **opts).bind(state, units, ubyid, {"dense": _StubDenseEngine(ranking)})
@@ -65,11 +66,11 @@ def _toolbox(name, snippets, ranking=("d_mid",), topk=None, units=None):
 
 
 def _plain_box(ranking=("d_mid",), topk=None, units=None):
-    return _toolbox("dense_search_fp", snippets=False, ranking=ranking, topk=topk, units=units)
+    return _toolbox("dense_search_fp", snippet=NoSnippet(), ranking=ranking, topk=topk, units=units)
 
 
 def _snip_box(ranking=("d_mid",), topk=None, units=None):
-    return _toolbox("dense_search_f", snippets=True, ranking=ranking, topk=topk, units=units)
+    return _toolbox("dense_search_f", snippet=TermWindow(), ranking=ranking, topk=topk, units=units)
 
 
 # =============================================================================================
@@ -110,7 +111,7 @@ def test_plain_engine_receives_raw_query_and_topk():
     ubyid = {u.doc_id: u for u in units}
     state = EpisodeState(question="q")
     engine = _StubDenseEngine(("d_mid",))
-    search = SearchDense(name="dense_search_fp", structure=True, snippets=False, k=7).bind(
+    search = SearchDense(name="dense_search_fp", structure=True, snippet=NoSnippet(), k=7).bind(
         state, units, ubyid, {"dense": engine})
     box = ToolBox([search, Fetch(name="fetch").bind(state, units, ubyid, {})], state)
     box.run("dense_search_fp", {"query": "zephyrquokka"})
@@ -118,7 +119,7 @@ def test_plain_engine_receives_raw_query_and_topk():
 
 
 def test_plain_search_is_live_and_re_retrieves():
-    box = _toolbox("dense_search_fp", snippets=False,
+    box = _toolbox("dense_search_fp", snippet=NoSnippet(),
                    ranking={"zephyrquokka": ["d_mid"], "plain doc": ["d_plain2"]})
     box.run("dense_search_fp", {"query": "zephyrquokka"})
     first = list(box.last_hits)
@@ -151,7 +152,7 @@ def test_plain_fetch_marks_doc_seen():
 def test_plain_run_aliases_dense_search_and_search_names():
     """`dense_search_fp` is the tool's own registered name; `dense_search`/`search` are its
     declared aliases (agent_search.tools.search_dense.tool.SearchDense.aliases). There is no
-    `dense_search_f` alias on THIS instance — that name belongs to the separate snippets=True
+    `dense_search_f` alias on THIS instance — that name belongs to the separate snippet=TermWindow()
     instance below (dropped from the old alias-fan-out test: the two are distinct tool
     instances with different `snippets` settings now, not interchangeable names of one
     generic workspace)."""
@@ -252,7 +253,7 @@ def test_snip_engine_receives_raw_query_and_topk():
     ubyid = {u.doc_id: u for u in units}
     state = EpisodeState(question="q")
     engine = _StubDenseEngine(("d_mid",))
-    search = SearchDense(name="dense_search_f", structure=True, snippets=True, k=7).bind(
+    search = SearchDense(name="dense_search_f", structure=True, snippet=TermWindow(), k=7).bind(
         state, units, ubyid, {"dense": engine})
     box = ToolBox([search, Fetch(name="fetch").bind(state, units, ubyid, {})], state)
     box.run("dense_search_f", {"query": "zephyrquokka"})
@@ -262,7 +263,7 @@ def test_snip_engine_receives_raw_query_and_topk():
 def test_snip_search_is_live_and_re_retrieves():
     """LIVE retrieval: a NEW query string in a later dense_search_f call re-runs the dense
     engine and CHANGES the ranking — same live-per-call contract as the bm25 cells."""
-    box = _toolbox("dense_search_f", snippets=True,
+    box = _toolbox("dense_search_f", snippet=TermWindow(),
                    ranking={"zephyrquokka": ["d_mid"], "plain doc": ["d_plain2"]})
     box.run("dense_search_f", {"query": "zephyrquokka"})
     first = list(box.last_hits)

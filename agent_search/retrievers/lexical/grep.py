@@ -1,26 +1,25 @@
-"""Index-free grep baseline (GrepRAG-style), the fair comparison for SkimSearchAgent.
+"""The grep ranker for code repositories (GrepRAG-style), the index-free floor the Boolean
+code method is compared against.
 
-Both this and the BQL structural method are index-free, so comparing them isolates the
-value of structure (Boolean + AST) rather than "index vs no-index".
+Two grep semantics, chosen by the query's surface form:
+- Unquoted query: GrepRAG (Wang et al. 2026, arXiv 2601.23254). Turn the query into keyword
+  patterns, scan the live files for exact substrings (any pattern may match), then rerank
+  the matched units with BM25 ("identifier-weighted re-ranking").
+- Quoted query: SWE-agent's search_dir. The whole term is one literal substring.
 
-Two literature-verified grep semantics, selected by the query's surface form:
-- Unquoted query: GrepRAG (Wang et al. 2026, arXiv 2601.23254, code completion). Emit
-  keyword patterns, grep the live files (exact substring per keyword, any pattern may
-  match), then BM25-rerank the matched candidates ("identifier-weighted re-ranking").
-  Candidate selection is index-free (the live substring scan); the rerank uses the
-  shared corpus-wide BM25 scorer (built once, reused), the same ranking layer
-  `StructuralExecutor._corpus_bm` uses, so grep and BQL rank by identical corpus
-  statistics and differ only in selection (see `scorer.py`'s `score_subset`).
-- Quoted query: SWE-agent's search_dir semantics (verified against the repo:
-  tools/search/bin/search_dir). The whole term is one literal substring passed to grep
-  verbatim. SWE-agent renders `<file> (N matches)` capped at 100 files with a "narrow
-  your search" nudge; the shared renderer here mirrors that cap and nudge.
+Candidate selection is index-free (the substring scan). The rerank uses the in-memory
+code scorer (`scorer.py`), the same one the code Boolean executor ranks with, so grep and
+BQL rank by identical corpus statistics and differ only in selection.
 
-This is the flat grep baseline: keyword matching, no Boolean logic, no AST scope (which
-is what the BQL method adds).
+The scorer is an index that follows the repository: `index(units)` builds it the first
+time and, on every later call, re-indexes only the files whose units changed (a file's
+fingerprint is the hash of its units' ids and code). A task that edits files calls
+`index` again with the fresh units, and nothing else is rebuilt. This is the one place
+the library keeps an in-memory scorer; document corpora rank on Lucene.
 """
 from __future__ import annotations
 
+import hashlib
 from collections import Counter
 from typing import Optional, Sequence
 
@@ -37,6 +36,26 @@ _STOP = {
 }
 
 
+def file_fingerprints(units: Sequence[CodeUnit]) -> dict[str, tuple[str, list[CodeUnit]]]:
+    """path -> (fingerprint of that file's units, the units), in corpus order. Two files
+    with the same units in the same order and the same code have the same fingerprint."""
+    by_path: dict[str, list[CodeUnit]] = {}
+    for u in units:
+        by_path.setdefault(u.path, []).append(u)
+    out = {}
+    for path, us in by_path.items():
+        h = hashlib.sha1()
+        for u in us:
+            h.update(u.doc_id.encode("utf-8", "surrogatepass"))
+            h.update(b"\x1e")
+            h.update((u.qualname or "").encode("utf-8", "surrogatepass"))
+            h.update(b"\x1e")
+            h.update((u.code or "").encode("utf-8", "surrogatepass"))
+            h.update(b"\x1f")
+        out[path] = (h.hexdigest(), us)
+    return out
+
+
 class GrepBaseline(Retriever):
     name = "grep"
 
@@ -44,33 +63,26 @@ class GrepBaseline(Retriever):
         self.max_patterns = max_patterns          # GrepRAG uses m=10 patterns
         self._units: list[CodeUnit] = []
         self._haystacks: list[str] = []           # per-unit "qualname code", lowercased once
-        self._bm: Optional[BM25] = None           # corpus-wide rerank scorer, built once
+        self._bm = BM25()                         # corpus-wide rerank scorer, kept up to date
+        self._files: dict[str, tuple[str, list[CodeUnit]]] = {}   # path -> (fingerprint, units)
 
     def index(self, units: Sequence[CodeUnit], key: Optional[str] = None) -> "GrepBaseline":
+        """Build the index, or bring it up to date: only files whose units changed are
+        re-indexed, files that disappeared are dropped."""
         from agent_search.corpus.docstore import refuse_lazy
-        refuse_lazy(units, "the grep baseline", "a retriever with prebuilt-index support")
-        # There is no retrieval index, but two things stay static across queries, so build
-        # them once here:
-        # (1) the per-unit searchable text, lowercased here instead of rebuilding
-        #     `f"{qualname} {code}".lower()` for every unit on every query (the grep scan);
-        # (2) the BM25 rerank scorer (corpus stats don't change per query), built lazily
-        #     on the first query and reused rather than rebuilt over each candidate set.
-        # Rebuilding (2) per query re-tokenizes thousands of big docs each turn; on a large
-        # shared document corpus (hotpotqa/2wiki/musique) that was the minutes-per-query tail.
+        refuse_lazy(units, "the grep ranker", "a Lucene BM25 index (bm25_pyserini)")
+        fresh = file_fingerprints(units)
+        changed = [p for p, (fp, _) in fresh.items() if self._files.get(p, ("", None))[0] != fp]
+        gone = [p for p in self._files if p not in fresh]
+        for path in changed + gone:
+            _, old = self._files.get(path, ("", []))
+            self._bm.remove(u.doc_id for u in old)
+        for path in changed:
+            self._bm.add({u.doc_id: f"{u.qualname} {u.code}" for u in fresh[path][1]})
+        self._files = fresh
         self._units = list(units)
         self._haystacks = [f"{u.qualname} {u.code}".lower() for u in self._units]
-        self._bm = None
         return self
-
-    def _corpus_bm(self) -> BM25:
-        """BM25 over the whole corpus, built once and reused, the same role
-        `StructuralExecutor._corpus_bm` plays for BQL. Candidate selection stays
-        index-free (the live grep scan); only the shared scoring layer is prebuilt, so
-        grep and BQL rank by the same corpus idf and differ only in selection."""
-        if self._bm is None:
-            self._bm = BM25().index(
-                {u.doc_id: f"{u.qualname} {u.code}" for u in self._units})
-        return self._bm
 
     def _keywords(self, query: str) -> list[str]:
         q = query.strip()
@@ -101,9 +113,8 @@ class GrepBaseline(Retriever):
         if not candidates:
             return [], 0
         # GrepRAG identifier-weighted re-ranking: score the candidate set with the
-        # corpus-wide BM25 (built once), reading off precomputed per-doc stats and corpus
-        # idf instead of rebuilding an index over the candidates every query.
-        ranked = self._corpus_bm().score_subset(code_tokenize(query), candidates)
+        # corpus-wide scorer, reading precomputed per-doc statistics and corpus idf.
+        ranked = self._bm.score_subset(code_tokenize(query), candidates)
         return ranked[:k], len(candidates)
 
 

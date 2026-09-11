@@ -13,17 +13,21 @@ question, seeded by `on_bind`) and a later in-episode query are deliberately dis
 direct probe of whether re-searching changes the ranking.
 """
 from agent_search.corpus.units import units_from_documents
-from agent_search.retrievers.lexical.bm25 import BM25Local
 from agent_search.tools.bash.tool import Bash
 from agent_search.tools.base import EpisodeState, ToolBox
 from agent_search.tools.read.tool import Read
 from agent_search.tools.search_bm25_dci.tool import SearchBm25Dci
 
+from tests import lucene_support
+
+lucene_support.require_jvm()
+
 # doc_a is strongly on-topic for the CONSTRUCTION query ("solarflare mission alpha"); doc_b
 # shares NO vocabulary with it at all, so at construction time (topk small) doc_b is reliably
 # pushed out of the initial ranking. doc_b IS the top hit for the LATER query ("gizmo quantum
-# beta"), which shares no vocabulary with the construction query either — this is the pair the
-# one-shot bug could never surface via a second search.
+# beta"), which shares no vocabulary with the construction query either. This is the pair the
+# one-shot bug could never surface via a second search. The engine is Lucene BM25
+# (`lucene_support.build_pyserini`), the only BM25 a document corpus has.
 DOCS = [
     {"_id": "doc_a", "title": "Solar Mission Alpha",
      "text": "A solarflare mission alpha briefing describing the alpha launch sequence."},
@@ -46,7 +50,7 @@ def _units():
 
 
 def _engine():
-    return BM25Local().index(_units())
+    return lucene_support.build_pyserini(_units())
 
 
 def _ws(query=QUERY_INIT, topk=3, engine=None):
@@ -129,8 +133,8 @@ def test_initial_docs_stay_staged_and_readable_after_later_search():
 # --- 4. a zero-match query is reported, not an error -------------------------
 
 def test_zero_match_query_is_reported_with_query_text():
-    # a query built entirely from tokens absent from every doc's vocabulary scores 0 for
-    # everything (bm25's `score > 0` filter), so this must report "(0 matches)", not an error.
+    # a query built entirely from tokens absent from every doc's vocabulary matches nothing
+    # in Lucene, so this must report "(0 matches)", not an error.
     ws = _ws(topk=3)
     out = ws.run("bm25_search", {"query": "zzz_nonexistent_token_qqq"})
     assert "0 matches" in out

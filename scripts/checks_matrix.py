@@ -4,14 +4,16 @@ commands that run them, one GPU job each.
     python scripts/checks_matrix.py write      # configs/checks/<dataset>__<strategy>__<backbone>.yaml
     python scripts/checks_matrix.py submit [DATASET]   # sbatch one job per file (express queue), optionally one dataset
     python scripts/checks_matrix.py table      # judge and tabulate runs/checks
+    python scripts/checks_matrix.py write_floors && python scripts/checks_matrix.py submit_floors   # the floors
 
 Site values come from the environment: SSA_SLURM_ACCOUNT, SSA_SLURM_QOS, VLLM_PYTHON (the
 interpreter that has vLLM), JAVA_HOME_OVERRIDE (a JDK 21 for Pyserini).
 
-The matrix: every strategy on the InfoSeek-Eval sample with Tongyi; the structured
-strategies on the structured BrowseComp-Plus corpus; the code strategies on the code fixture;
-a subset of strategies with two more served backbones and one in-process vLLM backbone; the
-retrieval-only floors; the ITER training path (a separate launcher). Every run uses seed 42.
+The matrix: every document strategy on 20 questions of BrowseComp-Plus structured with Tongyi;
+four strategies on HotpotQA structured; the ITER strategies on the chunk corpus sample; the code
+strategies on the code fixture; a subset of strategies with four more served backbones. The
+retrieval-only floors run through scripts/slurm/floors.sbatch on the full sets. Every run uses
+seed 42.
 """
 from __future__ import annotations
 
@@ -43,18 +45,19 @@ BACKBONES = {
 # extra vLLM server arguments per backbone (gpt-oss-120b on two 94 GB GPUs runs out of memory
 # in the sampler warm-up at the default 1024 sequences)
 VLLM_EXTRA = {"gpt_oss_120b": "--max-num-seqs 32 --gpu-memory-utilization 0.92"}
-DOC_STRATEGIES = ["search_visit", "search_visit_dense", "search_visit_hybrid", "autoread", "autoread_dense",
-                  "search_fetch", "search_fetch_dense", "search_fetch_hybrid", "sieve_bm25", "sieve", "sieve_dense",
-                  "sieve_nosnip", "dci", "bounded_dci", "indri", "dedup_dense", "dedup_bm25",
-                  "rag_bm25", "rag_dense", "rag_hybrid"]
+DOC_STRATEGIES = ["search_visit", "search_visit_dense", "search_visit_hybrid", "search_visit_reranked", "autoread",
+                  "autoread_dense", "search_fetch", "search_fetch_dense", "search_fetch_hybrid", "sieve_bm25", "sieve",
+                  "sieve_dense", "sieve_nosnip", "dci", "bounded_dci", "indri", "dedup_dense", "dedup_bm25",
+                  "rag_bm25", "rag_dense", "rag_hybrid", "plan_and_search", "plan_and_search_visit"]
+# The checking dataset is BrowseComp-Plus: the structured build (bcp-s) for every document strategy,
+# the chunk corpus (ITER's setting) for the ITER strategies. 20 questions per check.
 CHECKS = (
-    [("infoseek_eval_sample", s, "tongyi") for s in DOC_STRATEGIES]
-    + [("browsecomp_plus_structured", s, "tongyi") for s in ("sieve_bm25", "sieve", "search_fetch", "indri")]
+    [("browsecomp_plus_structured", s, "tongyi") for s in DOC_STRATEGIES]
     + [("hotpotqa_structured", s, "tongyi") for s in ("sieve_bm25", "search_fetch", "indri", "search_visit")]
     + [("browsecomp_plus_chunks_sample", s, "tongyi") for s in ("search_visit", "dedup_dense")]
     + [("code_fixture", s, "tongyi") for s in ("codefix", "codefix_grep", "codefix_patch")]
-    + [("infoseek_eval_sample", s, b) for b in ("qwen3_30b", "qwen3_8b") for s in ("search_visit", "sieve_bm25", "dedup_dense", "rag_bm25")]
-    + [("infoseek_eval_sample", s, b) for b in ("qwen3_30b_thinking", "gpt_oss_120b") for s in ("search_visit", "sieve_bm25", "dedup_dense")]
+    + [("browsecomp_plus_structured", s, b) for b in ("qwen3_30b", "qwen3_8b") for s in ("search_visit", "sieve_bm25", "dedup_dense", "rag_bm25")]
+    + [("browsecomp_plus_structured", s, b) for b in ("qwen3_30b_thinking", "gpt_oss_120b") for s in ("search_visit", "sieve_bm25", "dedup_dense")]
     # Qwen/Qwen-AgentWorld-35B-A3B (ITER) is not in the matrix: its released checkpoint has no
     # vision weights while its config declares the vision-language architecture, and vLLM 0.18
     # has no text-only loader for it (the server fails at weight initialisation)
@@ -63,6 +66,9 @@ CHECKS = (
 )
 DENSE = {"search_visit_dense", "search_visit_hybrid", "autoread_dense", "search_fetch_dense", "search_fetch_hybrid",
          "sieve", "sieve_dense", "dedup_dense", "rag_dense", "rag_hybrid"}
+# the retrieval-only floors, on the full structured set (830 questions), through floors.sbatch
+FLOORS = [("browsecomp_plus_structured", s) for s in ("bm25", "dense", "hybrid", "reranked", "bql")]
+FLOOR_RUNS = "runs/floors"
 
 
 def _setk(t: str, section: str, key: str, value: str) -> str:
@@ -92,8 +98,7 @@ def write() -> list[str]:
                           ("model", "api_base", "http://127.0.0.1:8000/v1"), ("model", "tp", str(tp)),
                           ("agent", "max_steps", "40"), ("agent", "ctx_tokens", str(int(window * 0.85))),
                           ("agent", "ctx_window", str(window)), ("evaluation", "workers", "2"),
-                          ("output", "runs_dir", RUNS), ("retrieval", "structured_backend", "python"),
-                          ("retrieval", "bm25_backend", "local")]:
+                          ("output", "runs_dir", RUNS)]:
             t = _setk(t, sec, k, v)
         if dataset in ("browsecomp_plus_structured", "hotpotqa_structured", "musique_structured"):
             t = _setk(t, "dataset", "limit", "20")
@@ -109,6 +114,38 @@ def write() -> list[str]:
         print(os.path.relpath(p, ROOT), "|", (r.stdout + r.stderr).strip().split("\n")[0][:100])
         paths.append(p)
     return paths
+
+
+def write_floors() -> list[str]:
+    os.makedirs(OUT, exist_ok=True)
+    paths = []
+    for dataset, strategy in FLOORS:
+        t = subprocess.run(["skimsearchagent", "template", "paper", strategy], capture_output=True, text=True, check=True).stdout
+        t = re.sub(r"^name:[^\n#]*", f"name: floor_{dataset}_{strategy}", t, count=1, flags=re.M)
+        for sec, k, v in [("dataset", "name", dataset), ("evaluation", "workers", "4"), ("output", "runs_dir", FLOOR_RUNS)]:
+            t = _setk(t, sec, k, v)
+        if strategy in ("dense", "hybrid"):
+            for k, v in [("dense_model", ITER), ("dense_dtype", "bfloat16"), ("dense_query_style", "i2"),
+                         ("dense_query_instruction", "Given the main question, the current sub-query, and the sub-queries already tried"),
+                         ("dense_pooling", "last_token")]:
+                t = _setk(t, "retrieval", k, v)
+        t = re.sub(r"^env: \{\}", "env:\n  HF_HUB_OFFLINE: '1'", t, flags=re.M)
+        p = os.path.join(OUT, f"floor__{dataset}__{strategy}.yaml")
+        open(p, "w").write(t)
+        r = subprocess.run(["skimsearchagent", "validate", p], capture_output=True, text=True)
+        print(os.path.relpath(p, ROOT), "|", (r.stdout + r.stderr).strip().split("\n")[0][:100])
+        paths.append(p)
+    return paths
+
+
+def submit_floors() -> None:
+    """One job per floor (a GPU for the dense encoder and the reranker), through floors.sbatch."""
+    for dataset, strategy in FLOORS:
+        p = os.path.join(OUT, f"floor__{dataset}__{strategy}.yaml")
+        cmd = ["sbatch", "-A", ACCOUNT, f"--qos={QOS}", "--time=03:00:00", f"--job-name=floor-{strategy}",
+               f"--export=ALL,JAVA_HOME_OVERRIDE={JDK},EXPERIMENTS={p}", "scripts/slurm/floors.sbatch"]
+        out = subprocess.run(cmd, capture_output=True, text=True)
+        print(os.path.basename(p), "->", (out.stdout + out.stderr).strip())
 
 
 def submit(only: str | None = None) -> None:
@@ -161,4 +198,4 @@ if __name__ == "__main__":
     if sys.argv[1] == "submit":
         submit(sys.argv[2] if len(sys.argv) > 2 else None)
     else:
-        {"write": write, "table": table}[sys.argv[1]]()
+        {"write": write, "table": table, "write_floors": write_floors, "submit_floors": submit_floors}[sys.argv[1]]()

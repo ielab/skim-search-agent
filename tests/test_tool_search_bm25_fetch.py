@@ -12,14 +12,19 @@ machinery is shared with the sieve's `fetch` tool, not duplicated. Completes the
 set with research_bm25 (whole-doc visit) and research_bm25_dci (bash/read shell) over
 identical bm25 retrieval.
 """
+from agent_search.snippets import TermWindow
 from agent_search.corpus.units import units_from_documents
-from agent_search.retrievers.lexical.bm25 import BM25Local
 from agent_search.tools.base import EpisodeState, ToolBox
 from agent_search.tools.fetch.tool import Fetch
 from agent_search.tools.search_bm25.tool import SearchBm25
 
+from tests import lucene_support
+
+lucene_support.require_jvm()
+
 # a structured doc (## markers -> sections + infobox), a flat doc, and an off-topic doc that a
-# harbor query never scores (bm25's score>0 filter) — the doc a fetch must not be able to reach.
+# harbor query never matches: the doc a fetch must not be able to reach. The engine is Lucene
+# BM25 (`lucene_support.build_pyserini`), built once per corpus for the whole module.
 DOCS = [
     {"_id": "d_harbor", "title": "Harbor Festival",
      "text": "Harbor Festival is an annual harbor event.\n\n## History\nFounded in 1897 by A. Smith.\n"
@@ -64,7 +69,7 @@ def _word_units():
 
 
 def _engine(units=None):
-    return BM25Local().index(units if units is not None else _units())
+    return lucene_support.build_pyserini(units if units is not None else _units())
 
 
 def _toolbox(units, engine, topk=None, question="q"):
@@ -198,8 +203,8 @@ def test_seen_accumulates_across_both_searches():
 
 
 def test_off_topic_doc_is_not_in_the_ranking():
-    """d_outside shares no vocabulary with the harbor query, so bm25 never ranks it (score>0
-    filter) — it cannot be fetched by rank, and its content never appears."""
+    """d_outside shares no vocabulary with the harbor query, so Lucene never ranks it: it
+    cannot be fetched by rank, and its content never appears."""
     box = _toolbox(_units(), _engine(), topk=5)
     box.run("bm25_search", {"query": "harbor festival annual event"})
     assert "d_outside" not in box.last_hits
@@ -235,8 +240,8 @@ def test_tools_tuple_matches_toolset():
 # fetch cell (research_snip, research_indri_snip, research_dense_fetch) shows each hit's
 # best-matching excerpt via the shared module-level `best_line` (agent_search/tools/common.py).
 # This condition removes that inconsistency across the search x read factorial grid: SAME bm25
-# retrieval and SAME structured section-fetch tool as the plain cell above (`snippets=True` is
-# the only difference), the same move `SearchDense(structure=True, snippets=True)` makes over
+# retrieval and SAME structured section-fetch tool as the plain cell above (`snippet=TermWindow()` is
+# the only difference), the same move `SearchDense(structure=True, snippet=TermWindow())` makes over
 # the plain `dense_search_fp` cell.
 #
 # Reuses this file's DOCS/units fixture (a structured doc, a flat doc, an off-topic doc) so the
@@ -245,7 +250,7 @@ def test_tools_tuple_matches_toolset():
 
 def _snip_toolbox(units, engine, topk=None):
     state = EpisodeState(question="q")
-    opts = {"structure": True, "snippets": True}
+    opts = {"structure": True, "snippet": TermWindow()}
     if topk is not None:
         opts["k"] = topk
     ubyid = {u.doc_id: u for u in units}
@@ -366,22 +371,22 @@ def test_research_bm25_fetch_snip_resolves_via_registry():
     assert not r.needs_files
 
 
-def test_research_bm25_fetch_snip_workspace_builds(tmp_path):
+def test_research_bm25_fetch_snip_workspace_builds():
     from agent_search.retrievers.registry import RetrieverConfig, build_factory
 
-    cfg = RetrieverConfig(policy="stub", index_root=str(tmp_path))
+    cfg = RetrieverConfig(policy="stub", index_root=lucene_support.index_root())
     r = build_factory("agent_research_bm25_fetch_snip", cfg)()
-    r.index(_units(), key="test-bm25-fetch-snip-corpus")
+    r.index(_units(), key=lucene_support.corpus_key(_units()))
     ws = r.toolbox("harbor festival annual event history")
     assert isinstance(ws["bm25_search_snip"], SearchBm25)
 
 
-def test_research_bm25_fetch_snip_workspace_answers_via_stub(tmp_path):
+def test_research_bm25_fetch_snip_workspace_answers_via_stub():
     from agent_search.retrievers.registry import RetrieverConfig, build_factory
 
-    cfg = RetrieverConfig(policy="stub", index_root=str(tmp_path))
+    cfg = RetrieverConfig(policy="stub", index_root=lucene_support.index_root())
     r = build_factory("agent_research_bm25_fetch_snip", cfg)()
-    r.index(_units(), key="test-bm25-fetch-snip-corpus")
+    r.index(_units(), key=lucene_support.corpus_key(_units()))
     ranking = r.search("harbor festival annual event history", k=5)
     assert isinstance(ranking, list)
 

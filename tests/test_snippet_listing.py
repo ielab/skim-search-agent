@@ -1,22 +1,25 @@
 """`research_snip`: content snippets in the structured search listing (`SearchBql`,
-`snippets=True`). Each search hit gets one appended one-line best-matching excerpt: the ~25
+`snippet=TermWindow()`). Each search hit gets one appended one-line best-matching excerpt: the ~25
 token window of the doc body with the most overlap with the query's positive leaf tokens
 (earliest window wins ties; falls back to the doc opening when there are no leaf tokens).
 
-CPU-only, no network. `snippets=False` (the default) must reproduce the listing's output
+CPU-only, no network. `snippet=NoSnippet()` (the default) must reproduce the listing's output
 byte-for-byte; the existing `research` condition/toolset is unaffected.
 """
 from __future__ import annotations
 
 import os
 
+from agent_search.snippets import NoSnippet, TermWindow
 from agent_search.corpus.units import units_from_documents
-from agent_search.retrievers.bql.executor import StructuralExecutor
 from agent_search.strategies import get_condition
 from agent_search.tools.base import EpisodeState, ToolBox
 from agent_search.tools.budgets import SNIPPET_TOKENS
 from agent_search.tools.fetch.tool import Fetch
 from agent_search.tools.search_bql.tool import SearchBql
+from tests.lucene_support import build_lucene_bql, require_jvm
+
+require_jvm()
 
 
 _PAD = "x"          # a 1-char filler token, so the default window comfortably fits the char
@@ -46,24 +49,24 @@ def _units():
     return units_from_documents(DOCS)
 
 
-def _toolbox(snippets: bool):
-    """A (search, fetch) ToolBox over a fresh corpus + a fresh BQL executor, plus the bound
+def _toolbox(snippet):
+    """A (search, fetch) ToolBox over the corpus and its Lucene BQL engine, plus the bound
     `SearchBql` instance itself (for the tests that reach its `_best_line`/`_render_hits`
     helpers directly, the way the old workspace tests reached its instance methods)."""
     units = _units()
     ubyid = {u.doc_id: u for u in units}
-    ex = StructuralExecutor(units).prewarm()
+    ex = build_lucene_bql(units)
     state = EpisodeState(question="q")
-    sb = SearchBql(name="search", snippets=snippets).bind(state, units, ubyid, {"bql": ex})
+    sb = SearchBql(name="search", snippet=snippet).bind(state, units, ubyid, {"bql": ex})
     fe = Fetch(name="fetch").bind(state, units, ubyid, {})
     return ToolBox([sb, fe], state), sb, ubyid
 
 
-# --- 1. snippets=False (default): the listing is byte-identical to before ------------------
+# --- 1. snippet=NoSnippet() (default): the listing is byte-identical to before ------------------
 
 def test_snippets_false_is_byte_identical_to_default():
-    a, _, _ = _toolbox(snippets=False)               # old default (no snippets kwarg at all)
-    b, _, _ = _toolbox(snippets=False)                # explicit False
+    a, _, _ = _toolbox(snippet=NoSnippet())               # old default (no snippets kwarg at all)
+    b, _, _ = _toolbox(snippet=NoSnippet())                # explicit False
     query = "zephyrquokka[body]"
     out_a = a.run("search", {"query": query})
     out_b = b.run("search", {"query": query})
@@ -72,10 +75,10 @@ def test_snippets_false_is_byte_identical_to_default():
     assert "»" not in out_b
 
 
-# --- 2. snippets=True: hits carry a '»' excerpt overlapping the query terms, MID-BODY --------
+# --- 2. snippet=TermWindow(): hits carry a '»' excerpt overlapping the query terms, MID-BODY --------
 
 def test_snippets_true_shows_mid_body_excerpt_not_opening():
-    box, _, _ = _toolbox(snippets=True)
+    box, _, _ = _toolbox(snippet=TermWindow())
     out = box.run("search", {"query": "zephyrquokka[body]"})
     hit_line = next(l for l in out.splitlines() if "d_mid" in l)
     assert "»" in hit_line
@@ -92,7 +95,7 @@ def test_snippets_true_second_hit_has_no_query_overlap_but_still_gets_a_line():
     # instead checks the OTHER doc in a broader (0-exact-hit / soft) fallback: fetch _best_line
     # directly for a doc with none of the query's terms — falls back sanely (best-scoring window
     # is still whichever appears earliest, score 0 throughout, so it's the opening).
-    _, sb, ubyid = _toolbox(snippets=True)
+    _, sb, ubyid = _toolbox(snippet=TermWindow())
     u = ubyid["d_plain"]
     line = sb._best_line(u, ["zephyrquokka"])
     assert line == "A short document about nothing special."
@@ -101,7 +104,7 @@ def test_snippets_true_second_hit_has_no_query_overlap_but_still_gets_a_line():
 # --- 3. empty leaf_toks -> opening-text fallback --------------------------------------------
 
 def test_empty_leaf_toks_falls_back_to_doc_opening():
-    _, sb, ubyid = _toolbox(snippets=True)
+    _, sb, ubyid = _toolbox(snippet=TermWindow())
     u = ubyid["d_mid"]
     line = sb._best_line(u, [])
     opening = " ".join([_PAD] * SNIPPET_TOKENS)
@@ -109,7 +112,7 @@ def test_empty_leaf_toks_falls_back_to_doc_opening():
 
 
 def test_render_hits_with_empty_leaf_toks_uses_opening_fallback():
-    _, sb, _ = _toolbox(snippets=True)
+    _, sb, _ = _toolbox(snippet=TermWindow())
     table = sb._render_hits(["d_mid"], [], "header:")
     hit_line = [l for l in table.splitlines() if "d_mid" in l][0]
     assert "»" in hit_line
@@ -131,7 +134,7 @@ def test_research_snip_condition_loads_with_doc_skill_coaching():
 # --- 5. run() aliases: search_s/fetch_s behave exactly like search/fetch --------------------
 
 def test_run_accepts_search_s_and_fetch_s_aliases():
-    box, _, _ = _toolbox(snippets=True)
+    box, _, _ = _toolbox(snippet=TermWindow())
     out_alias = box.run("search_s", {"query": "zephyrquokka[body]", "k": 5})
     assert "»" in out_alias
     assert box.last_hits == ["d_mid"]
@@ -152,7 +155,7 @@ def test_default_width_is_32():
 
 
 def test_width_argument_controls_window_length():
-    _, sb, ubyid = _toolbox(snippets=True)
+    _, sb, ubyid = _toolbox(snippet=TermWindow())
     u = ubyid["d_mid"]
     for width in (32, 64, 128, 256, 512):
         line = sb._best_line(u, [], width=width)
@@ -162,17 +165,19 @@ def test_width_argument_controls_window_length():
 
 def test_env_override_is_picked_up_on_import(monkeypatch):
     import importlib
-    from agent_search.tools import budgets, common
+    from agent_search.tools import budgets
+    from agent_search.snippets import base as snip_base, term_window
     monkeypatch.setenv("SNIPPET_TOKENS", "128")
     try:
         importlib.reload(budgets)                              # recomputes SNIPPET_TOKENS from env
-        reloaded = importlib.reload(common)                    # re-reads it from budgets
-        assert reloaded.SNIPPET_TOKENS == 128
-        assert reloaded.best_line.__defaults__[0] == 128       # the default really moved
+        importlib.reload(snip_base)
+        reloaded = importlib.reload(term_window)               # re-reads it from budgets
+        assert reloaded.TermWindow.render.__defaults__[-1] == 128   # the default really moved
     finally:
         monkeypatch.undo()
         importlib.reload(budgets)
-        importlib.reload(common)                                # restore for later tests
+        importlib.reload(snip_base)
+        importlib.reload(term_window)                           # restore for later tests
 
 
 def test_window_is_not_character_capped():
@@ -180,7 +185,7 @@ def test_window_is_not_character_capped():
     token-count setting did not really control the snippet (prose runs ~6.4 chars/token, so
     the cap bound from about 25 tokens up). A window as wide as the whole body must come back
     as EXACTLY the whole body — any character cap would break the equality."""
-    _, sb, ubyid = _toolbox(snippets=True)
+    _, sb, ubyid = _toolbox(snippet=TermWindow())
     u = ubyid["d_mid"]
     whole = " ".join((u.body or "").split())
     line = sb._best_line(u, [], width=len(whole.split()))

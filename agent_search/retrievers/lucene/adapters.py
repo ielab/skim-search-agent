@@ -1,14 +1,16 @@
-"""Thin adapters presenting the same duck-typed interface the pure-Python
-`IndriExecutor`/`StructuralExecutor` classes expose, backed by `LuceneStructuredEngine`
-instead. Callers never see the difference: `agent_search/tools/search_indri/tool.py`
-calls `self.iex.search(query, k)` directly, and `agent_search/tools/search_bql/tool.py`
-calls `agent_search.retrievers.bql.executor.execute_bql`, which calls
-`executor.run_with_count(expr, k)` on whichever executor it was given.
-Constructed only via `agent_search.retrievers.backend`'s `STRUCTURED_BACKEND`
-resolver, through `agent_search.retrievers.engines.Engines` (the per-corpus registry
-every tool shares); a tool never imports this module directly, the same way it never
-imports `BM25Pyserini` directly (see `lexical/__init__.py`'s module docstring for the
-parallel).
+"""The document engines behind the Indri and BQL tools, on `LuceneStructuredEngine`.
+
+`LuceneIndriAdapter.search(query, k)` is what `agent_search/tools/search_indri/tool.py` calls;
+`LuceneBqlAdapter.run_with_count(expr, k)`, `soft_topk` and `coverage_topk` are what
+`agent_search/tools/search_bql/tool.py` calls (through `bql.executor.execute_bql`). The code
+repository executor (`bql/executor.py`, `StructuralExecutor`) exposes the same three BQL
+methods, so a tool never knows which engine answered. Adapters are constructed by
+`agent_search.retrievers.backend` through `agent_search.retrievers.engines.Engines`; a tool
+never imports this module.
+
+The scoring notes below compare this backend with the paper's Python reference engines, which
+were the original implementation and are no longer in the library. They record the decisions
+that make Lucene a graded-ranking equivalent rather than a byte-identical one.
 
 ## Indri surface: `LuceneIndriAdapter`
 
@@ -16,7 +18,7 @@ parallel).
 and reads `.error`, `.hits` (a `list[(doc_id, score)]`, unpacked `for rank, (doc_id, _score) in
 enumerate(res.hits, ...)`), and `.diagnostics` (`list[(str, float)]`, read only via
 `min(res.diagnostics, key=...)` and only when non-empty). `LuceneIndriAdapter.search` returns
-the same `indri.model.IndriResult` dataclass the Python engine returns, populated from
+the `indri.result.IndriResult` dataclass, populated from
 `LuceneStructuredEngine.search_indri`.
 
 **Deviation 1 (diagnostics):** the Python engine's `#dense` diagnostics entry is
@@ -79,32 +81,39 @@ clause for the exact match set plus a BM25-scored should clause for ranking, mat
 `len(hits)`), so the search listing's "(N matches, top K)" header stays accurate under
 this backend.
 
-**Deviation (0-hit fallback and coverage ranking): documented, bounded scope.**
-`soft_topk` (the 0-exact-hit graceful-degradation BM25-over-terms fallback that
-`agent_search/tools/search_bql/tool.py` calls) and `coverage_topk` (BQL's
-constraint-coverage ranking, rendered by that same tool's `_coverage_render`, forced
-on by the `sieve_v2` strategy's `coverage=True` option) are not reimplemented
-against Lucene here: `coverage_topk` needs a per-(document, AND-child) boolean match
-mask (`StructuralExecutor._eval` walking each child against a candidate), and there
-is no single Lucene query that returns "which of these N clauses did this document
-satisfy" per document. It would need one boolean sub-query per child per candidate,
-defeating the point of using Lucene at all for what is already the rare, degenerate
-code path (a 0-exact-hit AND query). Instead, `LuceneBqlAdapter` lazily builds (on the
-first call to either method, not at construction) an in-memory `StructuralExecutor`
-over the same units and delegates to it, so the common, non-degenerate case (an exact
-or near-exact query that returns hits) runs genuinely on Lucene, and only the rare
-0-hit fallback pays the Python engine's build cost, amortized across the whole run:
-the adapter, like the engine it wraps, is built once per corpus and reused for every
-query in every episode sharing that corpus.
+**Zero-hit fallback and coverage ranking run on Lucene too.** `soft_topk` (the fallback
+`agent_search/tools/search_bql/tool.py` calls when an exact query matches nothing) ranks the
+index by the query's positive terms alone (`LuceneStructuredEngine.rank_by_terms`, the same
+BM25 scoring clause the exact path orders its hits with). `coverage_topk` (constraint-coverage
+ranking for a zero-hit AND, on under the `sieve_v2` strategy) takes the top
+`_COVERAGE_POOL_CAP` documents matching at least one positive child, then asks Lucene once per
+AND child which of those documents satisfy it (`LuceneStructuredEngine.match_ids`), and ranks
+by (children matched, BM25 score, id), the same order as the code executor's own
+`coverage_topk`. No Python scorer is built over a document corpus anywhere on this path.
 """
 from __future__ import annotations
 
 import math
-import threading
+import os
 from typing import Optional, Sequence
 
-from agent_search.retrievers.indri.model import IndriResult
+from agent_search.retrievers.indri.result import IndriResult
 from agent_search.retrievers.lucene.engine import LuceneStructuredEngine
+
+# The dense-belief blend for Indri (`INDRI_DENSE=1`), read live so a test can override the
+# environment without a reload. `DENSE_NORM_EPS` is the floor of the min-max normalisation:
+# the worst document in a pool keeps a finite log-belief.
+DENSE_NORM_EPS = 1e-6
+
+
+def indri_dense_weight() -> float:
+    """`INDRI_DENSE_W`: the dense belief's weight in the combined score."""
+    return float(os.environ.get("INDRI_DENSE_W", "0.35"))
+
+
+def indri_dense_expand_k() -> int:
+    """`INDRI_DENSE_EXPAND_K`: how many hits Lucene returns for the dense rerank pool."""
+    return int(os.environ.get("INDRI_DENSE_EXPAND_K", "50"))
 
 
 class LuceneIndriAdapter:
@@ -116,8 +125,7 @@ class LuceneIndriAdapter:
 
     def search(self, query: str, k: int = 5) -> IndriResult:
         query = query or ""
-        from agent_search.retrievers.indri.model import _dense_expand_k
-        pool_k = max(k, _dense_expand_k()) if self.dense is not None else k
+        pool_k = max(k, indri_dense_expand_k()) if self.dense is not None else k
         r = self._engine.search_indri(query, k=pool_k)
         if r.error:
             return IndriResult(hits=[], error=r.error, diagnostics=[], warning=r.warning)
@@ -139,7 +147,6 @@ class LuceneIndriAdapter:
         on that same calibrated scale). Returns `(new_hits, dense_log_by_doc_id)`; `new_hits`
         is unchanged (original Lucene order and scores) at `INDRI_DENSE_W<=0`, matching
         `indri.model.IndriExecutor._combine_dense`'s own short-circuit."""
-        from agent_search.retrievers.indri.model import DENSE_NORM_EPS, _dense_weight
         doc_ids = [d for d, _ in hits]
         try:
             sims = self.dense.score(query, doc_ids)
@@ -159,7 +166,7 @@ class LuceneIndriAdapter:
                 dense_norm = (1.0 if rng_d <= 0 else
                              DENSE_NORM_EPS + (1.0 - DENSE_NORM_EPS) * (sim - lo_d) / rng_d)
             dense_log_by_id[doc_id] = math.log(dense_norm)
-        w = _dense_weight()
+        w = indri_dense_weight()
         if w <= 0:
             return hits, dense_log_by_id
         lex_vals = [s for _, s in hits]
@@ -178,47 +185,28 @@ class LuceneIndriAdapter:
 class LuceneBqlAdapter:
     """`StructuralExecutor`-shaped for `execute_bql`: `.run_with_count(expr, k) ->
     (ranked, n_hits)`, plus `.soft_topk(terms, k)` / `.coverage_topk(expr, k)` for
-    `search_bql`'s 0-exact-hit fallback paths (see `agent_search/tools/search_bql/tool.py`).
+    `search_bql`'s zero-hit fallback paths (see `agent_search/tools/search_bql/tool.py`).
     See module docstring.
 
-    `dense` (BQL_DENSE dense-fused ranking, default off, see `bql/dense_fuse.py`) is
-    forwarded to the lazily built Python `_fallback()` executor, so `soft_topk`'s and
-    `coverage_topk`'s dense fusion work identically to the Python backend, since they
-    already delegate there (see module docstring's BQL-surface Deviation). It is also
-    applied directly to `run_with_count`'s own Lucene-native top-k hits, rerunning the
-    same single-tier RRF fuse the Python `StructuralExecutor.run_with_count` uses,
-    restricted to the doc_ids Lucene's own boolean filter clause already returned:
-    filter semantics are therefore preserved identically to the Python path (a
-    non-matching document can never enter `r.hits` in the first place, dense fusion
-    or not)."""
+    `dense` (BQL_DENSE dense-fused ranking, default off, see `bql/dense_fuse.py`) reranks
+    the exact hits, the fallback pool and each coverage tier with the same RRF fuse the code
+    executor uses, restricted to the ids Lucene already returned: filter semantics are
+    preserved (a non-matching document can never enter a ranking, dense fusion or not)."""
 
-    def __init__(self, engine: LuceneStructuredEngine, units: Sequence, dense=None):
+    def __init__(self, engine: LuceneStructuredEngine, dense=None):
         self._engine = engine
-        self._units = units if getattr(units, "lazy", False) else list(units)
-        self._fallback_ex = None
-        self._fallback_lock = threading.Lock()
         self.dense = dense
 
+    # --- the fusion hooks the dense-only sibling overrides ---------------------------
+    def _fuse_ranked(self, terms, ranked: list) -> list:
+        from agent_search.retrievers.bql.dense_fuse import fuse_ranked
+        return fuse_ranked(self.dense, " ".join(terms), ranked)
 
-    def _units_for_fallback(self):
-        """The in-memory executor behind the 0-hit fallback needs every unit; refuse an on-disk
-        corpus instead of loading it."""
-        from agent_search.corpus.docstore import refuse_lazy
-        refuse_lazy(self._units, "the BQL fallback ranker", "a prebuilt fallback pool (not available for on-disk corpora yet)")
-        return self._units
+    def _fuse_tiers(self, terms, rows: list) -> list:
+        from agent_search.retrievers.bql.dense_fuse import fuse_coverage_tiers
+        return fuse_coverage_tiers(self.dense, " ".join(terms), rows)
 
-    def _fallback(self):
-        """Lazily build (once, thread-safe) an in-memory `StructuralExecutor` over the same
-        units, for the 0-hit soft-fallback and coverage-ranking paths only (see module
-        docstring's BQL-surface Deviation). Never built if a corpus's queries always hit
-        something under this backend."""
-        if self._fallback_ex is None:
-            with self._fallback_lock:
-                if self._fallback_ex is None:
-                    from agent_search.retrievers.bql.executor import StructuralExecutor
-                    self._fallback_ex = StructuralExecutor(self._units_for_fallback()).prewarm().attach_dense(self.dense)
-        return self._fallback_ex
-
+    # --- the exact path -----------------------------------------------------------------
     def run_with_count(self, expr, k: int = 100) -> tuple:
         r = self._engine.search_bql_expr(expr, k)
         if r.error:
@@ -230,63 +218,88 @@ class LuceneBqlAdapter:
         ranked = [(h.doc_id, float(h.score)) for h in r.hits]
         if self.dense is not None and ranked:
             from agent_search.retrievers.bql.executor import _rank_leaves
-            from agent_search.retrievers.bql.dense_fuse import fuse_ranked
-            leaves = _rank_leaves(expr)
-            ranked = fuse_ranked(self.dense, " ".join(leaves), ranked)
+            ranked = self._fuse_ranked(_rank_leaves(expr), ranked)
         n_hits = self._engine.count_bql_expr(expr)
         return ranked, n_hits
 
+    # --- the zero-hit fallbacks ---------------------------------------------------------
     def soft_topk(self, terms, k: int = 5) -> list:
-        return self._fallback().soft_topk(terms, k=k)
+        """Rank by BM25 over `terms` alone: `[(doc_id, score)]` best first, at most `k`. With
+        a dense model attached the pool is the union of the lexically closest `BQL_SOFT_POOL`
+        documents and the dense side's nearest neighbours (read from the persisted cache,
+        never encoded online), ordered by the fusion rule."""
+        from agent_search.retrievers.bql.ast import Or, Term
+        from agent_search.retrievers.bql.executor import _SOFT_POOL
+        terms = [t for t in terms if t]
+        if not terms:
+            return []
+        pool_n = max(k, _SOFT_POOL)
+        expr = Or(tuple(Term(t) for t in terms)) if len(terms) > 1 else Term(terms[0])
+        r = self._engine.rank_by_terms(expr, pool_n)
+        if r.error:
+            raise RuntimeError(f"lucene bql fallback error: {r.error}")
+        pool = [(h.doc_id, float(h.score)) for h in r.hits if h.score > 0]
+        if self.dense is not None:
+            try:
+                dense_top = list(self.dense.top_k_doc_ids(" ".join(terms), k=pool_n) or [])
+            except Exception:  # noqa: BLE001, a dense-side failure degrades to the BM25 pool
+                dense_top = []
+            have = {d for d, _ in pool}
+            pool += [(d, 0.0) for d in dense_top if d not in have]
+            if pool:
+                pool = self._fuse_ranked(terms, pool)
+        return pool[:k]
 
     def coverage_topk(self, expr, k: int = 5) -> list:
-        return self._fallback().coverage_topk(expr, k=k)
+        """Constraint-coverage ranking for a zero-hit AND: `[(doc_id, matched_mask, n_matched,
+        score)]`, mask aligned with the AND's children, ordered by children matched, then BM25
+        over the query's positive terms, then id. A non-AND query degrades to `soft_topk`
+        with a one-element mask, the same contract as the code executor."""
+        from agent_search.retrievers.bql.ast import And, Not, Or
+        from agent_search.retrievers.bql.executor import _COVERAGE_POOL_CAP, _rank_leaves
+        terms = _rank_leaves(expr)
+        if not isinstance(expr, And):
+            return [(d, (True,), 1, s) for d, s in self.soft_topk(terms, k=k)]
+        children = list(expr.children)
+        positive = [c for c in children if not isinstance(c, Not)]
+        # The pool: documents matching at least one positive child, best BM25 first. A NOT
+        # child can be satisfied by any document, so with one present the pool is every
+        # document carrying at least one query term.
+        if positive and len(positive) == len(children):
+            r = self._engine.search_bql_expr(Or(tuple(positive)) if len(positive) > 1 else positive[0],
+                                             _COVERAGE_POOL_CAP)
+        else:
+            r = self._engine.rank_by_terms(expr, _COVERAGE_POOL_CAP)
+        if r.error:
+            raise RuntimeError(f"lucene bql coverage error: {r.error}")
+        pool = [(h.doc_id, float(h.score)) for h in r.hits]
+        if not pool:
+            return []
+        ids = [d for d, _ in pool]
+        matched = [self._engine.match_ids(c, ids) for c in children]
+        rows = []
+        for doc_id, score in pool:
+            mask = tuple(doc_id in m for m in matched)
+            n = sum(mask)
+            if n:
+                rows.append((doc_id, mask, n, score))
+        rows.sort(key=lambda r: (-r[2], -r[3], r[0]))
+        if self.dense is not None and rows:
+            rows = self._fuse_tiers(terms, rows)
+        return rows[:k]
 
 
 class LuceneBqlDonlyAdapter(LuceneBqlAdapter):
-    """The dense-only ranking sibling of `LuceneBqlAdapter`, used for the dense-only sieve
+    """The dense-only ranking sibling of `LuceneBqlAdapter`, used by the dense-only sieve
     strategies (`sieve_dense`, `sieve_visit_dense` in `agent_search/strategies/sieve.py`;
-    `SearchBql(ranking="dense")`) under `STRUCTURED_BACKEND=lucene`. Identical to
-    `LuceneBqlAdapter`: same Lucene boolean filter clause, same exact-match count, same
-    0-hit fallback structure. The only difference is that ranking of filter-passing
-    candidates uses `fuse_ranked_dense_only`/`DenseOnlyStructuralExecutor` (pure dense
-    rank) instead of `fuse_ranked`/`StructuralExecutor` (RRF). This is a separate
-    subclass because `LuceneBqlAdapter.run_with_count`/`_fallback` hardcode the RRF
-    fuse functions and class, which the RRF-ranked BQL conditions still need. See
-    `agent_search/retrievers/bql/dense_fuse.py`'s "dense-only ordering" section and
-    `bql/executor.py`'s `DenseOnlyStructuralExecutor` (the Python-backend twin of this
-    class)."""
+    `SearchBql(ranking="dense")`). Same Lucene boolean filter, same exact-match count, same
+    fallback structure; only the order of filter-passing candidates changes, from
+    RRF(bm25, dense) to the dense rank alone (`bql/dense_fuse.py`, "dense-only ordering")."""
 
-    def run_with_count(self, expr, k: int = 100) -> tuple:
-        r = self._engine.search_bql_expr(expr, k)
-        if r.error:
-            raise RuntimeError(f"lucene bql compile/execution error: {r.error}")
-        ranked = [(h.doc_id, float(h.score)) for h in r.hits]
-        if self.dense is not None and ranked:
-            from agent_search.retrievers.bql.executor import _rank_leaves
-            from agent_search.retrievers.bql.dense_fuse import fuse_ranked_dense_only
-            leaves = _rank_leaves(expr)
-            # Dense-only ranking (see class docstring): the candidate set `ranked` already
-            # holds is the same Lucene-filtered set; only the order changes (pure dense
-            # rank instead of RRF).
-            ranked = fuse_ranked_dense_only(self.dense, " ".join(leaves), ranked)
-        n_hits = self._engine.count_bql_expr(expr)
-        return ranked, n_hits
+    def _fuse_ranked(self, terms, ranked: list) -> list:
+        from agent_search.retrievers.bql.dense_fuse import fuse_ranked_dense_only
+        return fuse_ranked_dense_only(self.dense, " ".join(terms), ranked)
 
-    def _fallback(self):
-        """Dense-only sibling of `LuceneBqlAdapter._fallback`: lazily builds a
-        `DenseOnlyStructuralExecutor` (not the plain `StructuralExecutor`) over the same units
-        for the 0-hit soft-fallback and coverage-ranking paths, so `coverage_topk`'s within-tier
-        ordering is dense-only here too (`fuse_coverage_tiers_dense_only`), matching
-        `run_with_count`'s ranking axis. `StructuralExecutor.prewarm().attach_dense(...)` is
-        reused verbatim (a pure `__class__` swap on the constructed instance), the same
-        approach `bql/executor.py`'s `load_or_build_dense_only` uses."""
-        if self._fallback_ex is None:
-            with self._fallback_lock:
-                if self._fallback_ex is None:
-                    from agent_search.retrievers.bql.executor import (
-                        DenseOnlyStructuralExecutor, StructuralExecutor)
-                    ex = StructuralExecutor(self._units_for_fallback()).prewarm().attach_dense(self.dense)
-                    ex.__class__ = DenseOnlyStructuralExecutor
-                    self._fallback_ex = ex
-        return self._fallback_ex
+    def _fuse_tiers(self, terms, rows: list) -> list:
+        from agent_search.retrievers.bql.dense_fuse import fuse_coverage_tiers_dense_only
+        return fuse_coverage_tiers_dense_only(self.dense, " ".join(terms), rows)

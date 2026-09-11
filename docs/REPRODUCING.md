@@ -117,7 +117,7 @@ Table 1. The paper uses these:
 | `agent_research_snip` / `_bql_donly_snip` / `_bql_dense_snip` | **Sieve** (Boolean-filtered BM25 / Dense / BM25+Dense) |
 | `agent_research_bql_dense_fetch` | Sieve without snippets (ablation) |
 | `agent_research_indri_snip` | Indri-executor comparison |
-| one-shot floors | `scripts/oneshot_rag.py` (`runs/_oneshot/...`) |
+| one-shot floors | the `rag_bm25`, `rag_dense` and `rag_hybrid` strategies (`skimsearchagent run`) |
 
 To run one cell locally:
 
@@ -141,7 +141,7 @@ strict-Boolean ablation is the same Sieve condition with `BQL_SOFT_FALLBACK=0`. 
 ladder swaps `DENSE_MODEL=<hf-id>`.
 
 **Base configuration guard.** Every paper cell runs with `MAX_VISIT_TOKENS=12000
-MAX_SECTION_TOKENS=12000 BM25_BACKEND=pyserini STRUCTURED_BACKEND=lucene` in the environment, plus
+MAX_SECTION_TOKENS=12000` in the environment, plus
 `--max-steps 100` on the command line (`max_steps=100` with the key=value launcher), `k=5` results
 per search, temperature 0.6 and seed 42. Note `--max-steps`: `run_eval` defaults to 50, so a paper
 run that omits the flag halves its step budget. The launchers and the `configs/paper/` files pin
@@ -230,8 +230,7 @@ with the camera-ready. The figure scripts read through the identical loaders.
 | read ceiling (visit and section) | 12,000 tokens | `MAX_VISIT_TOKENS` / `MAX_SECTION_TOKENS` |
 | step cap | 100 | `--max-steps` (a run_eval flag, `max_steps=` in the launcher; there's no environment variable for it, and the default is 50) |
 | temperature / seed | 0.6 / 42 | `--temperature` / `--seed` |
-| BM25 backend | `pyserini` (Lucene) | `BM25_BACKEND` |
-| structured/BQL backend | `lucene` | `STRUCTURED_BACKEND` |
+| BM25 and the structured index | Lucene (the only document engines) | built once with `skimsearchagent-build-indexes` |
 | default dense encoder | `BAAI/bge-base-en-v1.5` | `DENSE_MODEL` |
 | Boolean soft fallback | on | `BQL_SOFT_FALLBACK` (0 = strict ablation) |
 | snippet length | 32 whitespace tokens | `SNIPPET_TOKENS` (the pre-release value was 25 tokens with a character clip) |

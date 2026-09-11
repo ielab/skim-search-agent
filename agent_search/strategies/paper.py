@@ -1,7 +1,7 @@
 """The paper's condition names, each a task with a strategy. Kept so configs, run records and
 `--retriever agent_<name>` keep working; the registry grows here as strategies are ported."""
 from agent_search.strategies import (  # noqa: F401  (registrations)
-    autoread, codefix, dci, dedup, indri, rag, retrieval_only, search_fetch, search_visit, sieve)
+    autoread, codefix, dci, dedup, indri, rag, retrieval_only, search_fetch, search_visit, sieve, teams)
 from agent_search.strategies.conditions import alias
 from agent_search.tasks import TASKS  # noqa: F401  (registrations)
 

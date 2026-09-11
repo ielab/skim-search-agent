@@ -25,7 +25,7 @@ class DatasetArgs:
 
 @dataclass(frozen=True)
 class RetrieverArgs:
-    name: str = "bm25_local"
+    name: str = "bm25_pyserini"
     model: str | None = None
     dense_model: str | None = None
     index_root: str = "indexes"

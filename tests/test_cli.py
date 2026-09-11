@@ -8,8 +8,20 @@ import pytest
 from agent_search import cli
 from agent_search.retrievers.registry import available
 from agent_search.strategies.names import DEFAULT_STRATEGY, STRATEGIES
+from tests.lucene_support import require_jvm
+
+require_jvm()
 
 REPO = Path(__file__).resolve().parent.parent
+
+
+def _prebuild_lucene(dataset: str, index_root: str) -> None:
+    """A document run opens a prebuilt Lucene structured index under `index_root`; build
+    the fixture's index there, as `skimsearchagent-build-indexes` does before a real run."""
+    from agent_search.evaluation.build_indexes import build
+    from agent_search.evaluation.datasets import load_dataset_by_name
+    build(load_dataset_by_name(dataset), index_root=index_root, retriever="search_lucene",
+          progress=False)
 
 
 def test_every_strategy_alias_resolves_to_a_registered_retriever():
@@ -41,10 +53,10 @@ def test_model_implies_llm_policy_and_forwards_flags():
 
 def test_env_knobs_are_exported_not_forwarded():
     args, env = cli.build_run_eval_argv(
-        {"snippet_tokens": "64", "max_visit_tokens": "12000", "structured_backend": "lucene"})
+        {"snippet_tokens": "64", "max_visit_tokens": "12000", "bql_soft_fallback": "0"})
     assert env == {"SNIPPET_TOKENS": "64", "MAX_VISIT_TOKENS": "12000",
-                   "STRUCTURED_BACKEND": "lucene"}
-    assert "--snippet-tokens" not in args and "--structured-backend" not in args
+                   "BQL_SOFT_FALLBACK": "0"}
+    assert "--snippet-tokens" not in args and "--bql-soft-fallback" not in args
 
 
 def test_boolean_flags():
@@ -79,6 +91,7 @@ def test_end_to_end_stub_episode_on_the_document_fixture(tmp_path):
     """The README quickstart: no model, no keys, a full episode, rank metrics that mean
     something (the stub surfaces the gold doc, so recall@10 must be 1, not 0)."""
     import json
+    _prebuild_lucene("doc_fixture", str(tmp_path / "idx"))
     rc = cli.main([f"runs_dir={tmp_path / 'runs'}", f"index_root={tmp_path / 'idx'}"])
     assert rc == 0
     rows = list((tmp_path / "runs").rglob("rows.jsonl"))

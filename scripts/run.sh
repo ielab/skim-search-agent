@@ -137,12 +137,12 @@ run_eval () {
 # GPU-heavy embedding owns the whole GPU (no server contention) and the agent only
 # LOADS them. Uniform for code AND documents — only the corpora COUNT differs (1 shared
 # doc corpus; N per-query repos, honoring LIMIT). Which indexes are needed is derived
-# from the condition's toolset (dense / bm25_pyserini); grep/bm25_local/search_bql are
-# in-memory/index-free and need nothing. Idempotent: an existing index is skipped, so
+# from the condition's toolset (dense / bm25_pyserini / search_lucene); grep and the code
+# Boolean executor are in-memory and need nothing. Idempotent: an existing index is skipped, so
 # pre-running scripts/build_indexes.sh (array) makes this a no-op. PREBUILD=0 disables.
 prebuild_corpus_indexes () {
   local kinds
-  kinds=$("$PYTHON" -c "from agent_search.evaluation.build_indexes import prebuildable_for; print(' '.join(prebuildable_for('$RETRIEVER')))" 2>/dev/null || echo "")
+  kinds=$("$PYTHON" -c "from agent_search.evaluation.build_indexes import prebuildable_for; print(' '.join(prebuildable_for('$RETRIEVER', '$DATASET')))" 2>/dev/null || echo "")
   [ -z "$kinds" ] && return 0                 # nothing persistent to build (index-free toolset)
   [ "${PREBUILD:-1}" = "0" ] && { echo ">> [step 0] prebuild skipped (PREBUILD=0)"; return 0; }
   for kind in $kinds; do

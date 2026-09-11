@@ -7,6 +7,9 @@ the toolset.
 from agent_search.agent.actions import parse_tool_call
 from agent_search.agent.loop import Task, _final_locations, run_episode
 from agent_search.corpus.units import CodeUnit
+from tests.lucene_support import require_jvm
+
+require_jvm()
 
 THINK_THEN_CALL = (
     "<think>Should I STOP here? No — let me search the session code.</think>\n"
@@ -32,15 +35,20 @@ def test_answer_is_terminal_and_carries_the_answer():
 
 
 def test_episode_records_final_answer():
-    from agent_search.retrievers.bql.executor import StructuralExecutor
     from agent_search.tools.base import EpisodeState, ToolBox
     from agent_search.tools.fetch.tool import Fetch
     from agent_search.tools.search_bql.tool import SearchBql
+
+    class NeverSearched:
+        """The doc arm's BQL engine slot. The policy answers at once, so no tool runs."""
+
+        def run_with_count(self, expr, k=100):
+            raise AssertionError("the toolbox must not be called before the answer")
+
     # doc arm: <answer> is the terminal; the policy answers immediately, so the toolbox is
     # never actually called (its exact tools/engine don't matter here).
     state = EpisodeState(question="q")
-    ex = StructuralExecutor([]).prewarm()
-    sb = SearchBql(name="search").bind(state, [], {}, {"bql": ex})
+    sb = SearchBql(name="search").bind(state, [], {}, {"bql": NeverSearched()})
     fe = Fetch(name="fetch").bind(state, [], {}, {})
     ws = ToolBox([sb, fe], state)
 
@@ -62,16 +70,17 @@ def test_answer_metrics():
     assert answer_f1("", "gold") == 0.0
 
 
-def test_engine_built_only_for_its_arm():
+def test_engine_built_only_for_its_arm(tmp_path):
     """The search -> fetch arms build the BQL executor (their `search` lowers to it); the
-    retrieve-then-visit baseline builds an in-memory BM25 engine instead — never both."""
+    retrieve-then-visit baseline builds the Lucene BM25 engine instead, never both."""
     from agent_search.evaluation.agent_runner import ConditionAgent
     from agent_search.strategies import get_condition
 
     units = [CodeUnit(doc_id="a.py::f", path="a.py", qualname="f",
                       code="def f():\n    pass\n", start_line=1, end_line=2)]
-    code = ConditionAgent(get_condition("codefix"), lambda: None).index(units)
-    base = ConditionAgent(get_condition("research_bm25"), lambda: None).index(units)
+    root = str(tmp_path / "idx")
+    code = ConditionAgent(get_condition("codefix"), lambda: None, index_root=root).index(units)
+    base = ConditionAgent(get_condition("research_bm25"), lambda: None, index_root=root).index(units)
     # every bql ranking (plain/fused/dense-only) shares one persisted artifact under the
     # "bql" key (agent_search/retrievers/engines.py); what matters here is that the code
     # arm builds only that family and the retrieve-then-visit baseline builds only bm25.

@@ -1,45 +1,49 @@
 """End-to-end smoke: the eval pipeline runs on the fixture and localizes the gold
-function with the lexical baseline (no heavy deps)."""
+function with the lexical floor (`bm25_pyserini`, Lucene BM25). Needs a JVM; the index is
+built once under the session's test index root and reused by every test here."""
 from agent_search.evaluation.datasets import Instance, fixture_instances
-from agent_search.retrievers.lexical.bm25 import BM25Local
 from agent_search.evaluation.run_eval import _load_rows, evaluate
+from agent_search.retrievers.lexical.pyserini import BM25Pyserini
+
+from tests import lucene_support
+
+lucene_support.require_jvm()
+
+
+def _bm25():
+    return BM25Pyserini(index_root=lucene_support.index_root())
 
 
 def test_pipeline_runs_and_finds_gold_function():
-    res = evaluate(fixture_instances(), lambda: BM25Local(), ks=[1, 5, 10],
-                   level="function")
+    res = evaluate(fixture_instances(), _bm25, ks=[1, 5, 10], level="function")
     assert res["n"] == 1
     assert res["metrics"]["recall@10"] == 1.0   # gold function retrieved
     assert res["metrics"]["acc@10"] == 1.0       # and within top-10
 
 
 def test_pipeline_file_level_runs():
-    res = evaluate(fixture_instances(), lambda: BM25Local(), ks=[1, 5], level="file")
+    res = evaluate(fixture_instances(), _bm25, ks=[1, 5], level="file")
     assert res["n"] == 1
     assert res["metrics"]["recall@5"] == 1.0
 
 
 def test_workers_concurrent_matches_sequential():
     # the --workers thread-pool path must produce identical metrics to sequential
-    seq = evaluate(fixture_instances(), lambda: BM25Local(), ks=[1, 10],
-                   level="function", workers=1)
-    conc = evaluate(fixture_instances(), lambda: BM25Local(), ks=[1, 10],
-                    level="function", workers=4)
+    seq = evaluate(fixture_instances(), _bm25, ks=[1, 10], level="function", workers=1)
+    conc = evaluate(fixture_instances(), _bm25, ks=[1, 10], level="function", workers=4)
     assert seq["n"] == conc["n"] and seq["metrics"] == conc["metrics"]
 
 
 def test_results_persist_and_resume(tmp_path):
     import json
     d = str(tmp_path / "run")
-    r1 = evaluate(fixture_instances(), lambda: BM25Local(), ks=[1, 10],
-                  level="function", results_dir=d)
+    r1 = evaluate(fixture_instances(), _bm25, ks=[1, 10], level="function", results_dir=d)
     assert (tmp_path / "run" / "rows.jsonl").exists()
     assert (tmp_path / "run" / "results.json").exists()
     assert r1["n"] == 1
 
     # second run resumes: same metrics, and rows.jsonl is NOT duplicated
-    r2 = evaluate(fixture_instances(), lambda: BM25Local(), ks=[1, 10],
-                  level="function", results_dir=d)
+    r2 = evaluate(fixture_instances(), _bm25, ks=[1, 10], level="function", results_dir=d)
     assert r2["metrics"] == r1["metrics"]
     lines = [l for l in (tmp_path / "run" / "rows.jsonl").read_text().splitlines() if l]
     assert len(lines) == 1                       # resumed, not re-appended

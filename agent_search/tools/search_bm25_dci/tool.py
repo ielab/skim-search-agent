@@ -21,7 +21,7 @@ from typing import Optional
 from agent_search.corpus.flat_export import stage_units_into
 from agent_search.tools.bash.tool import get_dci_dir
 from agent_search.tools.base import Tool
-from agent_search.tools.common import opening_line
+from agent_search.snippets import OpeningLine, Snippet
 
 # The retrieval-stage cutoff: how many bm25 hits a `bm25_search` call surfaces and stages by
 # default. This is a fixed constant, not a per-call k.
@@ -41,6 +41,7 @@ class SearchBm25Dci(Tool):
                                            "description": "A keyword query, for example: treaty that ended the Mexican-American War."}},
                   "required": ["query"]}
     engines = ("bm25",)
+    snippet: Snippet = OpeningLine()   # the excerpt under each staged hit (agent_search.snippets)
 
     topk: int = BM25_DCI_TOPK
 
@@ -76,7 +77,7 @@ class SearchBm25Dci(Tool):
             state.seen.add(doc_id)
             if doc_id not in self._staged:
                 new_units.append(u)
-            snip = opening_line(u)
+            snip = self.snippet.render(u)
             lines.append(f"  {rank}  {doc_id}  {(u.title or u.qualname or '')!r}  {snip}…")
 
         # Only docs not already on disk get written, using the same writer `export_flat_corpus`

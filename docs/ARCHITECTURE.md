@@ -47,12 +47,33 @@ fingerprinted so a persisted index is never served against a corpus it was not b
 
 **Engine.** An index over a corpus plus a `query -> ranked ids` function. Built once per corpus,
 persisted under `indexes/`, shared by every tool that needs it (`retrievers/engines.py`).
-Families: BM25 (in memory, Lucene), dense (one file per encoder family, plus the
-trained-checkpoint family), BQL (Boolean selection with one ranking model), Indri. A hybrid is
+Families: BM25 (Lucene, through Pyserini), dense (one file per encoder family, plus the
+trained-checkpoint family), BQL (Boolean selection with one ranking model), Indri. Document
+corpora rank on Lucene only: BM25 and the structured index behind BQL and Indri, including the
+zero-hit fallback and the coverage ranking. A code repository is the one corpus kind with
+in-memory engines (the grep ranker and the Boolean executor with its AST scopes); they are
+indexes that re-index only the files that changed. `retrievers/backend.py` picks by corpus
+kind, never by an environment variable. A hybrid is
 not a family of its own: it is any retrievers the run names, fused by one method (`rrf` over
 ranks, `interpolation` over normalised scores), so `search_hybrid` and the `hybrid` floor use
 whatever `retrieval.hybrid_retrievers` and `retrieval.hybrid_fusion` say; the paper's arms are
-the defaults (BM25 and the dense model, RRF).
+the defaults (BM25 and the dense model, RRF). A reranked engine is the same idea with one
+retriever and a reranker (`retrievers/rerankers/`, one file per method): the base retriever
+named in `retrieval.rerank_base` supplies a pool, the reranker reads each (query, document)
+pair and reorders it. Rerankers score online during a run; that is what reranking is.
+
+**Procedure.** A strategy that is a program rather than a tool loop (`procedures/`, one file
+each). One-shot RAG ranks, prompts once and reads the answer. A team runs member conditions as
+agents through `agent/episode.py`, the same function the harness uses for a single agent, and
+combines what they found; the run record keeps every member trajectory, sums their steps and
+tokens, and takes the union of their surfaced documents, so a team is judged with the same
+metrics as one agent. A new team is one new file in `procedures/` and one line in
+`strategies/teams.py`.
+
+**Snippet.** How one hit is excerpted in a listing (`snippets/`, one file each): the opening
+line, the best window for the query terms, or nothing. A search tool takes one as its
+`snippet=` option, so a strategy changes what the model reads under each hit without touching
+the tool. Widths are token counts (`SNIPPET_TOKENS`).
 
 **Tool.** One atomic action the agent can call. A tool owns its declaration (the name the model
 sees, the description, the JSON parameters), its code (`run(args)` returns the observation text;
@@ -75,7 +96,7 @@ without a loop. One file per family under `strategies/`:
 
 | file | strategies | tools |
 |---|---|---|
-| `search_visit.py` | `search_visit`, `search_visit_dense`, `search_visit_hybrid`, `search_visit_snippets` | a search that lists documents, then `visit` (whole document) |
+| `search_visit.py` | `search_visit`, `search_visit_dense`, `search_visit_hybrid`, `search_visit_reranked`, `search_visit_snippets` | a search that lists documents, then `visit` (whole document) |
 | `autoread.py` | `autoread`, `autoread_dense`, `autoread_hybrid` | one search that returns the full text of its hits |
 | `search_fetch.py` | `search_fetch`, `search_fetch_dense`, `search_fetch_hybrid`, `search_fetch_bm25_plain`, `search_fetch_dense_plain` | a search that lists structure, then `fetch` (one section); the `_plain` arms drop the excerpt from the listing |
 | `sieve.py` | `sieve_bm25`, `sieve`, `sieve_dense`, `sieve_nosnip`, `sieve_plain`, `sieve_v2`, `sieve_visit`, `sieve_visit_fused`, `sieve_visit_dense` | `search_bql` (snippets, ranking model, manual set) then `fetch` or `visit` |
@@ -84,7 +105,8 @@ without a loop. One file per family under `strategies/`:
 | `dedup.py` | `dedup_dense`, `dedup_bm25` | ITER's `search` that drops already-listed documents, then `get_document` |
 | `codefix.py` | `codefix`, `codefix_grep` | Boolean code search then `fetch`; or `grep` then `read` |
 | `rag.py` | `rag`, `rag_dense`, `rag_hybrid` | no loop: rank once, one prompt, one model call |
-| `retrieval_only.py` | `bm25`, `bm25_lucene`, `dense`, `bql`, `grep` | no loop, no model: the floor |
+| `teams.py` | `plan_and_search`, `plan_and_search_visit` | no loop: a planner, one member agent per sub-question, a synthesizer |
+| `retrieval_only.py` | `bm25`, `dense`, `bql`, `grep`, `hybrid`, `reranked` | no loop, no model: the floor |
 
 A strategy gives each tool the exposed name the paper prompt used (`search_s`, `fetch_s`,
 `bm25_search`, `visit_d`, ...) and, by the union of its tools, the engines a run must build.
@@ -103,25 +125,31 @@ agent_search/
   corpus/          units, the on-disk document store, corpus fingerprints, code repositories, flat export, grounding ("did you mean")
   retrievers/
     base.py        the Retriever contract, Hit, Observation
-    lexical/       scorer.py (the BM25 scorer), bm25.py (in memory), pyserini.py (Lucene), grep.py
+    lexical/       pyserini.py (Lucene BM25, every corpus), grep.py and scorer.py (the code repository ranker and its in-memory scorer)
     dense/         base.py (DenseRetriever) + bge.py, coderank.py, qwen3_embedding.py, trained.py; belief.py; vector_index.py
     bql/           the Boolean structural method: parser, executor, dense fusion, the BQL retriever
-    indri/         the Indri query language: parser, index, model
+    indri/         the Indri query language: parser, fields, result
     lucene/        both query languages compiled to Lucene: compilers, engine, adapters
     fusion/        base.py (the Fusion contract) + rrf.py, interpolation.py: how rankings are combined
     hybrid.py      the hybrid engine and retriever: any retrievers the run names, fused by one method
-    backend.py     which engine serves BQL and Indri (Python reference or Lucene)
+    rerankers/     base.py (the Reranker contract) + cross_encoder.py: how a candidate pool is reordered
+    reranked.py    the reranked engine and retriever: one retriever's pool, one reranker
+    backend.py     which engine serves BQL and Indri: Lucene for documents, the in-memory executor for a code repository
     engines.py     the per-corpus engine registry the tools share
     registry.py    name -> retriever builder; plugin discovery; conditions registered as agent_<name>
+  snippets/        base.py (Snippet) + opening.py, term_window.py, none.py: the excerpt under a hit
   tools/           base.py (Tool, EpisodeState, ToolBox, the Workspace contract), seen.py (OrderedSeen), budgets.py (the token knobs), common.py (shared rendering),
-                   then one folder per tool: search_bm25/, search_dense/, search_hybrid/, search_bql/, search_indri/,
+                   then one folder per tool: search_bm25/, search_dense/, search_hybrid/, search_reranked/, search_bql/, search_indri/,
                    search_dedup/, search_bm25_dci/, visit/, fetch/, fetch_code/, get_document/, bash/, read/, grep/
   tasks/           base.py (Task), render.py (template + declarations + manuals), then research/, research_dedup/,
                    codefix/, codefix_patch/ (prompt.md + task.py each)
   strategies/      base.py (Strategy), names.py (friendly CLI names), conditions.py (the registry), paper.py
                    (the paper's names), then one file per family: search_visit.py, autoread.py, search_fetch.py,
-                   sieve.py, indri.py, dci.py, dedup.py, codefix.py, rag.py, retrieval_only.py
+                   sieve.py, indri.py, dci.py, dedup.py, codefix.py, rag.py, teams.py, retrieval_only.py
+  procedures/      base.py (Procedure, ProcedureContext, ProcedureResult), then one file per program:
+                   rag.py (one-shot RAG), plan_and_search.py (a team whose members are conditions)
   agent/
+    episode.py     run one condition on one question: the single-agent unit the harness and the teams share
     loop.py        one episode: reason, act, observe
     policies.py    AgentPolicy (a model), ScriptPolicy and KeywordPolicy (scripted)
     actions.py     parsing tool calls and answers out of a generation

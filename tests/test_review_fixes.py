@@ -9,6 +9,9 @@ import pytest
 from agent_search.errors import SetupError
 from agent_search.corpus.docstore import JsonlDocStore, LazyUnits
 from agent_search.corpus.units import units_from_documents
+from tests.lucene_support import require_jvm
+
+require_jvm()
 
 DOCS = [{"_id": str(i), "title": f"Doc {i}", "text": f"Doc {i}\nbody of document number {i} " + "w " * 20}
         for i in range(1, 201)]
@@ -75,13 +78,12 @@ def test_workspaces_do_not_materialise_a_lazy_corpus(tmp_path):
 
 
 def test_in_memory_engines_refuse_a_lazy_corpus(tmp_path):
-    from agent_search.retrievers.lexical.bm25 import BM25Local
+    """The two in-memory engines left (the grep ranker and the code Boolean executor) must
+    not read an on-disk document store into memory."""
     from agent_search.retrievers.lexical.grep import GrepBaseline
     from agent_search.retrievers.bql.executor import StructuralExecutor
-    from agent_search.retrievers.indri.model import IndriExecutor
     units = LazyUnits(_store(tmp_path))
-    for build in (lambda: BM25Local().index(units), lambda: GrepBaseline().index(units),
-                  lambda: StructuralExecutor(units), lambda: IndriExecutor(units)):
+    for build in (lambda: GrepBaseline().index(units), lambda: StructuralExecutor(units)):
         with pytest.raises(SetupError, match="on-disk document store"):
             build()
 
@@ -195,10 +197,10 @@ def test_run_config_refuses_a_different_setting_in_the_same_directory(tmp_path):
     from agent_search.evaluation import run_eval
     from agent_search.evaluation.config import DatasetArgs, EvaluationArgs, OutputArgs, RetrieverArgs, RunConfig
     out = OutputArgs(results_dir=str(tmp_path / "r"))
-    first = RunConfig(dataset=DatasetArgs(name="doc_fixture"), retriever=RetrieverArgs(name="bm25_local", index_root=str(tmp_path / "idx")),
+    first = RunConfig(dataset=DatasetArgs(name="doc_fixture"), retriever=RetrieverArgs(name="bm25_pyserini", index_root=str(tmp_path / "idx")),
                       output=out)
     run_eval.run_config(first)
-    second = RunConfig(dataset=DatasetArgs(name="doc_fixture"), retriever=RetrieverArgs(name="bm25_local", index_root=str(tmp_path / "idx")),
+    second = RunConfig(dataset=DatasetArgs(name="doc_fixture"), retriever=RetrieverArgs(name="bm25_pyserini", index_root=str(tmp_path / "idx")),
                        evaluation=EvaluationArgs(level="file"), output=out)
     with pytest.raises(SystemExit):
         run_eval.run_config(second)
@@ -206,8 +208,13 @@ def test_run_config_refuses_a_different_setting_in_the_same_directory(tmp_path):
 def test_overrides_are_recorded_in_the_run_record(tmp_path):
     from pathlib import Path
     from agent_search import cli
+    from agent_search.evaluation.build_indexes import build
+    from agent_search.evaluation.datasets import load_dataset_by_name
     repo = Path(__file__).resolve().parents[1]
     f = repo / "configs" / "smoke_doc_fixture_sieve_bm25.yaml"
+    # the doc run opens a prebuilt Lucene structured index under output.index_root
+    build(load_dataset_by_name("doc_fixture"), index_root=str(tmp_path / "idx"),
+          retriever="search_lucene", progress=False)
     rc = cli.main(["run", str(f), "dataset.limit=1", "name=override-test",
                    f"output.runs_dir={tmp_path / 'runs'}", f"output.index_root={tmp_path / 'idx'}"])
     assert rc == 0

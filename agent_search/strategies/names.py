@@ -13,6 +13,7 @@ STRATEGIES: dict[str, str] = {
     "search_visit": "agent_research_bm25",
     "search_visit_dense": "agent_research_dense",
     "search_visit_hybrid": "agent_research_hybrid",
+    "search_visit_reranked": "agent_search_visit_reranked",
     "autoread": "agent_research_bm25_autoread",
     "autoread_dense": "agent_research_dense_autoread",
     "dci": "agent_research_dci",
@@ -27,6 +28,9 @@ STRATEGIES: dict[str, str] = {
     "sieve_nosnip": "agent_research_bql_dense_fetch",
     # structured-retrieval control
     "indri": "agent_research_indri_snip",
+    # multi-agent teams (agent_search/procedures)
+    "plan_and_search": "agent_plan_and_search",
+    "plan_and_search_visit": "agent_plan_and_search_visit",
     # ITER's strategy: de-duplicated search + get_document (BM25 or the run's dense model)
     "dedup_bm25": "agent_research_dedup_bm25",
     "dedup_dense": "agent_research_dedup_dense",
@@ -35,9 +39,9 @@ STRATEGIES: dict[str, str] = {
     "codefix_grep": "agent_codefix_grep",
     "codefix_patch": "agent_codefix_patch",
     # retrieval-only floors (no agent loop)
-    "bm25": "bm25_local",
-    "bm25_lucene": "bm25_pyserini",
+    "bm25": "bm25_pyserini",
     "hybrid": "hybrid",
+    "reranked": "reranked",
 }
 
 #: Strategies that need a pre-built dense embedding cache (``skimsearchagent-build-indexes

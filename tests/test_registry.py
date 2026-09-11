@@ -14,7 +14,7 @@ from agent_search.retrievers.registry import RetrieverConfig, available, build_f
 
 # standalone retriever floors + a sample of the agent conditions: the paper's 15 document
 # conditions and the code-localization arm (codefix / codefix_grep / codefix_patch).
-BUILTINS = {"grep", "bm25_local", "bm25_pyserini", "dense", "bql",
+BUILTINS = {"grep", "bm25_pyserini", "dense", "bql",
             "agent_research_snip", "agent_research_bm25", "agent_research_dci",
             "agent_codefix", "agent_codefix_grep", "agent_codefix_patch"}
 

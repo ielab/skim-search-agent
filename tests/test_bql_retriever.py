@@ -44,7 +44,7 @@ def _units():
 
 
 def test_direct_bql_retriever_searches_structural_query():
-    retriever = BQLRetriever().index(_units())
+    retriever = BQLRetriever(domain="code").index(_units())
 
     got = retriever.search("IN(def, NEAR/func(session, token))", k=10)
 
@@ -53,7 +53,7 @@ def test_direct_bql_retriever_searches_structural_query():
 
 
 def test_direct_bql_retriever_reports_untruncated_count():
-    retriever = BQLRetriever().index(_units())
+    retriever = BQLRetriever(domain="code").index(_units())
 
     ranked, count = retriever.search_with_count("IN(file, session)", k=1)
 
@@ -63,7 +63,7 @@ def test_direct_bql_retriever_reports_untruncated_count():
 
 
 def test_direct_bql_retriever_parse_error_returns_no_hits():
-    retriever = BQLRetriever().index(_units())
+    retriever = BQLRetriever(domain="code").index(_units())
 
     # genuinely malformed (stray unbalanced paren) -> structured parse error.
     assert retriever.search("fix the session ( token", k=10) == []
@@ -74,14 +74,14 @@ def test_direct_bql_retriever_bare_multiword_is_phrase_not_error():
     """Forgiveness: a run of bare words is read as an implicit PHRASE, not a parse
     error. It simply 0-hits when no unit contains that contiguous phrase
     (recoverable), instead of erroring out and wasting an agent step."""
-    retriever = BQLRetriever().index(_units())
+    retriever = BQLRetriever(domain="code").index(_units())
 
     assert retriever.search("fix the session token expiry bug", k=10) == []
     assert retriever.last_error is None        # parsed cleanly, just no match
 
 
 def test_direct_bql_retriever_type_error_returns_no_hits():
-    retriever = BQLRetriever().index(_units())
+    retriever = BQLRetriever(domain="code").index(_units())
 
     assert retriever.search("NOT(token)", k=10) == []
     assert retriever.last_error.startswith("type error:")
@@ -89,4 +89,4 @@ def test_direct_bql_retriever_type_error_returns_no_hits():
 
 def test_direct_bql_retriever_requires_index_first():
     with pytest.raises(RuntimeError, match="index"):
-        BQLRetriever().search("token", k=10)
+        BQLRetriever(domain="code").search("token", k=10)

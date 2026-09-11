@@ -266,7 +266,7 @@ def refuse_lazy(units, engine: str, knob: str) -> None:
             f"the corpus is an on-disk document store ({len(units)} documents); {engine} would "
             f"have to load all of it into memory. Use a prebuilt index instead ({knob}), or a "
             f"strategy whose engines support prebuilt indexes (dedup_bm25, dedup_dense, search_visit "
-            f"with bm25_backend: pyserini).")
+            f"with a prebuilt Lucene index).")
 
 
 __all__ = ["JsonlDocStore", "LazyUnitMap", "LazyUnits", "normalise_document", "is_lazy", "refuse_lazy"]

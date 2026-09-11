@@ -8,14 +8,16 @@ rank or doc_id/title; an integer doc_id must not be mis-read as a rank."""
 import os
 
 from agent_search.corpus.units import units_from_documents
-from agent_search.retrievers.bql.executor import StructuralExecutor
-from agent_search.retrievers.lexical.bm25 import BM25Local
 from agent_search.tools.base import EpisodeState, ToolBox
 from agent_search.tools.common import sections_from_body
 from agent_search.tools.fetch.tool import Fetch
 from agent_search.tools.search_bql.tool import SearchBql
 from agent_search.tools.search_bm25.tool import SearchBm25
 from agent_search.tools.visit.tool import Visit
+from tests import lucene_support
+from tests.lucene_support import build_lucene_bql, build_pyserini, require_jvm
+
+require_jvm()
 
 # a structured doc (## markers in the body) + a flat doc (no markers), one integer-id doc.
 DOCS = [
@@ -37,7 +39,7 @@ class _DocToolbox:
     def __init__(self, docs, **search_opts):
         units = list(units_from_documents(docs)) if docs and isinstance(docs[0], dict) else list(docs)
         self.ubyid = {u.doc_id: u for u in units}
-        ex = StructuralExecutor(units).prewarm()
+        ex = build_lucene_bql(units)
         state = EpisodeState(question="q")
         self._search = SearchBql(name="search", **search_opts).bind(state, units, self.ubyid, {"bql": ex})
         self._fetch = Fetch(name="fetch").bind(state, units, self.ubyid, {})
@@ -67,7 +69,7 @@ class _Bm25VisitToolbox:
     def __init__(self, docs):
         units = list(units_from_documents(docs)) if docs and isinstance(docs[0], dict) else list(docs)
         ubyid = {u.doc_id: u for u in units}
-        engine = BM25Local().index(units)
+        engine = build_pyserini(units)
         state = EpisodeState(question="q")
         sb = SearchBm25(name="bm25_search").bind(state, units, ubyid, {"bm25": engine})
         vb = Visit(name="visit").bind(state, units, ubyid, {})
@@ -352,14 +354,20 @@ def test_serp_listing_default_five_and_env_ten_in_a_fresh_process():
       2. BM25_VISIT_TOPK=10 -> the bm25 listing renders 10; the dense listing stays 5
          (independent knobs, not one shared constant).
       3. DENSE_VISIT_TOPK=10 -> the dense listing renders 10; the bm25 listing stays 5.
+
+    The BM25 engine is Lucene, so the child process opens the index the parent built under
+    the session test root instead of indexing again.
     """
     import subprocess
     import sys as _sys
 
+    units = units_from_documents(SERP_DOCS)
+    build_pyserini(units)
+    root, key = lucene_support.index_root(), lucene_support.corpus_key(units)
     code = (
         "import agent_search.tools.budgets as b\n"
         "from agent_search.corpus.units import units_from_documents\n"
-        "from agent_search.retrievers.lexical.bm25 import BM25Local\n"
+        "from agent_search.retrievers.lexical.pyserini import BM25Pyserini\n"
         "from agent_search.tools.base import EpisodeState, ToolBox\n"
         "from agent_search.tools.search_bm25.tool import SearchBm25\n"
         "from agent_search.tools.search_dense.tool import SearchDense\n"
@@ -367,7 +375,7 @@ def test_serp_listing_default_five_and_env_ten_in_a_fresh_process():
         "         'text': f'common topic document number {i}'} for i in range(12)]\n"
         "units = units_from_documents(docs)\n"
         "ubyid = {u.doc_id: u for u in units}\n"
-        "engine = BM25Local().index(units)\n"
+        f"engine = BM25Pyserini(index_root={root!r}).index(units, key={key!r})\n"
         "st = EpisodeState(question='q')\n"
         "sb = SearchBm25(name='bm25_search').bind(st, units, ubyid, {'bm25': engine})\n"
         "bm_out = ToolBox([sb], st).run('bm25_search', {'query': 'common topic'})\n"

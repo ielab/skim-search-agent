@@ -158,7 +158,7 @@ dataset:
   name: infoseek_eval         # data/infoseek_eval/topics.tsv over data/corpora/wiki25_512/corpus.jsonl (11.2M chunks)
 retrieval:
   dense_index: indexes/external/iter06b_wiki25_512   # index.faiss + index.lookup.pkl, ITER's layout
-  bm25_index: indexes/external/wiki25_512_lucene     # for dedup_bm25 / search_visit with bm25_backend: pyserini
+  bm25_index: indexes/external/wiki25_512_lucene     # for dedup_bm25 / search_visit
 ```
 
 The complete files are under `configs/iter/`.

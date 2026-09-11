@@ -5,19 +5,21 @@ Covers the fusion math (`rrf_fuse`/`fuse_ranked`/`fuse_coverage_tiers` on hand-c
 fixtures); that BQL's boolean/field/date filter still selects candidates exactly as before, so
 a non-matching doc never appears even with an engineered-maximal dense similarity; that dense
 scoring is called only with the filter-passing candidate ids, never a global dense search
-(asserted against the stub's recorded call args); that with the knob off (no `attach_dense`
-call, `self.dense is None`) results are byte-identical because the dense side is never
+(asserted against the stub's recorded call args); that with no dense model attached
+(`adapter.dense is None`) results are byte-identical because the dense side is never
 consulted; that the `research_bql_dense_snip` condition loads and resolves to the
-'bqldensesnip' arm via the registry; an offline end-to-end smoke test driving
-BqlVisitWorkspace/DocSearchFetch over a dense-attached executor (deterministic hash-based stub
-encoder, no model download, no network) through the full `AgentRetriever.index()` wiring
-(missing-cache failure and a stubbed-encoder success path); and that dense-only ordering never
-drops a candidate absent from the dense side: `dense_belief.DenseBelief.score` gives a missing
-id the pool-minimum score instead of omitting it, and `fuse_ranked_dense_only`/
+'bqldensesnip' arm via the registry; an offline end-to-end smoke test driving the search and
+fetch tools over a dense-attached adapter (deterministic hash-based stub encoder, no model
+download, no network) through the full `ConditionAgent.index()` wiring (missing-cache failure
+and a stubbed-encoder success path); and that dense-only ordering never drops a candidate
+absent from the dense side: `dense_belief.DenseBelief.score` gives a missing id the
+pool-minimum score instead of omitting it, and `fuse_ranked_dense_only`/
 `fuse_coverage_tiers_dense_only` append any still-missing candidates after the dense-ranked
 ones, in their incoming order.
 
-CPU-only; a small synthetic corpus.
+Documents rank on Lucene, so the executor under test is `LuceneBqlAdapter` (and its dense-only
+sibling) built through `tests/lucene_support.py`; the module skips without a JVM. CPU-only; a
+small synthetic corpus.
 """
 from __future__ import annotations
 
@@ -31,8 +33,10 @@ from agent_search.corpus.units import CodeUnit
 from agent_search.retrievers.bql.dense_fuse import (
     RRF_K, bql_dense_enabled, dense_rank_for_candidates, fuse_coverage_tiers,
     fuse_coverage_tiers_dense_only, fuse_ranked, fuse_ranked_dense_only, rrf_fuse)
-from agent_search.retrievers.bql.executor import StructuralExecutor
 from agent_search.retrievers.dense.belief import DenseBelief
+from tests import lucene_support
+
+lucene_support.require_jvm()
 
 # --- stub encoder (mirrors tests/test_indri_dense.py's StubEncoder exactly: deterministic
 # hash-based bag-of-tokens vectors, no model download, with an engineerable synonym table) ----
@@ -289,19 +293,17 @@ def test_fuse_coverage_tiers_singleton_tier_untouched(dense):
 
 
 # =============================================================================================
-# 5. StructuralExecutor integration: filter semantics preserved, knob-off byte-identical
+# 5. LuceneBqlAdapter integration: filter semantics preserved, knob-off byte-identical
 # =============================================================================================
 
 def _bql_and(*terms: str) -> str:
     return "AND(" + ", ".join(terms) + ")"
 
 
-def test_attach_dense_is_a_pure_setter_default_none():
-    ex = StructuralExecutor(_corpus())
-    assert ex.dense is None
-    ex2 = ex.attach_dense(None)
-    assert ex2 is ex
-    assert ex.dense is None
+def test_builders_default_dense_none_and_pass_a_dense_model_through(units, dense):
+    assert lucene_support.build_lucene_bql(units).dense is None
+    assert lucene_support.build_lucene_bql(units, dense=dense).dense is dense
+    assert lucene_support.build_lucene_bql_dense_only(units, dense=dense).dense is dense
 
 
 def test_run_with_count_filter_semantics_preserved_even_with_max_dense_similarity(units, dense):
@@ -310,7 +312,7 @@ def test_run_with_count_filter_semantics_preserved_even_with_max_dense_similarit
     embedding space. 'paraphrase' has a HIGH dense similarity to 'zebra' (quagga synonym) but
     contains neither 'zebra' nor 'runs' — it must be absent from a filter that requires both."""
     from agent_search.retrievers.bql.parser import parse
-    ex = StructuralExecutor(units).attach_dense(dense)
+    ex = lucene_support.build_lucene_bql(units, dense=dense)
     expr = parse(_bql_and("zebra", "runs")).expr
     ranked, n_hits = ex.run_with_count(expr, k=10)
     ids = [d for d, _ in ranked]
@@ -328,7 +330,7 @@ def test_run_with_count_dense_fuses_within_the_filter_passing_set(units, tmp_pat
     from agent_search.retrievers.bql.parser import parse
     d = DenseBelief(model="stub/model4", index_root=str(tmp_path), encoder=StubEncoder())
     d.build_or_load(units, key="stubcorpus4")
-    ex = StructuralExecutor(units).attach_dense(d)
+    ex = lucene_support.build_lucene_bql(units, dense=d)
     expr = parse("OR(zebra, quagga)").expr
     ranked, n_hits = ex.run_with_count(expr, k=10)
     ids = [doc for doc, _ in ranked]
@@ -341,11 +343,11 @@ def test_run_with_count_dense_fuses_within_the_filter_passing_set(units, tmp_pat
 
 
 def test_run_with_count_dense_off_is_byte_identical_to_no_attach(units):
-    """`ex.dense is None` (never attached) must give byte-identical results to a plain
-    executor — the knob-off contract for research/research_v2/research_snip/research_bql_visit."""
+    """`ex.dense is None` (built with `dense=None`) must give byte-identical results to a plain
+    adapter: the knob-off contract for research/research_v2/research_snip/research_bql_visit."""
     from agent_search.retrievers.bql.parser import parse
-    plain = StructuralExecutor(units)
-    off = StructuralExecutor(units).attach_dense(None)
+    plain = lucene_support.build_lucene_bql(units)
+    off = lucene_support.build_lucene_bql(units, dense=None)
     for q in ["zebra", _bql_and("foo", "bar"), "OR(cat, dog)", "nonexistentterm"]:
         expr = parse(q).expr
         a = plain.run_with_count(expr, k=10)
@@ -354,9 +356,9 @@ def test_run_with_count_dense_off_is_byte_identical_to_no_attach(units):
 
 
 def test_run_with_count_dense_attached_but_query_untouched_when_dense_never_called(units):
-    """A stub whose `.score`/`.is_ready` would raise if ever invoked — if the executor's own
-    fusion path is skipped whenever `dense is None` (the knob-off state), this proves the
-    'off' path doesn't even reach the dense object."""
+    """A stub whose `.score`/`.is_ready` would raise if ever invoked. The adapter's fusion
+    path is skipped whenever `dense is None` (the knob-off state), so the 'off' path never
+    reaches the dense object."""
     from agent_search.retrievers.bql.parser import parse
 
     class BoomIfTouched:
@@ -366,19 +368,19 @@ def test_run_with_count_dense_attached_but_query_untouched_when_dense_never_call
         def score(self, *a, **kw):
             raise AssertionError("dense side touched while dense is None")
 
-    ex = StructuralExecutor(units)     # dense stays None — never attach BoomIfTouched
+    ex = lucene_support.build_lucene_bql(units)     # dense stays None; BoomIfTouched is never attached
     expr = parse("zebra").expr
     ranked, n_hits = ex.run_with_count(expr, k=10)      # must not raise
     assert n_hits == 1
 
 
 def test_coverage_topk_filter_semantics_preserved_with_dense(units, dense):
-    """`coverage_topk`'s 0-exact-hit fallback ranks by constraint COVERAGE — a doc that
+    """`coverage_topk`'s 0-exact-hit fallback ranks by constraint COVERAGE: a doc that
     matches FEWER AND-children than another must never be promoted above it by dense fusion.
     AND(foo,bar,baz,qux) 0-hits exactly on the corpus's covA-D fixture (covA matches foo,bar,baz
     = 3/4; covD matches foo only = 1/4)."""
     from agent_search.retrievers.bql.parser import parse
-    ex = StructuralExecutor(units).attach_dense(dense)
+    ex = lucene_support.build_lucene_bql(units, dense=dense)
     expr = parse(_bql_and("foo", "bar", "baz", "qux")).expr
     rows = ex.coverage_topk(expr, k=10)
     by_id = {r[0]: r[2] for r in rows}          # doc_id -> n_matched
@@ -390,8 +392,8 @@ def test_coverage_topk_filter_semantics_preserved_with_dense(units, dense):
 
 def test_coverage_topk_dense_off_is_byte_identical_to_no_attach(units):
     from agent_search.retrievers.bql.parser import parse
-    plain = StructuralExecutor(units)
-    off = StructuralExecutor(units).attach_dense(None)
+    plain = lucene_support.build_lucene_bql(units)
+    off = lucene_support.build_lucene_bql(units, dense=None)
     expr = parse(_bql_and("foo", "bar", "baz", "qux")).expr
     assert repr(plain.coverage_topk(expr, k=10)) == repr(off.coverage_topk(expr, k=10))
 
@@ -415,14 +417,6 @@ def test_bql_dense_enabled_on_values(monkeypatch, val):
 def test_bql_dense_enabled_off_values(monkeypatch, val):
     monkeypatch.setenv("BQL_DENSE", val)
     assert bql_dense_enabled() is False
-
-
-def test_load_or_build_default_dense_none_and_attach_works(units, tmp_path, dense):
-    from agent_search.retrievers.bql.executor import load_or_build
-    ex = load_or_build(units, index_root=str(tmp_path), key="parity")   # no dense kwarg
-    assert ex.dense is None
-    ex2 = load_or_build(units, index_root=str(tmp_path), key="parity", dense=dense)
-    assert ex2.dense is dense
 
 
 # =============================================================================================
@@ -459,24 +453,32 @@ def test_bqldensesnip_index_raises_clear_error_when_cache_missing(tmp_path):
 
 
 # =============================================================================================
-# 8. Full AgentRetriever offline success-path smoke (stubbed encoder, no network)
+# 8. Full ConditionAgent offline success-path smoke (stubbed encoder, no network)
 # =============================================================================================
 
-def test_agentretriever_bqldensesnip_end_to_end_offline_smoke(tmp_path, monkeypatch):
+def _offline_agent(monkeypatch, condition: str, model_tag: str):
+    """A stub-policy agent for `agent_<condition>` over `_corpus()`, indexed offline: the
+    Lucene structured index and the dense cache (stub encoder, one stub model per test) both
+    sit under the shared test index root, keyed by the corpus fingerprint, which is what
+    `ConditionAgent.index()` opens. Returns the indexed agent."""
     from agent_search.retrievers import dense as dense_mod
     from agent_search.retrievers.registry import RetrieverConfig, build_factory
 
-    stub_model = "stub/bqldensesnip-model"
+    stub_model = f"stub/{model_tag}"
     monkeypatch.setenv("DENSE_MODEL", stub_model)   # the ONE dense model for the run
     monkeypatch.setitem(dense_mod._ENCODER_CACHE, (stub_model, "auto", 1024, "float32"), StubEncoder())
-
     corpus_units = _corpus()
-    DenseBelief(model=stub_model, index_root=str(tmp_path),
-               encoder=StubEncoder()).build_or_load(corpus_units, key="offlinecorpus2")
+    root = lucene_support.index_root()
+    key = lucene_support.build_structured_index(corpus_units)
+    DenseBelief(model=stub_model, index_root=root,
+                encoder=StubEncoder()).build_or_load(corpus_units, key=key)
+    r = build_factory(f"agent_{condition}", RetrieverConfig(policy="stub", index_root=root))()
+    r.index(corpus_units, key=key)
+    return r
 
-    r = build_factory("agent_research_bql_dense_snip", RetrieverConfig(
-        policy="stub", index_root=str(tmp_path)))()
-    r.index(corpus_units, key="offlinecorpus2")
+
+def test_agentretriever_bqldensesnip_end_to_end_offline_smoke(monkeypatch):
+    r = _offline_agent(monkeypatch, "research_bql_dense_snip", "bqldensesnip-model")
     bql = r.engines.get("bql_fused")
     assert bql is not None
     assert bql.dense is not None
@@ -553,30 +555,17 @@ def test_bqldensefetch_index_raises_clear_error_when_cache_missing(tmp_path):
         r.index(_corpus(), key="no_such_corpus_key")
 
 
-def test_agentretriever_bqldensefetch_end_to_end_offline_smoke(tmp_path, monkeypatch):
+def test_agentretriever_bqldensefetch_end_to_end_offline_smoke(monkeypatch):
     """Same offline-smoke shape as test_agentretriever_bqldensesnip_end_to_end_offline_smoke,
-    but asserts the listing is PLAIN (no `»` excerpt) — the one behavioral difference from
+    but asserts the listing is PLAIN (no `»` excerpt), the one behavioral difference from
     'bqldensesnip', proving the listing/read recombination is genuinely composable here."""
-    from agent_search.retrievers import dense as dense_mod
-    from agent_search.retrievers.registry import RetrieverConfig, build_factory
-
-    stub_model = "stub/bqldensefetch-model"
-    monkeypatch.setenv("DENSE_MODEL", stub_model)   # the ONE dense model for the run
-    monkeypatch.setitem(dense_mod._ENCODER_CACHE, (stub_model, "auto", 1024, "float32"), StubEncoder())
-
-    corpus_units = _corpus()
-    DenseBelief(model=stub_model, index_root=str(tmp_path),
-               encoder=StubEncoder()).build_or_load(corpus_units, key="offlinecorpus3")
-
-    r = build_factory("agent_research_bql_dense_fetch", RetrieverConfig(
-        policy="stub", index_root=str(tmp_path)))()
-    r.index(corpus_units, key="offlinecorpus3")
+    r = _offline_agent(monkeypatch, "research_bql_dense_fetch", "bqldensefetch-model")
     bql = r.engines.get("bql_fused")
     assert bql is not None
     assert bql.dense is not None                        # dense-fused ranking IS attached
 
     ws = r.toolbox("zebra")
-    assert ws["search_bqldf"].snippets is False          # PLAIN listing — the constructor default
+    assert ws["search_bqldf"].snippet.shows_excerpt is False          # PLAIN listing — the constructor default
     out = ws.run("search_bqldf", {"query": "zebra"})
     assert "ERROR" not in out
     assert "zebradoc" in out
@@ -586,27 +575,12 @@ def test_agentretriever_bqldensefetch_end_to_end_offline_smoke(tmp_path, monkeyp
 
 
 def test_bqldensefetch_search_bqldf_and_bqldensesnip_search_bqlds_differ_only_by_snippets(
-        tmp_path, monkeypatch):
+        monkeypatch):
     """Direct side-by-side: SAME dense-fused ranking (same corpus, same query, same stub model/
     cache), the ONLY rendering difference between 'bqldensefetch' and 'bqldensesnip' is the `»`
-    excerpt line — confirming the listing/read recombination changed nothing about retrieval."""
-    from agent_search.retrievers import dense as dense_mod
-    from agent_search.retrievers.registry import RetrieverConfig, build_factory
-
-    stub_model = "stub/bqldensecompare-model"
-    monkeypatch.setenv("DENSE_MODEL", stub_model)   # the ONE dense model for the run
-    monkeypatch.setitem(dense_mod._ENCODER_CACHE, (stub_model, "auto", 1024, "float32"), StubEncoder())
-
-    corpus_units = _corpus()
-    DenseBelief(model=stub_model, index_root=str(tmp_path),
-               encoder=StubEncoder()).build_or_load(corpus_units, key="offlinecorpus4")
-
-    fetch_r = build_factory("agent_research_bql_dense_fetch", RetrieverConfig(
-        policy="stub", index_root=str(tmp_path)))()
-    fetch_r.index(corpus_units, key="offlinecorpus4")
-    snip_r = build_factory("agent_research_bql_dense_snip", RetrieverConfig(
-        policy="stub", index_root=str(tmp_path)))()
-    snip_r.index(corpus_units, key="offlinecorpus4")
+    excerpt line, confirming the listing/read recombination changed nothing about retrieval."""
+    fetch_r = _offline_agent(monkeypatch, "research_bql_dense_fetch", "bqldensecompare-model")
+    snip_r = _offline_agent(monkeypatch, "research_bql_dense_snip", "bqldensecompare-model")
 
     fetch_out = fetch_r.toolbox("zebra").run("search_bqldf", {"query": "zebra"})
     snip_out = snip_r.toolbox("zebra").run("search_bqlds", {"query": "zebra"})
@@ -617,24 +591,11 @@ def test_bqldensefetch_search_bqldf_and_bqldensesnip_search_bqlds_differ_only_by
     assert "»" in snip_out
 
 
-def test_bqldensefetch_workspace_hallucinated_tool_name_errors(tmp_path, monkeypatch):
+def test_bqldensefetch_workspace_hallucinated_tool_name_errors(monkeypatch):
     """A model that hallucinates a tool name outside this condition's own toolset (e.g. the
     visit-family's `visit_bqld`, or a bare `visit`) must get a clear 'unknown tool' error, not a
-    silent success — this condition has NO visit/whole-doc read at all, only search->fetch."""
-    from agent_search.retrievers import dense as dense_mod
-    from agent_search.retrievers.registry import RetrieverConfig, build_factory
-
-    stub_model = "stub/bqldensefetch-halluc-model"
-    monkeypatch.setenv("DENSE_MODEL", stub_model)   # the ONE dense model for the run
-    monkeypatch.setitem(dense_mod._ENCODER_CACHE, (stub_model, "auto", 1024, "float32"), StubEncoder())
-
-    corpus_units = _corpus()
-    DenseBelief(model=stub_model, index_root=str(tmp_path),
-               encoder=StubEncoder()).build_or_load(corpus_units, key="offlinecorpus5")
-
-    r = build_factory("agent_research_bql_dense_fetch", RetrieverConfig(
-        policy="stub", index_root=str(tmp_path)))()
-    r.index(corpus_units, key="offlinecorpus5")
+    silent success: this condition has NO visit/whole-doc read at all, only search->fetch."""
+    r = _offline_agent(monkeypatch, "research_bql_dense_fetch", "bqldensefetch-halluc-model")
     ws = r.toolbox("zebra")
     ws.run("search_bqldf", {"query": "zebra"})
     for bad_tool in ("visit_bqld", "visit", "isearch_v", "not_a_real_tool"):

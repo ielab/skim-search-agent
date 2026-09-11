@@ -17,7 +17,9 @@ from agent_search.tools.search_bm25.tool import SearchBm25
 from agent_search.tools.search_bql.tool import SearchBql
 from agent_search.tools.visit.tool import Visit
 from agent_search.retrievers.bql.executor import StructuralExecutor
-from agent_search.retrievers.lexical import build_bm25_engine
+from tests.lucene_support import build_lucene_bql, build_pyserini, require_jvm
+
+require_jvm()
 
 SRC = (
     "def create_session_token(user):\n"
@@ -51,7 +53,7 @@ def _toolbox(tools, units, engines=None, files=None):
 def test_search_fetch_stub_walks_to_a_fix():
     units = _code_units()
     files = {"auth/session.py": SRC}
-    ex = StructuralExecutor(units).prewarm()
+    ex = StructuralExecutor(units)
     ws = _toolbox([SearchCode(name="search"), FetchCode(name="fetch")], units,
                  engines={"bql_plain": ex}, files=files)
     policy = KeywordPolicy(("search", "fetch"))
@@ -85,7 +87,7 @@ def test_grep_read_stub_never_calls_search_or_fetch():
 
 def test_doc_search_fetch_stub_walks_to_an_answer():
     units = _doc_units()
-    ex = StructuralExecutor(units).prewarm()
+    ex = build_lucene_bql(units)
     ws = _toolbox([SearchBql(name="search"), Fetch(name="fetch")], units, engines={"bql": ex})
     policy = KeywordPolicy(("search", "fetch"))
     traj = run_episode(policy, Task("t", "harbor festival history"), ws, units,
@@ -95,7 +97,7 @@ def test_doc_search_fetch_stub_walks_to_an_answer():
 
 def test_bm25_visit_stub_walks_to_an_answer():
     units = _doc_units()
-    engine = build_bm25_engine(units, "indexes", False, None)
+    engine = build_pyserini(units)
     ws = _toolbox([SearchBm25(name="bm25_search"), Visit(name="visit")], units,
                  engines={"bm25": engine})
     policy = KeywordPolicy(("bm25_search", "visit"))

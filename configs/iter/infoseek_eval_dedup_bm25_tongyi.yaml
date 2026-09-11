@@ -50,7 +50,6 @@ listing:
 
 # --- retrieval: engines and ranking
 retrieval:
-  bm25_backend: pyserini                 # local (pure Python) | pyserini (Lucene, Java 21+; paper)
   bm25_index: indexes/external/wiki25_512_lucene # prebuilt Lucene index directory for the pyserini backend; null = built under index_root
 
 # --- evaluation: scoring

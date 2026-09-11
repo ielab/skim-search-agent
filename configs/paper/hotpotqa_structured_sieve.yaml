@@ -45,7 +45,6 @@ budgets:
 
 # --- retrieval: engines and ranking
 retrieval:
-  structured_backend: lucene             # BQL/Indri executor: python (reference) | lucene (paper; needs the lucene_structured index)
   dense_model: null                      # the ONE dense model for every dense arm (ranker, fallback, baselines); null = BAAI/bge-base-en-v1.5 for documents; a directory trained by skimsearchagent-train-retriever works too
   dense_query_style: plain               # how the dense query is written from the agent's history: plain | mem | docs | i1..i7 (must match the trained retriever)
   dense_query_instruction: null          # override the query instruction prefix (null = the checkpoint's serving note or the built-in table)
@@ -57,7 +56,6 @@ retrieval:
   bql_soft_pool: 100                     # size of that fallback pool
   bql_date_range: true                   # typed date[RANGE] scopes in BQL
   bql_dense_rrf_k: 60                    # RRF constant for BQL dense fusion
-  bql_prefilter_min: 5000                # corpus size above which the BQL inverted-index prefilter is used
   ann: auto                              # vector index backend: auto | flat | hnsw | ivfpq
   ann_min: 1000000                       # corpus size above which an ANN index is used
   ann_pq_min: 8000000                    # corpus size above which IVF-PQ is used

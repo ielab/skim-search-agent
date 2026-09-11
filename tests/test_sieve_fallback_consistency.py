@@ -1,18 +1,22 @@
 """Sieve's ranking invariant: Boolean is for filtering only; ranking is the arm's model, and the
 0-hit fallback must rank with the same model over the same index as the exact path.
 
-* no dense belief attached  -> exact path and fallback both order by the persisted corpus BM25;
+* no dense belief attached  -> exact path and fallback both order by Lucene BM25;
 * dense belief attached (sieve) -> both order by RRF(BM25, dense) from the persisted embeddings;
-* dense-only executor (sieve_dense) -> both order purely by dense similarity.
+* dense-only adapter (sieve_dense) -> both order purely by dense similarity.
 
-The dense side is a stub that only exposes what `DenseBelief` exposes to the executor
-(`is_ready`, `top_k_doc_ids`, `score`) and counts encoder calls: nothing is encoded online for
-documents, and one search pass encodes the query once.
+Documents rank on Lucene, so the engines under test are `LuceneBqlAdapter` and
+`LuceneBqlDonlyAdapter` (built through `tests/lucene_support.py`). The dense side is a stub
+that only exposes what `DenseBelief` exposes to the adapter (`is_ready`, `top_k_doc_ids`,
+`score`) and counts encoder calls: nothing is encoded online for documents, and one search
+pass encodes the query once.
 """
 from agent_search.corpus.units import units_from_documents
-from agent_search.retrievers.bql.executor import (
-    DenseOnlyStructuralExecutor, StructuralExecutor)
+from agent_search.retrievers.bql.dense_fuse import rrf_fuse
 from agent_search.retrievers.bql.parser import parse
+from tests import lucene_support
+
+lucene_support.require_jvm()
 
 DOCS = [
     {"_id": "A", "title": "Alpha treaty", "text": "alpha alpha alpha treaty signed"},
@@ -49,34 +53,45 @@ class StubDense:
         return {d: self.sims[d] for d in ids if d in self.sims}
 
 
+def _units():
+    return units_from_documents(DOCS)
+
+
 def _executor(dense=None, dense_only=False):
-    ex = StructuralExecutor(units_from_documents(DOCS)).prewarm()
     if dense_only:
-        ex.__class__ = DenseOnlyStructuralExecutor
-    if dense is not None:
-        ex.attach_dense(dense)
-    return ex
+        return lucene_support.build_lucene_bql_dense_only(_units(), dense=dense)
+    return lucene_support.build_lucene_bql(_units(), dense=dense)
+
+
+def _dense_order(dense, pool):
+    """The stub's ranking restricted to `pool`, the way `dense_rank_for_candidates` sees it."""
+    return sorted(pool, key=lambda d: (-dense.sims[d], d))
 
 
 def test_without_dense_fallback_and_exact_path_share_the_bm25_ranker():
     ex = _executor()
     exact, n = ex.run_with_count(parse("alpha").expr, k=10)
-    assert n == 3 and [d for d, _ in exact] == ["A", "B", "E"]     # BM25: tf, then length
+    ids = [d for d, _ in exact]
+    assert n == 3 and set(ids) == {"A", "B", "E"}
+    assert ids[0] == "A"                                            # three occurrences plus the title
     soft = ex.soft_topk(["alpha"], k=10)
-    assert [d for d, _ in soft] == ["A", "B", "E"]                  # same order, same scorer
+    assert [d for d, _ in soft] == ids                              # same order, same scorer
     assert all(s > 0 for _, s in soft)
 
 
 def test_with_dense_the_fallback_uses_the_same_fused_ranker():
     dense = StubDense()
+    plain = [d for d, _ in _executor().run_with_count(parse("alpha").expr, k=10)[0]]
+    plain_soft = [d for d, _ in _executor().soft_topk(["alpha"], k=10)]
     ex = _executor(dense)
     exact, _ = ex.run_with_count(parse("alpha").expr, k=10)
-    assert [d for d, _ in exact] == ["B", "A", "E"]                 # RRF(bm25 [A,B,E], dense [B,E,A])
+    # the exact path: RRF of Lucene's BM25 order with the dense order over the same candidates
+    assert [d for d, _ in exact] == rrf_fuse(plain, _dense_order(dense, plain))
     soft = ex.soft_topk(["alpha"], k=10)
     ids = [d for d, _ in soft]
-    # the fallback pool is lexical-closest ∪ dense-nearest, fused by the SAME RRF rule:
-    # B and A keep the exact path's relative order, and C (dense-only neighbour) surfaces
-    assert ids[:2] == ["B", "A"]
+    # the fallback pool is lexical-closest plus dense-nearest, fused by the SAME RRF rule
+    pool = plain_soft + [d for d in dense.top_k_doc_ids("alpha") if d not in plain_soft]
+    assert ids == rrf_fuse(pool, _dense_order(dense, pool))
     assert "C" in ids and ids.index("C") < ids.index("D")           # dense-only neighbour ranks by the model
     assert dense.query_encodes == 1                                 # one encode per search pass
 
@@ -107,4 +122,6 @@ def test_coverage_fallback_for_a_single_constraint_follows_the_same_rule():
     dense = StubDense()
     ex = _executor(dense)
     rows = ex.coverage_topk(parse("alpha").expr, k=3)
-    assert [r[0] for r in rows][:2] == ["B", "A"]
+    soft = ex.soft_topk(["alpha"], k=3)
+    assert [r[0] for r in rows] == [d for d, _ in soft]             # the single-constraint path IS soft_topk
+    assert rows[0][0] == "B"                                        # the model's favourite among the lexical pool

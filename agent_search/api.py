@@ -83,7 +83,16 @@ def build_agent(strategy: str = DEFAULT_STRATEGY, *,
                                  temperature=temperature, seed=seed)
 
     if not cond.strategy.loop:
-        return ProcedureAgent(cond, generate, dense_model=dense, index_root=index_root, rebuild=rebuild)
+        if generate is None:
+            from agent_search.agent.policies import KeywordPolicy
+            policy_for = lambda member: KeywordPolicy(member.tool_names)  # noqa: E731
+        else:
+            from agent_search.agent.policies import AgentPolicy
+            gen = generate
+            policy_for = lambda member: AgentPolicy(generate=gen, system=member.render(profile))  # noqa: E731
+        return ProcedureAgent(cond, generate, policy_for=policy_for, max_steps=max_steps, dense_model=dense,
+                              index_root=index_root, rebuild=rebuild, field_profile=profile, model=model,
+                              api_base=api_base)
 
     if generate is None:
         from agent_search.agent.policies import KeywordPolicy
@@ -113,8 +122,9 @@ def research(question: str, docs: Iterable[Any], *, strategy: str = DEFAULT_STRA
              corpus_key: Optional[str] = None, k: int = 10, **agent_kwargs) -> ResearchResult:
     """Run one research episode over ``docs`` and return its answer, ranking, and record.
 
-    ``corpus_key`` names the corpus for persistent caches (BQL postings, dense embeddings)
-    under ``index_root``; leave it ``None`` to build everything in memory for this call."""
+    ``corpus_key`` names the corpus for its persistent indexes (Lucene BM25, the Lucene
+    structured index, dense embeddings) under ``index_root``; with ``None`` the key is derived
+    from the corpus content, so a second call over the same documents reuses the indexes."""
     units = as_units(docs)
     agent = build_agent(strategy, **agent_kwargs)
     agent.index(units, key=corpus_key)

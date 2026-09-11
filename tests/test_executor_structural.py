@@ -1,6 +1,9 @@
-"""The index-free structural executor (the method): Boolean + AST scope over live
-units, no index. These tests are the spec for matching semantics."""
+"""The in-memory structural executor for code repositories: Boolean + AST scope over live
+units, no index. These tests are the spec for matching semantics. The one document-corpus
+test (field scopes) runs on the Lucene BQL adapter, since documents never come here."""
 import os
+
+import pytest
 
 from agent_search.retrievers.bql.parser import parse
 from agent_search.retrievers.bql.executor import StructuralExecutor
@@ -123,6 +126,12 @@ def test_index_free_writes_nothing(tmp_path):
 
 
 def test_document_field_scope_title_body_section():
+    """Field scopes on a document corpus. Documents rank on Lucene, so this one test runs on
+    the Lucene BQL adapter; the exact fields tokenize letter runs only, so the body constraint
+    is a word, not the year."""
+    from tests.lucene_support import build_lucene_bql, jvm_available
+    if not jvm_available():
+        pytest.skip("needs a JVM")
     units = units_from_documents([
         {
             "doc_id": "d1",
@@ -137,16 +146,21 @@ def test_document_field_scope_title_body_section():
             "text": "The Treaty of Guadalupe Hidalgo is mentioned as context.",
         },
     ])
+    ex = build_lucene_bql(units)
 
-    assert _run("IN(title, hidalgo)", units) == ["d1"]
-    assert _run("IN(body, hidalgo)", units) == ["d2"]
-    assert _run("AND(IN(section, mexican), IN(body, 1848))", units) == ["d1"]
+    def run(q):
+        r = parse(q)
+        assert r.ok, r.error
+        return [d for d, _ in ex.run_with_count(r.expr)[0]]
+
+    assert run("IN(title, hidalgo)") == ["d1"]
+    assert run("IN(body, hidalgo)") == ["d2"]
+    assert run("AND(IN(section, mexican), IN(body, ended))") == ["d1"]
 
 
 def test_rerank_scorer_built_once_and_reused():
-    """The corpus-level BM25 reranker is built once and reused across queries —
-    the fix for the per-query re-index blowup (a broad query over a large corpus
-    used to re-tokenize the whole matched set every turn)."""
+    """The corpus-level BM25 reranker is built once and reused across queries. A broad
+    query over a large repository must not re-tokenize the matched set every turn."""
     ex = StructuralExecutor(_units())
     r1 = parse("make_token")
     assert r1.ok

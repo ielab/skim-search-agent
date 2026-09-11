@@ -408,7 +408,7 @@ ONESHOT = [("one-shot bm25", "bm25"), ("one-shot dense", "dense")]  # browsecomp
 # the same condition's executor; these knobs are set per RUN SUBDIR, not per condition name, which
 # is why e.g. "indri visit" and "indri+dense visit" share the same REGISTRY `cond` string), and
 # agent_search/retrievers/dense/belief.py (DENSE_MODEL env override for the
-# "qwen *" cells' embedder swap) / scripts/oneshot_rag.py (the one-shot baseline).
+# "qwen *" cells' embedder swap) / the rag_* strategies (the one-shot baseline).
 # A drift guard (tests/test_compare_cells.py) asserts this list's labels exactly match the
 # distinct labels in REGISTRY + ONESHOT, keep both in sync when either changes.
 LEGEND_CELLS = [

@@ -95,12 +95,10 @@ fi
 NUM_SHARDS="${NUM_SHARDS:-10}"
 MODEL="${MODEL:-Alibaba-NLP/Tongyi-DeepResearch-30B-A3B}"
 # BASE-CONFIG GUARD (2026-07-28): these knobs MUST match every published cell. shard_cell used to
-# rely on the submitting shell's env; when absent, code defaults (1200/local/python) silently
+# rely on the submitting shell's env; when absent, code defaults (1200) silently
 # produced incomparable cells. Now pinned here; override only for a deliberate variation.
 export MAX_VISIT_TOKENS="${MAX_VISIT_TOKENS:-12000}"
 export MAX_SECTION_TOKENS="${MAX_SECTION_TOKENS:-12000}"
-export BM25_BACKEND="${BM25_BACKEND:-pyserini}"
-export STRUCTURED_BACKEND="${STRUCTURED_BACKEND:-lucene}"
 DENSE_MODEL="${DENSE_MODEL:-}"
 TP="${TP:-1}"
 LEVEL="${LEVEL:-function}"
@@ -196,7 +194,7 @@ if [ -n "${SLURM_ARRAY_TASK_ID:-}" ]; then
   # concurrent-build path); safest of all: run scripts/build_indexes.sh once, un-sharded,
   # before the first shard_cell.sh submission for a new condition.
   if [ "${PREBUILD:-1}" != "0" ]; then
-    kinds=$("$PYTHON" -c "from agent_search.evaluation.build_indexes import prebuildable_for; print(' '.join(prebuildable_for('$CONDITION')))" 2>/dev/null || echo "")
+    kinds=$("$PYTHON" -c "from agent_search.evaluation.build_indexes import prebuildable_for; print(' '.join(prebuildable_for('$CONDITION', '$DATASET')))" 2>/dev/null || echo "")
     for kind in $kinds; do
       echo ">> [step 0] building persistent '$kind' index (once; skips if already built) ..."
       ( unset AGENT_SEARCH_DENSE_DEVICE
@@ -315,7 +313,7 @@ jid=$(sbatch --parsable --array=0-${n} --time="$JOB_TIME" \
   --cpus-per-task="$JOB_CPUS" --mem="$JOB_MEM" \
   --job-name="$JOB_NAME" \
   --output="$LOGDIR/%x-%A_%a.out" --error="$LOGDIR/%x-%A_%a.err" \
-  --export=ALL,MAX_VISIT_TOKENS=$MAX_VISIT_TOKENS,MAX_SECTION_TOKENS=$MAX_SECTION_TOKENS,BM25_BACKEND=$BM25_BACKEND,STRUCTURED_BACKEND=$STRUCTURED_BACKEND,DATASET=$DATASET,RUNS_DIR=$RUNS_DIR,CONDITION=$CONDITION,NUM_SHARDS=$NUM_SHARDS,MODEL=$MODEL,DENSE_MODEL=$DENSE_MODEL,TP=$TP,WORKERS=$WORKERS,LEVEL=$LEVEL,REPO_CACHE=$REPO_CACHE,INDEX_ROOT=$INDEX_ROOT,MAX_STEPS=$MAX_STEPS,SEEDS="$SEEDS",SEED=${SEED:-},TEMPERATURE=$TEMPERATURE,CORPUS_LIMIT=$CORPUS_LIMIT,PREBUILD=${PREBUILD:-1} \
+  --export=ALL,MAX_VISIT_TOKENS=$MAX_VISIT_TOKENS,MAX_SECTION_TOKENS=$MAX_SECTION_TOKENS,DATASET=$DATASET,RUNS_DIR=$RUNS_DIR,CONDITION=$CONDITION,NUM_SHARDS=$NUM_SHARDS,MODEL=$MODEL,DENSE_MODEL=$DENSE_MODEL,TP=$TP,WORKERS=$WORKERS,LEVEL=$LEVEL,REPO_CACHE=$REPO_CACHE,INDEX_ROOT=$INDEX_ROOT,MAX_STEPS=$MAX_STEPS,SEEDS="$SEEDS",SEED=${SEED:-},TEMPERATURE=$TEMPERATURE,CORPUS_LIMIT=$CORPUS_LIMIT,PREBUILD=${PREBUILD:-1} \
   scripts/shard_cell.sh)
 
 echo ">> submitted array ${jid}_[0-${n}] (qos=$QOS, ${JOB_MEM} mem, ${WORKERS} workers/shard)"

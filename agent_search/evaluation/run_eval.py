@@ -6,8 +6,8 @@ datasets are a retained, secondary arm that follows SweRank / LocAgent instead:
 function-level (or file-level) Acc@k plus Recall@k and MRR over the locations
 the gold patch edits.
 
-Runnable end-to-end with `--dataset doc_fixture --retriever bm25_local` (no deps),
-and on the cluster with a staged document corpus such as `browsecomp_plus`, or with
+Runnable end-to-end with `--dataset doc_fixture --retriever bm25_pyserini` (Java 21 and
+Pyserini), and on the cluster with a staged document corpus such as `browsecomp_plus`, or with
 `--dataset swebench_verified --retriever bm25_pyserini|dense` for the code arm.
 
 This module is the CLI entry point (`main`) plus explicit re-exports of the
@@ -119,7 +119,7 @@ def main() -> None:
                 f"unknown retriever(s) {bad}; choose from {sorted(_RETRIEVERS)}")
         return v
 
-    ap.add_argument("--retriever", default="bm25_local", type=_retriever_arg,
+    ap.add_argument("--retriever", default="bm25_pyserini", type=_retriever_arg,
                     help="one of %s; a comma list is allowed with --check-complete"
                          % sorted(_RETRIEVERS))
     ap.add_argument("--model", default=None, help="dense model id, or agent LLM model id")

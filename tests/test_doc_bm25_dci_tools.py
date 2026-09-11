@@ -2,18 +2,21 @@
 incrementally) paired with `bash`/`read` (Bash(bounded=True)/Read) rooted at a staging dir that
 holds only the retrieved docs.
 
-`bm25_search` replays the ranking of the same `BM25Local` engine `search_bm25` uses, so
+`bm25_search` ranks with the same Lucene BM25 engine (`BM25Pyserini`) `search_bm25` uses, so
 retrieval is byte-identical to research_bm25 for the same query/engine. `bash`/`read` are the
 DCI shell/read tools, but rooted at a staging dir that only ever grows with what has been
 retrieved; a doc outside the top-k is not on disk, so it cannot be grepped or read at all.
 Bounded is a filesystem fact, not a runtime check."""
 from agent_search.corpus.units import units_from_documents
-from agent_search.retrievers.lexical.bm25 import BM25Local
 from agent_search.tools.base import EpisodeState, ToolBox
 from agent_search.tools.bash.tool import Bash
 from agent_search.tools.read.tool import Read
 from agent_search.tools.search_bm25.tool import SearchBm25
 from agent_search.tools.search_bm25_dci.tool import SearchBm25Dci
+
+from tests import lucene_support
+
+lucene_support.require_jvm()
 
 # d_harbor and d_flat are strongly on-topic for "harbor festival"; d_outside shares NO
 # vocabulary with the query at all, so with k=1 it is reliably pushed out of the bm25 top-k —
@@ -33,7 +36,7 @@ def _units():
 
 
 def _engine():
-    return BM25Local().index(_units())
+    return lucene_support.build_pyserini(_units())
 
 
 def _toolbox(query="harbor festival annual event", topk=1, engine=None):
@@ -121,11 +124,11 @@ def test_in_topk_doc_is_greppable_and_readable():
 
 
 def test_wider_topk_admits_a_previously_excluded_doc():
-    """A query that scores ALL three docs (shares a term with each): topk=1 stages only
-    the top hit; topk=3 stages all three — proving the staged set tracks `topk`, not a
-    hardcoded exclusion. (bm25 never pads with zero-overlap docs regardless of k — see
-    ranking.BM25.search's `score > 0` filter — so the query must genuinely match all three,
-    unlike the harbor-only query used elsewhere in this file.)"""
+    """A query that matches ALL three docs (shares a term with each): topk=1 stages only
+    the top hit; topk=3 stages all three, proving the staged set tracks `topk`, not a
+    hardcoded exclusion. Lucene never pads with zero-overlap docs regardless of k, so the
+    query must genuinely match all three, unlike the harbor-only query used elsewhere in
+    this file."""
     query = "harbor festival particle physics event force"     # hits every doc a little
     narrow = _toolbox(query=query, topk=1)
     wide = _toolbox(query=query, topk=3)

@@ -2,7 +2,9 @@
 
 A strategy file lists the tools it takes (instances carrying their options and the name the
 model sees), which engines they need (the union of the tools' declarations), and whether it
-runs through the agent loop at all (one-shot RAG and the retrieval-only floors do not).
+runs through the agent loop at all. A strategy with no loop is a floor (`retriever=`, rank
+once) or a procedure (`procedure=`, a program from `agent_search.procedures`: one-shot RAG,
+or a team whose members are conditions run as agents).
 """
 from __future__ import annotations
 
@@ -25,7 +27,7 @@ class Strategy:
     sdk: bool = True                       # may run through the Agents-SDK driver
     extra_engines: tuple = ()              # engines a procedure needs beyond its tools
     retriever: Optional[str] = None        # loop=False: the registered retriever that IS the strategy (a floor)
-    procedure: Optional[object] = None     # loop=False: a callable(question, engines, model) -> answer text (RAG)
+    procedure: Optional[object] = None     # loop=False: a Procedure (agent_search.procedures): RAG, a team
 
     @property
     def engines(self) -> tuple:
@@ -37,6 +39,10 @@ class Strategy:
         for e in self.extra_engines:
             if e not in out:
                 out.append(e)
+        if self.procedure is not None:
+            for e in self.procedure.all_engines():
+                if e not in out:
+                    out.append(e)
         return tuple(out)
 
     @property

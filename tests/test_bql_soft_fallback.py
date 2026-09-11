@@ -1,16 +1,19 @@
-"""The Boolean sieve's soft-AND fallback: `StructuralExecutor.soft_topk` + `SearchBql.run`.
+"""The Boolean sieve's soft-AND fallback: `LuceneBqlAdapter.soft_topk` + `SearchBql.run`.
 
 A 0-exact-hit Boolean query degrades to a whole-corpus BM25 ranking over the query's own
 positive leaf terms, instead of just handing back a generic "loosen the query" hint. Exact
 AND is brittle under paraphrase/obfuscation, so the right doc is often lexically close but not
 an exact conjunctive match. The fallback is corpus-fair (BM25 over the agent's own terms only,
-no corpus-vocabulary peeking) and its hits are fetchable (last_hits/seen updated).
+no corpus-vocabulary peeking) and its hits are fetchable (last_hits/seen updated). Documents
+rank on Lucene, so the engine is the Lucene BQL adapter from `tests/lucene_support.py`.
 """
 from agent_search.corpus.units import units_from_documents
-from agent_search.retrievers.bql.executor import StructuralExecutor
 from agent_search.tools.base import EpisodeState, ToolBox
 from agent_search.tools.fetch.tool import Fetch
 from agent_search.tools.search_bql.tool import SearchBql
+from tests import lucene_support
+
+lucene_support.require_jvm()
 
 # ~30 docs, each built around ONE distinctive topic word repeated for a clear BM25 signal, so a
 # query on that word ranks its doc unambiguously first. d1/d2/d3 additionally carry `##`-style
@@ -41,7 +44,7 @@ def _units():
 
 
 def _ex():
-    return StructuralExecutor(_units())
+    return lucene_support.build_lucene_bql(_units())
 
 
 def _toolbox(units=None, executor=None):
@@ -53,7 +56,7 @@ def _toolbox(units=None, executor=None):
     return ToolBox([search, fetch], state)
 
 
-# --- StructuralExecutor.soft_topk -------------------------------------------------------------
+# --- LuceneBqlAdapter.soft_topk -------------------------------------------------------------
 
 def test_soft_topk_ranks_the_shared_term_doc_first():
     ex = _ex()

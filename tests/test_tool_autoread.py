@@ -7,8 +7,9 @@ every one of the top `AUTOREAD_TOPK` hits (capped at MAX_VISIT_TOKENS per doc, t
 `_cap_tokens` truncation and marker the whole-doc `visit` read uses). There is no visit/fetch
 tool in this condition; a search call is the read.
 
-CPU-only, no network: a real-but-tiny in-memory BM25Local, plus a subprocess for the
-import-time env-knob (AUTOREAD_TOPK) resolution.
+No network: a tiny Lucene BM25 index (`lucene_support.build_pyserini`, built once per
+corpus), plus a subprocess for the import-time env knobs (AUTOREAD_TOPK, MAX_VISIT_TOKENS).
+The subprocess opens the index the parent already built; it never builds one itself.
 """
 from __future__ import annotations
 
@@ -17,6 +18,10 @@ import os
 from agent_search.corpus.units import units_from_documents
 from agent_search.tools.base import EpisodeState, ToolBox
 from agent_search.tools.search_bm25.tool import SearchBm25
+
+from tests import lucene_support
+
+lucene_support.require_jvm()
 
 DOCS = [
     {"_id": "d_harbor", "title": "Harbor Festival",
@@ -47,8 +52,16 @@ def _serp_units():
 
 
 def _engine(units):
-    from agent_search.retrievers.lexical.bm25 import BM25Local
-    return BM25Local().index(units)
+    return lucene_support.build_pyserini(units)
+
+
+def _subprocess_engine_code(units) -> str:
+    """Python source that opens the Lucene index the parent built for `units` (no build in
+    the child), as `engine`."""
+    lucene_support.build_pyserini(units)
+    root, key = lucene_support.index_root(), lucene_support.corpus_key(units)
+    return ("from agent_search.retrievers.lexical.pyserini import BM25Pyserini\n"
+            f"engine = BM25Pyserini(index_root={root!r}).index(units, key={key!r})\n")
 
 
 def _toolbox(units):
@@ -116,17 +129,19 @@ def test_per_doc_text_is_truncated_at_max_visit_tokens_with_same_marker():
     import subprocess
     import sys as _sys
 
+    filler = " ".join(f"word{i}" for i in range(1500))
+    docs = [{"_id": "d00", "title": "Common Topic 0",
+             "text": f"common topic document number 0 {filler}"}]
     code = (
         "from agent_search.tools.base import EpisodeState, ToolBox\n"
         "from agent_search.tools.search_bm25.tool import SearchBm25\n"
-        "from agent_search.retrievers.lexical.bm25 import BM25Local\n"
         "from agent_search.corpus.units import units_from_documents\n"
         "filler = ' '.join(f'word{i}' for i in range(1500))\n"
         "docs = [{'_id': 'd00', 'title': 'Common Topic 0',\n"
         "         'text': f'common topic document number 0 {filler}'}]\n"
         "units = units_from_documents(docs)\n"
         "ubyid = {u.doc_id: u for u in units}\n"
-        "engine = BM25Local().index(units)\n"
+        + _subprocess_engine_code(units_from_documents(docs)) +
         "state = EpisodeState(question='q')\n"
         "search = SearchBm25(name='bm25_read_search', full_text=True).bind(state, units, ubyid, {'bm25': engine})\n"
         "box = ToolBox([search], state)\n"
@@ -186,17 +201,18 @@ def test_autoread_topk_env_default_five_and_env_three_in_a_fresh_process():
     import subprocess
     import sys as _sys
 
+    docs = [{"_id": f"d{i:02d}", "title": f"Common Topic {i}",
+             "text": f"common topic document number {i}"} for i in range(12)]
     code = (
         "from agent_search.tools.base import EpisodeState, ToolBox\n"
         "from agent_search.tools.search_bm25.tool import SearchBm25\n"
-        "from agent_search.retrievers.lexical.bm25 import BM25Local\n"
         "import agent_search.tools.budgets as b\n"
         "from agent_search.corpus.units import units_from_documents\n"
         "docs = [{'_id': f'd{i:02d}', 'title': f'Common Topic {i}',\n"
         "         'text': f'common topic document number {i}'} for i in range(12)]\n"
         "units = units_from_documents(docs)\n"
         "ubyid = {u.doc_id: u for u in units}\n"
-        "engine = BM25Local().index(units)\n"
+        + _subprocess_engine_code(units_from_documents(docs)) +
         "state = EpisodeState(question='q')\n"
         "search = SearchBm25(name='bm25_read_search', full_text=True).bind(state, units, ubyid, {'bm25': engine})\n"
         "box = ToolBox([search], state)\n"
@@ -244,12 +260,12 @@ def test_research_bm25_autoread_resolves_via_registry_as_bm25autoread_arm():
     assert not r.needs_files
 
 
-def test_bm25_autoread_workspace_builds_end_to_end(tmp_path):
+def test_bm25_autoread_workspace_builds_end_to_end():
     from agent_search.retrievers.registry import RetrieverConfig, build_factory
 
-    cfg = RetrieverConfig(policy="stub", index_root=str(tmp_path))
+    cfg = RetrieverConfig(policy="stub", index_root=lucene_support.index_root())
     r = build_factory("agent_research_bm25_autoread", cfg)()
-    r.index(_units(), key="bm25_autoread_test_corpus")
+    r.index(_units(), key=lucene_support.corpus_key(_units()))
     ws = r.toolbox("harbor festival annual event")
     assert ws.tools == ("bm25_read_search",)
     assert isinstance(ws["bm25_read_search"], SearchBm25)

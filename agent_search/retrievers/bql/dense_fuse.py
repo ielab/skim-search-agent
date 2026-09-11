@@ -55,7 +55,7 @@ resolves ties and reorders within "these docs satisfied the same number of const
 only as the graceful-degradation fallback when dense scoring is empty or unavailable). Everything
 else, the boolean/field/date filter, the coverage-tier structure, the "restricted to
 filter-passing candidates only" invariant, is identical to the RRF path. See
-`agent_search.retrievers.bql.executor.DenseOnlyStructuralExecutor`, which calls these
+`agent_search.retrievers.lucene.adapters.LuceneBqlDonlyAdapter`, which calls these
 instead of `fuse_ranked`/`fuse_coverage_tiers`."""
 from __future__ import annotations
 
@@ -74,7 +74,7 @@ def bql_dense_enabled() -> bool:
     `research_bql_dense_visit`/`research_bql_dense_snip`) attach a `DenseBelief`
     unconditionally through `Engines.bql_fused()` instead, so this function is not consulted
     for them at all. Recorded in `env_knobs` by `agent_search/evaluation/run_eval.py`,
-    alongside `STRUCTURED_BACKEND`/`BM25_BACKEND`/`INDRI_DENSE`."""
+    alongside `INDRI_DENSE`."""
     return os.environ.get("BQL_DENSE", "0").strip().lower() in ("1", "true", "yes")
 
 
@@ -175,8 +175,8 @@ def fuse_coverage_tiers(dense_belief, query_text: str, rows: Sequence[tuple]) ->
 # Candidate selection (the boolean/field/date filter) and, for the coverage path, the tier
 # structure (a doc can never cross a coverage-tier boundary) are completely untouched; only
 # the order within what the filter already selected changes. See
-# `agent_search.retrievers.bql.executor.DenseOnlyStructuralExecutor`, the sibling
-# executor that calls these instead of `fuse_ranked`/`fuse_coverage_tiers`.
+# `agent_search.retrievers.lucene.adapters.LuceneBqlDonlyAdapter`, the sibling adapter
+# that calls these instead of `fuse_ranked`/`fuse_coverage_tiers`.
 
 def fuse_ranked_dense_only(dense_belief, query_text: str,
                            bm25_ranked: Sequence[tuple]) -> list:

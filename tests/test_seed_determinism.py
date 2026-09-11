@@ -20,6 +20,9 @@ from agent_search.evaluation.config import (
     RunConfig,
     results_dir_for,
 )
+from tests.lucene_support import require_jvm
+
+require_jvm()
 
 
 def test_retriever_config_carries_seed_and_temperature():
@@ -93,18 +96,22 @@ def test_run_dir_has_no_seed_segment_seed_lives_in_config_json_instead():
 
     floor = RunConfig(
         dataset=DatasetArgs(name="fixture"),
-        retriever=RetrieverArgs(name="bm25_local"),
+        retriever=RetrieverArgs(name="bm25_pyserini"),
     )
     assert not any(p.startswith("seed=") for p in os.path.basename(results_dir_for(floor)).split("__"))
 
 
 def _run_seed(seed, runs_dir=None, results_dir=None):
+    from agent_search.evaluation.build_indexes import build
     from agent_search.evaluation.datasets import load_dataset_by_name
     from agent_search.evaluation.run_eval import evaluate, make_factory_from_config
 
     output = OutputArgs(runs_dir=runs_dir) if runs_dir else OutputArgs(results_dir=results_dir)
-    # index caches go next to the run output — never into the working directory
+    # index caches go next to the run output, never into the working directory; the doc run
+    # opens a prebuilt Lucene structured index there, so build the fixture's index first.
     index_root = os.path.join(runs_dir or os.path.dirname(results_dir), "idx")
+    build(load_dataset_by_name("browsecomp_plus_fixture"), index_root=index_root,
+          retriever="search_lucene", progress=False)
     config = RunConfig(
         dataset=DatasetArgs(name="browsecomp_plus_fixture"),
         retriever=RetrieverArgs(name="agent_research_snip", index_root=index_root),

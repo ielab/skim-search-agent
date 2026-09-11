@@ -45,13 +45,11 @@ budgets:
 
 # --- retrieval: engines and ranking
 retrieval:
-  structured_backend: python # BQL/Indri executor: python (reference) | lucene (paper; needs the lucene_structured index)
   bql_soft_fallback: true                # rank the closest docs (same ranker) when a Boolean query matches nothing; false = strict-Boolean ablation
   bql_soft_pool: 100                     # size of that fallback pool
   bql_date_range: true                   # typed date[RANGE] scopes in BQL
   bql_dense: false                       # retrofit dense fusion onto the plain BQL arms (the sieve family attaches it regardless)
   bql_dense_rrf_k: 60                    # RRF constant for BQL dense fusion
-  bql_prefilter_min: 5000                # corpus size above which the BQL inverted-index prefilter is used
 
 # --- evaluation: scoring
 evaluation:

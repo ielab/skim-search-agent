@@ -58,7 +58,7 @@ _META_KEYS = ("instance_id", "n_gold", "n_retrieved", "skipped",
 # (b) persistent-index code retrievers that may hit the same repo@commit. (a) is
 # general (no name check); (b) is a small declared allowlist a new persistent retriever
 # can join, not a correctness gate, just a speedup, so a new method still works without it.
-_REUSABLE_INDEX_RETRIEVERS = {"bm25_local", "bm25_pyserini"}
+_REUSABLE_INDEX_RETRIEVERS = {"bm25_pyserini"}
 
 
 def _should_reuse_index(retriever_name: str, instances: Sequence) -> bool:

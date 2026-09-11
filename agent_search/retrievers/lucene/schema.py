@@ -6,10 +6,8 @@
 One Lucene `Document` per `CodeUnit`: one per corpus document for the
 `browsecomp_plus_structured`/`hotpotqa_structured`/... datasets this backend targets
 (`agent_search.evaluation.datasets`'s `units_from_documents` already maps one input JSONL row to
-one `CodeUnit`, with no chunking; see its module docstring). This matches how both
-Python reference engines score: `indri.model.IndriExecutor` and
-`bql.executor.StructuralExecutor` both treat one `CodeUnit` as one scorable and
-matchable entity, with `sections` (the structured corpus's ordered
+one `CodeUnit`, with no chunking; see its module docstring). One `CodeUnit` is one scorable
+and matchable entity, with `sections` (the structured corpus's ordered
 `[{heading, text}, ...]` list) folded into a single joined `section` string field on
 that unit, not split into separate child documents. Modeling `sections` as Lucene
 child docs (`IndexWriter` block-join `addDocuments(List<Document>)`) would require

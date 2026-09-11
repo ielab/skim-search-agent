@@ -49,7 +49,6 @@ listing:
 
 # --- retrieval: engines and ranking
 retrieval:
-  bm25_backend: pyserini                 # local (pure Python) | pyserini (Lucene, Java 21+; paper)
   bm25_index: null                       # prebuilt Lucene index directory for the pyserini backend; null = built under index_root
 
 # --- evaluation: scoring

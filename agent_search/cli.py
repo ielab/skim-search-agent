@@ -11,7 +11,7 @@ If ``model`` is given the agent policy defaults to ``llm``; without it the depen
 scripted policy runs. Every other ``key=value`` is forwarded to
 ``agent_search.evaluation.run_eval`` as ``--key value``; boolean flags take ``true``/``false``.
 
-Environment knobs (``snippet_tokens=64``, ``max_visit_tokens=12000``, ``structured_backend=lucene``,
+Environment knobs (``snippet_tokens=64``, ``max_visit_tokens=12000``, ``lucene_mu=2500``,
 ...; the full list is ``ENV_KNOBS`` / docs/CONFIGURATION.md) are exported as environment
 variables before the harness is imported, so a sweep is written like any other argument and every
 knob lands in the run's ``config.json``.
@@ -38,16 +38,17 @@ ENV_KNOBS = (
     # method switches
     "bql_soft_fallback", "bql_dense", "bql_dense_rrf_k", "bql_date_range", "rrf_k",
     "hybrid_retrievers", "hybrid_fusion", "hybrid_weights",
-    "indri_dense", "indri_dense_w", "indri_dense_expand_k", "indri_mu", "indri_pool_cap",
-    "indri_rescore_m", "lucene_mu",
+    "rerank_visit_topk", "rerank_fetch_topk", "rerank_base", "rerank_method", "rerank_model", "rerank_pool",
+    "rerank_batch_size", "rerank_max_length",
+    "indri_dense", "indri_dense_w", "indri_dense_expand_k", "lucene_mu",
     # engine selection / models
-    "structured_backend", "bm25_backend", "dense_model", "dense_query_style", "dense_query_instruction", "dense_pooling", "dense_dtype",
+    "dense_model", "dense_query_style", "dense_query_instruction", "dense_pooling", "dense_dtype",
     "dense_index", "ann_ef_search", "bm25_index",
     "agent_driver", "reasoning_effort",
     "agent_default_condition", "vllm_api_base", "skimsearchagent_plugins",
     # index building / search backends
     "agent_search_ann", "agent_search_ann_min", "agent_search_ann_pq_min",
-    "agent_search_flat_faiss", "agent_search_dense_device", "agent_search_bql_prefilter_min",
+    "agent_search_flat_faiss", "agent_search_dense_device",
     "agent_search_data", "agent_search_dci_cache", "bm25_pyserini_threads", "bm25_pyserini_store_raw",
     "lucene_index_threads", "lucene_index_ram_mb",
     # model client

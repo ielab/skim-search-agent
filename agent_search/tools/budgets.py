@@ -6,7 +6,7 @@ counter these budgets are measured in; nothing here is a character cap.
 """
 import os
 
-# listing-snippet width, in whitespace tokens (best_line/opening_line in common.py)
+# listing-snippet width, in whitespace tokens (agent_search/snippets)
 SNIPPET_TOKENS = int(os.environ.get("SNIPPET_TOKENS", "32"))
 # whole-doc visit/autoread read cap, in tokens
 MAX_VISIT_TOKENS = int(os.environ.get("MAX_VISIT_TOKENS", "12000"))
@@ -33,3 +33,5 @@ HYBRID_POOL = int(os.environ.get("HYBRID_POOL", "100"))
 HYBRID_VISIT_TOPK = int(os.environ.get("HYBRID_VISIT_TOPK", "5"))
 # search_hybrid's post-fusion retrieval pool size when structure=True (the search_fetch_hybrid strategy)
 HYBRID_FETCH_TOPK = int(os.environ.get("HYBRID_FETCH_TOPK", "10"))
+RERANK_VISIT_TOPK = int(os.environ.get("RERANK_VISIT_TOPK", "5"))
+RERANK_FETCH_TOPK = int(os.environ.get("RERANK_FETCH_TOPK", "10"))

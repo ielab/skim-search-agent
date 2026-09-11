@@ -12,11 +12,24 @@ from agent_search import experiment as X
 from agent_search.evaluation.datasets import available_datasets
 from agent_search.retrievers.registry import available
 from agent_search.strategies.names import resolve_strategy
+from tests.lucene_support import require_jvm
+
+require_jvm()
 
 REPO = Path(__file__).resolve().parent.parent
 SHIPPED = sorted((REPO / "configs").rglob("*.yaml"))
 # training files (skimsearchagent-train-retriever) share the directory but are not experiment files
 SHIPPED = [p for p in SHIPPED if "strategy" in yaml.safe_load(p.read_text())]
+
+# retrieval keys the library no longer has; a shipped file that still carries one fails to
+# validate, and the fix is in configs/, not in this test.
+def _prebuild_lucene(dataset: str, index_root: str) -> None:
+    """A document run opens a prebuilt Lucene structured index under `index_root`; build
+    the fixture's index there, as `skimsearchagent-build-indexes` does before a real run."""
+    from agent_search.evaluation.build_indexes import build
+    from agent_search.evaluation.datasets import load_dataset_by_name
+    build(load_dataset_by_name(dataset), index_root=index_root, retriever="search_lucene",
+          progress=False)
 
 
 def test_template_is_complete_and_round_trips():
@@ -30,26 +43,24 @@ def test_template_is_complete_and_round_trips():
     X.validate(paper, complete=True)
     assert paper["agent"]["max_steps"] == 100 and paper["budgets"]["max_section_tokens"] == 12000
     assert yaml.safe_load(X.template("paper", "search_visit"))["budgets"]["max_visit_tokens"] == 12000
-    assert paper["retrieval"]["structured_backend"] == "lucene"
-    assert yaml.safe_load(X.template("paper", "search_visit"))["retrieval"]["bm25_backend"] == "pyserini"
 
 
 def test_files_are_scoped_to_what_the_strategy_reads():
     sv = yaml.safe_load(X.template(None, "search_visit"))
     assert set(sv["listing"]) == {"bm25_visit_topk"}          # no bm25_fetch_topk in a search_visit file
-    assert "dense_model" not in sv["retrieval"] and "bm25_backend" in sv["retrieval"]
+    assert "dense_model" not in sv["retrieval"] and "bm25_index" in sv["retrieval"]
     X.validate(sv, complete=True)
     dd = yaml.safe_load(X.template(None, "dedup_dense"))
     assert set(dd["listing"]) == {"dedup_topk", "dedup_pool_k"}
-    assert "dense_index" in dd["retrieval"] and "bm25_backend" not in dd["retrieval"]
+    assert "dense_index" in dd["retrieval"] and "bm25_index" not in dd["retrieval"]
     code = yaml.safe_load(X.template(None, "codefix"))
     assert "listing" not in code and "repo_cache" in code["output"]
     # a key the strategy does not read is accepted, reported, and never required
     sv["listing"]["bm25_fetch_topk"] = 10
     X.validate(sv, complete=True)
     assert X.unused_keys(sv) == ["listing.bm25_fetch_topk"]
-    del sv["retrieval"]["bm25_backend"]
-    with pytest.raises(X.ExperimentError, match="bm25_backend"):
+    del sv["retrieval"]["bm25_index"]
+    with pytest.raises(X.ExperimentError, match="bm25_index"):
         X.validate(sv, complete=True)
     # plugin strategies (unknown names) read everything
     assert X.applies("listing", "bm25_fetch_topk", "my_plugin_strategy")
@@ -90,7 +101,7 @@ def test_translation_to_flags_and_env():
     assert args[args.index("--seeds") + 1] == "0,1" and "--seed" not in args
     assert "--rebuild" in args and "--rejudge" not in args
     assert args[args.index("--k") + 1:args.index("--k") + 5] == ["1", "3", "5", "10"]
-    assert env["MAX_VISIT_TOKENS"] == "12000" and env["STRUCTURED_BACKEND"] == "lucene"
+    assert env["MAX_VISIT_TOKENS"] == "12000" and "STRUCTURED_BACKEND" not in env
     assert env["BQL_SOFT_FALLBACK"] == "1" and env["BQL_DENSE"] == "0"
     assert env["MY_KNOB"] == "7"
     # the stub policy is chosen when no model is named
@@ -114,12 +125,15 @@ def test_overrides_dotted_and_unique_bare_keys():
 
 
 def test_requirements_are_spelled_out():
-    exp = X.from_dict(X.defaults("paper"))
+    exp = X.from_dict(X.defaults("paper"))            # the dense-fused sieve
     notes = " ".join(X.requirements(exp))
-    assert "dense embedding cache" in notes and "Lucene" in notes and "Pyserini" in notes
+    assert "dense embedding cache" in notes and "Lucene structured index" in notes and "Java 21" in notes
+    bm25 = X.from_dict(X.defaults("paper", "search_visit"))
+    assert "Pyserini" in " ".join(X.requirements(bm25))
 
 
 def test_run_from_file_end_to_end_records_the_experiment(tmp_path):
+    _prebuild_lucene("doc_fixture", str(tmp_path / "idx"))
     rc = cli.main(["run", str(REPO / "configs" / "smoke_doc_fixture_sieve_bm25.yaml"),
                    f"output.runs_dir={tmp_path / 'runs'}", f"output.index_root={tmp_path / 'idx'}"])
     assert rc == 0

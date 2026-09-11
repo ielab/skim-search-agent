@@ -41,7 +41,7 @@ The sections of a file:
 | `agent` | `max_steps`, `prompt_profile`, `ctx_tokens`, `ctx_window`, `ctx_stop_frac` |
 | `budgets` | every length budget: `snippet_tokens`, `max_visit_tokens`, `max_section_tokens`, `bash_max_tokens`, `read_max_line_tokens`, `grep_line_tokens`, `closer_evidence_*_tokens` |
 | `listing` | how many results a search shows: `*_topk`, `hybrid_pool`, `dedup_pool_k` |
-| `retrieval` | which engines and models: `bm25_backend`, `bm25_index`, `structured_backend`, `dense_model`, `dense_query_style`, `dense_query_instruction`, `dense_pooling`, `dense_dtype`, `dense_index`, the `bql_*`, `rrf_k`, `indri_*`, `lucene_mu`, `ann*` and `dense_device` knobs |
+| `retrieval` | which engines and models: `bm25_index`, `dense_model`, `dense_query_style`, `dense_query_instruction`, `dense_pooling`, `dense_dtype`, `dense_index`, the `bql_*`, `rrf_k`, `indri_*`, `lucene_mu`, `ann*` and `dense_device` knobs |
 | `evaluation` | `level`, `k`, `workers`, `judge_model`, `judge_api_base`, `rejudge` |
 | `output` | `runs_dir`, `results_dir`, `index_root`, `rebuild`, `allow_config_drift`, `repo_cache`, `allow_clone` |
 | `env` | any other environment variable, exported as is |
@@ -111,6 +111,7 @@ same source as this page.
 | `search_visit` | `agent_research_bm25` | no | search, then read whole documents; BM25 |
 | `search_visit_dense` | `agent_research_dense` | yes | the same with a dense ranker |
 | `search_visit_hybrid` | `agent_research_hybrid` | yes | the same with BM25 and dense fused by RRF |
+| `search_visit_reranked` | `agent_search_visit_reranked` | if `rerank_base` is dense | the same with the base retriever's pool reordered by a reranker |
 | `autoread` | `agent_research_bm25_autoread` | no | every search returns full documents; BM25 |
 | `autoread_dense` | `agent_research_dense_autoread` | yes | the same with a dense ranker |
 | `dci` | `agent_research_dci` | no | shell commands over exported files, no retriever |
@@ -126,7 +127,9 @@ same source as this page.
 | `dedup_bm25` | `agent_research_dedup_bm25` | no | ITER's tools: search that hides documents shown before, `get_document` by id; BM25 |
 | `dedup_dense` | `agent_research_dedup_dense` | yes | the same with the run's dense model |
 | `codefix`, `codefix_grep`, `codefix_patch` | `agent_codefix*` | no | code localization over a repository |
-| `bm25`, `bm25_lucene` | `bm25_local`, `bm25_pyserini` | no | rank once, no agent |
+| `plan_and_search`, `plan_and_search_visit` | `agent_plan_and_search*` | no | a planner, one member agent per sub-question (`sieve_bm25` or `search_visit`), a synthesizer |
+| `bm25` | `bm25_pyserini` | no | rank once with Lucene BM25, no agent |
+| `reranked` | `reranked` | if `rerank_base` is dense | rank once with a retriever, reorder its pool with a reranker |
 
 "Needs a dense cache" means the corpus must be embedded once
 (`skimsearchagent-build-indexes --dataset <name> --retriever dense --model <model>`) or a
@@ -139,7 +142,7 @@ prebuilt index named (`retrieval.dense_index`). Nothing is embedded during a run
 | flag | default | what it does |
 |---|---|---|
 | `--dataset` | `fixture` | a registered dataset |
-| `--retriever` | `bm25_local` | a registered retriever (the strategy's registered name) |
+| `--retriever` | `bm25_pyserini` | a registered retriever (the strategy's registered name) |
 | `--model` | none | the agent's model, or the dense model for a retrieval-only run |
 | `--dense-model` | by domain | the embedding model every dense arm uses |
 | `--domain` | by dataset | `code` or `general`; picks the prompts and the default embedder |
@@ -255,14 +258,17 @@ handles that for you.
 | `HYBRID_RETRIEVERS` | `bm25,dense` | the retrievers a hybrid fuses: comma-separated engine kinds (`bm25`, `dense`, `bql`, `indri`) | `agent_search/retrievers/hybrid.py` |
 | `HYBRID_FUSION` | `rrf` | how a hybrid fuses them: `rrf` (ranks) or `interpolation` (min-max normalised scores) | `agent_search/retrievers/hybrid.py` |
 | `HYBRID_WEIGHTS` | equal | interpolation weights, comma-separated floats, one per retriever | `agent_search/retrievers/hybrid.py` |
-| `AGENT_SEARCH_BQL_PREFILTER_MIN` | 5000 | corpus size above which BQL narrows a scan with an inverted index first; speed only (before import) | `agent_search/retrievers/bql/executor.py` |
+| `RERANK_BASE` | `bm25` | the retriever whose pool a reranker reorders (`bm25`, `dense`, `hybrid`, `bql`, `indri`) | `agent_search/retrievers/reranked.py` |
+| `RERANK_METHOD` | `cross_encoder` | the reranker (`agent_search/retrievers/rerankers/`, one file per method) | `agent_search/retrievers/reranked.py` |
+| `RERANK_MODEL` | `BAAI/bge-reranker-v2-m3` | the reranker model id or local directory | `agent_search/retrievers/rerankers/cross_encoder.py` |
+| `RERANK_POOL` | 100 | candidates taken from the base retriever before reranking | `agent_search/retrievers/reranked.py` |
+| `RERANK_BATCH_SIZE` | 32 | pairs scored per forward pass | `agent_search/retrievers/rerankers/cross_encoder.py` |
+| `RERANK_MAX_LENGTH` | 512 | tokens per (query, document) pair the reranker reads | `agent_search/retrievers/rerankers/cross_encoder.py` |
+| `RERANK_VISIT_TOPK` | 5 | results per search after reranking, `search_visit_reranked` (before import) | `agent_search/tools/budgets.py` |
 | `INDRI_DENSE` | 0 | attach the dense model to the Indri arm | `agent_search/retrievers/engines.py` |
-| `INDRI_DENSE_W` | 0.35 | weight of the dense score in Indri's ranking | `agent_search/retrievers/indri/model.py` |
-| `INDRI_DENSE_EXPAND_K` | 50 | dense neighbours added to Indri's candidate pool | `agent_search/retrievers/indri/model.py` |
-| `INDRI_MU` | 2500 | Dirichlet smoothing for Indri (before import) | `agent_search/retrievers/indri/model.py` |
-| `LUCENE_MU` | `INDRI_MU` | the same for the Lucene structural engine | `agent_search/retrievers/lucene/engine.py` |
-| `INDRI_POOL_CAP` | 5000 | Indri's candidate pool size (before import) | `agent_search/retrievers/indri/model.py` |
-| `INDRI_RESCORE_M` | 300 | how many candidates Indri rescores in its second stage | `agent_search/retrievers/indri/model.py` |
+| `INDRI_DENSE_W` | 0.35 | weight of the dense score in Indri's ranking | `agent_search/retrievers/lucene/adapters.py` |
+| `INDRI_DENSE_EXPAND_K` | 50 | hits Lucene returns for the dense rerank pool of Indri | `agent_search/retrievers/lucene/adapters.py` |
+| `LUCENE_MU` | 2500 | Dirichlet smoothing of the Indri scorer (`INDRI_MU` is read as a fallback) | `agent_search/retrievers/lucene/engine.py` |
 | `DENSE_QUERY_STYLE` | `plain` | how the dense query is written from the agent's history (`plain`, `mem`, `docs`, `i1` to `i7`); must match the trained retriever | `agent_search/training/history.py` |
 | `DENSE_QUERY_INSTRUCTION` | unset | the query instruction prefix; unset means the checkpoint's serving note or the built-in table | `agent_search/retrievers/dense/base.py` |
 | `DENSE_POOLING` | unset | `last_token`, `mean` or `cls` for a checkpoint without a sentence-transformers config; unset means the serving note, then a guess from the model type | `agent_search/retrievers/dense/base.py` |
@@ -270,7 +276,7 @@ handles that for you.
 | `DENSE_INDEX_PATH` | unset | a prebuilt vector index to serve instead of the per-corpus cache (this library's cache directory, or ITER's `index.faiss` plus `index.lookup.pkl`); required for an on-disk corpus | `agent_search/retrievers/dense/base.py` |
 | `AGENT_SEARCH_ANN_EF_SEARCH` | 0 | HNSW `efSearch` for a prebuilt index; 0 keeps the built-in value | `agent_search/retrievers/dense/vector_index.py` |
 | `AGENT_SEARCH_FAISS_MMAP` | unset | `1` memory-maps a prebuilt FAISS index instead of reading it into RAM | `agent_search/retrievers/dense/vector_index.py` |
-| `BM25_INDEX_PATH` | unset | a prebuilt Lucene index for the pyserini backend; required for an on-disk corpus | `agent_search/retrievers/lexical/pyserini.py` |
+| `BM25_INDEX_PATH` | unset | a prebuilt Lucene BM25 index to open instead of building one; required for an on-disk corpus | `agent_search/retrievers/lexical/pyserini.py` |
 | `AGENT_SEARCH_DOCSTORE` | unset | `1` serves a topics-layout corpus from disk whatever its size | `agent_search/evaluation/datasets/topics.py` |
 | `AGENT_SEARCH_DOCSTORE_MIN_BYTES` | 1 GiB | corpus size above which the loader serves it from disk (before import) | `agent_search/evaluation/datasets/topics.py` |
 
@@ -278,8 +284,6 @@ handles that for you.
 
 | knob | default | what it does | read by |
 |---|---|---|---|
-| `STRUCTURED_BACKEND` | `python` | the structural engine behind BQL and Indri: `python` or `lucene` (needs a prebuilt `indexes/lucene_structured/<key>/` and Java 21) | `agent_search/retrievers/backend.py` |
-| `BM25_BACKEND` | `local` | the BM25 engine: `local` (in memory, no dependencies) or `pyserini` (Lucene, persisted; the paper's) | `agent_search/retrievers/lexical/__init__.py` |
 | `DENSE_MODEL` | `BAAI/bge-base-en-v1.5` | the dense model for general-domain runs when the file names none; code datasets keep `nomic-ai/CodeRankEmbed` | `agent_search/evaluation/datasets/base.py` |
 | `AGENT_SEARCH_ANN` | `auto` | vector index type: `flat`, `hnsw`, `ivfpq`, or `auto` by corpus size | `agent_search/retrievers/dense/vector_index.py` |
 | `AGENT_SEARCH_ANN_MIN` | 1,000,000 | corpus size at which `auto` picks HNSW | `agent_search/retrievers/dense/vector_index.py` |
@@ -331,8 +335,6 @@ paper sets:
 | `budgets.max_visit_tokens`, `budgets.max_section_tokens` | 12000 | 12000 |
 | `budgets.snippet_tokens` | 32 | 32 |
 | results per search | 5 | 5 |
-| `retrieval.bm25_backend` | `pyserini` | `local` |
-| `retrieval.structured_backend` | `lucene` | `python` |
 | `retrieval.bql_soft_fallback` | 1 | 1 (the strict-Boolean ablation sets 0) |
 | `model.temperature`, `model.seed` | 0.6, 42 | 0.6, 42 |
 

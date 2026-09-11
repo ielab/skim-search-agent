@@ -22,24 +22,16 @@ in-memory units and never reads them back out of the index; see `_index_threads`
 `_store_raw`. The searcher memory-maps the index (Lucene MMapDirectory) and sets BM25
 params once at construction.
 
-`bm25_local` is the dependency-free approximation; use this for headline numbers.
+This is the BM25 engine `build_bm25_engine` (`lexical/__init__.py`) returns for every corpus,
+documents and code repositories alike, so every tool that declares `"bm25"` in its `engines`
+tuple and the `bm25` floor rank with canonical Lucene BM25 (Porter stemming and stopwords,
+k1=0.9/b=0.4). The library keeps no in-memory BM25 for documents: an identifier-splitting
+tokenizer without stemming diverges badly from Lucene on prose (a top-5 Jaccard of about
+0.55 on browsecomp_plus between the two), and a Python scorer over a corpus of tens of
+thousands of documents costs seconds per query.
 
-This is also the BM25 engine `build_bm25_engine` (`lexical/__init__.py`) returns when env
-`BM25_BACKEND=pyserini` (default `local`), instead of `BM25Local`. `agent_search.retrievers.
-engines.Engines.bm25` calls that resolution once per corpus, so every tool that declares
-`"bm25"` in its `engines` tuple gets this engine under that env setting. Wired in because
-`BM25Local`'s dependency-free analyzer (`agent_search.corpus.units.code_tokenize`,
-identifier-aware camelCase/snake_case splitting with no stemming) diverges badly from
-canonical Lucene BM25 (Porter stemming and stopwords, k1=0.9/b=0.4) on prose corpora: an
-empirical top-5 Jaccard of ~0.546 on browsecomp_plus between the two engines' rankings for
-the same query/corpus (see `tests/test_pyserini_backend.py`'s
-`test_agreement_pinned_within_tolerance_band`, which pins this divergence with a tolerance
-band so analyzer drift is caught). `BM25_BACKEND=pyserini` makes every reported bm25 number
-canonical Lucene, not the approximation.
-
-The `search(query, k) -> list[str]` interface matches `BM25Local.search` (see `bm25.py`), so
-this class is a drop-in BM25 engine for any tool built on that interface, with no change to
-that tool's rendering, which only ever consumes the returned doc_id list.
+`search(query, k) -> list[str]` and `search_scored(query, k) -> [(doc_id, score)]` are the
+whole interface; a tool only ever consumes the returned ids.
 
 Thread safety: `LuceneSearcher` wraps Anserini's `SimpleSearcher` via pyjnius (`jnius`), which
 attaches each calling Python thread to the JVM transparently, verified empirically (500-doc
@@ -128,7 +120,7 @@ def _index_threads() -> int:
 def _store_raw() -> bool:
     """Whether to also store positions/docvectors/raw contents in the Lucene index.
     Off by default: the tool layer maps returned doc_ids back to its own in-memory units
-    for all rendering (listings, best_line excerpts, whole-doc visits), so nothing ever
+    for all rendering (listings, snippet excerpts, whole-doc visits), so nothing ever
     reads a stored field back out of this index; storing them roughly triples the index
     size for no consumer and slows the build. Env `BM25_PYSERINI_STORE_RAW=1` restores the
     full-fidelity flags (positions + docvectors + raw) for ad-hoc debugging (e.g. inspecting

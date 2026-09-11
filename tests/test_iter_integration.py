@@ -1,5 +1,6 @@
 """ITER's setup inside the library: the dedup search strategy, answer-only datasets, the on-disk
-corpus path with prebuilt indexes, pooling auto-detection, and the retriever-only evaluation."""
+corpus path with prebuilt indexes, pooling auto-detection, and the retriever-only evaluation.
+The end-to-end runs build a Lucene BM25 index, so the module needs a JVM."""
 from __future__ import annotations
 
 import json
@@ -17,6 +18,10 @@ from agent_search.evaluation import datasets as DS
 from agent_search.tools.base import EpisodeState, ToolBox
 from agent_search.tools.get_document.tool import GetDocument
 from agent_search.tools.search_dedup.tool import SearchDedup
+
+from tests import lucene_support
+
+lucene_support.require_jvm()
 
 REPO = Path(__file__).resolve().parents[1]
 
@@ -192,10 +197,12 @@ def test_lazy_corpus_with_external_faiss_index_never_materialises_units(tmp_path
                         index_root=str(tmp_path / "idx2"))
     ar.index(units, key="wiki")
     assert ar._units is units and ar._ubyid is units.by_id
-    assert ar._doc_text("2").startswith("Mexican-American War")
+    assert ar._ubyid["2"].title.startswith("Mexican-American War")
 
 
-def test_in_memory_engines_refuse_a_lazy_corpus(tmp_path, monkeypatch):
+def test_engines_refuse_a_lazy_corpus_without_a_prebuilt_index(tmp_path, monkeypatch):
+    """A docstore corpus is never indexed during a run: BM25 needs `BM25_INDEX_PATH` and the
+    dense engine needs `DENSE_INDEX_PATH`, and each says so."""
     from agent_search.errors import SetupError
     from agent_search.retrievers.dense import DenseRetriever
     from agent_search.retrievers.lexical import build_bm25_engine
@@ -203,7 +210,7 @@ def test_in_memory_engines_refuse_a_lazy_corpus(tmp_path, monkeypatch):
     p.write_text(json.dumps({"docid": "1", "text": "a\nb"}) + "\n")
     units = LazyUnits(JsonlDocStore(str(p)))
     monkeypatch.delenv("DENSE_INDEX_PATH", raising=False)
-    monkeypatch.delenv("BM25_BACKEND", raising=False)
+    monkeypatch.delenv("BM25_INDEX_PATH", raising=False)
     with pytest.raises(SetupError, match="BM25_INDEX_PATH"):
         build_bm25_engine(units, key="x")
     with pytest.raises(SetupError, match="DENSE_INDEX_PATH"):
@@ -258,27 +265,20 @@ def test_retriever_eval_subset_corpus(tmp_path):
 def test_docstore_corpus_runs_through_the_harness_with_a_prebuilt_lucene_index(tmp_path, monkeypatch):
     """The whole on-disk path: a corpus forced onto the docstore, a prebuilt Lucene index named by
     BM25_INDEX_PATH, the dedup_bm25 strategy with the stub policy, answer-only scoring."""
-    pytest.importorskip("pyserini")
-    from agent_search.retrievers.lexical.pyserini import BM25Pyserini
     root = tmp_path / "tiny_disk"; root.mkdir(); _stage_topics(root, with_qrels=False)
     # build a Lucene index once from the in-memory units, then serve it as an external index
-    try:
-        BM25Pyserini(index_root=str(tmp_path / "build")).index(_units(), key="tiny")
-    except Exception as e:  # noqa: BLE001 — no usable JVM on this machine
-        pytest.skip(f"pyserini indexing unavailable: {e}")
-    lucene = tmp_path / "build" / "bm25_pyserini" / "tiny" / "lucene"
+    lucene_support.build_pyserini(_units())
+    lucene = Path(lucene_support.index_root()) / "bm25_pyserini" / lucene_support.corpus_key(_units()) / "lucene"
     if "tiny_disk" not in DS.available_datasets():
         DS.register_dataset("tiny_disk", domain="general")(DS._topics_qrels_loader("tiny_disk", root=str(root)))
     monkeypatch.setenv("AGENT_SEARCH_DOCSTORE", "1")
     # the launcher exports the file's knobs into this process; register them with monkeypatch so
     # they are removed again after the test (BM25_INDEX_PATH must not leak into other tests)
     monkeypatch.setenv("BM25_INDEX_PATH", str(lucene))
-    monkeypatch.setenv("BM25_BACKEND", "pyserini")
     data = X.defaults(None, "dedup_bm25")
     data["name"] = "tiny-disk"
     data["dataset"]["name"] = "tiny_disk"
     data["model"]["policy"] = "stub"
-    data["retrieval"]["bm25_backend"] = "pyserini"
     data["retrieval"]["bm25_index"] = str(lucene)
     data["output"]["runs_dir"] = str(tmp_path / "runs")
     data["output"]["index_root"] = str(tmp_path / "idx")

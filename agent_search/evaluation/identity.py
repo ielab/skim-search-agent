@@ -39,7 +39,7 @@ def _resolve_env_knobs() -> dict:
         # listing-snippet window, used both by the method conditions' query-biased excerpt
         # (research_snip / *_fetch_snip) and by the visit baselines' opening
         # window (research_bm25/dense/hybrid, research_bm25_dci); see
-        # agent_search.tools.common.opening_line. Recorded because it is a sweep axis:
+        # agent_search.snippets. Recorded because it is a sweep axis:
         # without it a SNIPPET_TOKENS=64 run is indistinguishable from a default one in
         # config.json.
         knobs["SNIPPET_TOKENS"] = SNIPPET_TOKENS
@@ -58,16 +58,11 @@ def _resolve_env_knobs() -> dict:
     # agent_search/retrievers/engines.py: no importable symbol (checked inline); same
     # membership test.
     knobs["INDRI_DENSE"] = _os.environ.get("INDRI_DENSE") in ("1", "true", "yes")
-    try:
-        from agent_search.retrievers.indri.model import (
-            DEFAULT_MU, POOL_CAP, _rescore_m, _dense_weight, _dense_expand_k)
-        knobs["INDRI_MU"] = DEFAULT_MU
-        knobs["INDRI_POOL_CAP"] = POOL_CAP
-        knobs["INDRI_RESCORE_M"] = _rescore_m()
-        knobs["INDRI_DENSE_W"] = _dense_weight()
-        knobs["INDRI_DENSE_EXPAND_K"] = _dense_expand_k()
-    except Exception:
-        pass
+    from agent_search.retrievers.lucene.engine import default_mu
+    from agent_search.retrievers.lucene.adapters import indri_dense_expand_k, indri_dense_weight
+    knobs["INDRI_MU"] = default_mu()
+    knobs["INDRI_DENSE_W"] = indri_dense_weight()
+    knobs["INDRI_DENSE_EXPAND_K"] = indri_dense_expand_k()
 
     try:
         from agent_search.retrievers.bql.surface import _date_range_enabled
@@ -77,11 +72,6 @@ def _resolve_env_knobs() -> dict:
     # agent_search/tools/search_bql/tool.py: inline check, no importable symbol; read the
     # same env var the same way (enabled unless explicitly turned off).
     knobs["BQL_SOFT_FALLBACK"] = _os.environ.get("BQL_SOFT_FALLBACK", "1") not in ("0", "false", "no")
-    try:
-        from agent_search.retrievers.bql.executor import _PREFILTER_MIN_UNITS
-        knobs["AGENT_SEARCH_BQL_PREFILTER_MIN"] = _PREFILTER_MIN_UNITS
-    except Exception:
-        pass
     # BQL_DENSE dense-fused ranking (agent_search/retrievers/bql/dense_fuse.py): the env
     # knob for a BQL condition ranked with plain BM25 (the shared `bql` engine kind), read
     # the same way `INDRI_DENSE` is above. A condition whose strategy already fuses or uses
@@ -90,6 +80,11 @@ def _resolve_env_knobs() -> dict:
     knobs["HYBRID_RETRIEVERS"] = _os.environ.get("HYBRID_RETRIEVERS", "bm25,dense")
     knobs["HYBRID_FUSION"] = _os.environ.get("HYBRID_FUSION", "rrf")
     knobs["HYBRID_WEIGHTS"] = _os.environ.get("HYBRID_WEIGHTS", "")
+    # agent_search/retrievers/reranked.py: the base retriever, the reranker and its model.
+    knobs["RERANK_BASE"] = _os.environ.get("RERANK_BASE", "bm25")
+    knobs["RERANK_METHOD"] = _os.environ.get("RERANK_METHOD", "cross_encoder")
+    knobs["RERANK_MODEL"] = _os.environ.get("RERANK_MODEL", "BAAI/bge-reranker-v2-m3")
+    knobs["RERANK_POOL"] = int(_os.environ.get("RERANK_POOL", "100"))
     try:
         from agent_search.retrievers.bql.dense_fuse import bql_dense_enabled, RRF_K
         knobs["BQL_DENSE"] = bql_dense_enabled()
@@ -150,21 +145,6 @@ def _resolve_env_knobs() -> dict:
     except Exception:
         pass
 
-    # agent_search/retrievers/lexical/__init__.py:build_bm25_engine: which BM25 engine every
-    # BM25-based condition uses this run: 'local' (default, BM25Local's dependency-free
-    # approximation) or 'pyserini' (canonical Lucene BM25). Material to results (an
-    # empirical ~0.546 top-5 Jaccard divergence between the two on browsecomp_plus, see
-    # pyserini.py's module docstring), so it belongs in provenance exactly like the other
-    # retrieval-condition knobs above.
-    knobs["BM25_BACKEND"] = (_os.environ.get("BM25_BACKEND") or "local").strip().lower()
-
-    # agent_search/retrievers/backend.py:structured_backend: which structured retrieval
-    # backend every BQL-family condition (Sieve: search/search_v2/search_s/search_bv, run
-    # through the `search_bql` tool) and Indri-family condition (isearch/isearch_v/isearch_s,
-    # run through the `search_indri` tool) uses this run: 'python' (default, the pure-Python
-    # reference engines) or 'lucene' (the real-Lucene LMDirichlet/BM25 backend,
-    # indexes/lucene_structured/). Material to results (same rationale as BM25_BACKEND above).
-    knobs["STRUCTURED_BACKEND"] = (_os.environ.get("STRUCTURED_BACKEND") or "python").strip().lower()
 
     # Every length budget in the prompt path is measured in tokens; there is no character cap.
     try:

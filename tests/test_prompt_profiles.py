@@ -12,6 +12,7 @@ import re
 
 import pytest
 
+from agent_search.snippets import TermWindow
 from agent_search.strategies import CONDITIONS, get_condition
 from agent_search.tasks.base import TASKS
 from agent_search.tasks.render import render_manuals
@@ -111,7 +112,7 @@ def _manual_of(tool, domain: str = "general") -> str:
 
 def test_doc_manual_worked_examples_lower_and_typecheck():
     from agent_search.tools.search_bql.tool import SearchBql
-    manual = _manual_of(SearchBql(name="search_s", snippets=True))
+    manual = _manual_of(SearchBql(name="search_s", snippet=TermWindow()))
     assert manual and "term[field]" in manual, "doc `search_s` must declare the field-tagged manual"
     ex = _worked_examples(manual)
     assert ex, "no worked term[field] examples found in the BQL doc manual"
@@ -124,7 +125,7 @@ def test_doc_manual_worked_examples_lower_and_typecheck():
 
 def test_doc_manual_advertises_its_fields():
     from agent_search.tools.search_bql.tool import SearchBql
-    docs = _manual_of(SearchBql(name="search_s", snippets=True))
+    docs = _manual_of(SearchBql(name="search_s", snippet=TermWindow()))
     assert docs
     for f in ("title", "section", "body", "infobox"):
         assert f"`{f}`" in docs or f"[{f}]" in docs, f"doc manual missing field {f!r}"

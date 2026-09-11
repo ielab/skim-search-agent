@@ -6,6 +6,7 @@ decide the ranking model behind the Boolean filter (`bm25`, `fused` = BM25 and t
 model by RRF, `dense` only), whether a query-biased snippet is shown per candidate, and the
 manual the agent reads. The tool names are the ones the paper prompts used.
 """
+from agent_search.snippets import TermWindow
 from agent_search.strategies.base import Strategy, register_strategy
 from agent_search.tools.fetch.tool import Fetch
 from agent_search.tools.search_bql.tool import SearchBql
@@ -15,19 +16,19 @@ from agent_search.tools.visit.tool import Visit
 sieve_bm25 = register_strategy(Strategy(
     name="sieve_bm25", toolset_name="search_fetch_s",
     description="Sieve: Boolean search with snippets (BM25 ranking) then fetch a section",
-    tools=(SearchBql(name="search_s", snippets=True), Fetch(name="fetch_s"))))
+    tools=(SearchBql(name="search_s", snippet=TermWindow()), Fetch(name="fetch_s"))))
 
 # the method with the dense model fused into the ranking (the paper's headline Sieve)
 sieve = register_strategy(Strategy(
     name="sieve", toolset_name="bql_dense_snip",
     description="Sieve: Boolean search with snippets (BM25 and dense fused) then fetch a section",
-    tools=(SearchBql(name="search_bqlds", ranking="fused", snippets=True), Fetch(name="fetch_bqlds"))))
+    tools=(SearchBql(name="search_bqlds", ranking="fused", snippet=TermWindow()), Fetch(name="fetch_bqlds"))))
 
 # dense-only ranking inside the Boolean filter
 sieve_dense = register_strategy(Strategy(
     name="sieve_dense", toolset_name="bql_donly_snip",
     description="Sieve: Boolean search with snippets (dense ranking only) then fetch a section",
-    tools=(SearchBql(name="search_bqldos", ranking="dense", snippets=True), Fetch(name="fetch_bqldos"))))
+    tools=(SearchBql(name="search_bqldos", ranking="dense", snippet=TermWindow()), Fetch(name="fetch_bqldos"))))
 
 # the fused ranking without snippets (an ablation)
 sieve_nosnip = register_strategy(Strategy(

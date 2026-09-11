@@ -1,39 +1,28 @@
-"""Tests for the `BM25_BACKEND` knob (agent_search.retrievers.lexical.build_bm25_engine) that
-selects the doc arm's bm25 engine: `local` (BM25Local, the dependency-free approximation) or
-`pyserini` (BM25Pyserini, canonical Lucene BM25, Porter stemming plus stopwords, k1=0.9/b=0.4,
-the same engine SWE-bench's own BM25 baseline uses).
+"""`BM25Pyserini` (agent_search.retrievers.lexical.pyserini): the one BM25 engine, canonical
+Lucene BM25 (Porter stemming plus stopwords, k1=0.9/b=0.4, the engine SWE-bench's own BM25
+baseline uses). `build_bm25_engine` and `Engines.bm25()` return it for every corpus; there is
+no in-memory alternative and no backend switch.
 
-Covers the four things "make pyserini a selectable bm25 engine" needs pinned:
+Pinned here:
 
-  1. agreement       BM25Local and BM25Pyserini rank documents materially differently for the
-                     same query/corpus, which is the reason BM25_BACKEND=pyserini exists at all.
-                     Measured empirically on the real browsecomp_plus_structured corpus
-                     (67,707 docs, this project's data/browsecomp_plus_structured/): mean
-                     top-5 Jaccard between the two engines' rankings is ~0.546, well below
-                     1.0, because BM25Local's tokenizer is not a faithful stand-in for canonical
-                     Lucene BM25 on prose. This test reproduces the same mechanism (verb
-                     tense/plural variants BM25Local never stems but Lucene's analyzer does)
-                     on a small, deterministic, in-file corpus, fast and hermetic, with no
-                     dependency on staged data/ files, and pins the resulting divergence with
-                     a wide tolerance band, so a future change that accidentally makes the two
-                     engines agree (byte-identical rankings, which would silently defeat the
-                     point of having two engines) or disagree completely (something broke)
-                     is caught.
-  2. selection       env BM25_BACKEND resolves to the right engine class, both at the shared
-                     `build_bm25_engine` helper and through `ConditionAgent`'s real
-                     per-episode construction path (agent_search.evaluation.agent_runner).
-  3. offline safety  BM25Pyserini.search() makes no network call (a local Lucene index read
-                     only), verified by blocking socket creation during a real search, and by
-                     importing the module in a subprocess with no `OPENAI_API_KEY` set (the
-                     transitive-import landmine pyserini.py's module docstring documents).
-  4. listing parity  Bm25Visit's rendered search listing has the identical shape regardless of
-                     which engine answered the query (a workspace only ever consumes the
-                     returned doc_id list; rendering is engine-agnostic).
+  1. index build   the index is built once per corpus under `index_root/bm25_pyserini/<key>/`,
+                   reused on the next `index()` for the same corpus, and rebuilt when the corpus
+                   under that key changed (doc count or content fingerprint, `_is_built`).
+  2. search        `search` returns real doc ids; `search_scored` pairs them with descending
+                   Lucene scores; morphological variants match through the Porter stemmer.
+  3. selection     `build_bm25_engine` and `ConditionAgent.index()` (every bm25-family arm, via
+                   `Engines`) hand out a `BM25Pyserini`.
+  4. BM25_INDEX_PATH
+                   a prebuilt Lucene directory is opened as is and nothing is built under
+                   `index_root`; a path that is not an index is refused.
+  5. offline       `search()` opens no socket, and the module imports in a clean subprocess with
+                   no `OPENAI_API_KEY` (pyserini's transitive import-time landmine).
+  6. listing       `search_bm25` renders a well-formed ranked listing over it, and `visit` reads
+                   a ranked hit.
+  7. build knobs   thread count and stored-field knobs, one corpus shard per indexing thread,
+                   a lean index with no stored raw text.
 
-Needs a real JVM (Java 11+) and `pyserini` importable, both provisioned in this project's
-`envs/` (see agent_search/retrievers/lexical/pyserini.py's module docstring). If unavailable,
-the whole module is skipped rather than hard-failing an environment that never opted into the
-pyserini backend.
+Needs a real JVM and `pyserini`; the module skips without them (`lucene_support.require_jvm`).
 """
 from __future__ import annotations
 
@@ -47,37 +36,20 @@ import sys
 
 import pytest
 
-pytest.importorskip(
-    "pyserini.search.lucene", reason="pyserini not installed — BM25_BACKEND=pyserini unavailable")
+from tests import lucene_support
 
+lucene_support.require_jvm()
 
-def _jvm_available() -> bool:
-    """A real probe, not just a python import check — pyserini's JVM starts lazily on first
-    Java object construction, so `import pyserini.search.lucene` alone doesn't prove Java
-    actually works (e.g. no `java` binary / bad JAVA_HOME)."""
-    try:
-        os.environ.setdefault("OPENAI_API_KEY", "agent-search-unused-placeholder")
-        from pyserini.pyclass import autoclass
-        autoclass("java.lang.String")
-        return True
-    except Exception:
-        return False
-
-
-if not _jvm_available():
-    pytest.skip("no working JVM — BM25_BACKEND=pyserini needs Java 11+", allow_module_level=True)
-
-from agent_search.corpus.units import units_from_documents
-from agent_search.evaluation.agent_runner import ConditionAgent
-from agent_search.retrievers.lexical import build_bm25_engine
-from agent_search.retrievers.lexical.bm25 import BM25Local
-from agent_search.retrievers.lexical.pyserini import BM25Pyserini
-from agent_search.strategies.base import STRATEGIES
-from agent_search.strategies.conditions import Condition
-from agent_search.tasks.base import TASKS
-from agent_search.tools.base import EpisodeState, ToolBox
-from agent_search.tools.search_bm25.tool import SearchBm25
-from agent_search.tools.visit.tool import Visit
+from agent_search.corpus.units import units_from_documents  # noqa: E402
+from agent_search.evaluation.agent_runner import ConditionAgent  # noqa: E402
+from agent_search.retrievers.lexical import build_bm25_engine  # noqa: E402
+from agent_search.retrievers.lexical.pyserini import BM25Pyserini  # noqa: E402
+from agent_search.strategies.base import STRATEGIES  # noqa: E402
+from agent_search.strategies.conditions import Condition  # noqa: E402
+from agent_search.tasks.base import TASKS  # noqa: E402
+from agent_search.tools.base import EpisodeState, ToolBox  # noqa: E402
+from agent_search.tools.search_bm25.tool import SearchBm25  # noqa: E402
+from agent_search.tools.visit.tool import Visit  # noqa: E402
 
 
 def _cond(strategy_name: str) -> Condition:
@@ -95,30 +67,21 @@ def _bm25_visit_toolbox(units, engine):
     return ToolBox([search, visit], state)
 
 
-# --- a small, deterministic corpus reproducing the browsecomp_plus divergence mechanism -------
-# Verb lemmas layered with morphological variants: BM25Local's code_tokenize does NOT stem (a
-# doc saying "climbed" shares no token with a query saying "climbing"), while pyserini's Lucene
-# analyzer applies Porter stemming (both reduce to "climb") — which documents a query matches
-# genuinely differs by engine. Distinctive proper-noun "topic tags" (~15 docs each) give queries
-# a STABLE partial-overlap core (both engines tokenize a literal capitalized name identically),
-# so the corpus produces PARTIAL, not total, divergence — matching the real-world pattern (some
-# ranks agree, some don't), not "every result differs" or "every result agrees".
+# --- a small deterministic corpus: verb lemmas in several morphological forms, tagged with
+# proper-noun place names, 15 docs per tag (120 docs). The forms are what the stemming test
+# looks at; the size is what the sharding test looks at. ------------------------------------
 _LEMMAS = ["climb", "fish", "sail", "study", "teach", "build", "paint", "dance", "write",
-          "plan", "design", "grow", "cook", "sing", "play", "travel", "explore", "research"]
+           "plan", "design", "grow", "cook", "sing", "play", "travel", "explore", "research"]
 _FORMS = ["{0}", "{0}ing", "{0}ed", "{0}s"]
 _TAGS = ["Kestrel Valley", "Ashwood Fields", "Marrow Bay", "Thistledown Ridge",
-        "Copperlake District", "Windmere Basin", "Silverpine Hollow", "Blackthorn Pass"]
+         "Copperlake District", "Windmere Basin", "Silverpine Hollow", "Blackthorn Pass"]
 _STOP = ["the", "a", "an", "of", "in", "on", "at", "with", "near", "along", "through",
-        "over", "under", "between", "during", "and", "but", "for", "to"]
+         "over", "under", "between", "during", "and", "but", "for", "to"]
 _ADJ = ["ancient", "remote", "vast", "rugged", "quiet", "hidden", "coastal", "historic"]
 _DOCS_PER_TAG = 15
 
 
-def _make_corpus_and_queries() -> tuple[list[dict], list[str]]:
-    """Docs THEN queries, drawn from ONE fixed-seed `random.Random` stream (matching the
-    calibration script this test's tolerance band was measured from) — a single generation
-    pass, not two independently-seeded ones, so there is no fragile hand-replay of the doc
-    loop's draw sequence to keep a second stream in sync."""
+def _make_corpus() -> list[dict]:
     rng = random.Random(11)
 
     def sentence(tag):
@@ -136,168 +99,209 @@ def _make_corpus_and_queries() -> tuple[list[dict], list[str]]:
             text = " ".join(sentence(tag) for _ in range(rng.randint(2, 3)))
             docs.append({"_id": f"doc{doc_i}", "title": f"{tag} Report {doc_i}", "text": text})
             doc_i += 1
-
-    queries = []
-    for tag in _TAGS:
-        lemma = rng.choice(_LEMMAS)
-        form = rng.choice(_FORMS).format(lemma)
-        queries.append(f"{form} {tag}")
-    for lemma in _LEMMAS[:8]:
-        form = rng.choice(_FORMS).format(lemma)
-        tag = rng.choice(_TAGS)
-        queries.append(f"{form} {tag}")
-    return docs, queries
-
-
-_AGREEMENT_CORPUS_KEY = "test_pyserini_backend_agreement_corpus"
-
-# Empirically measured on THIS corpus (fixed seed 11): mean top-5 Jaccard = 0.485, min 0.250,
-# max 1.000 across the 16 queries below — materially divergent (well under 1.0) but not
-# uncorrelated (well over 0.0), the same qualitative shape as the real browsecomp_plus figure
-# (~0.546 on the full 67,707-doc corpus). Tolerance band is wide on purpose: this pins the
-# PHENOMENON (a real, partial divergence), not a library-version-fragile exact float.
-_MEAN_JACCARD_FLOOR = 0.25
-_MEAN_JACCARD_CEILING = 0.75
+    return docs
 
 
 @pytest.fixture(scope="module")
-def engines(tmp_path_factory):
-    """Both engines built ONCE over the SAME corpus, shared by every test below — a real
-    pyserini Lucene build costs real wall-clock (JVM startup + indexing subprocess), so this
-    keeps the whole module's cost to one build instead of one per test."""
-    docs, _queries = _make_corpus_and_queries()
+def corpus():
+    """The corpus, its units, the engine and the key of its index under the shared test index
+    root. Built once for the module: a Lucene build is a JVM start plus an indexing subprocess."""
+    docs = _make_corpus()
     units = units_from_documents(docs)
-    ubyid = {u.doc_id: u for u in units}
-    local = BM25Local().index(units)
-    index_root = str(tmp_path_factory.mktemp("pyserini_backend"))
-    pys = BM25Pyserini(index_root=index_root, rebuild=True).index(units, key=_AGREEMENT_CORPUS_KEY)
-    return units, ubyid, local, pys, index_root
+    assert len(units) == len(_TAGS) * _DOCS_PER_TAG
+    pys = lucene_support.build_pyserini(units)
+    return docs, units, {u.doc_id: u for u in units}, pys, lucene_support.corpus_key(units)
 
 
-def _jaccard(a, b) -> float:
-    a, b = set(a), set(b)
-    if not a and not b:
-        return 1.0
-    return len(a & b) / len(a | b)
+_QUERY = "climbing Kestrel Valley"
 
 
-# --- 1. agreement: material, partial divergence, pinned with a tolerance band ------------------
+# --- 1. index build and reuse ------------------------------------------------------------------
 
-def test_agreement_pinned_within_tolerance_band(engines):
-    _units, _ubyid, local, pys, _root = engines
-    _docs, queries = _make_corpus_and_queries()
-    assert len(queries) == 16
-
-    jaccards = [_jaccard(local.search(q, k=5), pys.search(q, k=5)) for q in queries]
-    mean_j = sum(jaccards) / len(jaccards)
-
-    assert _MEAN_JACCARD_FLOOR <= mean_j <= _MEAN_JACCARD_CEILING, (
-        f"mean top-5 Jaccard {mean_j:.3f} outside the pinned tolerance band "
-        f"[{_MEAN_JACCARD_FLOOR}, {_MEAN_JACCARD_CEILING}] — either the two BM25 engines "
-        f"stopped diverging (drifted toward 1.0: BM25_BACKEND=pyserini would no longer be "
-        f"doing anything different from 'local') or something broke retrieval entirely "
-        f"(drifted toward 0.0).")
+def test_index_is_built_under_index_root_and_is_cached(corpus):
+    _docs, _units, _ubyid, _pys, key = corpus
+    base = os.path.join(lucene_support.index_root(), "bm25_pyserini", key)
+    assert os.path.isdir(os.path.join(base, "lucene"))
+    with open(os.path.join(base, "meta.json")) as fh:
+        meta = json.load(fh)
+    assert meta["n_docs"] == len(_units) and meta.get("corpus_fingerprint")
+    probe = BM25Pyserini(index_root=lucene_support.index_root())
+    assert probe.is_cached(key)
+    assert not probe.is_cached("no_such_key")
 
 
-def test_agreement_is_not_total_and_not_zero_per_query(engines):
-    """Sanity on the per-query DISTRIBUTION, not just the mean — the corpus/query design must
-    actually produce a MIX of full agreement, partial agreement, and disagreement (the real-
-    world shape), not e.g. every query landing at exactly the mean."""
-    _units, _ubyid, local, pys, _root = engines
-    _docs, queries = _make_corpus_and_queries()
-    jaccards = [_jaccard(local.search(q, k=5), pys.search(q, k=5)) for q in queries]
-    assert any(j < 1.0 for j in jaccards), "expected at least one query where engines disagree"
-    assert any(j > 0.0 for j in jaccards), "expected at least one query where engines agree"
-    assert len(set(jaccards)) > 1, "expected genuine variance across queries, not a constant"
+def test_second_index_call_reuses_the_build(corpus, monkeypatch):
+    """`index()` for the same corpus and key opens the existing index; it never runs the
+    indexing subprocess again."""
+    _docs, units, _ubyid, _pys, key = corpus
+
+    def _no_build(*a, **k):
+        raise AssertionError("index() re-ran the pyserini indexer on an up-to-date index")
+
+    monkeypatch.setattr(subprocess, "run", _no_build)
+    eng = BM25Pyserini(index_root=lucene_support.index_root()).index(units, key=key)
+    assert eng.search(_QUERY, k=5)
 
 
-def test_both_engines_return_real_doc_ids(engines):
-    """A collapsed/degenerate engine (e.g. always empty, or ids outside the corpus) would
-    trivially satisfy the Jaccard band by both returning `[]` — guard against that."""
-    units, ubyid, local, pys, _root = engines
-    q = "climbing Kestrel Valley"
-    lr, pr = local.search(q, k=5), pys.search(q, k=5)
-    assert lr and pr
-    assert all(i in ubyid for i in lr)
-    assert all(i in ubyid for i in pr)
+def _small_docs(n: int, prefix: str = "d") -> list:
+    return [{"_id": f"{prefix}{i}", "title": f"{prefix}{i}", "text": f"filler content {i}"}
+            for i in range(n)]
 
 
-# --- 2. backend selection: env knob -> engine class ---------------------------------------------
+def test_is_built_rejects_stale_doc_count_and_rebuilds(tmp_path):
+    """An index left on disk under a key whose corpus later changed (docs added or removed)
+    must not be reused. `index()` writes a `meta.json` doc-count sentinel and cross-checks it
+    on every later `index()` for the same key; a mismatch is a logged rebuild (the same guard
+    as the dense cache in retrievers/dense/base.py)."""
+    index_root = str(tmp_path)
+    key = "congruence_test_corpus"
 
-def test_build_bm25_engine_defaults_to_local(monkeypatch):
-    monkeypatch.delenv("BM25_BACKEND", raising=False)
-    units = units_from_documents([{"_id": "d1", "title": "T", "text": "hello world"}])
-    eng = build_bm25_engine(units)
-    assert isinstance(eng, BM25Local)
+    units_a = units_from_documents(_small_docs(5, "a"))
+    pys_a = BM25Pyserini(index_root=index_root, rebuild=True).index(units_a, key=key)
+    hits_a = set(pys_a.search("filler", k=10))
+    assert hits_a and hits_a <= {u.doc_id for u in units_a}  # sanity: searchable at all
+    meta_path = os.path.join(index_root, "bm25_pyserini", key, "meta.json")
+    assert os.path.exists(meta_path)
+
+    # A different-sized corpus reusing the same key with rebuild=False (the normal reuse
+    # path) must detect the incongruence and rebuild rather than trust the stale index.
+    units_b = units_from_documents(_small_docs(8, "b"))
+    pys_b = BM25Pyserini(index_root=index_root, rebuild=False).index(units_b, key=key)
+    hits = set(pys_b.search("filler", k=20))
+    assert hits, "rebuilt index should be searchable"
+    assert hits <= {u.doc_id for u in units_b}, (
+        "stale corpus_a doc_ids leaked through: the doc-count congruence check did not "
+        "trigger a rebuild")
+    assert not (hits & {u.doc_id for u in units_a}), (
+        "old corpus_a doc_ids still present in results after the corpus changed")
 
 
-def test_build_bm25_engine_local_is_explicit_too(monkeypatch):
-    monkeypatch.setenv("BM25_BACKEND", "local")
-    units = units_from_documents([{"_id": "d1", "title": "T", "text": "hello world"}])
-    assert isinstance(build_bm25_engine(units), BM25Local)
+def test_is_built_rejects_stale_fingerprint_same_doc_count_and_rebuilds(tmp_path):
+    """A unit's content can change in place (same doc_id, same count); the doc-count check
+    alone cannot see that. `index()` also writes the `corpus_fingerprint`
+    (agent_search.corpus.fingerprint) into meta.json and cross-checks it, so a same-count,
+    different-content reuse still rebuilds instead of serving the old postings."""
+    index_root = str(tmp_path)
+    key = "fingerprint_congruence_test"
+
+    units_a = units_from_documents([{"_id": "d0", "title": "d0", "text": "alpha content zero"}])
+    pys_a = BM25Pyserini(index_root=index_root, rebuild=True).index(units_a, key=key)
+    assert set(pys_a.search("alpha", k=10)) == {"d0"}
+    meta_path = os.path.join(index_root, "bm25_pyserini", key, "meta.json")
+    with open(meta_path) as fh:
+        meta = json.load(fh)
+    assert meta.get("corpus_fingerprint")          # the key is actually being written
+
+    # same doc_id, same count, different text: a doc-count check alone would trust this.
+    units_b = units_from_documents(
+        [{"_id": "d0", "title": "d0", "text": "totally different beta wording"}])
+    pys_b = BM25Pyserini(index_root=index_root, rebuild=False).index(units_b, key=key)
+    assert pys_b.search("alpha", k=10) == [], (
+        "stale content served after an in-place edit: the fingerprint check did not "
+        "trigger a rebuild")
+    assert set(pys_b.search("beta", k=10)) == {"d0"}
 
 
-def test_build_bm25_engine_is_case_insensitive_and_strips_whitespace(monkeypatch, tmp_path):
-    monkeypatch.setenv("BM25_BACKEND", "  PySerini  ")
-    units = units_from_documents([{"_id": "d1", "title": "T", "text": "hello world"}])
-    eng = build_bm25_engine(units, index_root=str(tmp_path))   # a real (tiny) Lucene build
+# --- 2. search and search_scored ------------------------------------------------------------
+
+def test_search_returns_real_doc_ids(corpus):
+    _docs, _units, ubyid, pys, _key = corpus
+    ids = pys.search(_QUERY, k=5)
+    assert ids and len(ids) == 5
+    assert all(i in ubyid for i in ids)
+    assert len(set(ids)) == len(ids)
+
+
+def test_search_scored_pairs_the_same_ranking_with_descending_scores(corpus):
+    _docs, _units, _ubyid, pys, _key = corpus
+    scored = pys.search_scored(_QUERY, k=5)
+    assert [d for d, _ in scored] == pys.search(_QUERY, k=5)
+    scores = [s for _, s in scored]
+    assert all(isinstance(s, float) and s > 0 for s in scores)
+    assert scores == sorted(scores, reverse=True)
+
+
+def test_porter_stemming_matches_every_morphological_form(corpus):
+    """Lucene's analyzer stems, so `climbing` reaches the docs that say `climbed`, `climbs`
+    or `climb`: exactly the docs holding any form, no others."""
+    docs, _units, _ubyid, pys, _key = corpus
+    form = re.compile(r"\bclimb(?:ing|ed|s)?\b", re.IGNORECASE)
+    expected = {d["_id"] for d in docs if form.search(d["text"])}
+    assert expected and any(not re.search(r"\bclimbing\b", d["text"]) for d in docs
+                            if d["_id"] in expected)        # some hold only another form
+    assert set(pys.search("climbing", k=len(docs))) == expected
+    assert set(pys.search("climbed", k=len(docs))) == expected
+
+
+def test_no_match_query_returns_empty(corpus):
+    _docs, _units, _ubyid, pys, _key = corpus
+    assert pys.search("zzzz_nonexistent_qqqq", k=5) == []
+    assert pys.search_scored("zzzz_nonexistent_qqqq", k=5) == []
+
+
+# --- 3. selection: every path hands out BM25Pyserini --------------------------------------------
+
+def test_build_bm25_engine_returns_pyserini(corpus):
+    _docs, units, _ubyid, _pys, key = corpus
+    eng = build_bm25_engine(units, index_root=lucene_support.index_root(), key=key)
     assert isinstance(eng, BM25Pyserini)
-
-
-def test_build_bm25_engine_pyserini_selects_pyserini(engines, monkeypatch):
-    units, _ubyid, _local, _pys, index_root = engines
-    monkeypatch.setenv("BM25_BACKEND", "pyserini")
-    # SAME index_root/key as the `engines` fixture's already-built index — a cache hit, so
-    # this doesn't pay a second real Lucene build.
-    eng = build_bm25_engine(units, index_root=index_root, key=_AGREEMENT_CORPUS_KEY)
-    assert isinstance(eng, BM25Pyserini)
-    assert eng.search("climbing Kestrel Valley", k=5)
-
-
-def test_build_bm25_engine_unknown_backend_raises(monkeypatch):
-    monkeypatch.setenv("BM25_BACKEND", "bogus")
-    units = units_from_documents([{"_id": "d1", "title": "T", "text": "hello world"}])
-    with pytest.raises(ValueError, match="BM25_BACKEND"):
-        build_bm25_engine(units)
+    assert eng.search(_QUERY, k=5)
 
 
 @pytest.mark.parametrize("strategy_name", [
-    "search_visit",              # bm25 arm
-    "search_fetch_bm25_plain",   # bm25fetch arm
-    "search_visit_snippets",     # bm25q arm
-    "search_fetch",              # bm25fetchsnip arm
+    "search_visit",              # bm25 + visit
+    "search_fetch_bm25_plain",   # bm25 + fetch
+    "search_visit_snippets",     # bm25q + visit
+    "search_fetch",              # bm25 snip + fetch
 ])
-def test_condition_agent_bm25_family_arms_respect_backend_local(strategy_name):
-    """The real per-episode construction site (`ConditionAgent.index()`,
-    agent_search.evaluation.agent_runner) — every bm25-family arm's `bm25` engine is BM25Local
-    when BM25_BACKEND is unset/local, whatever the specific arm (bm25/bm25fetch/bm25q/
-    bm25fetchsnip all funnel through the SAME `build_bm25_engine` call via `Engines`)."""
-    os.environ.pop("BM25_BACKEND", None)
-    units = units_from_documents([{"_id": "d1", "title": "T", "text": "hello world"}])
-    r = ConditionAgent(_cond(strategy_name), lambda: None).index(units)
-    assert isinstance(r.engines.get("bm25"), BM25Local)
-
-
-def test_condition_agent_bm25_arm_respects_backend_pyserini(engines, monkeypatch):
-    units, _ubyid, _local, _pys, index_root = engines
-    monkeypatch.setenv("BM25_BACKEND", "pyserini")
-    r = ConditionAgent(_cond("search_visit"), lambda: None,
-                       index_root=index_root).index(units, key=_AGREEMENT_CORPUS_KEY)
+def test_condition_agent_bm25_family_arms_get_lucene(corpus, strategy_name):
+    """The real per-episode construction site (`ConditionAgent.index()`): every bm25-family
+    arm's `bm25` engine is `BM25Pyserini`, whatever the arm, since all of them go through the
+    same `build_bm25_engine` call via `Engines`."""
+    _docs, units, _ubyid, _pys, key = corpus
+    r = ConditionAgent(_cond(strategy_name), lambda: None,
+                       index_root=lucene_support.index_root()).index(units, key=key)
     assert isinstance(r.engines.get("bm25"), BM25Pyserini)
 
 
-# --- 3. offline safety: no network call during search() -----------------------------------------
+# --- 4. BM25_INDEX_PATH: a prebuilt Lucene directory, opened as is ----------------------------
 
-def test_search_makes_no_python_level_network_call(engines, monkeypatch):
-    _units, _ubyid, _local, pys, _root = engines
+def test_bm25_index_path_opens_a_prebuilt_index_and_builds_nothing(corpus, tmp_path, monkeypatch):
+    _docs, units, ubyid, _pys, key = corpus
+    lucene_dir = os.path.join(lucene_support.index_root(), "bm25_pyserini", key, "lucene")
+    monkeypatch.setenv("BM25_INDEX_PATH", lucene_dir)
+
+    def _no_build(*a, **k):
+        raise AssertionError("BM25_INDEX_PATH is set; nothing may be indexed")
+
+    monkeypatch.setattr(subprocess, "run", _no_build)
+    eng = BM25Pyserini(index_root=str(tmp_path)).index(units, key="ignored_key")
+    assert not os.path.exists(os.path.join(str(tmp_path), "bm25_pyserini"))
+    ids = eng.search(_QUERY, k=5)
+    assert ids and all(i in ubyid for i in ids)
+
+
+def test_bm25_index_path_that_is_not_an_index_is_refused(corpus, tmp_path, monkeypatch):
+    _docs, units, _ubyid, _pys, _key = corpus
+    bogus = tmp_path / "not_an_index"
+    bogus.mkdir()
+    monkeypatch.setenv("BM25_INDEX_PATH", str(bogus))
+    with pytest.raises(RuntimeError, match="not a Lucene index directory"):
+        BM25Pyserini(index_root=str(tmp_path)).index(units, key="k")
+
+
+# --- 5. offline safety --------------------------------------------------------------------------
+
+def test_search_makes_no_python_level_network_call(corpus, monkeypatch):
+    _docs, _units, _ubyid, pys, _key = corpus
 
     def _blocked(*a, **k):
-        raise AssertionError("search() attempted to open a socket — should be 100% local")
+        raise AssertionError("search() attempted to open a socket; it must be local only")
 
     monkeypatch.setattr(socket, "socket", _blocked)
     monkeypatch.setattr(socket, "create_connection", _blocked)
     try:
-        ids = pys.search("climbing Kestrel Valley", k=5)
+        ids = pys.search(_QUERY, k=5)
     finally:
         monkeypatch.undo()
     assert ids  # the search still worked with sockets blocked
@@ -305,14 +309,11 @@ def test_search_makes_no_python_level_network_call(engines, monkeypatch):
 
 def test_import_succeeds_with_no_openai_api_key_in_a_clean_subprocess():
     """Regression for the transitive-import landmine pyserini.py's module docstring
-    documents: `pyserini.search.lucene` transitively imports `pyserini.encode._openai`, which
-    used to raise at IMPORT time if OPENAI_API_KEY was unset — and only `agent_search/evaluation/__init__.py`
-    (not pyserini.py itself) used to set the placeholder, so importing
-    `agent_search.retrievers.lexical.pyserini` directly (bypassing `evaluation`) on a machine
-    with no OPENAI_API_KEY in its environment used to crash before this module set its own
-    placeholder. Runs in a REAL subprocess with OPENAI_API_KEY/GEMINI_API_KEY stripped — the
-    only way to prove import-order independence (the parent test process may already have one
-    set from an earlier test/import)."""
+    documents: `pyserini.search.lucene` imports `pyserini.encode._openai`, which raises at
+    import time if OPENAI_API_KEY is unset. The module sets its own placeholder around the
+    two pyserini imports, so importing it directly on a machine with no key works. A real
+    subprocess with OPENAI_API_KEY/GEMINI_API_KEY stripped is the only way to prove it (the
+    parent test process may already have one set)."""
     env = {k: v for k, v in os.environ.items()
            if k not in ("OPENAI_API_KEY", "GEMINI_API_KEY")}
     proc = subprocess.run(
@@ -322,60 +323,46 @@ def test_import_succeeds_with_no_openai_api_key_in_a_clean_subprocess():
         cwd=os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
         env=env, capture_output=True, text=True, timeout=60)
     assert proc.returncode == 0, (
-        f"import failed with no OPENAI_API_KEY set — stdout={proc.stdout!r} "
+        f"import failed with no OPENAI_API_KEY set: stdout={proc.stdout!r} "
         f"stderr={proc.stderr[-2000:]!r}")
     assert "OK bm25_pyserini" in proc.stdout
 
 
-# --- 4. listing parity: Bm25Visit's rendering shape is engine-agnostic --------------------------
+# --- 6. listing: search_bm25 over the engine, visit of a ranked hit ---------------------------
 
 _LISTING_RE = re.compile(
     r"^search: .+   \(\d+ matches\):\n(  \d+  \S+  '.*'  .*…\n?)+$")
 
 
-def test_listing_shape_is_identical_across_backends(engines):
-    units, ubyid, local, pys, _root = engines
-    query = "climbing Kestrel Valley"
-
-    local_out = _bm25_visit_toolbox(units, local).run("bm25_search", {"query": query})
-    pys_out = _bm25_visit_toolbox(units, pys).run("bm25_search", {"query": query})
-
-    assert _LISTING_RE.match(local_out), f"local listing didn't match the expected shape:\n{local_out}"
-    assert _LISTING_RE.match(pys_out), f"pyserini listing didn't match the expected shape:\n{pys_out}"
-
-    # same NUMBER of rendered lines (both requested k=5 and both matched >=1 doc; the exact
-    # doc_ids may differ per the agreement tests above, but the RENDERING shape must not).
-    local_lines = local_out.splitlines()
-    pys_lines = pys_out.splitlines()
-    assert local_lines[0].startswith(f"search: {query}")
-    assert pys_lines[0].startswith(f"search: {query}")
-    assert len(local_lines) == len(pys_lines)
+def test_listing_is_well_formed(corpus):
+    _docs, units, _ubyid, pys, _key = corpus
+    out = _bm25_visit_toolbox(units, pys).run("bm25_search", {"query": _QUERY})
+    assert _LISTING_RE.match(out), f"listing didn't match the expected shape:\n{out}"
+    lines = out.splitlines()
+    assert lines[0].startswith(f"search: {_QUERY}")
+    assert len(lines) == 1 + len(pys.search(_QUERY, k=len(lines) - 1))
 
 
-def test_listing_ranks_are_1_indexed_and_sequential_for_both_backends(engines):
-    units, ubyid, local, pys, _root = engines
-    query = "climbing Kestrel Valley"
-    for engine in (local, pys):
-        ws = _bm25_visit_toolbox(units, engine)
-        out = ws.run("bm25_search", {"query": query})
-        ranks = [int(m.group(1)) for m in re.finditer(r"^  (\d+)  ", out, re.MULTILINE)]
-        assert ranks == list(range(1, len(ranks) + 1))
+def test_listing_ranks_are_1_indexed_and_sequential(corpus):
+    _docs, units, _ubyid, pys, _key = corpus
+    out = _bm25_visit_toolbox(units, pys).run("bm25_search", {"query": _QUERY})
+    ranks = [int(m.group(1)) for m in re.finditer(r"^  (\d+)  ", out, re.MULTILINE)]
+    assert ranks and ranks == list(range(1, len(ranks) + 1))
 
 
-def test_visit_whole_doc_read_works_for_both_backends(engines):
-    """The read side (`visit`) is engine-agnostic by construction (it never touches the bm25
-    engine), but confirm end to end: a doc surfaced by EITHER engine's search is visitable."""
-    units, ubyid, local, pys, _root = engines
-    query = "climbing Kestrel Valley"
-    for engine in (local, pys):
-        ws = _bm25_visit_toolbox(units, engine)
-        ws.run("bm25_search", {"query": query})
-        assert ws.last_hits
-        out = ws.run("visit", {"rank": 1})
-        assert not out.startswith("ERROR")
+def test_visit_whole_doc_read_works(corpus):
+    """`visit` never touches the engine, but end to end: a doc surfaced by the search is
+    visitable."""
+    _docs, units, _ubyid, pys, _key = corpus
+    ws = _bm25_visit_toolbox(units, pys)
+    ws.run("bm25_search", {"query": _QUERY})
+    assert ws.last_hits
+    out = ws.run("visit", {"rank": 1})
+    assert not out.startswith("ERROR")
+    assert "Kestrel Valley" in out
 
 
-# --- 5. build efficiency knobs: parallel indexing + lean stored fields --------------------------
+# --- 7. build efficiency knobs: parallel indexing and lean stored fields -----------------------
 
 def test_index_threads_defaults_to_cpu_count_and_env_overrides(monkeypatch):
     from agent_search.retrievers.lexical.pyserini import _index_threads
@@ -395,101 +382,34 @@ def test_store_raw_is_off_by_default_and_env_enables(monkeypatch):
     assert _store_raw() is True
 
 
-def test_build_shards_corpus_one_jsonl_per_thread(engines):
-    """Anserini's JsonCollection parallelizes across FILES — the build must have written the
-    corpus as multiple shards (one per thread requested), not one monolithic docs.jsonl, or
-    --threads N is silently single-threaded. The module-scope `engines` fixture built its index
-    with the default thread count, so its corpus dir is the artifact to inspect."""
-    _units, _ubyid, _local, _pys, index_root = engines
-    corpus_dir = os.path.join(index_root, "bm25_pyserini", _AGREEMENT_CORPUS_KEY, "corpus")
+def test_build_shards_corpus_one_jsonl_per_thread(corpus):
+    """Anserini's JsonCollection parallelizes across files, so the build must write the corpus
+    as several shards (one per thread), not one docs.jsonl, or `--threads N` is silently
+    single-threaded. The module fixture built its index with the default thread count."""
+    _docs, units, _ubyid, _pys, key = corpus
+    corpus_dir = os.path.join(lucene_support.index_root(), "bm25_pyserini", key, "corpus")
     shards = sorted(f for f in os.listdir(corpus_dir) if f.endswith(".jsonl"))
     assert shards, "no corpus shards written"
-    assert "docs.jsonl" not in shards, "legacy single-file layout — sharding not applied"
-    expected = min(max(1, os.cpu_count() or 1), 120)   # 120 docs in the fixture corpus
+    assert "docs.jsonl" not in shards, "legacy single-file layout: sharding not applied"
     assert len(shards) <= max(1, os.cpu_count() or 1)
     if (os.cpu_count() or 1) > 1:
         assert len(shards) > 1, (
-            "corpus written as ONE shard on a multi-core machine — the parallel build "
-            "regressed to effectively single-threaded ingestion")
+            "corpus written as one shard on a multi-core machine: the parallel build "
+            "regressed to single-threaded ingestion")
     # every doc is in exactly one shard (no loss, no duplication across the split)
     n_lines = 0
     for s in shards:
         with open(os.path.join(corpus_dir, s)) as fh:
             n_lines += sum(1 for _ in fh)
-    assert n_lines == len(_units)
+    assert n_lines == len(units)
 
 
-def test_lean_index_has_no_stored_raw_but_searches_fine(engines):
-    """Default build stores NO raw contents/docvectors — doc(id).raw() comes back empty/None —
-    yet ranking works (BM25 needs only the inverted index). The tool layer renders from its own
-    units, so nothing downstream misses the stored fields."""
-    _units, _ubyid, _local, pys, _root = engines
-    ids = pys.search("climbing Kestrel Valley", k=3)
+def test_lean_index_has_no_stored_raw_but_searches_fine(corpus):
+    """The default build stores no raw contents or docvectors (`doc(id).raw()` is empty), yet
+    ranking works: BM25 needs only the inverted index, and the tool layer renders from its
+    own units."""
+    _docs, _units, _ubyid, pys, _key = corpus
+    ids = pys.search(_QUERY, k=3)
     assert ids
     d = pys._searcher.doc(ids[0])
     assert d is None or not d.raw()
-
-
-# --- doc-count congruence guard (adversarial-verification HIGH-latent finding) --------------
-
-def _small_docs(n: int, prefix: str = "d") -> list:
-    return [{"_id": f"{prefix}{i}", "title": f"{prefix}{i}", "text": f"filler content {i}"}
-            for i in range(n)]
-
-
-def test_is_built_rejects_stale_doc_count_and_rebuilds(tmp_path):
-    """Regression: `BM25Pyserini._is_built` used to be a bare `segments_*`-file presence
-    check, so an index left on disk under a cache key whose CORPUS later changed (docs
-    added/removed) was silently reused -- serving BM25 hits for the wrong document set with
-    no error anywhere. Now `index()` writes a `meta.json` doc-count sentinel and cross-checks
-    it on every subsequent `index()` call for the same key; a mismatch is a loud, logged
-    rebuild (mirrors the dense-cache congruence check in retrievers/dense/base.py and the
-    lucene_structured `is_built` doc-count check in index_builder.py)."""
-    index_root = str(tmp_path)
-    key = "congruence_test_corpus"
-
-    units_a = units_from_documents(_small_docs(5, "a"))
-    pys_a = BM25Pyserini(index_root=index_root, rebuild=True).index(units_a, key=key)
-    hits_a = set(pys_a.search("filler", k=10))
-    assert hits_a and hits_a <= {u.doc_id for u in units_a}  # sanity: searchable at all
-    meta_path = os.path.join(index_root, "bm25_pyserini", key, "meta.json")
-    assert os.path.exists(meta_path)
-
-    # A DIFFERENT-sized corpus reusing the SAME key, with rebuild=False (the normal reuse
-    # path) -- must detect the incongruence and rebuild rather than trust the stale index.
-    units_b = units_from_documents(_small_docs(8, "b"))
-    pys_b = BM25Pyserini(index_root=index_root, rebuild=False).index(units_b, key=key)
-    hits = set(pys_b.search("filler", k=20))
-    assert hits, "rebuilt index should be searchable"
-    assert hits <= {u.doc_id for u in units_b}, (
-        "stale corpus_a doc_ids leaked through -- the doc-count congruence check did not "
-        "trigger a rebuild")
-    assert not (hits & {u.doc_id for u in units_a}), (
-        "old corpus_a doc_ids still present in results after the corpus changed")
-
-
-def test_is_built_rejects_stale_fingerprint_same_doc_count_and_rebuilds(tmp_path):
-    """A unit's CONTENT can change in place (same doc_id, same count) -- the doc-count check
-    alone can't see that. `index()` also writes a `corpus_fingerprint`
-    (agent_search.corpus.fingerprint.corpus_fingerprint) into meta.json and cross-checks it
-    on every subsequent `index()` for the same key; a same-count, different-CONTENT reuse
-    must still trigger a rebuild instead of silently serving the old text's postings."""
-    index_root = str(tmp_path)
-    key = "fingerprint_congruence_test"
-
-    units_a = units_from_documents([{"_id": "d0", "title": "d0", "text": "alpha content zero"}])
-    pys_a = BM25Pyserini(index_root=index_root, rebuild=True).index(units_a, key=key)
-    assert set(pys_a.search("alpha", k=10)) == {"d0"}
-    meta_path = os.path.join(index_root, "bm25_pyserini", key, "meta.json")
-    with open(meta_path) as fh:
-        meta = json.load(fh)
-    assert meta.get("corpus_fingerprint")          # the new key is actually being written
-
-    # SAME doc_id, SAME count, DIFFERENT text -- a doc-count check alone would trust this.
-    units_b = units_from_documents(
-        [{"_id": "d0", "title": "d0", "text": "totally different beta wording"}])
-    pys_b = BM25Pyserini(index_root=index_root, rebuild=False).index(units_b, key=key)
-    assert pys_b.search("alpha", k=10) == [], (
-        "stale content served after an in-place edit -- the fingerprint check did not "
-        "trigger a rebuild")
-    assert set(pys_b.search("beta", k=10)) == {"d0"}

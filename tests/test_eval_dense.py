@@ -54,9 +54,8 @@ def test_dense_retriever_rejects_incongruent_cache_and_rebuilds(tmp_path, capsys
     load whatever `doc_ids.json` was on disk under `key` with no check that it still
     matches the CURRENT corpus, so a stale/colliding cache would silently return
     wrong doc identities for every query. Now the doc_ids must be validated against
-    the passed units; a mismatch is a loud, logged rebuild -- mirroring
-    `StructuralExecutor.attach_units`'s doc-id-order congruence check on the BQL
-    pickle path (bql/executor.py)."""
+    the passed units; a mismatch is a loud, logged rebuild, the same guard
+    `BM25Pyserini._is_built` applies to a Lucene index whose corpus changed."""
     enc1 = FakeEncoder()
     DenseRetriever("fake/model", index_root=str(tmp_path), encoder=enc1).index(
         _units(), key="repo@abc")
