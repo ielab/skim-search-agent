@@ -123,14 +123,16 @@ Table 1. The paper uses these:
 
 The paper's cells, rerun from `dev` with Tongyi-DeepResearch-30B-A3B served by vLLM (98k
 window), seed 42, temperature 0.6, 100 steps, 5 results per search, 12,000-token reads, judged
-by gpt-4o-mini with the BrowseComp judge prompt. Prompt tokens are summed over every model
-call of an episode; completion tokens likewise. A row is added as its run completes.
+by gpt-4o-mini with the BrowseComp judge prompt. Tokens per episode follow the paper's
+definition: every piece the model reads (the initial prompt, then each observation) and every
+piece it writes is counted once, on the library's token ruler (`total_tokens_once` in each
+row). A row is added as its run completes.
 
-| strategy | condition | judged accuracy | steps | completion tokens | prompt tokens |
-|---|---|---|---|---|---|
-| Search-Visit (BM25) | `agent_research_bm25` | 36.7% (305/830) | 54.5 | 11.3k | 1.63M |
-| Sieve, BM25 ranking | `agent_research_snip` | 32.8% (272/830) | 60.6 | 15.8k | 1.57M |
-| Search-Fetch (BM25) | `agent_research_bm25_fetch_snip` | 33.5% (278/830) | 70.1 | 11.5k | 1.95M |
+| strategy | condition | judged accuracy | steps | tokens per episode |
+|---|---|---|---|---|
+| Search-Visit (BM25) | `agent_research_bm25` | 36.7% (305/830) | 54.5 | 58.1k |
+| Sieve, BM25 ranking | `agent_research_snip` | 32.8% (272/830) | 60.6 | 46.2k |
+| Search-Fetch (BM25) | `agent_research_bm25_fetch_snip` | 33.5% (278/830) | 70.1 | 48.4k |
 
 ### Retrieval floors on BrowseComp-Plus structured
 
