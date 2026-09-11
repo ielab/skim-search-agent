@@ -3,12 +3,12 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>SkimSearchAgent: Search, Inspect, Fetch</title>
-<meta name="description" content="A composable library for building and evaluating deep-research agents over your own corpus. Sieve is its Boolean search-inspect-fetch method.">
+<title>SkimSearchAgent</title>
+<meta name="description" content="SkimSearchAgent is a research library for deep-search agents over your own corpus. Swap the corpus, retrievers, tools, tasks, strategies, backbone or evaluation; one agent loop, one run record and one evaluation layer stay fixed.">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 26 26'%3E%3Ccircle cx='11' cy='11' r='7.2' fill='none' stroke='%230e9384' stroke-width='2.6'/%3E%3Cline x1='16.5' y1='16.5' x2='23' y2='23' stroke='%230e9384' stroke-width='3' stroke-linecap='round'/%3E%3Cline x1='7.4' y1='9.4' x2='14.6' y2='9.4' stroke='%230e9384' stroke-width='1.7' stroke-linecap='round' opacity='.85'/%3E%3Cline x1='7.4' y1='12.8' x2='12.2' y2='12.8' stroke='%230e9384' stroke-width='1.7' stroke-linecap='round' opacity='.45'/%3E%3C/svg%3E">
 <script>
 (function(){
-  var t = localStorage.getItem('sieve-theme');
+  var t = localStorage.getItem('ssa-theme');
   if (!t) t = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
   document.documentElement.dataset.theme = t;
 })();
@@ -25,8 +25,7 @@
     --sans:system-ui,-apple-system,"Segoe UI",sans-serif;
     --mono:ui-monospace,'SF Mono',Menlo,Consolas,monospace;
   }
-  /* dark theme — same roles, dark values. Teal/violet re-stepped for the dark surface and
-     validated as a pair (#16a795 / #8d6ee8 on #161715: all six checks pass). */
+  /* dark theme, same roles as light, dark values. Validated as a pair on #161715. */
   :root[data-theme="dark"]{
     color-scheme:dark;
     --bg:#161715; --bg-soft:#22231f; --card:#1d1e1b;
@@ -44,45 +43,21 @@
   a{color:var(--teal);text-decoration:none}
   code{font-family:var(--mono);font-size:.9em;background:var(--bg-soft);border-radius:5px;padding:1px 6px}
 
-  .topbar{position:sticky;top:0;z-index:20;display:flex;justify-content:space-between;align-items:center;padding:12px 24px;background:rgba(246,245,240,.85);backdrop-filter:blur(12px);border-bottom:1px solid var(--line-soft)}
-  .logo{display:flex;align-items:center;gap:7px;font-size:16px;font-weight:500;letter-spacing:-.02em;color:var(--ink)}
+  .topbar{position:sticky;top:0;z-index:20;display:flex;justify-content:space-between;align-items:center;padding:12px 24px;background:rgba(246,245,240,.85);backdrop-filter:blur(12px);border-bottom:1px solid var(--line-soft);flex-wrap:nowrap;padding-left:max(24px,env(safe-area-inset-left));padding-right:max(24px,env(safe-area-inset-right))}
+  :root[data-theme="dark"] .topbar{background:rgba(22,23,21,.85)}
+  .logo{display:flex;align-items:center;gap:7px;font-size:16px;font-weight:500;letter-spacing:-.02em;color:var(--ink);white-space:nowrap;min-width:0}
   .logo b{font-weight:800}
   .logo svg{transform:rotate(-6deg)}
-  .nav{display:flex;gap:20px;font-size:13.5px;font-weight:550}
+  .nav{display:flex;gap:18px;font-size:13.5px;font-weight:550;flex-wrap:nowrap;white-space:nowrap;align-items:center}
   .nav a{color:var(--ink-2)}
   .nav a:hover{color:var(--teal)}
-  /* phone tiers: the bar carries logo + Paper + GitHub + two buttons, which overflows a
-     ~375px screen at desktop gaps. Shrink in two steps; never let it wrap to a second line. */
-  .topbar{flex-wrap:nowrap;padding-left:max(24px,env(safe-area-inset-left));padding-right:max(24px,env(safe-area-inset-right))}
-  .logo{white-space:nowrap;min-width:0}
-  .nav{flex-wrap:nowrap;white-space:nowrap}
-  @media(max-width:640px){
+  @media(max-width:760px){
     .nav .opt{display:none}
     .topbar{padding-top:10px;padding-bottom:10px;padding-left:max(14px,env(safe-area-inset-left));padding-right:max(14px,env(safe-area-inset-right))}
     .logo{font-size:14.5px;gap:5px}
     .logo svg{width:19px;height:19px}
     .nav{gap:11px;font-size:12.5px}
-    .lang-btn{padding:0 7px;font-size:11px}
     .theme-btn{width:27px;height:27px;font-size:12.5px}
-  }
-  @media(max-width:400px){
-    .nav{gap:8px}
-    /* Paper stays reachable in the hero buttons and the citation section */
-    .nav a[href*="arxiv"]{display:none}
-  }
-  /* the boards: four 92px-wide stations overlap on a phone; shrink pads and labels */
-  @media(max-width:560px){
-    .station{width:64px;margin-left:-32px}
-    .st-pad{width:44px;height:44px;font-size:17px;border-radius:14px}
-    .st-name{font-size:8px;letter-spacing:.04em;margin-top:5px}
-    .stage{height:150px}
-    .agent{width:44px}
-    .lens{width:34px;height:34px;border-width:3px}
-    .eye.l{left:8px}.eye.r{left:19px}
-    .mouth{left:11px;top:20px}
-    .ticker{font-size:10.5px}
-    .pv-meter{width:100%;order:3}
-    .caption{padding:0 8px}
   }
 
   .wrap{max-width:var(--shell,900px);margin:0 auto;padding:0 28px}
@@ -93,203 +68,31 @@
   .hero{text-align:center;padding:64px 0 10px}
   .kicker{display:inline-block;font-family:var(--mono);font-size:11px;letter-spacing:.08em;color:var(--teal);border:1px solid var(--teal);border-radius:999px;padding:3px 12px;margin-bottom:18px}
   h1{font-size:clamp(34px,6vw,54px);font-weight:800;letter-spacing:-.035em;line-height:1.08}
-  h1 .a{color:var(--teal)}h1 .b{color:var(--violet)}h1 .c{color:var(--amber)}
-  .sub{margin:16px auto 0;max-width:600px;font-size:17px;color:var(--ink-2)}
+  h1 .a{color:var(--teal)}
+  .sub{margin:16px auto 0;max-width:640px;font-size:17px;color:var(--ink-2)}
   .cta{display:flex;gap:10px;justify-content:center;margin-top:26px;flex-wrap:wrap}
   .btn{display:inline-flex;align-items:center;gap:7px;font-size:14px;font-weight:650;border-radius:12px;padding:10px 20px;border:1.5px solid var(--line);color:var(--ink);background:var(--card);transition:.15s}
   .btn:hover{transform:translateY(-1px);border-color:var(--ink-3)}
   .btn.primary{background:var(--teal);border-color:var(--teal);color:#fff;box-shadow:0 4px 14px var(--teal-glow)}
   .btn.primary:hover{border-color:var(--teal)}
 
-  /* animated stage */
-  .stage-card{margin:40px auto 0;max-width:760px;background:var(--card);border:1px solid var(--line);border-radius:22px;padding:16px 20px 10px;box-shadow:0 2px 18px rgba(32,36,31,.07);text-align:left}
-  .stage-top{display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap}
-  .who{display:flex;align-items:baseline;gap:8px}
-  .who-dot{width:9px;height:9px;border-radius:50%;background:var(--teal);align-self:center;box-shadow:0 0 8px var(--teal)}
-  .who-name{font-size:14px;font-weight:800}
-  .who-sub{font-size:11.5px;color:var(--ink-3)}
-  .meter{font-family:var(--mono);font-size:11px;color:var(--ink-3);font-variant-numeric:tabular-nums;white-space:nowrap}
-  .meter b{color:var(--teal);font-size:13px}
-  .ticker{margin-top:10px;font-family:var(--mono);font-size:11.5px;line-height:1.5;color:var(--bg);background:var(--ink);border-radius:10px;padding:6px 12px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;word-break:break-word;min-height:30px}
-  .ticker .dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--teal);margin-right:8px;animation:pulse 1.1s ease-in-out infinite}
-  .stage{position:relative;height:172px;margin-top:4px}
-  .floor{position:absolute;left:20px;right:20px;bottom:30px;border-top:2px dotted var(--line)}
-  .station{position:absolute;top:18px;width:92px;margin-left:-46px;text-align:center;z-index:2}
-  .st-pad{width:60px;height:60px;margin:0 auto;border-radius:20px;background:var(--bg);border:1.5px solid var(--line);display:grid;place-items:center;font-size:24px;transition:.3s;position:relative}
-  .station.active .st-pad{background:var(--teal-soft);border-color:var(--teal);transform:translateY(-4px);box-shadow:0 6px 18px var(--teal-glow)}
-  .station.active .st-pad::after{content:'';position:absolute;inset:-8px;border-radius:25px;border:2px solid var(--teal);opacity:0;animation:ring 1.1s ease-out infinite}
-  .st-name{margin-top:7px;font-size:10px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;color:var(--ink-3)}
-  .station.active .st-name{color:var(--teal)}
-  .agent{position:absolute;bottom:6px;left:1%;width:52px;z-index:4;transition:left .75s cubic-bezier(.45,1.45,.4,1)}
-  .lens{position:relative;width:40px;height:40px;margin:0 auto;border-radius:50%;background:linear-gradient(150deg,#fff,#eef5f3);border:3.5px solid var(--teal);box-shadow:0 3px 10px var(--teal-glow),inset -3px -3px 8px rgba(32,36,31,.07);animation:bob 2s ease-in-out infinite}
-  .handle{position:absolute;left:50%;bottom:-10px;width:5px;height:15px;border-radius:3px;background:var(--teal);transform:translateX(-50%)}
-  .eye{position:absolute;top:12px;width:5.5px;height:8px;border-radius:3px;background:var(--ink);animation:blink 3.6s infinite}
-  .eye.l{left:10px}.eye.r{left:22px}
-  .mouth{position:absolute;left:14px;top:24px;width:9px;height:4px;border-radius:0 0 8px 8px;background:var(--ink)}
-  .bubble{position:absolute;top:-17px;right:-7px;font-size:13px;opacity:0}
-  .agent.thinking .bubble{opacity:1;animation:bob 1.1s ease-in-out infinite}
-  .packet{position:absolute;width:12px;height:9px;border-radius:2.5px;background:var(--teal);z-index:3;opacity:0}
-  .packet.fly{animation:pkfly .7s cubic-bezier(.4,.1,.7,1) forwards}
-  .conf{position:absolute;width:7px;height:7px;border-radius:2px;z-index:6;opacity:0}
-  .conf.go{animation:confl 1s ease-out forwards}
-  .caption{text-align:center;font-size:12px;color:var(--ink-3);margin-top:10px}
-
-  /* authors */
-  .authors-row{display:flex;flex-wrap:wrap;justify-content:center;gap:6px 22px;margin-top:22px}
-  .au{font-size:15px;font-weight:600;color:var(--ink)}
-  .au a{color:var(--ink);border-bottom:1.5px solid var(--teal-soft);transition:.15s}
-  .au a:hover{color:var(--teal);border-bottom-color:var(--teal)}
-  .au sup{font-size:10.5px;color:var(--teal);font-weight:700;margin-left:1px}
-  .affil{display:flex;flex-direction:column;align-items:center;gap:2px;margin-top:12px;font-size:12.5px;color:var(--ink-3)}
-  .affil span sup{color:var(--teal);font-weight:700;margin-right:3px}
-  .venue{margin-top:14px;font-size:13px;color:var(--ink-2)}
-
-  /* results */
-  .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:24px}
-  @media(max-width:720px){.stats{grid-template-columns:1fr}}
-  .stat{background:var(--card);border:1px solid var(--line-soft);border-radius:16px;padding:16px 18px}
-  .stat .v{font-size:30px;font-weight:800;letter-spacing:-.03em;line-height:1.1;color:var(--teal)}
-  .stat .v small{font-size:15px;font-weight:700;color:var(--ink-3);margin-left:3px}
-  .stat .l{font-size:12.5px;color:var(--ink-2);margin-top:5px;line-height:1.45}
-  table.res{width:100%;border-collapse:collapse;margin-top:22px;font-size:13.5px}
-  table.res th{text-align:left;font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-3);font-weight:700;padding:0 10px 8px 0;border-bottom:1px solid var(--line)}
-  table.res td{padding:11px 10px 11px 0;border-bottom:1px solid var(--line-soft);vertical-align:baseline}
-  table.res td.c{font-weight:650}
-  .up{color:var(--good);font-weight:700}
-  .down{color:var(--teal);font-weight:700}
-  .arrow{color:var(--ink-3);margin:0 5px}
-  figure{margin-top:26px}
-  figure img{width:100%;border:1px solid var(--line-soft);border-radius:14px;background:var(--card)}
-  figcaption{margin-top:9px;font-size:12.5px;color:var(--ink-3);text-align:center}
-
-  /* demo preview — a static render of real library output */
-  .frame{margin-top:24px;border:1px solid var(--line);border-radius:18px;background:var(--card);overflow:hidden;box-shadow:0 2px 18px rgba(32,36,31,.07)}
-  .chrome{display:flex;align-items:center;gap:9px;padding:9px 14px;border-bottom:1px solid var(--line-soft);background:var(--bg)}
-  .dots{display:flex;gap:5px}.dots i{width:9px;height:9px;border-radius:50%;background:var(--line);display:block}
-  .url{font-family:var(--mono);font-size:11px;color:var(--ink-3)}
-  .badge{margin-left:auto;font-family:var(--mono);font-size:10px;color:var(--amber);border:1px solid var(--amber-soft);background:#fdf6ea;border-radius:999px;padding:2px 9px}
-  .pv{padding:16px 18px}
-  .pv-q{display:flex;gap:9px;align-items:baseline;font-size:14.5px;font-weight:600;line-height:1.45}
-  .pv-q .k{flex:none;font-family:var(--mono);font-size:10.5px;font-weight:700;color:var(--teal);border:1.5px solid var(--teal);border-radius:6px;padding:0 6px}
-  .pv-bar{display:flex;align-items:center;gap:8px;margin:12px 0 4px;flex-wrap:wrap}
-  .pv-pill{font-size:11.5px;font-weight:650;color:var(--teal);background:var(--teal-soft);border:1px solid var(--teal);border-radius:999px;padding:3px 11px}
-  .pv-pill{cursor:default}
-  .pv-strat{cursor:pointer;color:var(--ink-3);background:var(--bg);border-color:var(--line);font-weight:550;transition:.15s}
-  .pv-strat:hover{border-color:var(--teal);color:var(--ink)}
-  .pv-strat.on{color:var(--teal);background:var(--teal-soft);border-color:var(--teal);font-weight:700}
-  .pv-meter{margin-left:auto;font-family:var(--mono);font-size:11px;color:var(--ink-3);font-variant-numeric:tabular-nums}
-  .pv-meter b{color:var(--teal)}
-  .pv-act{display:flex;gap:9px;align-items:baseline;font-family:var(--mono);font-size:12.5px;color:var(--ink-2);margin-top:14px}
-  .pv-act .n{flex:none;width:19px;height:19px;border-radius:6px;background:var(--bg-soft);display:grid;place-items:center;font-size:10px;color:var(--ink-3);align-self:center}
-  .pv-act b{color:var(--teal)}
-  .pv-note{font-family:var(--mono);font-size:11px;color:var(--ink-3);padding-left:28px;margin-top:3px}
-  .pv-hit{margin:8px 0 0 28px;border:1px solid var(--line-soft);border-radius:12px;padding:10px 13px}
-  .pv-hit .t{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap;font-size:13px}
-  .pv-hit .t b{font-weight:650}
-  .pv-rank{font-family:var(--mono);font-size:10px;color:var(--ink-3);border:1px solid var(--line);border-radius:5px;padding:0 5px}
-  .pv-id{font-family:var(--mono);font-size:10.5px;color:var(--ink-3)}
-  .pv-m{margin-left:auto;font-family:var(--mono);font-size:10px;color:var(--good)}
-  .pv-secs{display:flex;gap:5px;flex-wrap:wrap;margin-top:5px}
-  .pv-sec{font-size:10.5px;color:var(--ink-2);background:var(--teal-soft);border-radius:5px;padding:1px 7px}
-  .pv-snip{margin-top:5px;font-size:12px;color:var(--ink-3);line-height:1.5}
-  .pv-read{margin:8px 0 0 28px;border:1px solid var(--line-soft);border-left:3px solid var(--violet);border-radius:12px;padding:10px 13px}
-  .pv-read .h{font-size:11.5px;color:var(--ink-2);margin-bottom:4px}
-  .pv-read .h b{color:var(--ink)}
-  .pv-read .b{font-size:12.5px;color:var(--ink-2);line-height:1.55}
-  .pv-ans{margin-top:12px;background:linear-gradient(180deg,#fff,#f2f8f6);border:1.5px solid #bcded7;border-radius:14px;padding:13px 16px}
-  .pv-ans .k{font-family:var(--mono);font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--teal);font-weight:700;margin-bottom:5px}
-  .pv-ans .t{font-size:14.5px;font-weight:600;line-height:1.5}
-  .pv-ans .g{margin-top:6px;font-size:12px;color:var(--good);font-weight:650}
-  .contrast{margin-top:18px;border-top:1px solid var(--line-soft);padding-top:14px}
-  .contrast h4{font-size:12.5px;font-weight:800;letter-spacing:-.01em}
-  .contrast p{font-size:12px;color:var(--ink-3);margin:2px 0 10px}
-  .crow{display:grid;grid-template-columns:118px 1fr 96px;gap:10px;align-items:center;margin:6px 0;font-size:12px}
-  .clabel{color:var(--ink-2);font-weight:600}
-  .ctrack{height:11px;border-radius:6px;background:var(--bg-soft);overflow:hidden}
-  .cfill{height:100%;border-radius:0 5px 5px 0}
-  .cval{font-family:var(--mono);font-size:11px;text-align:right;font-variant-numeric:tabular-nums}
-
-  .pv-chips{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:12px}
-  .pv-chip{font-size:11.5px;color:var(--ink-2);background:var(--bg);border:1px solid var(--line);border-radius:999px;padding:4px 11px;cursor:pointer;transition:.15s;max-width:330px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .pv-chip:hover{border-color:var(--teal);color:var(--ink)}
-  .pv-chip.on{background:var(--teal-soft);border-color:var(--teal);color:var(--teal);font-weight:700}
-  .pv-stage{height:150px;margin:10px 0 2px}
-  .pv-stage .st-pad{width:52px;height:52px;font-size:21px;border-radius:17px}
-  .pv-stage .station{top:14px}
-  .pv-scroll{height:330px;overflow-y:auto;scrollbar-width:thin;margin-top:8px;padding-right:8px;
-    border-top:1px solid var(--line-soft);
-    -webkit-mask-image:linear-gradient(180deg,transparent,#000 14px);
-            mask-image:linear-gradient(180deg,transparent,#000 14px)}
-  .pv-item{opacity:0;transform:translateY(8px);animation:reveal .35s ease-out forwards}
-  @keyframes reveal{to{opacity:1;transform:none}}
-  .pv-replay{margin-top:14px;font-size:11.5px;font-weight:650;color:var(--ink-2);background:var(--bg);border:1px solid var(--line);border-radius:9px;padding:5px 13px;cursor:pointer}
-  .pv-replay:hover{border-color:var(--teal);color:var(--teal)}
-  .cfill{transition:width .8s cubic-bezier(.2,.8,.2,1)}
-
-  /* dark-mode component fixes: pieces whose colors were literal, not role vars */
-  .ticker{background:#20241f;color:#e8eae5}                  /* terminal look in BOTH themes */
-  :root[data-theme="dark"] .badge{background:var(--amber-soft)}
-  :root[data-theme="dark"] .pv-ans,
-  :root[data-theme="dark"] .answer{background:linear-gradient(180deg,var(--card),var(--teal-soft));border-color:#2c5a52}
-  :root[data-theme="dark"] .snip mark,
-  :root[data-theme="dark"] .pv-snip mark{background:var(--amber-soft)}
-  /* dark mascot: the night shift is a little SKULL. Bone lens, hollow eye sockets with
-     glowing pupils, a stitched grin. Same elements, restyled, so both stages get it. */
-  :root[data-theme="dark"] .lens{
-    background:radial-gradient(circle at 38% 30%, #f2efe2, #d6d2bf 68%, #b9b5a2);
-    border-color:var(--teal);
-    box-shadow:0 3px 12px var(--teal-glow), inset 0 -5px 9px rgba(0,0,0,.28);
-  }
-  :root[data-theme="dark"] .eye{
-    width:9px;height:10px;border-radius:50% 50% 46% 46%;background:#141511;top:11px;
-    box-shadow:inset 0 0 0 9px #141511;
-  }
-  :root[data-theme="dark"] .eye::after{
-    content:'';position:absolute;left:3px;top:3.5px;width:3px;height:3px;border-radius:50%;
-    background:var(--teal);box-shadow:0 0 6px var(--teal);
-  }
-  :root[data-theme="dark"] .eye.l{left:7px}
-  :root[data-theme="dark"] .eye.r{left:22px}
-  :root[data-theme="dark"] .mouth{
-    left:12px;top:26px;width:14px;height:4px;border-radius:2px;background:#141511;
-    /* tooth gaps: a stitched skeleton grin */
-    -webkit-mask-image:linear-gradient(90deg,#000 0 3px,transparent 3px 4.5px,#000 4.5px 7.5px,transparent 7.5px 9px,#000 9px 12px,transparent 12px 13.5px,#000 13.5px);
-            mask-image:linear-gradient(90deg,#000 0 3px,transparent 3px 4.5px,#000 4.5px 7.5px,transparent 7.5px 9px,#000 9px 12px,transparent 12px 13.5px,#000 13.5px);
-  }
-  :root[data-theme="dark"] .critter .bubble, :root[data-theme="dark"] .agent .bubble{filter:grayscale(1) brightness(1.4)}
-  :root[data-theme="dark"] .topbar{background:rgba(22,23,21,.85)}
-  :root[data-theme="dark"] .composer-dock, :root[data-theme="dark"] .dock{background:linear-gradient(180deg,transparent,var(--bg) 38%)}
-  :root[data-theme="dark"] .demo-band{background:linear-gradient(120deg,var(--teal-soft),var(--violet-soft))}
-  /* theme toggle */
-  .theme-btn{border:1px solid var(--line);background:var(--card);color:var(--ink-2);width:30px;height:30px;border-radius:9px;cursor:pointer;font-size:14px;line-height:1;transition:.15s}
-  .theme-btn:hover{border-color:var(--teal);color:var(--teal)}
-  .lang-btn{width:auto;padding:0 9px;font-size:11.5px;font-weight:700}
-  /* theme-scoped images */
-  /* NB: `.team img` sets display:block at higher specificity than a bare class, so these
-     selectors must include the img type to win regardless of rule order. */
-  img.only-dark, .team img.only-dark, figure img.only-dark{display:none}
-  :root[data-theme="dark"] img.only-dark, :root[data-theme="dark"] .team img.only-dark,
-  :root[data-theme="dark"] figure img.only-dark{display:block}
-  :root[data-theme="dark"] img.only-light, :root[data-theme="dark"] .team img.only-light,
-  :root[data-theme="dark"] figure img.only-light{display:none}
-
-  /* team */
-  .team{margin-top:26px}
-  .team img{width:100%;border-radius:16px;border:1px solid var(--line-soft);display:block}
-  .team-names{display:grid;grid-template-columns:repeat(6,1fr);gap:4px;margin-top:9px}
-  .team-names a{display:block;text-align:center;font-size:12.5px;font-weight:650;color:var(--ink);line-height:1.3}
-  .team-names a:hover{color:var(--teal)}
-  .team-names a sup{color:var(--teal);font-size:9.5px;margin-left:1px}
-  @media(max-width:700px){.team-names{grid-template-columns:repeat(3,1fr);gap:8px 4px}}
-
   /* sections */
   section{padding:56px 0 0}
   .sec-k{font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--teal);font-weight:700}
   h2{font-size:clamp(22px,3vw,30px);font-weight:800;letter-spacing:-.025em;margin:6px 0 10px}
-  .lead{color:var(--ink-2);max-width:640px}
+  .lead{color:var(--ink-2);max-width:680px}
 
-  .stages{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:24px}
-  @media(max-width:760px){.stages{grid-template-columns:repeat(2,1fr)}}
+  figure{margin-top:26px}
+  figure img{width:100%;border:1px solid var(--line-soft);border-radius:14px;background:var(--card)}
+  figcaption{margin-top:9px;font-size:12.5px;color:var(--ink-3);text-align:center}
+  img.only-dark{display:none}
+  :root[data-theme="dark"] img.only-dark{display:block}
+  :root[data-theme="dark"] img.only-light{display:none}
+
+  /* module / definition cards */
+  .stages{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:24px}
+  @media(max-width:820px){.stages{grid-template-columns:repeat(2,1fr)}}
+  @media(max-width:560px){.stages{grid-template-columns:1fr}}
   .st-card{background:var(--card);border:1px solid var(--line-soft);border-radius:16px;padding:16px}
   .st-card .n{font-family:var(--mono);font-size:11px;color:var(--teal);font-weight:700}
   .st-card h3{font-size:15px;font-weight:750;margin:4px 0 5px;letter-spacing:-.01em}
@@ -298,34 +101,35 @@
   .feats{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:24px}
   @media(max-width:700px){.feats{grid-template-columns:1fr}}
   .feat{background:var(--card);border:1px solid var(--line-soft);border-radius:16px;padding:18px 20px}
-  .feat .ic{font-size:20px}
-  .feat h3{font-size:15.5px;font-weight:750;margin:8px 0 5px;letter-spacing:-.01em}
+  .feat h3{font-size:15.5px;font-weight:750;margin:0 0 5px;letter-spacing:-.01em}
   .feat p{font-size:13px;color:var(--ink-2)}
   .feat code{font-size:.88em}
 
+  .tbl-wrap{overflow-x:auto;margin-top:22px}
+  table.res{width:100%;min-width:560px;border-collapse:collapse;font-size:13.5px}
+  table.res th{text-align:left;font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-3);font-weight:700;padding:0 10px 8px 0;border-bottom:1px solid var(--line)}
+  table.res td{padding:11px 10px 11px 0;border-bottom:1px solid var(--line-soft);vertical-align:baseline}
+  table.res td.c{font-weight:650}
+  table.res code{white-space:nowrap}
+
   pre{background:#222621;color:#e8eae5;border-radius:14px;padding:16px 20px;font-family:var(--mono);font-size:12.5px;line-height:1.7;overflow-x:auto;margin-top:18px}
   pre .c{color:#8b9187}
-  pre .t{color:#7fd4c8}
 
-  .demo-band{margin-top:24px;background:linear-gradient(120deg,var(--teal-soft),var(--violet-soft));border:1px solid var(--line);border-radius:22px;padding:26px 28px;display:flex;gap:24px;align-items:center;flex-wrap:wrap}
-  .demo-band .txt{flex:1;min-width:240px}
-  .demo-band h3{font-size:19px;font-weight:800;letter-spacing:-.02em}
-  .demo-band p{font-size:13.5px;color:var(--ink-2);margin-top:6px}
-  .demo-band pre{margin-top:12px;font-size:12px;padding:12px 16px}
-
-  .cite{margin-top:20px;position:relative}
-  .copy{position:absolute;top:12px;right:12px;font-size:11px;font-weight:650;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:5px 12px;cursor:pointer;color:var(--ink-2)}
-  .copy:hover{border-color:var(--teal);color:var(--teal)}
+  /* papers */
+  .papers{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:24px}
+  @media(max-width:700px){.papers{grid-template-columns:1fr}}
+  .paper-card{background:var(--card);border:1px solid var(--line-soft);border-radius:18px;padding:22px 24px}
+  .paper-card .tag{font-family:var(--mono);font-size:10.5px;letter-spacing:.08em;color:var(--ink-3)}
+  .paper-card h3{font-size:19px;font-weight:800;letter-spacing:-.02em;margin:5px 0 8px}
+  .paper-card p{font-size:13.5px;color:var(--ink-2);line-height:1.6}
+  .paper-card .go{display:inline-block;margin-top:12px;font-size:13px;font-weight:650}
 
   footer{margin-top:70px;border-top:1px solid var(--line-soft);padding:28px 24px 40px;text-align:center;font-size:12.5px;color:var(--ink-3)}
-  footer .authors{color:var(--ink-2);margin-bottom:6px}
+  footer a{color:var(--ink-2)}
 
-  @keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
-  @keyframes blink{0%,93%,100%{transform:scaleY(1)}95%,97%{transform:scaleY(.12)}}
-  @keyframes ring{0%{opacity:.5;transform:scale(.9)}100%{opacity:0;transform:scale(1.25)}}
-  @keyframes pkfly{0%{opacity:1;transform:translate(0,0) rotate(0)}100%{opacity:0;transform:translate(var(--dx),130px) rotate(24deg)}}
-  @keyframes confl{0%{opacity:1;transform:translate(0,0) rotate(0)}100%{opacity:0;transform:translate(var(--cx),var(--cy)) rotate(230deg)}}
-  @keyframes pulse{0%,100%{opacity:.3}50%{opacity:1}}
+  .theme-btn{border:1px solid var(--line);background:var(--card);color:var(--ink-2);width:30px;height:30px;border-radius:9px;cursor:pointer;font-size:14px;line-height:1;transition:.15s}
+  .theme-btn:hover{border-color:var(--teal);color:var(--teal)}
+
   @media (prefers-reduced-motion: reduce){*{animation:none!important;transition:none!important}}
 </style>
 </head>
@@ -337,667 +141,189 @@
     SkimSearch<b>Agent</b>
   </div>
   <div class="nav">
-    <a class="opt" href="#results">Results</a>
-    <a class="opt" href="#method">Method</a>
-    <a class="opt" href="#library">Library</a>
-    <a class="opt" href="#demo">Demo</a>
-    <a class="opt" href="#team">Team</a>
-    <a href="https://arxiv.org/abs/2608.02751">Paper</a>
+    <a class="opt" href="#modules">Modules</a>
+    <a class="opt" href="#nouns">Nouns</a>
+    <a class="opt" href="#quickstart">Quick start</a>
+    <a class="opt" href="#extend">Extend</a>
+    <a class="opt" href="#papers">Papers</a>
+    <a href="sieve/">Sieve</a>
+    <a href="iter/">ITER</a>
     <a href="https://github.com/ielab/skim-search-agent">GitHub</a>
-    <button class="theme-btn lang-btn" id="langBtn" title="switch language" aria-label="switch language">中文</button>
     <button class="theme-btn" id="themeBtn" title="toggle light/dark" aria-label="toggle color theme">&#9789;</button>
   </div>
 </nav>
 
 <div class="wrap">
   <header class="hero">
-    <span class="kicker">arXiv 2608.02751 · cs.IR</span>
-    <h1><span class="a">Search.</span> <span class="b">Inspect.</span> <span class="c">Fetch.</span></h1>
-    <p class="sub">A composable library for building and evaluating deep-research agents over
-    your own corpus. <b>Sieve</b> is its Boolean search&ndash;inspect&ndash;fetch method: the
-    agent <i>skims before it reads</i>.</p>
-    <div class="authors-row">
-      <span class="au"><a href="https://shuaiwang.io" target="_blank" rel="noreferrer">Shuai Wang</a><sup>1</sup></span>
-      <span class="au"><a href="https://donovan0243.github.io/" target="_blank" rel="noreferrer">Haodong Chen</a><sup>1</sup></span>
-      <span class="au"><a href="https://yinyubb.github.io/" target="_blank" rel="noreferrer">Yu Yin</a><sup>1</sup></span>
-      <span class="au"><a href="https://arvinzhuang.github.io/" target="_blank" rel="noreferrer">Shengyao Zhuang</a></span>
-      <span class="au"><a href="https://bevankoopman.github.io/" target="_blank" rel="noreferrer">Bevan Koopman</a><sup>2,1</sup></span>
-      <span class="au"><a href="https://ielab.io/people/guido-zuccon.html" target="_blank" rel="noreferrer">Guido Zuccon</a><sup>1</sup></span>
-    </div>
-    <div class="affil">
-      <span><sup>1</sup><a href="https://ielab.io" target="_blank" rel="noreferrer">ielab</a>, The University of Queensland</span>
-      <span><sup>2</sup>Australian e-Health Research Centre, CSIRO</span>
-    </div>
+    <span class="kicker">a research library for deep-search agents</span>
+    <h1>SkimSearch<span class="a">Agent</span></h1>
+    <p class="sub">A research library for deep-search agents over your own corpus: an agent that
+    answers hard questions by searching a fixed collection over several steps. Swap the corpus,
+    the retrievers, the tools, tasks and strategies, the backbone, or the evaluation; one agent
+    loop, one run record and one evaluation layer stay fixed underneath every combination.</p>
 
     <div class="cta">
-      <a class="btn primary" href="https://github.com/ielab/skim-search-agent">★ GitHub</a>
-      <a class="btn" href="https://arxiv.org/abs/2608.02751">Read the paper</a>
-      <a class="btn" href="#demo">▶ Try the live demo</a>
+      <a class="btn primary" href="https://github.com/ielab/skim-search-agent">&#9733; GitHub</a>
+      <a class="btn" href="https://github.com/ielab/skim-search-agent/tree/main/docs">Docs</a>
+      <a class="btn" href="sieve/">Sieve paper</a>
+      <a class="btn" href="iter/">ITER paper</a>
     </div>
   </header>
 
-  <div class="stage-card">
-    <div class="stage-top">
-      <div class="who"><span class="who-dot"></span><span class="who-name">Sieve</span><span class="who-sub">Boolean search · fetch sections</span></div>
-      <div class="meter"><b id="cost">$0.00000</b> · <span id="tok">0</span> tok · <span id="stp">0</span> steps</div>
-    </div>
-    <div class="ticker" id="ticker"><span class="dot"></span><span id="tick-text">warming up…</span></div>
-    <div class="stage" id="stage">
-      <div class="floor"></div>
-      <div class="station" id="st-search" style="left:12%"><div class="st-pad" data-icon="search">🔎</div><div class="st-name" data-station="search">Search</div></div>
-      <div class="station" id="st-inspect" style="left:37%"><div class="st-pad" data-icon="inspect">🗂️</div><div class="st-name" data-station="inspect">Inspect</div></div>
-      <div class="station" id="st-fetch" style="left:62%"><div class="st-pad" data-icon="fetch">📑</div><div class="st-name" data-station="fetch">Fetch §</div></div>
-      <div class="station" id="st-answer" style="left:87%"><div class="st-pad" data-icon="answer">✍️</div><div class="st-name" data-station="answer">Answer</div></div>
-      <div class="agent" id="agent"><div class="lens"><span class="eye l"></span><span class="eye r"></span><span class="mouth"></span><div class="handle"></div></div><span class="bubble">💭</span></div>
-    </div>
-  </div>
-  <div class="caption">this board is driven by a real recorded agent run &middot; not a video</div>
-
-  <section id="results">
-    <span class="sec-k">Headline results</span>
-    <h2>Higher accuracy, on a third to half the tokens</h2>
-    <p class="lead">Against the BM25 Search–Visit baseline under identical budgets (k=5,
-    12,000-token reads, 100 steps). Skimming structure before reading is not an
-    accuracy-for-cost trade: on all three collections it wins on both axes.</p>
-
-    <div class="stats">
-      <div class="stat"><div class="v">−32.4<small>%</small></div>
-        <div class="l">tokens per episode on BrowseComp-Plus, at <b>+2.5</b> judge points</div></div>
-      <div class="stat"><div class="v">−50.6<small>%</small></div>
-        <div class="l">tokens on MuSiQue, at <b>+3.1</b> EM. The saving grows where the baseline reads most</div></div>
-      <div class="stat"><div class="v">3<small>/3</small></div>
-        <div class="l">collections where Sieve improves accuracy <i>and</i> cuts cost</div></div>
-    </div>
-
-    <table class="res">
-      <thead><tr><th>collection</th><th>accuracy (baseline → Sieve)</th><th>tokens / episode</th></tr></thead>
-      <tbody>
-        <tr><td class="c">HotpotQA <span style="color:var(--ink-3)">(7,343)</span></td>
-            <td>43.7 <span class="arrow">→</span> <span class="up">45.3 EM</span></td>
-            <td>19.9k <span class="arrow">→</span> <span class="down">13.9k (−30.4%)</span></td></tr>
-        <tr><td class="c">MuSiQue <span style="color:var(--ink-3)">(2,409)</span></td>
-            <td>26.1 <span class="arrow">→</span> <span class="up">29.2 EM</span></td>
-            <td>43.0k <span class="arrow">→</span> <span class="down">21.3k (−50.6%)</span></td></tr>
-        <tr><td class="c">BrowseComp-Plus <span style="color:var(--ink-3)">(830)</span></td>
-            <td>34.7 <span class="arrow">→</span> <span class="up">37.2 judge</span></td>
-            <td>68.1k <span class="arrow">→</span> <span class="down">46.0k (−32.4%)</span></td></tr>
-      </tbody>
-    </table>
-
-    <p class="lead" style="margin-top:20px">The effect transfers across agent backbones
-    (Qwen-AgentWorld, OpenResearcher), with the largest savings where the baseline burns the
-    most context. Full tables, ablations and statistics are in the paper.</p>
-  </section>
-
-  <section id="method">
-    <span class="sec-k">The method</span>
-    <h2>Skim the structure, read only what matters</h2>
-    <p class="lead">A deep-research agent that reads whole documents burns its context window on
-    text it never needed. Sieve composes four separable stages on top of one shared agent loop,
-    so the agent narrows <i>before</i> it spends.</p>
-    <div class="stages">
-      <div class="st-card"><span class="n">01</span><h3>Filter</h3><p>The agent writes a <b>BQL</b> Boolean query: field-scoped terms (<code>title</code>, <code>section</code>, <code>date</code>…) with <code>AND</code>/<code>OR</code>/<code>NOT</code>, phrases and prefixes that carve the corpus down to candidates.</p></div>
-      <div class="st-card"><span class="n">02</span><h3>Rank</h3><p>Candidates are ranked by relevance, with graceful soft fallback when a strict filter over-narrows to zero hits.</p></div>
-      <div class="st-card"><span class="n">03</span><h3>Inspect</h3><p>Each result is a <b>structure-rich card</b>: title, section headings, matched fields, a query-biased snippet. Enough to judge a document without reading it.</p></div>
-      <div class="st-card"><span class="n">04</span><h3>Fetch</h3><p>The agent reads <b>only the named section</b> it chose from the card, a slice rather than the whole document, and answers from grounded evidence.</p></div>
-    </div>
-    <figure>
-      <img class="only-light" src="assets/architecture.png" alt="Sieve architecture: filter, rank, inspect, fetch stages over one agent loop." loading="lazy">
-      <img class="only-dark" src="assets/darkarchitecture.png" alt="Sieve architecture, dark version: filter, rank, inspect, fetch stages over one agent loop." loading="lazy">
-      <figcaption>The four stages compose over one shared agent loop; each is swappable on its own.</figcaption>
-    </figure>
-  </section>
-
-  <section id="library">
-    <span class="sec-k">The library</span>
-    <h2>Bring the corpus, model and strategy; the harness is done</h2>
-    <p class="lead">One agent loop drives every condition. Corpora, models, retrievers, and
-    toolsets are pluggable behind five small protocols; the paper's 15+ conditions (BM25, dense,
-    hybrid, Indri, DCI, BQL variants, over documents and code) are one registry line each.</p>
-    <div class="feats">
-      <div class="feat"><span class="ic">🧩</span><h3>Add a method in one decorator</h3><p>Drop a file, decorate a builder with <code>@register("my_method")</code>, and the evaluation harness picks it up with no edits anywhere else.</p></div>
-      <div class="feat"><span class="ic">📚</span><h3>Real evaluation, reproducible</h3><p>A CLI harness with per-step token accounting, LLM-judge scoring, and released corpora. The paper's tables regenerate from one command.</p></div>
-      <div class="feat"><span class="ic">🔎</span><h3>BQL: Boolean, forgiving</h3><p>A tiny structured query language with a reference executor and Lucene backend. Parse errors come back as observations the agent can learn from, never crashes.</p></div>
-      <div class="feat"><span class="ic">⚔️</span><h3>Baselines included</h3><p>Every control the paper compares against ships in the box (retrieve-then-read, whole-document visiting, dense retrieval, agentic grep), all under the same loop.</p></div>
-    </div>
+  <section id="modules">
+    <span class="sec-k">Architecture</span>
+    <h2>Six modules behind one set of contracts</h2>
+    <p class="lead">One component changes at a time; the rest of the experiment stays fixed.
+    Documents go in, a run record comes out, and the same evaluation layer reads every strategy's
+    output the same way.</p>
     <figure>
       <img class="only-light" src="assets/skimsearchagent-overview.png" loading="lazy"
-           alt="SkimSearchAgent architecture: interchangeable corpora, models, strategies, retrievers and evaluators around one research-agent loop.">
+           alt="SkimSearchAgent architecture: corpus, retrieval and reranking, tools/tasks/strategies, agent runtime, evaluation and evidence, training and rollouts.">
       <img class="only-dark" src="assets/darkskimsearchagent-overview.png" loading="lazy"
            alt="SkimSearchAgent architecture, dark version.">
-      <figcaption>One agent loop; corpora, models, strategies, retrievers and evaluators all
-      swap independently around it.</figcaption>
+      <figcaption>Documents flow through six modules into one run record.</figcaption>
     </figure>
-
-    <pre><span class="c"># quickstart</span>
-pip install -e ".[api]"
-skimsearchagent dataset=doc_fixture strategy=sieve_bm25   <span class="c"># one episode, no GPU</span></pre>
-  </section>
-
-  <section id="demo">
-    <span class="sec-k">The playground</span>
-    <h2>Watch it think, with your own questions</h2>
-    <div class="frame">
-      <div class="chrome">
-        <span class="dots"><i></i><i></i><i></i></span>
-        <span class="url">localhost:8008</span>
-        <span class="badge">pre-recorded replay &middot; the real thing runs on your machine</span>
-      </div>
-      <div class="pv">
-        <div class="pv-chips" id="pvChips"></div>
-        <div class="pv-q"><span class="k">Q</span><span id="pvQ"></span></div>
-        <div class="pv-bar">
-          <button class="pv-pill pv-strat on" data-strat="sieve">Sieve</button>
-          <button class="pv-pill pv-strat" data-strat="search_visit">Search-Visit</button>
-          <span class="pv-meter" id="pvMeter"><b>$0.00000</b> &middot; 0 tok &middot; 0 ch read</span>
-        </div>
-
-        <div class="stage pv-stage" id="pvStage">
-          <div class="floor"></div>
-          <div id="pvStations"></div>
-          <div class="agent" id="pvAgent"><div class="lens"><span class="eye l"></span><span class="eye r"></span><span class="mouth"></span><div class="handle"></div></div><span class="bubble">&#128173;</span></div>
-        </div>
-
-        <div class="pv-scroll" id="pvScroll">
-          <div id="pvFeed"></div>
-          <div id="pvContrast"></div>
-        </div>
-        <button class="pv-replay" id="pvReplay">&#8635; replay</button>
-      </div>
-    </div>
-
-    <div class="demo-band">
-      <div class="txt">
-        <h3>The live demo races two strategies on your question.</h3>
-        <p>Ask anything over 250 real BrowseComp-Plus documents. The little agent hops between
-        its tools, the collection wall lights up as documents are surfaced and read, and a live
-        meter counts every token and fraction of a cent. Race <b style="color:var(--teal)">Sieve</b>
-        against <b style="color:var(--violet)">Search-Visit</b> and watch the paper's claim play
-        out on your screen.</p>
-        <pre>pip install -e ".[demo-live]"
-python demo/server.py   <span class="c"># → http://localhost:8008</span></pre>
-      </div>
+    <div class="stages">
+      <div class="st-card"><span class="n">01</span><h3>Corpus</h3><p>Documents become units: an id, a title, a body, and optional sections. One dataset registry loads them; a corpus too large for memory is served from disk instead of held in RAM.</p></div>
+      <div class="st-card"><span class="n">02</span><h3>Retrieval and reranking</h3><p>Every retriever indexes once and searches by query. BM25 in memory or in Lucene, dense encoders, reciprocal-rank fusion, BQL's fielded Boolean retrieval, and Indri-style structured retrieval all share one engine registry per corpus.</p></div>
+      <div class="st-card"><span class="n">03</span><h3>Tools, tasks, strategies</h3><p>A tool is one atomic action with its own declaration and code. A task is the goal and the answer protocol. A strategy combines tools with options, and this is where most extension work happens.</p></div>
+      <div class="st-card"><span class="n">04</span><h3>Agent runtime</h3><p>One loop drives every condition: reason, act, observe, with every limit measured in tokens. An alternative driver runs the same tools through native function calling instead of parsed text.</p></div>
+      <div class="st-card"><span class="n">05</span><h3>Evaluation and evidence</h3><p>Every run writes the same record: a full trajectory, its configuration, and its metrics. Metrics, judges and paired statistics all read that one record format, whichever strategy produced it.</p></div>
+      <div class="st-card"><span class="n">06</span><h3>Training and rollouts</h3><p>Every episode is a full trajectory, so it is also training data. Triples with tiered negatives come out of any run directory and train a dense retriever that plugs back in as any strategy's dense model.</p></div>
     </div>
   </section>
 
-  <section id="team">
-    <span class="sec-k">The team</span>
-    <h2>Built at ielab</h2>
-    <div class="team">
-      <img class="only-light" src="assets/team.png" loading="lazy"
-           alt="Portraits of the six authors: Shuai Wang, Haodong Chen, Yu Yin, Shengyao Zhuang, Bevan Koopman and Guido Zuccon.">
-      <img class="only-dark" src="assets/teamdark.png" loading="lazy"
-           alt="Portraits of the six authors, night version: Shuai Wang, Haodong Chen, Yu Yin, Shengyao Zhuang, Bevan Koopman and Guido Zuccon.">
-      <div class="team-names">
-        <a href="https://shuaiwang.io" target="_blank" rel="noreferrer">Shuai Wang<sup>1</sup></a>
-        <a href="https://donovan0243.github.io/" target="_blank" rel="noreferrer">Haodong Chen<sup>1</sup></a>
-        <a href="https://yinyubb.github.io/" target="_blank" rel="noreferrer">Yu Yin<sup>1</sup></a>
-        <a href="https://arvinzhuang.github.io/" target="_blank" rel="noreferrer">Shengyao Zhuang</a>
-        <a href="https://bevankoopman.github.io/" target="_blank" rel="noreferrer">Bevan Koopman<sup>2,1</sup></a>
-        <a href="https://ielab.io/people/guido-zuccon.html" target="_blank" rel="noreferrer">Guido Zuccon<sup>1</sup></a>
-      </div>
+  <section id="nouns">
+    <span class="sec-k">Vocabulary</span>
+    <h2>The nouns</h2>
+    <p class="lead">Four words cover everything you build on top of the library. Get these right
+    and the rest of the codebase reads like the sentence they describe.</p>
+    <div class="feats">
+      <div class="feat"><h3>Tool</h3><p>One atomic action the agent can call. A tool owns its declaration (the name and description the model sees), its code (a <code>run</code> function that returns text, never an exception), and, when it needs one, a manual rendered into the prompt.</p></div>
+      <div class="feat"><h3>Task</h3><p>The goal and the answer protocol: the prompt template, the domain, and the terminal that ends an episode, an <code>&lt;answer&gt;</code>, a <code>&lt;fix&gt;</code>, or a patch.</p></div>
+      <div class="feat"><h3>Strategy</h3><p>A named combination of tools with their options, or a procedure that uses an engine without any agent loop at all.</p></div>
+      <div class="feat"><h3>Condition</h3><p>A task paired with a strategy. What a run names, what a config file's <code>strategy</code> and <code>dataset</code> keys resolve to, what the run record carries.</p></div>
     </div>
-    <div class="affil" style="margin-top:14px">
-      <span><sup>1</sup><a href="https://ielab.io" target="_blank" rel="noreferrer">ielab</a>, The University of Queensland</span>
-      <span><sup>2</sup>Australian e-Health Research Centre, CSIRO</span>
+
+    <p class="lead" style="margin-top:28px">The built-in strategies, by family:</p>
+    <div class="tbl-wrap">
+      <table class="res">
+        <thead><tr><th>family</th><th>strategies</th><th>what the agent does</th></tr></thead>
+        <tbody>
+          <tr><td class="c">search_visit</td><td><code>search_visit</code>, <code>search_visit_dense</code>, <code>search_visit_hybrid</code>, <code>search_visit_snippets</code></td><td>a search that lists documents, then visits the whole document</td></tr>
+          <tr><td class="c">autoread</td><td><code>autoread</code>, <code>autoread_dense</code>, <code>autoread_hybrid</code></td><td>one search that returns the full text of its hits</td></tr>
+          <tr><td class="c">search_fetch</td><td><code>search_fetch</code>, <code>search_fetch_dense</code>, <code>search_fetch_hybrid</code>, <code>search_fetch_bm25_plain</code>, <code>search_fetch_dense_plain</code></td><td>a search that lists structure, then fetches one section</td></tr>
+          <tr><td class="c">sieve</td><td><code>sieve_bm25</code>, <code>sieve</code>, <code>sieve_dense</code>, <code>sieve_nosnip</code>, <code>sieve_plain</code>, <code>sieve_v2</code>, <code>sieve_visit</code>, <code>sieve_visit_fused</code>, <code>sieve_visit_dense</code></td><td>Boolean candidate filtering, one ranking model, result cards, section fetch</td></tr>
+          <tr><td class="c">indri</td><td><code>indri</code>, <code>indri_plain</code>, <code>indri_visit</code></td><td>Indri-QL retrieval with cards and section fetch</td></tr>
+          <tr><td class="c">dci</td><td><code>dci</code>, <code>bounded_dci</code></td><td>shell commands over the exported corpus</td></tr>
+          <tr><td class="c">dedup</td><td><code>dedup_dense</code>, <code>dedup_bm25</code></td><td>ITER's search, which drops already-listed documents, then reads a document by id</td></tr>
+          <tr><td class="c">codefix</td><td><code>codefix</code>, <code>codefix_grep</code></td><td>Boolean code search or grep, then read a function and commit a fix</td></tr>
+          <tr><td class="c">rag</td><td><code>rag</code>, <code>rag_dense</code>, <code>rag_hybrid</code></td><td>rank once, put the top documents in one prompt, one model call</td></tr>
+          <tr><td class="c">retrieval-only floors</td><td><code>bm25</code>, <code>bm25_lucene</code>, <code>dense</code>, <code>bql</code>, <code>grep</code>, <code>hybrid</code></td><td>rank once, no agent loop, no model</td></tr>
+        </tbody>
+      </table>
     </div>
+
+    <p class="lead" style="margin-top:24px">Backbones are served through four providers: OpenAI's
+    chat and reasoning models, Gemini, any OpenAI-compatible server, and vLLM running in-process.
+    Every one of them emits the same tool-call text the loop parses, so swapping the backbone is
+    one YAML key.</p>
   </section>
 
-  <section id="cite">
-    <span class="sec-k">Citation</span>
-    <h2>If you use Sieve or the library</h2>
-    <div class="cite">
-      <button class="copy" onclick="navigator.clipboard.writeText(document.getElementById('bib').innerText).then(()=>{this.textContent='copied ✓';setTimeout(()=>this.textContent='copy',1500)})">copy</button>
-<pre id="bib">@misc{wang2026sieve,
-  title         = {Search, Inspect, Fetch: Exploiting Boolean Retrieval
-                   for Deep-Research Agents},
-  author        = {Wang, Shuai and Chen, Haodong and Yin, Yu and
-                   Zhuang, Shengyao and Koopman, Bevan and Zuccon, Guido},
-  year          = {2026},
-  eprint        = {2608.02751},
-  archivePrefix = {arXiv},
-  primaryClass  = {cs.IR},
-  url           = {https://arxiv.org/abs/2608.02751}
-}</pre>
+  <section id="quickstart">
+    <span class="sec-k">Get started</span>
+    <h2>Bring your corpus, run in minutes</h2>
+    <p class="lead">One command runs a scripted policy against a three-document fixture with no
+    API key and no GPU. Point it at a real model, or call the library from Python with your own
+    documents.</p>
+    <pre><span class="c"># install and run, no model, no GPU</span>
+python -m pip install -e ".[api]"
+skimsearchagent dataset=doc_fixture strategy=sieve_bm25
+
+<span class="c"># the same run, with a real model</span>
+export OPENAI_API_KEY=...
+skimsearchagent dataset=doc_fixture strategy=sieve_bm25 model=gpt-4o-mini</pre>
+    <pre><span class="c"># or call it from Python, with your own documents</span>
+from agent_search import research
+
+docs = [{"_id": "d1", "title": "Treaty of Guadalupe Hidalgo",
+         "text": "The Treaty of Guadalupe Hidalgo ended the Mexican-American War in 1848."}]
+result = research("Which treaty ended the Mexican-American War?", docs,
+                  strategy="sieve_bm25", model="gpt-4o-mini")
+print(result.answer, result.ranking, result.usage)</pre>
+  </section>
+
+  <section id="extend">
+    <span class="sec-k">Extension points</span>
+    <h2>One tool, one strategy, one condition</h2>
+    <p class="lead">Every extension point is a small class in one file. Here is a tool that
+    looks documents up by title, a strategy that offers only that tool, and a condition that runs
+    it. No edits anywhere else in the codebase.</p>
+    <pre><span class="c"># a tool, a strategy, a condition</span>
+from agent_search.tools.base import Tool
+from agent_search.strategies.base import Strategy, register_strategy
+from agent_search.strategies.conditions import condition
+
+class TitleLookup(Tool):
+    name = "title_lookup"
+    description = "Documents whose title contains the words."
+    parameters = {"type": "object", "properties": {"words": {"type": "string"}}, "required": ["words"]}
+    def run(self, args):                          <span class="c"># self.units, self.ubyid, self.state, self.engine[...]</span>
+        hits = [u for u in self.units if all(w in (u.title or "").lower() for w in args["words"].lower().split())]
+        self.state.seen.update(u.doc_id for u in hits)   <span class="c"># first-seen order = the agent's ranking</span>
+        return "\n".join(f"{u.doc_id}  {u.title}: {u.body}" for u in hits) or "no match"
+
+register_strategy(Strategy(name="title_only", description="look up by title", tools=(TitleLookup(name="title_lookup"),)))
+condition("title_agent", task="research", strategy="title_only")
+<span class="c"># run it: strategy=title_agent</span></pre>
+  </section>
+
+  <section id="papers">
+    <span class="sec-k">Papers</span>
+    <h2>Two papers run on this library</h2>
+    <p class="lead">Each paper is one setting of the library, with its own results, method and
+    citation on its own page.</p>
+    <div class="papers">
+      <div class="paper-card">
+        <span class="tag">arXiv 2608.02751 &middot; cs.IR</span>
+        <h3>Sieve</h3>
+        <p>A Boolean-filtered search, inspect, fetch strategy: fielded candidate selection (BQL),
+        one ranking model, compact result cards with query-biased snippets, and section-level
+        reading instead of whole-document reading. On BrowseComp-Plus, HotpotQA and MuSiQue it
+        matched or improved accuracy while reading substantially fewer tokens than Search-Visit.</p>
+        <a class="go" href="sieve/">Read the Sieve page &rarr;</a>
+      </div>
+      <div class="paper-card">
+        <span class="tag">arXiv 2608.27912 &middot; cs.IR</span>
+        <h3>ITER</h3>
+        <p>Interaction-aware retrieval for agentic search: a dense retriever trained from
+        search-agent trajectories, conditioned on the agent's earlier searches and trained to
+        return documents it has not read yet. The library carries its search tools, its training
+        recipe, its released checkpoints and its evaluation sets.</p>
+        <a class="go" href="iter/">Read the ITER page &rarr;</a>
+      </div>
     </div>
   </section>
 </div>
 
 <footer>
-  <div class="authors">
-    <a href="https://shuaiwang.io">Shuai Wang</a> ·
-    <a href="https://donovan0243.github.io/">Haodong Chen</a> ·
-    <a href="https://yinyubb.github.io/">Yu Yin</a> ·
-    <a href="https://arvinzhuang.github.io/">Shengyao Zhuang</a> ·
-    <a href="https://bevankoopman.github.io/">Bevan Koopman</a> ·
-    <a href="https://ielab.io/people/guido-zuccon.html">Guido Zuccon</a>
-  </div>
-  <div>SkimSearchAgent · Apache-2.0 · <a href="https://github.com/ielab/skim-search-agent">github.com/ielab/skim-search-agent</a></div>
+  <div><a href="https://ielab.io">ielab</a>, The University of Queensland &middot;
+  <a href="https://github.com/ielab/skim-search-agent">github.com/ielab/skim-search-agent</a>
+  &middot; Apache-2.0</div>
 </footer>
 
 <script>
-/* the hero stage replays a scripted Sieve episode on a loop */
-const $ = id => document.getElementById(id)
-const agent = $('agent'), stage = $('stage')
-const sleep = ms => new Promise(r => setTimeout(r, ms))
-let cost = 0, tok = 0, stp = 0
-function bump(dc, dt) { cost += dc; tok += dt; stp += 1
-  $('cost').textContent = '$' + cost.toFixed(5)
-  $('tok').textContent = tok >= 1000 ? (tok / 1000).toFixed(1) + 'K' : tok
-  $('stp').textContent = stp }
-function say(t) { $('tick-text').textContent = t }
-async function goto(id, left) {
-  document.querySelectorAll('#stage .station').forEach(s => s.classList.remove('active'))
-  agent.style.left = left; await sleep(760)
-  if (id) $(id).classList.add('active')
-}
-function packets(stationId) {
-  const st = $(stationId), base = st.offsetLeft + 46 - 6
-  for (let i = 0; i < 5; i++) {
-    const p = document.createElement('div'); p.className = 'packet'
-    p.style.left = base + 'px'; p.style.top = '86px'
-    p.style.setProperty('--dx', (i - 2) * 26 + 'px')
-    stage.appendChild(p); setTimeout(() => p.classList.add('fly'), i * 85)
-    setTimeout(() => p.remove(), 1150 + i * 85)
-  }
-}
-function confetti() {
-  const st = $('st-answer'), base = st.offsetLeft + 46
-  const colors = ['#0e9384', '#7c3aed', '#d97706', '#317a31']
-  for (let i = 0; i < 13; i++) {
-    const p = document.createElement('div'); p.className = 'conf'
-    p.style.background = colors[i % 4]
-    p.style.left = base + 'px'; p.style.top = '48px'
-    p.style.setProperty('--cx', (Math.random() * 130 - 65) + 'px')
-    p.style.setProperty('--cy', (Math.random() * -75 - 18) + 'px')
-    stage.appendChild(p); setTimeout(() => p.classList.add('go'), i * 30)
-    setTimeout(() => p.remove(), 1300)
-  }
-}
-async function episode() {
-  cost = 0; tok = 0; stp = -1; bump(0, 0)
-  agent.classList.add('thinking'); agent.style.left = '1%'
-  say('Q: which article discussed creatine for rheumatoid arthritis?')
-  await sleep(1600); agent.classList.remove('thinking')
-  await goto('st-search', '8.5%'); bump(.00045, 2886)
-  say('search: creatine supplementation AND rheumatoid arthritis[body]')
-  await sleep(400); packets('st-search'); await sleep(1300)
-  await goto('st-inspect', '33.5%')
-  say(LBL().inspect(3))
-  await sleep(1500)
-  await goto('st-fetch', '58.5%'); bump(.00052, 3357)
-  say('fetch: 51481 § Conclusions and recommendations')
-  await sleep(1800)
-  await goto('st-fetch', '58.5%'); bump(.00054, 3472)
-  say('fetch: 51481 § Abstract summary')
-  await sleep(1600)
-  agent.classList.add('thinking'); await sleep(700); agent.classList.remove('thinking')
-  await goto('st-answer', '83.5%'); bump(.00064, 4059)
-  say('answer: “Oral creatine supplementation: A potential adjunct therapy for rheumatoid arthritis patients” ✓')
-  confetti(); await sleep(4200)
-}
-;(async () => { for (;;) await episode() })()
-
-/* ---- playground: pre-recorded replays of real library output, both strategies ---- */
-const PV_BOARDS = {
-  sieve: [
-    {id:'search',  icon:'\u{1F50E}', name:'Search',  left:'12%'},
-    {id:'inspect', icon:'\u{1F5C2}\uFE0F', name:'Inspect', left:'37%'},
-    {id:'fetch',   icon:'\u{1F4D1}', name:'Fetch \u00A7', left:'62%'},
-    {id:'answer',  icon:'\u270D\uFE0F', name:'Answer',  left:'87%'},
-  ],
-  search_visit: [
-    {id:'search', icon:'\u{1F50E}', name:'Search', left:'15%'},
-    {id:'visit',  icon:'\u{1F4C4}', name:'Visit doc', left:'50%'},
-    {id:'answer', icon:'\u270D\uFE0F', name:'Answer', left:'85%'},
-  ],
-};
-/* every hit, snippet, section name and char count below is captured library output */
-const SCEN = [
-  {
-    chip: 'Which article discusses creatine supplementation for rheumatoid arthritis?',
-    q: 'Which article discusses creatine supplementation as an adjunct therapy for rheumatoid arthritis?',
-    contrast: {sieve: 2569, base: 78200},
-    runs: {
-      sieve: [
-        {station:'search', act:'search: creatine[title] AND arthritis[body]',
-         note:'IN(title, creatine) AND IN(body, arthritis) &middot; 4 matches', cost:0.00031, tok:'3.1K', read:0,
-         hits:[
-          {r:1,id:'75582',t:'Creatine supplementation: A potential adjunct therapy for rheumatoid arthritis patients',
-           secs:['Abstract summary','Introduction','Rheumatoid cachexia','+21 more'],m:'title,section,body',
-           snip:'&hellip;Oral creatine supplementation &hellip; improves performance in healthy athletic populations via enhanced muscle mass&hellip;'},
-          {r:2,id:'51481',t:'Oral creatine supplementation: A potential adjunct therapy for rheumatoid arthritis patients',
-           secs:['Review aim and rationale','RA muscle loss and need','+35 more'],m:'title,section,body'},
-          {r:3,id:'36568',t:'Can Creatine Supplementation Improve Body Composition and Objective Physical Function?',
-           secs:['Trial abstract','Objectives','Methods','Results'],m:'title,body'}]},
-        {station:'inspect', inspecting:3, cost:0.00031, tok:'3.1K', read:0},
-        {station:'fetch', act:'fetch: 1 &sect; Abstract summary', cost:0.00058, tok:'6.2K', read:2569,
-         read_h:'75582 &middot; Abstract summary', read_n:'2,569 characters',
-         read_b:'Creatine is one of the most popular forms of protein supplements and is known to improve performance in healthy athletic populations via enhanced muscle mass and adenosine triphosphate energy regeneration. Clinical use of creatine may similarly&hellip;'},
-        {station:'answer', cost:0.00087, tok:'9.7K', read:2569,
-         answer:'&ldquo;Creatine supplementation: A potential adjunct therapy for rheumatoid arthritis patients&rdquo;',
-         gold:'grounded'}
-      ],
-      search_visit: [
-        {station:'search', act:'search: creatine supplementation rheumatoid arthritis',
-         note:'plain BM25 &middot; flat listing, no structure', cost:0.00014, tok:'0.9K', read:0,
-         hits:[
-          {r:1,id:'75582',t:'Creatine supplementation: A potential adjunct therapy for rheumatoid arthritis patients',
-           snip:'uploaded by Thomas J Wilkinson on Mar 01, 2018 Content may be subject to copyright. Oral creatine su&hellip;'},
-          {r:2,id:'51481',t:'Oral creatine supplementation: A potential adjunct therapy for rheumatoid arthritis patients'},
-          {r:3,id:'36568',t:'Can Creatine Supplementation Improve Body Composition and Objective Physical Function?'}]},
-        {station:'visit', act:'visit: 1', cost:0.00092, tok:'5.9K', read:78200,
-         read_h:'75582 &middot; whole document', read_n:'78,200 characters into the context window',
-         read_b:'Creatine is one of the most popular forms of protein supplements&hellip; (the ENTIRE document follows: every section, every reference, every table &mdash; 78,200 characters)'},
-        {station:'answer', cost:0.00118, tok:'7.7K', read:78200,
-         answer:'&ldquo;Creatine supplementation: A potential adjunct therapy for rheumatoid arthritis patients&rdquo;',
-         gold:'grounded'}
-      ],
-    },
-  },
-  {
-    chip: "Which women's college in Delhi was established in 1956?",
-    q: "Which women's college in Delhi was established in 1956, and what is it called today?",
-    contrast: {sieve: 397, base: 7033},
-    runs: {
-      sieve: [
-        {station:'search', act:'search: college[title] AND 1956[body]',
-         note:'IN(title, college) AND IN(body, 1956) &middot; 3 matches', cost:0.00028, tok:'2.8K', read:0,
-         hits:[
-          {r:1,id:'37133',t:'Lady Shri Ram College &mdash; Wikipedia',
-           secs:['History and founding','Infrastructure and governance','Academics and programs'],m:'title,section,body',
-           snip:'name: Lady Shri Ram College &middot; other_name: LSR &middot; motto: S&#257; vidy&#257; y&#257; vimuktaye&hellip;'},
-          {r:2,id:'39666',t:'How Lala Shri Ram set up Lady Shri Ram College for Women',
-           secs:['Textile mill in Hissar','Need for LSR in Delhi','Establishing Lady Shri Ram College'],m:'title,section,body'}]},
-        {station:'inspect', inspecting:2, cost:0.00028, tok:'2.8K', read:0},
-        {station:'fetch', act:'fetch: 1 &sect; History and founding', cost:0.00051, tok:'5.4K', read:397,
-         read_h:'37133 &middot; History and founding', read_n:'397 characters',
-         read_b:'Established in 1956 in New Delhi by the late Lala Shri Ram in memory of his wife Phoolan Devi (Lady Shri Ram), the college began in a school building in Daryaganj, Central Delhi with 299 students, nine faculty, and four staff&hellip;'},
-        {station:'answer', cost:0.00087, tok:'9.7K', read:397,
-         answer:'Lady Shri Ram College for Women, established 1956 in New Delhi.',
-         gold:'goldmatch'}
-      ],
-      search_visit: [
-        {station:'search', act:'search: lady shri ram college established 1956',
-         note:'plain BM25 &middot; flat listing, no structure', cost:0.00012, tok:'0.8K', read:0,
-         hits:[
-          {r:1,id:'37133',t:'Lady Shri Ram College &mdash; Wikipedia',
-           snip:'name: Lady Shri Ram College image_size: 150px other_name: LSR motto: S&#257; vidy&#257;&hellip;'},
-          {r:2,id:'39666',t:'How Lala Shri Ram set up Lady Shri Ram College for Women'}]},
-        {station:'visit', act:'visit: 1', cost:0.00042, tok:'3.9K', read:7033,
-         read_h:'37133 &middot; whole document', read_n:'7,033 characters into the context window',
-         read_b:'name: Lady Shri Ram College&hellip; (the whole page follows: infobox, history, governance, academics, rankings, alumni &mdash; 7,033 characters)'},
-        {station:'answer', cost:0.00065, tok:'5.9K', read:7033,
-         answer:'Lady Shri Ram College', gold:'goldmatch'}
-      ],
-    },
-  },
-];
-/* the night shift renames the stations. Light mode is the day job; dark is the noir job. */
-const STATION_NAMES = {
-  search:  { day:'Search',  night:'Hunt',        dayIcon:'\u{1F50E}', nightIcon:'\u{1F526}' },
-  inspect: { day:'Inspect', night:'Interrogate', dayIcon:'\u{1F5C2}\uFE0F', nightIcon:'\u{1F56F}\uFE0F' },
-  fetch:   { day:'Fetch \u00A7', night:'Extract \u00A7', dayIcon:'\u{1F4D1}', nightIcon:'\u{1FA78}' },
-  visit:   { day:'Visit doc', night:'Devour doc', dayIcon:'\u{1F4C4}', nightIcon:'\u{1F480}' },
-  answer:  { day:'Answer',  night:'Verdict',     dayIcon:'\u270D\uFE0F', nightIcon:'\u2696\uFE0F' },
-};
-function isNight(){ return document.documentElement.dataset.theme === 'dark'; }
-function stationLabel(id){ const n = STATION_NAMES[id]; return n ? (isNight() ? n.night : n.day) : id; }
-function stationIcon(id){ const n = STATION_NAMES[id]; return n ? (isNight() ? n.nightIcon : n.dayIcon) : ''; }
-function relabelHero(){
-  document.querySelectorAll('[data-station]').forEach(el => { el.textContent = stationLabel(el.dataset.station); });
-  document.querySelectorAll('[data-icon]').forEach(el => { el.textContent = stationIcon(el.dataset.icon); });
-}
-let pvTimers = [], pvActive = 0, pvStrat = 'sieve';
-const pvAgentEl = document.getElementById('pvAgent'), pvFrame = document.querySelector('.frame');
-function pvClear(){ pvTimers.forEach(clearTimeout); pvTimers = []; }
-function pvAt(ms, fn){ pvTimers.push(setTimeout(fn, ms)); }
-function pvBoard(){
-  const holder = document.getElementById('pvStations');
-  holder.innerHTML = PV_BOARDS[pvStrat].map(st =>
-    '<div class="station" id="pv-st-' + st.id + '" style="left:' + st.left + '">' +
-    '<div class="st-pad">' + stationIcon(st.id) + '</div><div class="st-name">' + stationLabel(st.id) + '</div></div>').join('');
-  /* the whole frame takes the strategy's accent: Sieve teal, Search-Visit violet */
-  if (pvStrat === 'search_visit') {
-    pvFrame.style.setProperty('--teal', 'var(--violet)');
-    pvFrame.style.setProperty('--teal-soft', 'var(--violet-soft)');
-    pvFrame.style.setProperty('--teal-glow', 'rgba(141,110,232,.35)');
-  } else {
-    ['--teal','--teal-soft','--teal-glow'].forEach(v => pvFrame.style.removeProperty(v));
-  }
-}
-function pvStation(id){
-  PV_BOARDS[pvStrat].forEach(st =>
-    document.getElementById('pv-st-' + st.id).classList.toggle('active', st.id === id));
-  const st = PV_BOARDS[pvStrat].find(x => x.id === id);
-  pvAgentEl.style.left = st ? 'calc(' + st.left + ' - 3.5%)' : '1%';
-}
-function pvMeter(c, tok, read){
-  document.getElementById('pvMeter').innerHTML =
-    '<b>$' + c.toFixed(5) + '</b> &middot; ' + tok + ' tok &middot; ' + read.toLocaleString() + ' ch read';
-}
-function pvFollow(){
-  const sc = document.getElementById('pvScroll');
-  const nearBottom = sc.scrollHeight - sc.scrollTop - sc.clientHeight < 90;
-  if (nearBottom) requestAnimationFrame(() => { sc.scrollTop = sc.scrollHeight; });
-}
-function pvAdd(html){
-  const d = document.createElement('div'); d.className = 'pv-item'; d.innerHTML = html;
-  document.getElementById('pvFeed').appendChild(d);
-  pvFollow();
-}
-function pvHit(h){
-  return '<div class="pv-hit"><div class="t"><span class="pv-rank">' + h.r + '</span><b>' + h.t +
-    '</b><span class="pv-id">' + h.id + '</span>' +
-    (h.m ? '<span class="pv-m">matched: ' + h.m + '</span>' : '') + '</div>' +
-    (h.secs ? '<div class="pv-secs">' + h.secs.map(x => '<span class="pv-sec">&sect; ' + x + '</span>').join('') + '</div>' : '') +
-    (h.snip ? '<div class="pv-snip">' + h.snip + '</div>' : '') + '</div>';
-}
-function pvPlay(i){
-  pvClear(); pvActive = i;
-  const sc = SCEN[i], steps = sc.runs[pvStrat];
-  pvBoard();
-  document.getElementById('pvQ').innerHTML = sc.q;
-  document.getElementById('pvFeed').innerHTML = '';
-  document.getElementById('pvContrast').innerHTML = '';
-  document.getElementById('pvScroll').scrollTop = 0;
-  pvMeter(0, '0', 0);
-  pvStation(null);
-  [...document.querySelectorAll('.pv-chip')].forEach((c, k) => c.classList.toggle('on', k === i));
-
-  let t = 700, n = 0;
-  steps.forEach(step => {
-    n += 1; const num = n;
-    pvAt(t, () => { pvStation(step.station); pvMeter(step.cost, step.tok, step.read); });
-    t += 620;
-    if (step.act) { pvAt(t, () => pvAdd('<div class="pv-act"><span class="n">' + num +
-      '</span><b>' + step.act.split(':')[0] + ':</b>&nbsp;' + step.act.split(':').slice(1).join(':') + '</div>' +
-      (step.note ? '<div class="pv-note">' + step.note + '</div>' : ''))); t += 520; }
-    else if (step.inspecting) { pvAt(t, () => pvAdd('<div class="pv-note" style="padding-left:0">' +
-      LBL().inspect(step.inspecting) + '</div>')); t += 950; }
-    (step.hits || []).forEach(h => { pvAt(t, () => pvAdd(pvHit(h))); t += 430; });
-    if (step.read_h) { pvAt(t, () => pvAdd('<div class="pv-read"><div class="h">&#128214; <b>' +
-      step.read_h + '</b> &mdash; ' + step.read_n + '</div><div class="b">' + step.read_b + '</div></div>')); t += 900; }
-    if (step.answer) { pvAt(t, () => pvAdd('<div class="pv-ans"><div class="k">' + LBL().final +
-      '</div><div class="t">' + step.answer + '</div><div class="g">' + LBL()[step.gold] + '</div></div>')); t += 700; }
-  });
-  pvAt(t, () => {
-    const c = sc.contrast, pct = (c.sieve / c.base * 100);
-    document.getElementById('pvContrast').innerHTML =
-      '<div class="contrast"><h4>' + LBL().why + '</h4><p>' + LBL().note + '</p>' +
-      '<div class="crow"><span class="clabel">Sieve &sect;</span><span class="ctrack">' +
-      '<span class="cfill" style="width:0;background:var(--pv-teal, #0e9384)"></span></span><span class="cval">' +
-      c.sieve.toLocaleString() + ' ch</span></div>' +
-      '<div class="crow"><span class="clabel">Search-Visit</span><span class="ctrack">' +
-      '<span class="cfill" style="width:0;background:#8d6ee8"></span></span><span class="cval">' +
-      c.base.toLocaleString() + ' ch</span></div>' +
-      '<p style="margin-top:9px">' + LBL().pct('<b style="color:#0e9384">' + pct.toFixed(1) + '%</b>') + '</p></div>';
-    const fills = document.querySelectorAll('#pvContrast .cfill');
-    requestAnimationFrame(() => { fills[0].style.width = Math.max(pct, 1.5) + '%'; fills[1].style.width = '100%'; });
-    pvFollow();
-  });
-  pvAt(t + 5200, () => pvPlay((i + 1) % SCEN.length));
-}
-(function pvInit(){
-  const chips = document.getElementById('pvChips');
-  SCEN.forEach((sc, i) => {
-    const b = document.createElement('button');
-    b.className = 'pv-chip'; b.textContent = sc.chip; b.title = sc.q;
-    b.onclick = () => pvPlay(i);
-    chips.appendChild(b);
-  });
-  [...document.querySelectorAll('.pv-strat')].forEach(btn => {
-    btn.onclick = () => {
-      pvStrat = btn.dataset.strat;
-      [...document.querySelectorAll('.pv-strat')].forEach(x => x.classList.toggle('on', x === btn));
-      pvPlay(pvActive);
-    };
-  });
-  document.getElementById('pvReplay').onclick = () => pvPlay(pvActive);
-  const io = new IntersectionObserver(es => {
-    es.forEach(e => { if (e.isIntersecting) { pvPlay(0); io.disconnect(); } });
-  }, {threshold: .25});
-  io.observe(document.getElementById('pvStage'));
-})();
-/* ---- i18n: EN is snapshotted from the DOM at load; ZH swaps in via stable selectors ---- */
-const I18N = [
-  ['.nav a.opt', 0, '结果'], ['.nav a.opt', 1, '方法'], ['.nav a.opt', 2, '代码库'],
-  ['.nav a.opt', 3, '演示'], ['.nav a.opt', 4, '团队'],
-  ['.nav a[href*="arxiv"]', 0, '论文'],
-  ['h1', 0, '<span class="a">Search.</span> <span class="b">Inspect.</span> <span class="c">Fetch.</span>',
-   '<span class="a">Hunt.</span> <span class="b">Interrogate.</span> <span class="c">Extract.</span>',
-   '<span class="a">Hunt.</span> <span class="b">Interrogate.</span> <span class="c">Extract.</span>'],
-  ['.sub', 0, '一个模块化的深度研究智能体库：换上自己的语料，就能搭建并评测各种检索策略。<b>Sieve</b> 是论文提出的方法，靠布尔检索让智能体<i>先略读，再细读</i>。'],
-  ['.cta .btn', 1, '阅读论文'], ['.cta .btn', 2, '&#9654; 在线演示'],
-  ['.caption', 0, '上面这段动画来自一次真实的智能体运行记录，不是视频',
-   'the night shift runs this exact board. Still not a video', '夜班跑的也是真实记录，还是不是视频'],
-  ['#results .sec-k', 0, '主要结果'],
-  ['#results h2', 0, '准确率更高，token 开销少三到五成'],
-  ['#results .lead', 0, '在完全相同的预算下（k=5，单次阅读上限 12,000 token，双方摘要都是 32 token，最多 100 步）与 BM25 Search&ndash;Visit 基线对比。先略读结构并不是拿准确率换成本：三个数据集上，准确率和开销都是 Sieve 占优。'],
-  ['#results .stat .l', 0, 'BrowseComp-Plus 每回合 token 的降幅，评分还高出 <b>2.5</b> 分'],
-  ['#results .stat .l', 1, 'MuSiQue 的 token 降幅，EM 高出 <b>3.1</b>。基线读得越多，省得越多'],
-  ['#results .stat .l', 2, '三个数据集，全部做到准确率更高、开销更低'],
-  ['#results table.res th', 0, '数据集'], ['#results table.res th', 1, '准确率（基线 → Sieve）'],
-  ['#results table.res th', 2, '每回合 token'],
-  ['#results .lead', 1, '换到其他智能体底座（Qwen-AgentWorld、OpenResearcher），结论不变；基线读得越多，省得越明显。完整表格、消融实验和显著性检验见论文。'],
-  ['#method .sec-k', 0, '方法'],
-  ['#method h2', 0, '先看结构，再决定读什么'],
-  ['#method .lead', 0, '把整篇文档塞进上下文的智能体，大部分窗口都浪费在无关文字上。Sieve 把检索拆成四个独立阶段，接在同一个智能体循环上：先收窄范围，再花钱阅读。'],
-  ['#method .st-card h3', 0, '筛选'], ['#method .st-card h3', 1, '排序'],
-  ['#method .st-card h3', 2, '速览'], ['#method .st-card h3', 3, '取读'],
-  ['#method .st-card p', 0, '智能体写一条 <b>BQL</b> 布尔查询：字段限定（<code>title</code>、<code>section</code>、<code>date</code> 等）加上 <code>AND</code>/<code>OR</code>/<code>NOT</code>、短语和前缀，从整个语料里筛出一小批候选。'],
-  ['#method .st-card p', 1, '候选按相关性排序；条件太严筛到零结果时会自动放宽，不会空手而归。'],
-  ['#method .st-card p', 2, '每条结果是一张结构卡片：标题、小节名、命中的字段、和查询相关的摘要。不用读正文，就能判断这篇文档值不值得读。'],
-  ['#method .st-card p', 3, '智能体只读卡片里选中的那一小节，而不是整篇文档，再根据读到的内容作答。'],
-  ['#method figcaption', 0, '四个阶段跑在同一个智能体循环上，每个都能单独替换。'],
-  ['#library .sec-k', 0, '代码库'],
-  ['#library h2', 0, '语料、模型、策略随便换，评测框架是现成的'],
-  ['#library .lead', 0, '一个智能体循环跑所有实验。语料、模型、检索器和工具集通过五个小接口接入；论文里的十几种实验条件（BM25、稠密检索、混合、Indri、DCI、各种 BQL 变体，文档和代码都有）每种只需要在注册表里加一行。'],
-  ['#library .feat h3', 0, '一行注册新方法'],
-  ['#library .feat h3', 1, '结果一键复现'],
-  ['#library .feat h3', 2, 'BQL 查询，写错也不崩'],
-  ['#library .feat h3', 3, '基线一应俱全'],
-  ['#library .feat p', 0, '新建一个文件，给构建函数加上 <code>@register("my_method")</code>，评测框架会自动加载，其他地方一行都不用改。'],
-  ['#library .feat p', 1, '命令行评测自带每一步的 token 统计、LLM 评分和公开语料，论文里的表格一条命令就能重新跑出来。'],
-  ['#library .feat p', 2, '很小的一门结构化查询语言，带参考实现和 Lucene 后端。查询写错时，报错会作为观察结果返回给智能体自己改，程序不会崩。'],
-  ['#library .feat p', 3, '论文里所有对比方法都带上了：先检索后阅读、整篇阅读、稠密检索、agentic grep，全部跑在同一个循环里。'],
-  ['#library figcaption', 0, '中间是同一个智能体循环，语料、模型、策略、检索器和评测器都可以独立替换。'],
-  ['#demo .sec-k', 0, '演示', 'The crime scene', '案发现场'],
-  ['#demo h2', 0, '提个问题，看它怎么找答案',
-   'Watch it prowl, with your own questions', '夜里提个问题，看它怎么查案'],
-  ['.badge', 0, '预先录制的回放，完整版要在自己电脑上跑',
-   'pre-recorded s&eacute;ance &middot; the real thing haunts your machine', '深夜档回放，完整版在你电脑里出没'],
-  ['#pvReplay', 0, '&#8635; 重播'],
-  ['.demo-band h3', 0, '同一个问题，两种策略，现场对决。'],
-  ['.demo-band p', 0, '在 250 篇真实的 BrowseComp-Plus 文档上随便提问。小家伙在各个工具之间跑来跑去，右边的文档墙亮一格就代表读过一篇，计费器实时显示每个 token 花了多少钱。让 <b style="color:var(--teal)">Sieve</b> 和 <b style="color:var(--violet)">Search-Visit</b> 同时开跑，论文的结论当场验证。'],
-  ['#team .sec-k', 0, '团队'],
-  ['#team h2', 0, '我们来自 ielab', 'The ielab night shift', 'ielab 夜班组'],
-  ['#cite .sec-k', 0, '引用'],
-  ['#cite h2', 0, '用到了 Sieve 或这套代码，请引用'],
-];
-const LBLS = {
-  en: { final:'Final answer', grounded:'&check; grounded in the fetched section',
-        goldmatch:'&check; matches the gold answer', why:'Why it costs less',
-        note:'the same document, read two ways. Measured with the library&rsquo;s own tools.',
-        inspect: n => 'inspecting ' + n + ' result cards: titles, section names, matched fields, snippets',
-        pct: x => x + ' of the text, for the same answer.' },
-  zh: { final:'最终答案', grounded:'&check; 答案来自刚读的小节',
-        goldmatch:'&check; 和标准答案一致', why:'为什么更省',
-        note:'同一篇文档的两种读法，数字用库里的工具实测。',
-        inspect: n => '正在速览 ' + n + ' 张结果卡片：标题、小节名、命中字段、摘要',
-        pct: x => '只读了 ' + x + ' 的文本，答案相同。' },
-};
-let LANG = localStorage.getItem('sieve-lang') || 'en';
-const LBLS_NIGHT = {
-  en: { final:'The verdict', grounded:'&check; dug out of the extracted section',
-        goldmatch:'&check; the gold answer, dead to rights', why:'Why the night shift runs cheaper',
-        note:'the same document, read two ways. Measured with the library&rsquo;s own tools.',
-        inspect: n => 'interrogating ' + n + ' suspects: titles, section names, matched fields, snippets',
-        pct: x => x + ' of the text, same verdict.' },
-  zh: { final:'宣判', grounded:'&check; 证据确凿，出自提取的小节',
-        goldmatch:'&check; 人赃并获，和标准答案一致', why:'为什么夜班更省',
-        note:'同一篇文档的两种读法，数字用库里的工具实测。',
-        inspect: n => '正在审讯 ' + n + ' 张嫌疑卡片：标题、小节名、命中字段、摘要',
-        pct: x => '只搜查了 ' + x + ' 的文本，判决相同。' },
-};
-function LBL(){ return (isNight() ? LBLS_NIGHT : LBLS)[LANG]; }
-const EN_SNAP = [];
-function langInit(){
-  I18N.forEach(([sel, n]) => {
-    const el = document.querySelectorAll(sel)[n];
-    EN_SNAP.push(el ? el.innerHTML : null);
-  });
-  const btn = document.getElementById('langBtn');
-  function apply(){
-    document.documentElement.lang = LANG === 'zh' ? 'zh-CN' : 'en';
-    btn.textContent = LANG === 'zh' ? 'EN' : '中文';
-    I18N.forEach(([sel, n, zh, nightEn, nightZh], i) => {
-      const el = document.querySelectorAll(sel)[n];
-      if (!el || EN_SNAP[i] == null) return;
-      const day = LANG === 'zh' ? zh : EN_SNAP[i];
-      const night = LANG === 'zh' ? (nightZh || zh) : (nightEn || EN_SNAP[i]);
-      el.innerHTML = isNight() ? night : day;
-    });
-    relabelHero();
-  }
-  window.applyI18N = apply;
-  btn.onclick = () => {
-    LANG = LANG === 'zh' ? 'en' : 'zh';
-    localStorage.setItem('sieve-lang', LANG);
-    apply();
-    pvPlay(pvActive);           // re-render the replay so its labels follow the language
-  };
-  apply();
-}
-langInit();
 (function themeInit(){
-  const btn = document.getElementById('themeBtn');
+  var btn = document.getElementById('themeBtn');
   function paint(){ btn.innerHTML = document.documentElement.dataset.theme === 'dark' ? '&#9788;' : '&#9789;'; }
-  btn.onclick = () => {
-    const next = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
+  btn.onclick = function(){
+    var next = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
     document.documentElement.dataset.theme = next;
-    localStorage.setItem('sieve-theme', next);
+    localStorage.setItem('ssa-theme', next);
     paint();
-    if (window.applyI18N) window.applyI18N();   // night mode renames labels too
-    pvPlay(pvActive);
   };
   paint();
 })();
-(function pvInit(){
-  const chips = document.getElementById('pvChips');
-  SCEN.forEach((sc, i) => {
-    const b = document.createElement('button');
-    b.className = 'pv-chip'; b.textContent = sc.chip; b.title = sc.q;
-    b.onclick = () => pvPlay(i);
-    chips.appendChild(b);
-  });
-  document.getElementById('pvReplay').onclick = () => pvPlay(pvActive);
-  const io = new IntersectionObserver(es => {
-    es.forEach(e => { if (e.isIntersecting) { pvPlay(0); io.disconnect(); } });
-  }, {threshold: .25});
-  io.observe(document.getElementById('pvStage'));
-})();
-
 </script>
 </body>
 </html>

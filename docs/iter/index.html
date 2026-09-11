@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ITER</title>
+<meta name="description" content="ITER is interaction-aware retrieval for agentic search: a dense retriever trained from search-agent trajectories, conditioned on earlier searches, trained to return documents not yet read. One setting of the SkimSearchAgent library.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 26 26'%3E%3Ccircle cx='11' cy='11' r='7.2' fill='none' stroke='%230e9384' stroke-width='2.6'/%3E%3Cline x1='16.5' y1='16.5' x2='23' y2='23' stroke='%230e9384' stroke-width='3' stroke-linecap='round'/%3E%3Cline x1='7.4' y1='9.4' x2='14.6' y2='9.4' stroke='%230e9384' stroke-width='1.7' stroke-linecap='round' opacity='.85'/%3E%3Cline x1='7.4' y1='12.8' x2='12.2' y2='12.8' stroke='%230e9384' stroke-width='1.7' stroke-linecap='round' opacity='.45'/%3E%3C/svg%3E">
+<script>
+(function(){
+  var t = localStorage.getItem('ssa-theme');
+  if (!t) t = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  document.documentElement.dataset.theme = t;
+})();
+</script>
+<style>
+  :root{
+    color-scheme:light;
+    --bg:#f6f5f0; --bg-soft:#ecebe3; --card:#ffffff;
+    --ink:#20241f; --ink-2:#5c6159; --ink-3:#989d93;
+    --line:#dfded4; --line-soft:#e9e8df;
+    --teal:#0e9384; --teal-soft:#e2f1ee; --teal-glow:rgba(14,147,132,.30);
+    --violet:#7c3aed; --violet-soft:#efe9fb;
+    --amber:#d97706; --amber-soft:#f5e3c8; --good:#317a31;
+    --sans:system-ui,-apple-system,"Segoe UI",sans-serif;
+    --mono:ui-monospace,'SF Mono',Menlo,Consolas,monospace;
+  }
+  /* dark theme, same roles as light, dark values. Validated as a pair on #161715. */
+  :root[data-theme="dark"]{
+    color-scheme:dark;
+    --bg:#161715; --bg-soft:#22231f; --card:#1d1e1b;
+    --ink:#eceae2; --ink-2:#b3b1a6; --ink-3:#82807a;
+    --line:#383931; --line-soft:#2b2c27;
+    --teal:#16a795; --teal-soft:#1c3531; --teal-glow:rgba(22,167,149,.35);
+    --violet:#8d6ee8; --violet-soft:#2b2440;
+    --amber:#e79b2e; --amber-soft:#3d321f;
+    --good:#5fae5f;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:15.5px;line-height:1.65;-webkit-font-smoothing:antialiased}
+  ::selection{background:rgba(14,147,132,.22)}
+  a{color:var(--teal);text-decoration:none}
+  code{font-family:var(--mono);font-size:.9em;background:var(--bg-soft);border-radius:5px;padding:1px 6px}
+
+  .topbar{position:sticky;top:0;z-index:20;display:flex;justify-content:space-between;align-items:center;padding:12px 24px;background:rgba(246,245,240,.85);backdrop-filter:blur(12px);border-bottom:1px solid var(--line-soft);flex-wrap:nowrap;padding-left:max(24px,env(safe-area-inset-left));padding-right:max(24px,env(safe-area-inset-right))}
+  :root[data-theme="dark"] .topbar{background:rgba(22,23,21,.85)}
+  .logo{display:flex;align-items:center;gap:7px;font-size:16px;font-weight:500;letter-spacing:-.02em;color:var(--ink);white-space:nowrap;min-width:0}
+  .logo b{font-weight:800}
+  .logo svg{transform:rotate(-6deg)}
+  .nav{display:flex;gap:18px;font-size:13.5px;font-weight:550;flex-wrap:nowrap;white-space:nowrap;align-items:center}
+  .nav a{color:var(--ink-2)}
+  .nav a:hover{color:var(--teal)}
+  @media(max-width:760px){
+    .nav .opt{display:none}
+    .topbar{padding-top:10px;padding-bottom:10px;padding-left:max(14px,env(safe-area-inset-left));padding-right:max(14px,env(safe-area-inset-right))}
+    .logo{font-size:14.5px;gap:5px}
+    .logo svg{width:19px;height:19px}
+    .nav{gap:11px;font-size:12.5px}
+    .theme-btn{width:27px;height:27px;font-size:12.5px}
+  }
+
+  .wrap{max-width:var(--shell,900px);margin:0 auto;padding:0 28px}
+  @media(min-width:1400px){:root{--shell:1040px}}
+  @media(min-width:1750px){:root{--shell:1140px}}
+
+  /* hero */
+  .hero{text-align:center;padding:64px 0 10px}
+  .kicker{display:inline-block;font-family:var(--mono);font-size:11px;letter-spacing:.08em;color:var(--teal);border:1px solid var(--teal);border-radius:999px;padding:3px 12px;margin-bottom:18px}
+  h1{font-size:clamp(34px,6vw,54px);font-weight:800;letter-spacing:-.035em;line-height:1.08}
+  h1 .a{color:var(--teal)}
+  .sub{margin:16px auto 0;max-width:640px;font-size:17px;color:var(--ink-2)}
+  .venue{margin-top:12px;font-size:13px;color:var(--ink-2)}
+  .cta{display:flex;gap:10px;justify-content:center;margin-top:26px;flex-wrap:wrap}
+  .btn{display:inline-flex;align-items:center;gap:7px;font-size:14px;font-weight:650;border-radius:12px;padding:10px 20px;border:1.5px solid var(--line);color:var(--ink);background:var(--card);transition:.15s}
+  .btn:hover{transform:translateY(-1px);border-color:var(--ink-3)}
+  .btn.primary{background:var(--teal);border-color:var(--teal);color:#fff;box-shadow:0 4px 14px var(--teal-glow)}
+  .btn.primary:hover{border-color:var(--teal)}
+
+  /* sections */
+  section{padding:56px 0 0}
+  .sec-k{font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--teal);font-weight:700}
+  h2{font-size:clamp(22px,3vw,30px);font-weight:800;letter-spacing:-.025em;margin:6px 0 10px}
+  .lead{color:var(--ink-2);max-width:660px}
+
+  .stages{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:24px}
+  @media(max-width:760px){.stages{grid-template-columns:repeat(2,1fr)}}
+  .st-card{background:var(--card);border:1px solid var(--line-soft);border-radius:16px;padding:16px}
+  .st-card .n{font-family:var(--mono);font-size:11px;color:var(--teal);font-weight:700}
+  .st-card h3{font-size:15px;font-weight:750;margin:4px 0 5px;letter-spacing:-.01em}
+  .st-card p{font-size:12.5px;color:var(--ink-2);line-height:1.55}
+
+  .feats{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:24px}
+  @media(max-width:700px){.feats{grid-template-columns:1fr}}
+  .feat{background:var(--card);border:1px solid var(--line-soft);border-radius:16px;padding:18px 20px}
+  .feat h3{font-size:15.5px;font-weight:750;margin:0 0 5px;letter-spacing:-.01em}
+  .feat p{font-size:13px;color:var(--ink-2)}
+  .feat code{font-size:.88em}
+
+  pre{background:#222621;color:#e8eae5;border-radius:14px;padding:16px 20px;font-family:var(--mono);font-size:12.5px;line-height:1.7;overflow-x:auto;margin-top:18px}
+  pre .c{color:#8b9187}
+
+  .cite{margin-top:20px;position:relative}
+  .copy{position:absolute;top:12px;right:12px;font-size:11px;font-weight:650;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:5px 12px;cursor:pointer;color:var(--ink-2)}
+  .copy:hover{border-color:var(--teal);color:var(--teal)}
+
+  footer{margin-top:70px;border-top:1px solid var(--line-soft);padding:28px 24px 40px;text-align:center;font-size:12.5px;color:var(--ink-3)}
+  footer a{color:var(--ink-2)}
+
+  .theme-btn{border:1px solid var(--line);background:var(--card);color:var(--ink-2);width:30px;height:30px;border-radius:9px;cursor:pointer;font-size:14px;line-height:1;transition:.15s}
+  .theme-btn:hover{border-color:var(--teal);color:var(--teal)}
+
+  @media (prefers-reduced-motion: reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+
+<nav class="topbar">
+  <div class="logo">
+    <svg viewBox="0 0 26 26" width="22" height="22"><circle cx="11" cy="11" r="7.2" fill="none" stroke="#0e9384" stroke-width="2.6"/><line x1="16.5" y1="16.5" x2="23" y2="23" stroke="#0e9384" stroke-width="3" stroke-linecap="round"/><line x1="7.4" y1="9.4" x2="14.6" y2="9.4" stroke="#0e9384" stroke-width="1.7" stroke-linecap="round" opacity=".85"/><line x1="7.4" y1="12.8" x2="12.2" y2="12.8" stroke="#0e9384" stroke-width="1.7" stroke-linecap="round" opacity=".45"/></svg>
+    SkimSearch<b>Agent</b>
+  </div>
+  <div class="nav">
+    <a class="opt" href="#method">Method</a>
+    <a class="opt" href="#tools">Tools</a>
+    <a class="opt" href="#training">Training</a>
+    <a class="opt" href="#retrievers">Retrievers</a>
+    <a class="opt" href="#cite">Cite</a>
+    <a href="../">Library</a>
+    <a href="https://github.com/ielab/skim-search-agent">GitHub</a>
+    <button class="theme-btn" id="themeBtn" title="toggle light/dark" aria-label="toggle color theme">&#9789;</button>
+  </div>
+</nav>
+
+<div class="wrap">
+  <header class="hero">
+    <span class="kicker">arXiv 2608.27912 &middot; cs.IR</span>
+    <h1><span class="a">ITER</span></h1>
+    <p class="sub">Interaction-aware retrieval for agentic search: a dense retriever trained from
+    search-agent trajectories, conditioned on the searches the agent already tried, and trained
+    to return documents it has not read yet. ITER is one setting of the
+    <a href="../">SkimSearchAgent</a> library.</p>
+    <p class="venue">Chen, Wang, Yin, Zhuang, Zuccon, Leelanupab, 2026</p>
+
+    <div class="cta">
+      <a class="btn primary" href="https://arxiv.org/abs/2608.27912">Read the paper</a>
+      <a class="btn" href="https://github.com/ielab/ITER">ITER on GitHub</a>
+      <a class="btn" href="https://github.com/ielab/skim-search-agent/blob/main/docs/ITER.md">docs/ITER.md</a>
+      <a class="btn" href="../">SkimSearchAgent library</a>
+    </div>
+  </header>
+
+  <section id="method">
+    <span class="sec-k">The method</span>
+    <h2>Retrieval that remembers what the agent already saw</h2>
+    <p class="lead">A retriever trained only on question-document relevance keeps handing an
+    agent the same top result on every search, even after the agent has already read it. ITER
+    trains the retriever from the agent's own trajectories and evaluates it inside the same agent
+    loop, so it learns to condition on interaction history rather than the question alone.</p>
+    <div class="stages">
+      <div class="st-card"><span class="n">1</span><h3>Trajectories</h3><p>A search agent runs over a corpus, and every search and every read is recorded, question by question.</p></div>
+      <div class="st-card"><span class="n">2</span><h3>Conditioned query</h3><p>The retriever's query carries the main question plus every sub-query the agent already tried in that episode, not the raw question alone.</p></div>
+      <div class="st-card"><span class="n">3</span><h3>Novelty training</h3><p>Training rewards documents the agent has not read yet, so the retriever stops repeating a result once the agent has already seen it.</p></div>
+      <div class="st-card"><span class="n">4</span><h3>In-loop evaluation</h3><p>The trained retriever is evaluated the same way it was trained: inside a running agent, not against a static ranking of a fixed query set.</p></div>
+    </div>
+  </section>
+
+  <section id="tools">
+    <span class="sec-k">Search tools</span>
+    <h2>Two tools: search, and open a document</h2>
+    <p class="lead">ITER's agent has two tools. <code>search_dedup</code> drops every document an
+    earlier search in the same episode already surfaced, so a query never returns a result the
+    agent has already been shown; a document that would have ranked but was already shown is
+    listed as already seen, so the agent can still choose to reopen it. <code>get_document</code>
+    opens one document by id. That pairing is <code>strategy=dedup_dense</code>, with the run's
+    dense model behind the search, or <code>dedup_bm25</code>, using the <code>research_dedup</code>
+    task template.</p>
+  </section>
+
+  <section id="training">
+    <span class="sec-k">Training</span>
+    <h2>Trajectories become training data</h2>
+    <p class="lead">Every run is a trajectory, so it is also training data. The generic recipe
+    is shared with every other strategy in the library; this is ITER's path through it.</p>
+    <pre><span class="c"># trajectories -&gt; triples -&gt; checkpoint -&gt; serving</span>
+skimsearchagent-build-triples --runs runs/... --dataset hotpotqa_structured \
+  --out train_data/hotpotqa_i2.jsonl --query-style i2 --labeller oracle
+skimsearchagent-train-retriever template &gt; train.yaml
+sbatch --export=ALL,TRAIN=train.yaml,TRAIN_ENV=$PWD/envs-train scripts/slurm/train_retriever.sbatch
+skimsearchagent run configs/paper/hotpotqa_structured_sieve.yaml \
+  retrieval.dense_model=models/my-retriever retrieval.dense_query_style=i2</pre>
+    <p class="lead" style="margin-top:18px">Triples with tiered negatives come out of any run
+    directory's records; a patched FlagEmbedding trainer fits a dense retriever on them; the
+    checkpoint plugs back in as any strategy's dense model, served with the query style, the
+    instruction and the precision it was trained with, so it behaves in production exactly as it
+    behaved during training.</p>
+  </section>
+
+  <section id="retrievers">
+    <span class="sec-k">Retrievers</span>
+    <h2>Released checkpoints</h2>
+    <p class="lead">Any embedding model works as <code>retrieval.dense_model</code>. ITER
+    releases two trained checkpoints:</p>
+    <div class="feats">
+      <div class="feat"><h3>ielabgroup/ITER-Qwen3-Embedding-0.6B</h3><p>The smaller of the two released checkpoints, trained on ITER's trajectories.</p></div>
+      <div class="feat"><h3>ielabgroup/ITER-Qwen3-Embedding-4B</h3><p>The larger released checkpoint, same training recipe, more parameters.</p></div>
+    </div>
+    <p class="lead" style="margin-top:18px">Both are decoder checkpoints without a
+    sentence-transformers config; the library detects that from the model's own config file and
+    serves them with last-token pooling and normalisation, in the precision ITER trained them in.
+    The query side pairs a query style with an instruction: ITER's own conditioned style for its
+    trained models, a plain style for the untrained Qwen3-Embedding baselines it started from.</p>
+  </section>
+
+  <section id="datasets">
+    <span class="sec-k">Datasets</span>
+    <h2>What it runs on</h2>
+    <p class="lead">ITER runs on a Wikipedia chunk corpus with two question sets over it,
+    <code>infoseek_eval</code> and <code>infoseek_train</code>, plus <code>browsecomp_plus_chunks</code>,
+    a chunked BrowseComp-Plus corpus with its own evidence judgments. The Wikipedia-scale corpus
+    is served from disk rather than held in memory, and retrieval over it goes through a
+    prebuilt index rather than an index built during the run. The InfoSeek sets carry answers
+    but no document labels, so they score on answer metrics and an LLM judge instead of ranking
+    metrics.</p>
+  </section>
+
+  <section id="cite">
+    <span class="sec-k">Citation</span>
+    <h2>If you use ITER</h2>
+    <div class="cite">
+      <button class="copy" onclick="navigator.clipboard.writeText(document.getElementById('bib').innerText).then(()=>{this.textContent='copied ✓';setTimeout(()=>this.textContent='copy',1500)})">copy</button>
+<pre id="bib">@misc{chen2026iter,
+  title         = {ITER: Interaction-Aware Retrieval for Agentic Search},
+  author        = {Chen, Haodong and Wang, Shuai and Yin, Yu and Zhuang, Shengyao and
+                   Zuccon, Guido and Leelanupab, Teerapong},
+  year          = {2026},
+  eprint        = {2608.27912},
+  archivePrefix = {arXiv},
+  primaryClass  = {cs.IR},
+  url           = {https://arxiv.org/abs/2608.27912}
+}</pre>
+    </div>
+  </section>
+</div>
+
+<footer>
+  <div><a href="https://ielab.io">ielab</a>, The University of Queensland &middot;
+  <a href="https://github.com/ielab/skim-search-agent">github.com/ielab/skim-search-agent</a>
+  &middot; Apache-2.0</div>
+  <div style="margin-top:6px"><a href="../">Back to the SkimSearchAgent library</a></div>
+</footer>
+
+<script>
+(function themeInit(){
+  var btn = document.getElementById('themeBtn');
+  function paint(){ btn.innerHTML = document.documentElement.dataset.theme === 'dark' ? '&#9788;' : '&#9789;'; }
+  btn.onclick = function(){
+    var next = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
+    document.documentElement.dataset.theme = next;
+    localStorage.setItem('ssa-theme', next);
+    paint();
+  };
+  paint();
+})();
+</script>
+</body>
+</html>
