@@ -185,7 +185,7 @@ def _questions_from_dataset(dataset: Optional[str]) -> dict:
 
 def judge_run_dir(results_dir: str, generate: Callable[[str], str], *,
                   judge_model: str = "gpt-4o-mini", dataset: Optional[str] = None,
-                  force: bool = False) -> dict:
+                  force: bool = False, unfinished_ok: bool = False) -> dict:
     """Grade every answered doc row in <results_dir>/rows.jsonl (add `judge_correct` in place, write
     judge_summary.json, return the summary). The question comes from the row (`question`) or, for
     older rows that lack it, from `dataset` by instance_id. Rows with no `gold_answer` (e.g. the code
@@ -197,6 +197,11 @@ def judge_run_dir(results_dir: str, generate: Callable[[str], str], *,
     rename) so an interrupt can never truncate the run's only durable artifact."""
     rd = Path(results_dir)
     rows_path = rd / "rows.jsonl"
+    if not (rd / "results.json").exists() and not unfinished_ok:
+        # results.json is written when a run ends; judging while rows.jsonl is still being
+        # appended would rewrite it and drop the rows written after the read
+        raise SystemExit(f"{results_dir} has no results.json: the run is still writing (or was cut off). "
+                         "Wait for it, resume it, or pass unfinished_ok=True (--unfinished-ok).")
     rows = [json.loads(line) for line in rows_path.read_text().splitlines() if line.strip()]
     q_by_id = _questions_from_dataset(dataset)
     n_new = 0
@@ -234,9 +239,11 @@ def main() -> None:
                          "for a served vLLM on the cluster (default: the OpenAI API via OPENAI_API_KEY)")
     ap.add_argument("--dataset", default=None,
                     help="load questions from this dataset for rows that lack a `question` field")
+    ap.add_argument("--unfinished-ok", action="store_true",
+                    help="judge a run directory that has no results.json yet (the run is still writing or was cut off)")
     a = ap.parse_args()
     gen = make_judge(a.judge_model, api_base=a.judge_api_base)
-    s = judge_run_dir(a.results_dir, gen, judge_model=a.judge_model, dataset=a.dataset)
+    s = judge_run_dir(a.results_dir, gen, judge_model=a.judge_model, dataset=a.dataset, unfinished_ok=a.unfinished_ok)
     print(f"judge={a.judge_model}  accuracy {s['judge_accuracy'] * 100:.1f}% "
           f"({s['n_correct']}/{s['n_judged']})  ->  {a.results_dir}/judge_summary.json")
 

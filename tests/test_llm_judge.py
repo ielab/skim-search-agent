@@ -106,3 +106,20 @@ def test_make_judge_gemini_generate_uses_injected_client():
     gen = make_judge("gemini-2.5-flash-lite", client=client)
     assert gen("judge this") == '{"correct": "yes"}'
     assert seen["model"] == "gemini-2.5-flash-lite" and seen["temperature"] == 0.0
+
+
+def test_judge_refuses_a_run_that_is_still_writing(tmp_path):
+    """results.json is written when a run ends; judging before that would rewrite rows.jsonl
+    under the run and lose the rows appended after the read."""
+    import json
+    import pytest
+    from agent_search.evaluation.llm_judge import judge_run_dir
+    d = tmp_path / "run"; d.mkdir()
+    (d / "rows.jsonl").write_text(json.dumps({"instance_id": "q", "question": "?", "gold_answer": "a", "final_answer": "a"}) + "\n")
+    with pytest.raises(SystemExit):
+        judge_run_dir(str(d), lambda prompt: "correct: yes")
+    s = judge_run_dir(str(d), lambda prompt: "correct: yes", unfinished_ok=True)
+    assert s["n_judged"] == 1
+    (d / "results.json").write_text("{}")
+    s = judge_run_dir(str(d), lambda prompt: "correct: yes", force=True)
+    assert s["n_judged"] == 1
