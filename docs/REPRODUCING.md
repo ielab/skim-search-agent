@@ -119,21 +119,6 @@ Table 1. The paper uses these:
 | `agent_research_indri_snip` | Indri-executor comparison |
 | one-shot floors | the `rag_bm25`, `rag_dense` and `rag_hybrid` strategies (`skimsearchagent run`) |
 
-### Agent runs on BrowseComp-Plus structured, all 830 questions
-
-The paper's cells, rerun from `dev` with Tongyi-DeepResearch-30B-A3B served by vLLM (98k
-window), seed 42, temperature 0.6, 100 steps, 5 results per search, 12,000-token reads, judged
-by gpt-4o-mini with the BrowseComp judge prompt. Tokens per episode follow the paper's
-definition: every piece the model reads (the initial prompt, then each observation) and every
-piece it writes is counted once, on the library's token ruler (`total_tokens_once` in each
-row). A row is added as its run completes.
-
-| strategy | condition | judged accuracy | steps | tokens per episode |
-|---|---|---|---|---|
-| Search-Visit (BM25) | `agent_research_bm25` | 36.7% (305/830) | 54.5 | 58.1k |
-| Sieve, BM25 ranking | `agent_research_snip` | 32.8% (272/830) | 60.6 | 46.2k |
-| Search-Fetch (BM25) | `agent_research_bm25_fetch_snip` | 33.5% (278/830) | 70.1 | 48.4k |
-
 ### Retrieval floors on BrowseComp-Plus structured
 
 The floors rank once with the raw question and no agent (`strategy=bm25`, `dense`, `hybrid`,
@@ -269,7 +254,7 @@ with the camera-ready. The figure scripts read through the identical loaders.
 | BM25 and the structured index | Lucene (the only document engines) | built once with `skimsearchagent-build-indexes` |
 | default dense encoder | `BAAI/bge-base-en-v1.5` | `DENSE_MODEL` |
 | Boolean soft fallback | on | `BQL_SOFT_FALLBACK` (0 = strict ablation) |
-| snippet length | 32 whitespace tokens | `SNIPPET_TOKENS` (the pre-release value was 25 tokens with a character clip) |
+| snippet length | 32 model tokens | `SNIPPET_TOKENS` (the paper's code cut 25 whitespace words with a character clip; the library cuts model tokens) |
 
 Every run directory records what it resolved, in `config.json` and the per-row
 `env_knobs`. When those disagree with the intended invocation, the recorded values are correct.

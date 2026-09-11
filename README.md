@@ -37,7 +37,7 @@ travels:
 |---|---|---|
 | `corpus/` | documents and functions as units; an on-disk store for corpora too large for memory; fingerprints so a persisted index is never served against a corpus it was not built for | `units.py`, `docstore.py`, `fingerprint.py`, `code_repo.py` |
 | `retrievers/` | engines that rank ids for a query: Lucene BM25, dense encoders (one file per family), the Boolean method BQL, Indri; and two compositions, a hybrid (any retrievers fused by one method) and a reranked retriever (one retriever's pool reordered by a reranker) | `lexical/`, `dense/`, `bql/`, `indri/`, `lucene/`, `fusion/`, `hybrid.py`, `rerankers/`, `reranked.py`, `engines.py`, `backend.py` |
-| `snippets/` | how one hit is excerpted in a listing: the opening line, the best window for the query terms, or nothing | `opening.py`, `term_window.py`, `none.py` |
+| `snippets/` | how one hit is excerpted in a listing: the opening line, the best window for the query terms, or nothing; widths in model tokens | `opening.py`, `term_window.py`, `none.py` |
 | `tools/` | the actions a model can call, one folder each with its declaration, code and manual; a tool names its engine kind and its snippet | `search_bm25/`, `search_dense/`, `search_hybrid/`, `search_reranked/`, `search_bql/`, `search_indri/`, `search_dedup/`, `search_bm25_dci/`, `visit/`, `fetch/`, `fetch_code/`, `get_document/`, `bash/`, `read/`, `grep/` |
 | `tasks/` | what the model is asked to produce: the prompt template and the answer protocol | `research/`, `research_dedup/`, `codefix/`, `codefix_patch/` |
 | `strategies/` | the named combinations a run selects: tools with their options and a harness, or a retrieval-only floor; `conditions.py` pairs a strategy with a task | `search_visit.py`, `search_fetch.py`, `autoread.py`, `sieve.py`, `indri.py`, `dci.py`, `dedup.py`, `codefix.py`, `rag.py`, `teams.py`, `retrieval_only.py` |
@@ -294,8 +294,7 @@ comes from, with its backbones, released retrievers, datasets and the verified r
   ([`wshuai190/browsecomp-plus-structured-full`](https://huggingface.co/datasets/wshuai190/browsecomp-plus-structured-full),
   [`wshuai190/hotpotqa-structured`](https://huggingface.co/datasets/wshuai190/hotpotqa-structured),
   [`wshuai190/musique-structured`](https://huggingface.co/datasets/wshuai190/musique-structured)).
-  Staging and building: [`corpus_build/`](corpus_build/README.md). Paper workflow:
-  [docs/REPRODUCING.md](docs/REPRODUCING.md).
+  Staging and building: [`corpus_build/`](corpus_build/README.md).
 - Cluster jobs (serving, index builds, training): [`scripts/slurm/`](scripts/slurm/README.md).
 
 ```bash
@@ -324,7 +323,6 @@ session storage and is sent per request to OpenAI; the server does not store or 
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | modules, contracts, one episode end to end |
 | [docs/TRAINING.md](docs/TRAINING.md) | retriever training from run records |
 | [docs/SIEVE.md](docs/SIEVE.md) | the Sieve paper: the method and its ablations |
-| [docs/REPRODUCING.md](docs/REPRODUCING.md) | the Sieve paper: its runs, judging, statistics and tables |
 | [docs/ITER.md](docs/ITER.md) | the ITER paper: its search tools, backbones, retrievers, datasets, training and the verified runs |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | development setup and how to add components |
 
@@ -334,7 +332,7 @@ Two papers run on this library. Each has its own page; the README only points at
 
 ### Sieve
 
-[docs/SIEVE.md](docs/SIEVE.md), [docs/REPRODUCING.md](docs/REPRODUCING.md). A Boolean-filtered
+[docs/SIEVE.md](docs/SIEVE.md). A Boolean-filtered
 search, inspect, fetch strategy: fielded candidate selection (BQL), one ranking model, compact
 result cards with query-biased snippets, and section-level reading. On BrowseComp-Plus, HotpotQA
 and MuSiQue it matched or improved accuracy while reading 30 to 51% fewer tokens than
