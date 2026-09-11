@@ -28,7 +28,8 @@ What each one does:
 - `serve_and_run.sbatch` starts vLLM inside the job, runs one experiment file against it, and
   stops the server on the way out. `EXPERIMENT` is required. Add `MODEL` to serve an open-weight
   model, or leave it unset to use whatever `model.name` the experiment file already names (an API
-  model needs no server at all). `TP`, `PORT`, `MAX_MODEL_LEN` and `OVERRIDES` are optional.
+  model needs no server at all). `TP`, `PORT`, `MAX_MODEL_LEN` and `OVERRIDES` are optional; the port
+  defaults to one derived from the job id, so several jobs can serve on one node.
 - `train_retriever.sbatch` trains a dense retriever from trajectory triples. `TRAIN` is required
   and points at a training YAML. Training lives in its own environment because FlagEmbedding pins
   an older transformers than the eval env; pass it as `TRAIN_ENV`.
@@ -68,3 +69,19 @@ the sample experiment files (see docs/ITER.md, "Sample a paper setting first"):
 ```bash
 sbatch --account=ACCT --qos=express --export=ALL,VLLM_PYTHON=/path/to/vllm-env/bin/python scripts/slurm/iter_sample.sbatch
 ```
+
+## The verification matrix
+
+`scripts/checks_matrix.py` runs every strategy, several backbones, four datasets and the code
+fixture, one GPU job each, and tabulates the results:
+
+```bash
+export SSA_SLURM_ACCOUNT=<account> SSA_SLURM_QOS=<qos> VLLM_PYTHON=/path/to/vllm-env/bin/python \
+       JAVA_HOME_OVERRIDE=/path/to/jdk-21
+python scripts/checks_matrix.py write            # configs/checks/<dataset>__<strategy>__<backbone>.yaml
+python scripts/checks_matrix.py submit           # one job per file; `submit <dataset|backbone|stem>` for a subset
+python scripts/checks_matrix.py table            # rows, errors, steps, accuracy per run under runs/checks
+```
+
+Judge the document runs with `skimsearchagent-judge --results-dir <run dir> --judge-model gpt-4o-mini`
+from a node that can reach the API; the table then shows the judged counts.

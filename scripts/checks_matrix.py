@@ -5,6 +5,9 @@ commands that run them, one GPU job each.
     python scripts/checks_matrix.py submit [DATASET]   # sbatch one job per file (express queue), optionally one dataset
     python scripts/checks_matrix.py table      # judge and tabulate runs/checks
 
+Site values come from the environment: SSA_SLURM_ACCOUNT, SSA_SLURM_QOS, VLLM_PYTHON (the
+interpreter that has vLLM), JAVA_HOME_OVERRIDE (a JDK 21 for Pyserini).
+
 The matrix: every strategy on the InfoSeek-Eval sample with Tongyi; the structured
 strategies on the structured BrowseComp-Plus corpus; the code strategies on the code fixture;
 a subset of strategies with two more served backbones and one in-process vLLM backbone; the
@@ -18,6 +21,11 @@ import subprocess
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+# cluster values: set these for your site (the defaults are the authors' cluster)
+ACCOUNT = os.environ.get("SSA_SLURM_ACCOUNT", "OD-236007")
+QOS = os.environ.get("SSA_SLURM_QOS", "express")
+VLLM_PYTHON = os.environ.get("VLLM_PYTHON", "/scratch3/wan458/DIVER/envs/bin/python")
+JDK = os.environ.get("JAVA_HOME_OVERRIDE", "/scratch3/wan458/conda-pkgs/openjdk-21.0.10-ha668962_0/lib/jvm")
 OUT = os.path.join(ROOT, "configs", "checks")
 RUNS = "runs/checks"
 ITER = "ielabgroup/ITER-Qwen3-Embedding-0.6B"
@@ -100,8 +108,7 @@ def write() -> list[str]:
 
 def submit(only: str | None = None) -> None:
     """Submit every check, or only those whose dataset, backbone or file stem equals `only`."""
-    common = ("VLLM_PYTHON=/scratch3/wan458/DIVER/envs/bin/python,"
-              "JAVA_HOME_OVERRIDE=/scratch3/wan458/conda-pkgs/openjdk-21.0.10-ha668962_0/lib/jvm")
+    common = f"VLLM_PYTHON={VLLM_PYTHON},JAVA_HOME_OVERRIDE={JDK}"
     for i, (dataset, strategy, backbone) in enumerate(CHECKS):
         if only and only not in (dataset, backbone, f"{dataset}__{strategy}__{backbone}"):
             continue
@@ -110,7 +117,7 @@ def submit(only: str | None = None) -> None:
         p = os.path.join(OUT, f"{dataset}__{strategy}__{backbone}.yaml")
         needs_dense = strategy in DENSE
         datasets = dataset if needs_dense else ""
-        cmd = ["sbatch", "-A", "OD-236007", "--qos=express", "--time=02:30:00", f"--gres=gpu:{tp}",
+        cmd = ["sbatch", "-A", ACCOUNT, f"--qos={QOS}", "--time=02:30:00", f"--gres=gpu:{tp}",
                f"--job-name=chk-{strategy}-{backbone}",
                f"--export=ALL,{common},MODEL={model},TP={tp},PORT={port},MAX_MODEL_LEN={window},DATASETS={datasets},"
                f"EXPERIMENTS={p},RETRIEVER={ITER},OVERRIDES=",

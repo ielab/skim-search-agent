@@ -19,7 +19,7 @@ RETRIEVER="${RETRIEVER:-ielabgroup/ITER-Qwen3-Embedding-0.6B}"
 DATASETS="${DATASETS:-browsecomp_plus_chunks_sample infoseek_eval_sample}"
 EXPERIMENTS="${EXPERIMENTS:-configs/iter/sample_bcp_chunks_iter06b_tongyi.yaml configs/iter/sample_infoseek_eval_iter06b_tongyi.yaml}"
 MODEL="${MODEL:-Alibaba-NLP/Tongyi-DeepResearch-30B-A3B}"
-PORT="${PORT:-8000}"; TP="${TP:-1}"; MAX_MODEL_LEN="${MAX_MODEL_LEN:-98304}"
+PORT="${PORT:-$((8000 + ${SLURM_JOB_ID:-0} % 1000))}"   # jobs can share a node: one port per job; TP="${TP:-1}"; MAX_MODEL_LEN="${MAX_MODEL_LEN:-98304}"
 echo "[$(date)] node=$(hostname) gpu=${CUDA_VISIBLE_DEVICES:-none} retriever=$RETRIEVER"
 # 1. the sample indexes (encoded on this GPU; a few minutes for tens of thousands of chunks).
 #    Built in the precision the experiment files serve (DTYPE, default bfloat16): the caches differ by precision.

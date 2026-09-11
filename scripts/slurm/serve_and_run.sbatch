@@ -16,7 +16,7 @@
 set -euo pipefail
 source "${SLURM_SUBMIT_DIR:-$PWD}/scripts/slurm/_common.sh"
 EXPERIMENT="${EXPERIMENT:?set EXPERIMENT=<experiment file> via --export}"
-PORT="${PORT:-8000}"; TP="${TP:-2}"; MAX_MODEL_LEN="${MAX_MODEL_LEN:-131072}"
+PORT="${PORT:-$((8000 + ${SLURM_JOB_ID:-0} % 1000))}"   # jobs can share a node: one port per job; TP="${TP:-2}"; MAX_MODEL_LEN="${MAX_MODEL_LEN:-131072}"
 SERVER_PID=""
 if [ -n "${MODEL:-}" ]; then
   export VLLM_USE_FLASHINFER_MOE_FP16=0

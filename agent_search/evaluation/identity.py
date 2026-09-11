@@ -298,6 +298,9 @@ def _check_run_identity(results_dir: str, cfg: dict, allow_drift: bool = False) 
     diffs = {k: (a.get(k), b.get(k)) for k in RUN_IDENTITY_KEYS if a.get(k) != b.get(k)}
     if not diffs:
         return
+    rows = os.path.join(results_dir, "rows.jsonl")
+    if not os.path.exists(rows) or os.path.getsize(rows) == 0:
+        return                                    # nothing was scored under the old config: a fresh start
     lines = [f"  {k}: recorded={old_v!r}  now={new_v!r}" for k, (old_v, new_v) in diffs.items()]
     msg = (f"run directory {results_dir!r} holds a DIFFERENT experiment (config.json "
            f"disagrees with this invocation):\n" + "\n".join(lines) +
