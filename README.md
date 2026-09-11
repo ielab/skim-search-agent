@@ -21,7 +21,7 @@
 </p>
 
 A deep-search agent answers a question by searching a collection over several steps. Which
-retriever it uses, what a search result shows, how it reads a document, which model drives it,
+retriever it uses, what a search result shows, how it reads a document, which agent backbone drives it,
 and how the answer is scored are separate decisions. SkimSearchAgent makes each one a component
 with a fixed interface and runs every combination through the same evaluation, so two experiments
 differ only where you changed them. Every run writes the same record: the full trajectory, the
@@ -38,11 +38,11 @@ travels:
 | `corpus/` | documents and functions as units; an on-disk store for corpora too large for memory; fingerprints so a persisted index is never served against a corpus it was not built for | `units.py`, `docstore.py`, `fingerprint.py`, `code_repo.py` |
 | `retrievers/` | engines that rank ids for a query: Lucene BM25, dense encoders (one file per family), the Boolean method BQL, Indri; and two compositions, a hybrid (any retrievers fused by one method) and a reranked retriever (one retriever's pool reordered by a reranker) | `lexical/`, `dense/`, `bql/`, `indri/`, `lucene/`, `fusion/`, `hybrid.py`, `rerankers/`, `reranked.py`, `engines.py`, `backend.py` |
 | `snippets/` | how one hit is excerpted in a listing: the opening line, the best window for the query terms, or nothing; widths in model tokens | `opening.py`, `term_window.py`, `none.py` |
-| `tools/` | the actions a model can call, one folder each with its declaration, code and manual; a tool names its engine kind and its snippet | `search_bm25/`, `search_dense/`, `search_hybrid/`, `search_reranked/`, `search_bql/`, `search_indri/`, `search_dedup/`, `search_bm25_dci/`, `visit/`, `fetch/`, `fetch_code/`, `get_document/`, `bash/`, `read/`, `grep/` |
-| `tasks/` | what the model is asked to produce: the prompt template and the answer protocol | `research/`, `research_dedup/`, `codefix/`, `codefix_patch/` |
+| `tools/` | the actions the agent backbone can call, one folder each with its declaration, code and manual; a tool names its engine kind and its snippet | `search_bm25/`, `search_dense/`, `search_hybrid/`, `search_reranked/`, `search_bql/`, `search_indri/`, `search_dedup/`, `search_bm25_dci/`, `visit/`, `fetch/`, `fetch_code/`, `get_document/`, `bash/`, `read/`, `grep/` |
+| `tasks/` | what the backbone is asked to produce: the prompt template and the answer protocol | `research/`, `research_dedup/`, `codefix/`, `codefix_patch/` |
 | `strategies/` | the named combinations a run selects: tools with their options and a harness, or a retrieval-only floor; `conditions.py` pairs a strategy with a task | `search_visit.py`, `search_fetch.py`, `autoread.py`, `sieve.py`, `indri.py`, `dci.py`, `dedup.py`, `codefix.py`, `rag.py`, `teams.py`, `retrieval_only.py` |
-| `harness/` | how the model is put to work on a condition, one file each: ReAct (the default loop, the model picks each step), one-shot RAG (rank once, one call), plan-and-search (a team: a planner, one member agent per sub-question, a synthesizer) | `react.py`, `rag.py`, `plan_and_search.py` |
-| `agent/` | the machinery a harness is built from: the model providers, the policies, the step loop, the forced answer, the Agents-SDK driver, the run record | `backbone/`, `policies.py`, `loop.py`, `forced_answer.py`, `sdk_driver.py`, `record.py` |
+| `harness/` | how the backbone is put to work on a condition, one file each: ReAct (the default loop, the backbone picks each step), one-shot RAG (rank once, one call), plan-and-search (a team: a planner, one member agent per sub-question, a synthesizer) | `react.py`, `rag.py`, `plan_and_search.py` |
+| `agent/` | the machinery a harness is built from: the backbone providers, the policies, the step loop, the forced answer, the Agents-SDK driver, the run record | `backbone/`, `policies.py`, `loop.py`, `forced_answer.py`, `sdk_driver.py`, `record.py` |
 | `evaluation/` | the evaluation: datasets, the runner, the metrics, the judge, the run record and its identity, the index prebuild | `datasets/`, `runner.py`, `run_eval.py`, `llm_judge.py`, `identity.py`, `build_indexes.py` |
 | `training/` | the ITER recipe: trajectories to triples, retriever training and evaluation | `build_triples.py`, `retriever.py`, `retriever_eval.py` |
 
@@ -73,15 +73,15 @@ import, and an older Java aborts the process without a message.
 ## Run an experiment
 
 One YAML file is one complete setting. The file lists every knob its strategy reads: dataset,
-model, token budgets, listing depths, retrieval engines, scoring, output. A `search_visit` file
+agent backbone, token budgets, listing depths, retrieval engines, scoring, output. A `search_visit` file
 has no dense-model keys; a `sieve` file has no listing depths.
 
 ```bash
 skimsearchagent run configs/smoke_doc_fixture_sieve_bm25.yaml        # scripted policy, no keys
 export OPENAI_API_KEY=...
-skimsearchagent run configs/doc_fixture_sieve_bm25_gpt4omini.yaml    # a real model
-skimsearchagent run configs/paper/hotpotqa_structured_sieve.yaml     # the paper's setting, scripted policy (no model named)
-skimsearchagent run configs/paper/hotpotqa_structured_sieve.yaml model.name=gpt-4o output.runs_dir=runs/gpt4o   # the same with a model
+skimsearchagent run configs/doc_fixture_sieve_bm25_gpt4omini.yaml    # a real backbone
+skimsearchagent run configs/paper/hotpotqa_structured_sieve.yaml     # the paper's setting, scripted policy (no backbone named)
+skimsearchagent run configs/paper/hotpotqa_structured_sieve.yaml model.name=gpt-4o output.runs_dir=runs/gpt4o   # the same with a backbone
 skimsearchagent validate configs/paper/hotpotqa_structured_sieve.yaml   # what it needs, what it will run
 skimsearchagent template paper sieve > configs/mine.yaml              # a complete file for one strategy, to edit
 ```
@@ -98,68 +98,82 @@ skimsearchagent dataset=doc_fixture strategy=search_visit model=gpt-4o-mini snip
 
 ## Change one thing
 
-Each block below changes exactly one component. Everything else stays the same.
+Each block changes one component and leaves the rest of the experiment as it was. The blocks
+follow the module table above: the strategy, the agent backbone, the harness, the retriever, the
+snippet, the tool, the task, the corpus, the dataset.
 
-**The strategy** (one word in the config, or on the command line):
+**The strategy** (one word in the experiment file, or on the command line):
 
 ```yaml
 strategy: search_visit        # sieve, sieve_bm25, search_fetch, autoread, dci, indri, ... (see Strategies)
 ```
 
-**The model** (any OpenAI-compatible server, OpenAI, Gemini, or in-process vLLM):
+**The agent backbone**, the language model that drives the agent. The experiment file's section
+is called `model`; it takes any OpenAI-compatible server, OpenAI, Gemini, or in-process vLLM:
 
 ```yaml
 model:
   name: Alibaba-NLP/Tongyi-DeepResearch-30B-A3B
-  backend: api                # a served model
+  backend: api                # a served backbone
   api_base: http://localhost:8000/v1
 ```
 
-**A budget** (all budgets are token counts):
-
-```yaml
-budgets:
-  max_visit_tokens: 12000     # whole-document read cap
-  snippet_tokens: 64          # result-card snippet width
-agent:
-  max_steps: 100
-```
-
-**The corpus**, from Python, with your own documents:
+From Python the backbone is any callable that maps chat messages to text:
 
 ```python
-from agent_search import research
-
-docs = [{"_id": "d1", "title": "Treaty of Guadalupe Hidalgo",
-         "text": "The Treaty of Guadalupe Hidalgo ended the Mexican-American War in 1848."}]
-result = research("Which treaty ended the Mexican-American War?", docs,
-                  strategy="sieve_bm25", model="gpt-4o-mini")
-print(result.answer, result.ranking, result.usage)
-```
-
-**The model, from Python**, as any callable that maps chat messages to text:
-
-```python
-def my_model(messages: list[dict]) -> str:
+def my_backbone(messages: list[dict]) -> str:
     return my_client.chat(messages)          # returns the generation, tool calls included
 
-research(question, docs, strategy="sieve_bm25", generate=my_model)
+research(question, docs, strategy="sieve_bm25", generate=my_backbone)
 ```
 
-**The prompt**: edit `agent_search/tasks/research/prompt.md`, or write a task with your own
-template and pair it with an existing strategy:
+**The harness**, how the backbone is put to work. ReAct is the default; a strategy names
+another one, such as a team whose members are conditions:
 
 ```python
-from agent_search.tasks.base import Task, register_task
-from agent_search.strategies.conditions import condition
+from agent_search.harness.plan_and_search import PlanAndSearch
+from agent_search.strategies.base import Strategy, register_strategy
 
-@register_task
-class MyTask(Task):
-    name, domain, terminal = "my_task", "general", "answer"
-    prompt_file = "/path/to/my_task.md"        # front matter + body with {{tools}} and {{tool_manuals}}
+register_strategy(Strategy(name="plan_and_search_visit_dense", description="a planner, dense search-visit agents, a synthesizer",
+                           harness=PlanAndSearch(searcher="search_visit_dense")))
+# run it: strategy=plan_and_search_visit_dense
+```
 
-condition("my_sieve", task="my_task", strategy="sieve_bm25")
-# run it: strategy=my_sieve
+**The retriever**, as a new engine or as a retrieval-only floor:
+
+```python
+from agent_search.retrievers.base import Retriever
+from agent_search.retrievers.registry import register
+
+class MyRetriever(Retriever):
+    name = "my_method"
+    def index(self, units, key=None): self._ids = [u.doc_id for u in units]; return self
+    def search(self, query, k): return self._ids[:k]
+
+register("my_method")(lambda cfg, name: (lambda: MyRetriever()))
+# run it: strategy=my_method (retrieval-only), or give it an engine kind so a tool can use it
+```
+
+A hybrid is any retrievers fused by one method (`retrieval.hybrid_retrievers`,
+`retrieval.hybrid_fusion`); a reranked retriever is one retriever's pool reordered by a reranker
+(`retrieval.rerank_base`, `retrieval.rerank_model`).
+
+**The dense retriever**, one setting for Sieve's ranker, its fallback, and every dense baseline:
+
+```yaml
+retrieval:
+  dense_model: models/my-retriever     # a hub id or a checkpoint trained below
+  dense_query_style: i2                # how the query is written from the agent's history
+```
+
+**The snippet**, what a listing shows under each hit. A tool takes a method from
+`agent_search/snippets/`; widths are model tokens:
+
+```python
+from agent_search.snippets import TermWindow
+from agent_search.tools.search_bm25.tool import SearchBm25
+
+SearchBm25(name="bm25q_search", snippet=TermWindow())      # the best window for the query terms
 ```
 
 **A tool** (its declaration and its code in one class), **a strategy** (which tools, under which
@@ -184,27 +198,32 @@ condition("title_agent", task="research", strategy="title_only")
 # run it: strategy=title_agent
 ```
 
-**A retriever**:
+**The task**, what the backbone is asked to produce: edit `agent_search/tasks/research/prompt.md`,
+or write a task with your own template and pair it with an existing strategy:
 
 ```python
-from agent_search.retrievers.base import Retriever
-from agent_search.retrievers.registry import register
+from agent_search.tasks.base import Task, register_task
+from agent_search.strategies.conditions import condition
 
-class MyRetriever(Retriever):
-    name = "my_method"
-    def index(self, units, key=None): self._ids = [u.doc_id for u in units]; return self
-    def search(self, query, k): return self._ids[:k]
+@register_task
+class MyTask(Task):
+    name, domain, terminal = "my_task", "general", "answer"
+    prompt_file = "/path/to/my_task.md"        # front matter + body with {{tools}} and {{tool_manuals}}
 
-register("my_method")(lambda cfg, name: (lambda: MyRetriever()))
-# run it: strategy=my_method (retrieval-only), or give it an engine kind so a tool can use it
+condition("my_sieve", task="my_task", strategy="sieve_bm25")
+# run it: strategy=my_sieve
 ```
 
-**The dense model** (one setting covers Sieve's ranker, its fallback, and every dense baseline):
+**The corpus**, from Python, with your own documents:
 
-```yaml
-retrieval:
-  dense_model: models/my-retriever     # a hub id or a checkpoint trained below
-  dense_query_style: i2                # how the query is written from the agent's history
+```python
+from agent_search import research
+
+docs = [{"_id": "d1", "title": "Treaty of Guadalupe Hidalgo",
+         "text": "The Treaty of Guadalupe Hidalgo ended the Mexican-American War in 1848."}]
+result = research("Which treaty ended the Mexican-American War?", docs,
+                  strategy="sieve_bm25", model="gpt-4o-mini")
+print(result.answer, result.ranking, result.usage)
 ```
 
 **A dataset**:
@@ -244,8 +263,8 @@ agent.search(question, k=10)
 
 | family | `strategy=` | what the agent does |
 |---|---|---|
-| Retrieval-only | `bm25`, `dense`, `bql`, `grep`, `hybrid`, `reranked` | rank once, no agent loop, no model; `reranked` reorders the pool of the retriever named in `retrieval.rerank_base` with the reranker in `retrieval.rerank_model`; `hybrid` fuses the retrievers named in `retrieval.hybrid_retrievers` with `retrieval.hybrid_fusion` (`rrf` or `interpolation`) |
-| One-shot RAG | `rag_bm25`, `rag_dense`, `rag_hybrid` | rank once, put the top five documents in one prompt, one model call |
+| Retrieval-only | `bm25`, `dense`, `bql`, `grep`, `hybrid`, `reranked` | rank once, no agent loop, no backbone; `reranked` reorders the pool of the retriever named in `retrieval.rerank_base` with the reranker in `retrieval.rerank_model`; `hybrid` fuses the retrievers named in `retrieval.hybrid_retrievers` with `retrieval.hybrid_fusion` (`rrf` or `interpolation`) |
+| One-shot RAG | `rag_bm25`, `rag_dense`, `rag_hybrid` | rank once, put the top five documents in one prompt, one backbone call |
 | Search–Visit | `search_visit`, `search_visit_dense`, `search_visit_hybrid`, `search_visit_reranked`, `search_visit_snippets` | read a result list, open whole documents |
 | Search–AutoRead | `autoread`, `autoread_dense`, `autoread_hybrid` | every search returns full text |
 | Direct corpus interaction | `dci`, `bounded_dci` | shell commands over exported files, optionally within a BM25 working set |
