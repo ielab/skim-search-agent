@@ -1,13 +1,13 @@
 """One-shot RAG: rank once, put the top documents in one prompt, one model call, read the answer.
 
-No loop and no tools. The procedure names a ranker (`bm25`, `dense`, `hybrid`) and a depth.
-It is the loop-free baseline the Sieve paper compares the agents against.
+No loop and no tools. The harness names a ranker (`bm25`, `dense`, `hybrid`) and a depth. It
+is the loop-free baseline the Sieve paper compares the agents against.
 
 Lengths: every document is cut to an equal share of the prompt budget, measured with the model
 ruler (`agent_search.tokens.truncate_tokens`). The budget is `AGENT_CTX_TOKENS` (the run's
 `agent.ctx_tokens`) minus the completion reserve (`RAG_MAX_TOKENS`, default 4000) minus a fixed
 margin for the instruction and the question. The record is one step named `retrieve` and the
-answer read from the one generation, scored like an agent row.
+answer read from the one generation, scored like a loop episode.
 """
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ import os
 from dataclasses import dataclass
 from typing import Sequence
 
-from agent_search.procedures.base import Procedure, ProcedureContext, ProcedureResult
+from agent_search.harness.base import Harness, HarnessContext, HarnessResult, trajectory_from_steps
 from agent_search.tokens import count_tokens, truncate_tokens
 
 SYSTEM_PROMPT = (
@@ -71,7 +71,7 @@ def messages(question: str, hits: Sequence[tuple]) -> list:
 
 
 @dataclass(frozen=True)
-class OneShotRag(Procedure):
+class OneShotRag(Harness):
     ranker: str = "bm25"
     k: int = TOP_K
 
@@ -79,11 +79,13 @@ class OneShotRag(Procedure):
     def name(self) -> str:                  # type: ignore[override]
         return f"rag_{self.ranker}"
 
-    @property
-    def engines(self) -> tuple:             # type: ignore[override]
+    def engines(self) -> tuple:
         return {"bm25": ("bm25",), "dense": ("dense",), "hybrid": ("hybrid",)}[self.ranker]
 
-    def run(self, question: str, ctx: ProcedureContext) -> ProcedureResult:
+    def prompts(self) -> list:
+        return [SYSTEM_PROMPT]
+
+    def run(self, question: str, ctx: HarnessContext) -> HarnessResult:
         from agent_search.agent.loop import Step
         doc_ids = rank(self.ranker, ctx.engines, question, self.k)
         hits = stuff(doc_ids, ctx.ubyid, prompt_budget())
@@ -91,7 +93,7 @@ class OneShotRag(Procedure):
         raw = ctx.generate(msgs) if ctx.generate is not None else ""
         step = Step(name="retrieve", args={"query": question, "k": len(doc_ids)},
                     observation=f"({len(doc_ids)} matches stuffed into one prompt)", raw_output=raw or "")
-        return ProcedureResult(doc_ids=list(doc_ids), raw=raw or "", steps=[step], surfaced=list(doc_ids))
+        return HarnessResult(trajectory=trajectory_from_steps([step], doc_ids, raw), surfaced=list(doc_ids))
 
     def prompt_tokens(self, msgs: list) -> int:
         return sum(count_tokens(m["content"]) for m in msgs)

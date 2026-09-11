@@ -51,13 +51,13 @@ Every key has a one-line comment in the template. The full schema is
 
 ## 2. How a setting reaches the code
 
-A file is turned into two things: flags for the harness (`agent_search.evaluation.run_eval`) and
+A file is turned into two things: flags for the evaluation entry point (`agent_search.evaluation.run_eval`) and
 environment variables the tool modules read. The `key=value` launcher produces the same two
 things, so both forms run through one path.
 
 Some tool modules read their environment knob when they are imported, not when they are called
 (`SNIPPET_TOKENS` at the top of `agent_search/tools/budgets.py`, for example). The
-launcher exports every knob before it imports the harness, so this is invisible when you use
+launcher exports every knob before it imports the package, so this is invisible when you use
 `skimsearchagent`. If you call `python -m agent_search.evaluation.run_eval` from your own script,
 export the variables first. The tables below mark these knobs with "before import".
 
@@ -66,7 +66,7 @@ export the variables first. The tables below mark these knobs with "before impor
 Every run directory holds `config.json`, `rows.jsonl` and `results.json`
 (see "The run record" in [ARCHITECTURE.md](ARCHITECTURE.md)). `config.json` has the experiment file's path and hash, the
 setting that actually ran (the file with any `section.key=value` overrides applied, and the
-overrides themselves), every harness flag, the composed prompt and its hash, the installed
+overrides themselves), every `run_eval` flag, the composed prompt and its hash, the installed
 package version, the git revision, the token ruler, and a snapshot of every environment knob.
 Secrets (`OPENAI_API_KEY`, `GEMINI_API_KEY`) and infrastructure settings (server URLs, devices,
 cache paths) are left out because they don't change results.
@@ -96,7 +96,7 @@ skimsearchagent dataset=browsecomp_plus_structured_full strategy=sieve \
 | `model` | `--model`, and `policy=llm` unless you set `policy` yourself; without a model the scripted `stub` policy runs |
 | `runs_dir` | `--runs-dir` (default `runs/quick`) |
 | a boolean flag (`rebuild`, `allow_clone`, `rejudge`, `allow_config_drift`, `check_complete`) | the flag, when the value is `true`, `1`, `yes` or `on` |
-| an environment knob (any name in the tables below) | exported as `NAME=value` before the harness is imported |
+| an environment knob (any name in the tables below) | exported as `NAME=value` before the package is imported |
 | anything else | passed through as `--key value` |
 
 `skimsearchagent --help` prints the strategy table, the boolean flags and the knob names from the

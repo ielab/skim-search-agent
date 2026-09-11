@@ -60,7 +60,7 @@ def build_agent(strategy: str = DEFAULT_STRATEGY, *,
 
     Call ``.index(units, key=...)`` then ``.search(question, k)``; the episode record is on
     ``.last_trajectory_meta``. :func:`research` wraps exactly that."""
-    from agent_search.evaluation.agent_runner import ConditionAgent, ProcedureAgent
+    from agent_search.evaluation.agent_runner import ConditionAgent
     from agent_search.strategies.conditions import CONDITIONS
 
     retriever_name = resolve_strategy(strategy)
@@ -69,7 +69,7 @@ def build_agent(strategy: str = DEFAULT_STRATEGY, *,
     if cond is None:
         raise ValueError(f"{strategy!r} is not a registered condition; choose from "
                          f"{sorted(CONDITIONS)}")
-    if not cond.strategy.loop and cond.strategy.retriever:
+    if cond.strategy.retriever:
         raise ValueError(f"{strategy!r} is a retrieval-only floor, not an agent strategy; "
                          f"use agent_search.retrievers.registry.build_factory for it")
     domain = cond.domain
@@ -82,29 +82,17 @@ def build_agent(strategy: str = DEFAULT_STRATEGY, *,
         generate = make_generate(model=model, backend=backend, api_base=api_base, tp=tp,
                                  temperature=temperature, seed=seed)
 
-    if not cond.strategy.loop:
-        if generate is None:
-            from agent_search.agent.policies import KeywordPolicy
-            policy_for = lambda member: KeywordPolicy(member.tool_names)  # noqa: E731
-        else:
-            from agent_search.agent.policies import AgentPolicy
-            gen = generate
-            policy_for = lambda member: AgentPolicy(generate=gen, system=member.render(profile))  # noqa: E731
-        return ProcedureAgent(cond, generate, policy_for=policy_for, max_steps=max_steps, dense_model=dense,
-                              index_root=index_root, rebuild=rebuild, field_profile=profile, model=model,
-                              api_base=api_base)
-
     if generate is None:
         from agent_search.agent.policies import KeywordPolicy
-        policy_factory = lambda: KeywordPolicy(cond.tool_names)  # noqa: E731
+        policy_for = lambda c: KeywordPolicy(c.tool_names)  # noqa: E731
         chosen_driver = "loop"
     else:
         from agent_search.agent.policies import AgentPolicy
-        gen, system = generate, cond.render(profile)
-        policy_factory = lambda: AgentPolicy(generate=gen, system=system)  # noqa: E731
+        gen = generate
+        policy_for = lambda c: AgentPolicy(generate=gen, system=c.render(profile))  # noqa: E731
         chosen_driver = driver or "loop"
 
-    return ConditionAgent(cond, policy_factory, max_steps=max_steps, dense_model=dense,
+    return ConditionAgent(cond, policy_for, generate=generate, max_steps=max_steps, dense_model=dense,
                           index_root=index_root, rebuild=rebuild, driver=chosen_driver,
                           field_profile=profile, model=model, api_base=api_base)
 

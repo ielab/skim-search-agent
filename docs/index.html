@@ -186,8 +186,8 @@
     <div class="stages">
       <div class="st-card"><span class="n">01</span><h3>Corpus</h3><p>Documents become units: an id, a title, a body, and optional sections. One dataset registry loads them; a corpus too large for memory is served from disk instead of held in RAM.</p></div>
       <div class="st-card"><span class="n">02</span><h3>Retrieval and reranking</h3><p>Every retriever indexes once and searches by query. Lucene BM25, dense encoders, BQL's fielded Boolean retrieval and Indri-style structured retrieval share one engine registry per corpus; a hybrid is any of them fused by one method, and a reranked retriever is one of them with a reranker over its pool.</p></div>
-      <div class="st-card"><span class="n">03</span><h3>Tools, tasks, strategies</h3><p>A tool is one atomic action with its own declaration and code, and it names the snippet its listing shows. A task is the goal and the answer protocol. A strategy combines tools with options, or is a procedure: one-shot RAG, or a team of agents. This is where most extension work happens.</p></div>
-      <div class="st-card"><span class="n">04</span><h3>Agent runtime</h3><p>One loop drives every condition: reason, act, observe, with every limit measured in tokens. An alternative driver runs the same tools through native function calling instead of parsed text.</p></div>
+      <div class="st-card"><span class="n">03</span><h3>Tools, tasks, strategies</h3><p>A tool is one atomic action with its own declaration and code, and it names the snippet its listing shows. A task is the goal and the answer protocol. A strategy combines tools with options and names its harness. This is where most extension work happens.</p></div>
+      <div class="st-card"><span class="n">04</span><h3>Harness</h3><p>How the model is put to work, one file each: ReAct, the default loop where the model picks each step; one-shot RAG; a plan-and-search team whose members are conditions run as agents. Every harness writes the same record, with every limit measured in tokens.</p></div>
       <div class="st-card"><span class="n">05</span><h3>Evaluation and evidence</h3><p>Every run writes the same record: a full trajectory, its configuration, and its metrics. Metrics, judges and paired statistics all read that one record format, whichever strategy produced it.</p></div>
       <div class="st-card"><span class="n">06</span><h3>Training and rollouts</h3><p>Every episode is a full trajectory, so it is also training data. Triples with tiered negatives come out of any run directory and train a dense retriever that plugs back in as any strategy's dense model.</p></div>
     </div>
@@ -201,7 +201,7 @@
     <div class="feats">
       <div class="feat"><h3>Tool</h3><p>One atomic action the agent can call. A tool owns its declaration (the name and description the model sees), its code (a <code>run</code> function that returns text, never an exception), and, when it needs one, a manual rendered into the prompt.</p></div>
       <div class="feat"><h3>Task</h3><p>The goal and the answer protocol: the prompt template, the domain, and the terminal that ends an episode, an <code>&lt;answer&gt;</code>, a <code>&lt;fix&gt;</code>, or a patch.</p></div>
-      <div class="feat"><h3>Strategy</h3><p>A named combination of tools with their options, or a procedure that uses an engine without any agent loop at all.</p></div>
+      <div class="feat"><h3>Strategy</h3><p>A named combination of tools with their options and the harness that runs them, or a retrieval-only floor.</p></div>
       <div class="feat"><h3>Condition</h3><p>A task paired with a strategy. What a run names, what a config file's <code>strategy</code> and <code>dataset</code> keys resolve to, what the run record carries.</p></div>
     </div>
 

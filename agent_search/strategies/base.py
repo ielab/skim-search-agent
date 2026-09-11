@@ -1,16 +1,19 @@
-"""The strategy contract: a named combination of tools with their options.
+"""The strategy contract: a named combination of tools with their options, and the harness
+that runs them.
 
 A strategy file lists the tools it takes (instances carrying their options and the name the
-model sees), which engines they need (the union of the tools' declarations), and whether it
-runs through the agent loop at all. A strategy with no loop is a floor (`retriever=`, rank
-once) or a procedure (`procedure=`, a program from `agent_search.procedures`: one-shot RAG,
-or a team whose members are conditions run as agents).
+model sees), which engines they need (the union of the tools' declarations), and its harness
+(`agent_search.harness`: ReAct by default, the model picking each step; one-shot RAG; a team
+whose members are conditions). A floor names a registered retriever instead (`retriever=`):
+rank once, no model.
 """
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 from typing import Optional, Sequence
 
+from agent_search.harness.base import Harness
+from agent_search.harness.react import ReAct
 from agent_search.tools.base import EpisodeState, Tool, ToolBox
 
 STRATEGIES: dict[str, "Strategy"] = {}
@@ -23,11 +26,10 @@ class Strategy:
     tools: Sequence[Tool] = ()
     toolset_name: Optional[str] = None     # the paper's toolset name (rendered by {{toolset}})
     domain: Optional[str] = None           # restrict to code / general; None = any task
-    loop: bool = True                      # False: a fixed procedure (rag, retrieval-only)
+    harness: Harness = field(default_factory=ReAct)   # how the model is put to work (agent_search.harness)
     sdk: bool = True                       # may run through the Agents-SDK driver
-    extra_engines: tuple = ()              # engines a procedure needs beyond its tools
-    retriever: Optional[str] = None        # loop=False: the registered retriever that IS the strategy (a floor)
-    procedure: Optional[object] = None     # loop=False: a Procedure (agent_search.procedures): RAG, a team
+    extra_engines: tuple = ()              # engines a harness needs beyond its tools
+    retriever: Optional[str] = None        # a floor: the registered retriever that IS the strategy
 
     @property
     def engines(self) -> tuple:
@@ -39,10 +41,9 @@ class Strategy:
         for e in self.extra_engines:
             if e not in out:
                 out.append(e)
-        if self.procedure is not None:
-            for e in self.procedure.all_engines():
-                if e not in out:
-                    out.append(e)
+        for e in self.harness.all_engines():
+            if e not in out:
+                out.append(e)
         return tuple(out)
 
     @property

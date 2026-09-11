@@ -1,6 +1,6 @@
 # Architecture
 
-SkimSearchAgent is a research harness for **deep-search agents**: agents that answer a hard
+SkimSearchAgent is a research framework for **deep-search agents**: agents that answer a hard
 question by searching a fixed collection over several steps. The design goal is to let one
 component be swapped while the rest of the experiment stays fixed. The library is six modules
 behind one set of contracts, one run record, and one evaluation layer.
@@ -24,14 +24,13 @@ behind one set of contracts, one run record, and one evaluation layer.
 | 02 | **Retrieval & reranking** | `Retriever.index / search`; persistent indexes keyed by corpus identity and content fingerprint; one engine registry per corpus shared by every tool; a hybrid is retrievers plus a fusion method, a reranked retriever is one retriever plus a reranker | Lucene BM25, dense encoders, fusion methods, rerankers, BQL fielded retrieval, Indri-style structured retrieval, your ranker | `agent_search/retrievers/` (`fusion/`, `rerankers/`, `hybrid.py`, `reranked.py`) |
 | 03 | **Snippets** | `Snippet.render(unit, terms, width)`: the excerpt a listing shows under one hit, in tokens | the opening line, the query-term window, none, your excerpt method | `agent_search/snippets/` |
 | 04 | **Tools, tasks, strategies** | a *tool* is one atomic action with its declaration, its code and its manual, and names its engine kind and its snippet; a *task* is the goal and the answer protocol; a *strategy* is a combination of tools with options, a procedure, or a floor; a *condition* is a task with a strategy | tools, tasks, strategies, conditions | `agent_search/tools/`, `agent_search/tasks/`, `agent_search/strategies/` |
-| 05 | **Agent runtime** | `run_condition_episode` (one condition on one question) over `run_episode` (reason, act, observe), budgets in tokens, forced-answer handling; the Agents-SDK driver as an alternative runtime | policies, models, drivers | `agent_search/agent/` (`episode.py`, the loop, policies, drivers, and `backbone/` with the model providers) |
-| 06 | **Procedures** | `Procedure.run(question, ctx)`: a program over engines and agents; a team runs member conditions through the same episode function and records them all | one-shot RAG, plan-and-search, your team | `agent_search/procedures/` |
-| 07 | **Evaluation & evidence** | the run record (`rows.jsonl` + `config.json` + `results.json`), resume semantics, run identity | metrics, judges, paired statistics | `agent_search/evaluation/`, `scripts/summarize_runs.py`, `scripts/compare_cells.py` |
-| 08 | **Training & rollouts** | every episode is a full trajectory (prompts, tool calls, observations, tokens, what each search listed and each read opened) | retriever training from trajectories (the ITER recipe, shipped); policy SFT/RL consumers | `agent_search/training/`, `rows.jsonl` (see [TRAINING.md](TRAINING.md) and "The run record" below) |
+| 05 | **Harness** | `Harness.run(question, ctx)`: how the model is put to work on a condition; every harness returns the same `Trajectory` record. ReAct is the default (the model picks each step), one-shot RAG asks once, a team runs member conditions through their own harnesses and records them all | ReAct, one-shot RAG, plan-and-search, your harness | `agent_search/harness/`, built from `agent_search/agent/` (the step loop, policies, forced answer, drivers, `backbone/` with the model providers, the run record) |
+| 06 | **Evaluation & evidence** | the run record (`rows.jsonl` + `config.json` + `results.json`), resume semantics, run identity | metrics, judges, paired statistics | `agent_search/evaluation/`, `scripts/summarize_runs.py`, `scripts/compare_cells.py` |
+| 07 | **Training & rollouts** | every episode is a full trajectory (prompts, tool calls, observations, tokens, what each search listed and each read opened) | retriever training from trajectories (the ITER recipe, shipped); policy SFT/RL consumers | `agent_search/training/`, `rows.jsonl` (see [TRAINING.md](TRAINING.md) and "The run record" below) |
 
 Each family declares its contract in a base module next to its implementations:
 `retrievers/base.py`, `retrievers/fusion/base.py`, `retrievers/rerankers/base.py`, `snippets/base.py`,
-`tools/base.py`, `tasks/base.py`, `strategies/base.py`, `procedures/base.py`, `agent/policies.py` and
+`tools/base.py`, `tasks/base.py`, `strategies/base.py`, `harness/base.py`, `agent/policies.py` and
 `agent/backbone/base.py`. Every built-in implements them the same way
 a plugin does. [EXTENDING.md](EXTENDING.md) covers each extension point with a
 runnable example.
@@ -65,13 +64,14 @@ retriever and a reranker (`retrievers/rerankers/`, one file per method): the bas
 named in `retrieval.rerank_base` supplies a pool, the reranker reads each (query, document)
 pair and reorders it. Rerankers score online during a run; that is what reranking is.
 
-**Procedure.** A strategy that is a program rather than a tool loop (`procedures/`, one file
-each). One-shot RAG ranks, prompts once and reads the answer. A team runs member conditions as
-agents through `agent/episode.py`, the same function the harness uses for a single agent, and
-combines what they found; the run record keeps every member trajectory, sums their steps and
-tokens, and takes the union of their surfaced documents, so a team is judged with the same
-metrics as one agent. A new team is one new file in `procedures/` and one line in
-`strategies/teams.py`.
+**Harness.** How the model is put to work on a condition (`harness/`, one file each). ReAct
+is the default: a loop in which the model picks each step from the strategy's tools. One-shot
+RAG ranks, prompts once and reads the answer. A team (plan-and-search) runs member conditions
+through their own harnesses and combines what they found; the run record keeps every member
+trajectory, sums their steps and tokens, and takes the union of their surfaced documents, so a
+team is judged with the same metrics as one agent. A strategy names its harness with
+`harness=`; a new harness is one new file, and the `agent/` package holds the machinery a
+harness is built from.
 
 **Snippet.** How one hit is excerpted in a listing (`snippets/`, one file each): the opening
 line, the best window for the query terms, or nothing. A search tool takes one as its
@@ -117,7 +117,7 @@ A strategy gives each tool the exposed name the paper prompt used (`search_s`, `
 **Condition.** A task with a strategy. What a run names, what a config file's `strategy:` and
 `dataset:` resolve to, what the record carries. `strategies/conditions.py` holds the registry;
 `strategies/paper.py` keeps the paper's condition names (`research_snip`, `research_bm25`,
-`codefix`, ...) as aliases, one line each. Every condition is a retriever the harness can run,
+`codefix`, ...) as aliases, one line each. Every condition is a retriever the evaluation can run,
 named `agent_<condition>`.
 
 ## Package map
@@ -149,23 +149,23 @@ agent_search/
   strategies/      base.py (Strategy), names.py (friendly CLI names), conditions.py (the registry), paper.py
                    (the paper's names), then one file per family: search_visit.py, autoread.py, search_fetch.py,
                    sieve.py, indri.py, dci.py, dedup.py, codefix.py, rag.py, teams.py, retrieval_only.py
-  procedures/      base.py (Procedure, ProcedureContext, ProcedureResult), then one file per program:
-                   rag.py (one-shot RAG), plan_and_search.py (a team whose members are conditions)
+  harness/         base.py (Harness, HarnessContext, HarnessResult), then one file per harness:
+                   react.py (the default loop), rag.py (one-shot RAG), plan_and_search.py (a team)
   agent/
-    episode.py     run one condition on one question: the single-agent unit the harness and the teams share
-    loop.py        one episode: reason, act, observe
+    loop.py        the ReAct step loop: reason, act, observe
+    record.py      the run record of one episode (trajectory_meta)
     policies.py    AgentPolicy (a model), ScriptPolicy and KeywordPolicy (scripted)
     actions.py     parsing tool calls and answers out of a generation
     forced_answer.py, sdk_driver.py
     backbone/      the model providers, one file each: openai_chat.py, openai_reasoning.py, gemini.py, vllm_local.py;
                    base.py (the Model contract), usage.py, retry.py, text.py
   evaluation/
-    agent_runner.py  ConditionAgent (a condition run as a Retriever), ProcedureAgent (loop-free strategies)
+    agent_runner.py  ConditionAgent (a condition run as a Retriever through its strategy's harness)
     datasets/      base.py (Instance, the registry), swebench.py, fixtures.py, beir.py, topics.py
     corpus_units.py, scoring.py, identity.py, runner.py, run_eval.py (the entry point)
     metrics.py, doc_scoring.py, fix_scoring.py, llm_judge.py, build_indexes.py, sample.py, rows.py, config.py
     ground_truth.py (SWE-bench gold patch -> localization ground truth), patch_synthesis.py (fix edits -> a
-    unified diff), swebench_apptainer.py (self-hosted SWE-bench resolve-rate harness)
+    unified diff), swebench_apptainer.py (self-hosted SWE-bench resolve-rate runner)
   training/        queries.py (query styles), triples.py (tiered negatives), build_triples.py (the entry point),
                    retriever.py (the trainer), history.py, retriever_eval.py, patches/ (the FlagEmbedding patch)
   experiment.py    the experiment-file schema; cli.py; api.py

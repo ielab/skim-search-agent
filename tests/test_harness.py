@@ -1,13 +1,14 @@
-"""Procedures: one-shot RAG and the plan-and-search team run through `ProcedureAgent`, and
-their record has the single-agent shape (steps, members, surfaced documents, an answer)."""
+"""Harnesses: ReAct, one-shot RAG and the plan-and-search team run through `ConditionAgent`, and
+their record has the same shape (steps, members, surfaced documents, an answer)."""
 from __future__ import annotations
 
 import pytest
 
 from agent_search.corpus.units import units_from_documents
-from agent_search.procedures.base import Procedure, ProcedureContext
-from agent_search.procedures.plan_and_search import PlanAndSearch, member_condition, parse_plan
-from agent_search.procedures.rag import OneShotRag
+from agent_search.harness.base import Harness, HarnessContext, HarnessResult
+from agent_search.harness.plan_and_search import PlanAndSearch, member_condition, parse_plan
+from agent_search.harness.rag import OneShotRag
+from agent_search.harness.react import ReAct
 from agent_search.strategies import CONDITIONS
 from agent_search.strategies.base import STRATEGIES
 from lucene_support import build_engines, corpus_key, index_root, require_jvm
@@ -31,6 +32,13 @@ def corpus():
     return units, corpus_key(units), engines
 
 
+def test_every_strategy_names_a_harness():
+    assert isinstance(STRATEGIES["sieve_bm25"].harness, ReAct)
+    assert isinstance(STRATEGIES["rag"].harness, OneShotRag)
+    assert isinstance(STRATEGIES["plan_and_search"].harness, PlanAndSearch)
+    assert STRATEGIES["bm25"].retriever == "bm25_pyserini"          # a floor: no harness runs
+
+
 def test_parse_plan_reads_numbered_and_bulleted_lines():
     text = "Here is the plan:\n1. Which treaty ended the war?\n2) When was it signed?\n- a third one\nfour"
     assert parse_plan(text, 5) == ["Which treaty ended the war?", "When was it signed?", "a third one"]
@@ -44,6 +52,17 @@ def test_team_strategy_unions_its_members_engines():
     assert PlanAndSearch(searcher="sieve_bm25").members == ("sieve_bm25",)
     assert member_condition("sieve_bm25").task.name == "research"
     assert "plan_and_search" in CONDITIONS
+
+
+def test_react_stub_episode_records_a_trajectory(corpus):
+    units, key, _ = corpus
+    from agent_search.retrievers.registry import RetrieverConfig, build_factory
+    cfg = RetrieverConfig(index_root=index_root(), domain="general", policy="stub")
+    agent = build_factory("agent_research_snip", cfg)().index(units, key=key)
+    ranking = agent.search(QUESTION, 5)
+    meta = agent.last_trajectory_meta
+    assert meta["actions"] and "members" not in meta
+    assert set(ranking) <= set(meta["surfaced_docs"])
 
 
 def test_stub_team_runs_members_and_records_them(corpus):
@@ -88,18 +107,19 @@ def test_scripted_team_plans_runs_two_members_and_synthesizes(corpus):
     assert seen[0].startswith("You are the planner") and seen[-1].startswith("You are the synthesizer")
 
 
-def test_rag_procedure_returns_one_retrieve_step(corpus):
+def test_rag_harness_returns_one_retrieve_step(corpus):
     units, key, engines = corpus
     ubyid = {u.doc_id: u for u in units}
-    ctx = ProcedureContext(engines={"bm25": engines.get("bm25")}, ubyid=ubyid, units=units,
-                           generate=lambda msgs: "<answer>1848</answer>")
+    ctx = HarnessContext(condition=CONDITIONS["rag_bm25"], units=units, ubyid=ubyid,
+                         engines={"bm25": engines.get("bm25")}, generate=lambda msgs: "<answer>1848</answer>")
     res = OneShotRag("bm25").run(QUESTION, ctx)
-    assert [s.name for s in res.steps] == ["retrieve"] and res.doc_ids and res.raw == "<answer>1848</answer>"
-    assert res.members == [] and res.surfaced == res.doc_ids
+    assert [s.name for s in res.trajectory.steps] == ["retrieve"] and res.located
+    assert res.answer == "1848" and res.members == [] and res.surfaced == res.located
 
 
-def test_procedure_base_contract():
-    p = Procedure()
-    assert p.members == () and p.all_engines() == ()
+def test_harness_base_contract():
+    h = Harness()
+    assert h.members == () and h.all_engines() == () and h.prompts() == []
     with pytest.raises(NotImplementedError):
-        p.run("q", ProcedureContext(engines={}, ubyid={}, units=[]))
+        h.run("q", HarnessContext(condition=None, units=[], ubyid={}, engines={}))
+    assert HarnessResult.__dataclass_fields__.keys() >= {"trajectory", "surfaced", "members"}

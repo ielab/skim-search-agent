@@ -70,7 +70,7 @@ data/browsecomp_plus_chunks/{corpus.jsonl,topics.tsv,qrels.txt}   # chunks with 
 
 Registered as `infoseek_eval`, `infoseek_train` (both over `wiki25_512`) and
 `browsecomp_plus_chunks`. A corpus above 1 GiB is served from disk: the loader builds a
-byte-offset index next to the file once and looks documents up by id afterwards, so the harness
+byte-offset index next to the file once and looks documents up by id afterwards, so a run
 never holds the corpus in memory. Retrieval over such a corpus goes through prebuilt indexes:
 
 ```yaml

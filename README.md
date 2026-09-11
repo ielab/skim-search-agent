@@ -23,7 +23,7 @@
 A deep-search agent answers a question by searching a collection over several steps. Which
 retriever it uses, what a search result shows, how it reads a document, which model drives it,
 and how the answer is scored are separate decisions. SkimSearchAgent makes each one a component
-with a fixed interface and runs every combination through the same harness, so two experiments
+with a fixed interface and runs every combination through the same evaluation, so two experiments
 differ only where you changed them. Every run writes the same record: the full trajectory, the
 configuration, and the metrics.
 
@@ -40,10 +40,10 @@ travels:
 | `snippets/` | how one hit is excerpted in a listing: the opening line, the best window for the query terms, or nothing | `opening.py`, `term_window.py`, `none.py` |
 | `tools/` | the actions a model can call, one folder each with its declaration, code and manual; a tool names its engine kind and its snippet | `search_bm25/`, `search_dense/`, `search_hybrid/`, `search_reranked/`, `search_bql/`, `search_indri/`, `search_dedup/`, `search_bm25_dci/`, `visit/`, `fetch/`, `fetch_code/`, `get_document/`, `bash/`, `read/`, `grep/` |
 | `tasks/` | what the model is asked to produce: the prompt template and the answer protocol | `research/`, `research_dedup/`, `codefix/`, `codefix_patch/` |
-| `agent/` | one agent: the model providers, the policies, the loop, and `episode.py`, which runs one condition on one question | `backbone/`, `policies.py`, `loop.py`, `episode.py`, `sdk_driver.py` |
-| `procedures/` | programs that are not a tool loop: one-shot RAG, and teams whose members are conditions run as agents | `rag.py`, `plan_and_search.py` |
-| `strategies/` | the named combinations a run selects: tools with their options, a procedure, or a retrieval-only floor; `conditions.py` pairs a strategy with a task | `search_visit.py`, `search_fetch.py`, `autoread.py`, `sieve.py`, `indri.py`, `dci.py`, `dedup.py`, `codefix.py`, `rag.py`, `teams.py`, `retrieval_only.py` |
-| `evaluation/` | the harness: datasets, the runner, the metrics, the judge, the run record and its identity, the index prebuild | `datasets/`, `runner.py`, `run_eval.py`, `llm_judge.py`, `identity.py`, `build_indexes.py` |
+| `strategies/` | the named combinations a run selects: tools with their options and a harness, or a retrieval-only floor; `conditions.py` pairs a strategy with a task | `search_visit.py`, `search_fetch.py`, `autoread.py`, `sieve.py`, `indri.py`, `dci.py`, `dedup.py`, `codefix.py`, `rag.py`, `teams.py`, `retrieval_only.py` |
+| `harness/` | how the model is put to work on a condition, one file each: ReAct (the default loop, the model picks each step), one-shot RAG (rank once, one call), plan-and-search (a team: a planner, one member agent per sub-question, a synthesizer) | `react.py`, `rag.py`, `plan_and_search.py` |
+| `agent/` | the machinery a harness is built from: the model providers, the policies, the step loop, the forced answer, the Agents-SDK driver, the run record | `backbone/`, `policies.py`, `loop.py`, `forced_answer.py`, `sdk_driver.py`, `record.py` |
+| `evaluation/` | the evaluation: datasets, the runner, the metrics, the judge, the run record and its identity, the index prebuild | `datasets/`, `runner.py`, `run_eval.py`, `llm_judge.py`, `identity.py`, `build_indexes.py` |
 | `training/` | the ITER recipe: trajectories to triples, retriever training and evaluation | `build_triples.py`, `retriever.py`, `retriever_eval.py` |
 
 Document corpora rank on Lucene (BM25 through Pyserini, BQL and Indri on a fielded Lucene

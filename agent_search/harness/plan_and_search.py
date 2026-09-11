@@ -1,13 +1,13 @@
 """Plan and search: a planner splits the question, one agent per sub-question, a synthesizer
-answers. The first multi-agent procedure, and the template for the next one.
+answers. The first multi-agent harness, and the template for the next one.
 
 Three roles, all served by the run's model:
   1. The planner reads the question and writes up to `max_subquestions` sub-questions, one
      per line (`PLANNER_PROMPT`). Without a model (the stub policy) the plan is the question.
   2. Each sub-question runs as one episode of the member condition: the research task with
-     the `searcher` strategy (`sieve_bm25` by default), through
-     `agent_search.agent.episode.run_condition_episode`, with the run's step budget. A
-     member is an ordinary condition, so its trajectory is recorded in full.
+     the `searcher` strategy (`sieve_bm25` by default), through that strategy's own harness
+     (ReAct for a tool strategy), with the run's step budget. A member is an ordinary
+     condition, so its trajectory is recorded in full.
   3. The synthesizer reads the question and every member's answer and cited documents and
      writes the final `<answer>` (`SYNTHESIZER_PROMPT`). Without a model the first member's
      answer is the answer.
@@ -20,9 +20,9 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from typing import Optional, Sequence
+from typing import Sequence
 
-from agent_search.procedures.base import Procedure, ProcedureContext, ProcedureResult
+from agent_search.harness.base import Harness, HarnessContext, HarnessResult, trajectory_from_steps
 
 PLANNER_PROMPT = (
     "You are the planner of a research team. Split the question into the smallest set of "
@@ -61,7 +61,7 @@ def member_condition(searcher: str):
 
 
 @dataclass(frozen=True)
-class PlanAndSearch(Procedure):
+class PlanAndSearch(Harness):
     searcher: str = "sieve_bm25"            # the member strategy (research task)
     max_subquestions: int = 3
 
@@ -73,8 +73,11 @@ class PlanAndSearch(Procedure):
     def members(self) -> tuple:             # type: ignore[override]
         return (self.searcher,)
 
+    def prompts(self) -> list:
+        return [PLANNER_PROMPT, SYNTHESIZER_PROMPT]
+
     # --- the three roles --------------------------------------------------------------------
-    def plan(self, question: str, ctx: ProcedureContext) -> tuple[list[str], str]:
+    def plan(self, question: str, ctx: HarnessContext) -> tuple[list[str], str]:
         if ctx.generate is None:
             return [question], ""
         raw = ctx.generate([{"role": "system", "content": PLANNER_PROMPT.format(n=self.max_subquestions)},
@@ -82,19 +85,12 @@ class PlanAndSearch(Procedure):
         subqs = parse_plan(raw, self.max_subquestions)
         return (subqs or [question]), raw
 
-    def search(self, subquestion: str, ctx: ProcedureContext):
-        from agent_search.agent.episode import run_condition_episode
-        cond = member_condition(self.searcher)
-        policy = ctx.policy_for(cond) if ctx.policy_for is not None else None
-        if policy is None:
-            from agent_search.agent.policies import KeywordPolicy
-            policy = KeywordPolicy(cond.tool_names)
-        return run_condition_episode(cond, subquestion, units=ctx.units, ubyid=ctx.ubyid, engines=ctx.engines,
-                                     policy=policy, max_steps=ctx.max_steps, files=ctx.files,
-                                     corpus_key=ctx.corpus_key, driver=ctx.driver, model=ctx.model,
-                                     api_base=ctx.api_base, field_profile=ctx.field_profile)
+    def search(self, subquestion: str, ctx: HarnessContext) -> HarnessResult:
+        member = member_condition(self.searcher)
+        return member.strategy.harness.run(subquestion, ctx.for_condition(member))
 
-    def synthesize(self, question: str, subqs: Sequence[str], members: Sequence, ctx: ProcedureContext) -> str:
+    def synthesize(self, question: str, subqs: Sequence[str], members: Sequence[HarnessResult],
+                   ctx: HarnessContext) -> str:
         if ctx.generate is None:
             first = next((m.answer for m in members if m.answer), "")
             return f"<answer>{first}</answer>" if first else ""
@@ -107,7 +103,7 @@ class PlanAndSearch(Procedure):
                              {"role": "user", "content": user}]) or ""
 
     # --- the program --------------------------------------------------------------------------
-    def run(self, question: str, ctx: ProcedureContext) -> ProcedureResult:
+    def run(self, question: str, ctx: HarnessContext) -> HarnessResult:
         from agent_search.agent.loop import Step
         subqs, plan_raw = self.plan(question, ctx)
         steps = [Step(name="plan", args={"question": question}, observation="\n".join(subqs), raw_output=plan_raw)]
@@ -125,7 +121,7 @@ class PlanAndSearch(Procedure):
                           observation="(final answer written from the members' findings)", raw_output=raw))
         doc_ids = _union(m.located for m in members)
         surfaced = _union(m.surfaced for m in members)
-        return ProcedureResult(doc_ids=doc_ids, raw=raw, steps=steps, members=members, surfaced=surfaced)
+        return HarnessResult(trajectory=trajectory_from_steps(steps, doc_ids, raw), surfaced=surfaced, members=members)
 
 
 def _union(lists) -> list:

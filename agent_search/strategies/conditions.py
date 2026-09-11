@@ -59,9 +59,9 @@ def condition(name: str, task: str, strategy: str) -> Condition:
 
 
 def _register_as_retriever(c: Condition) -> None:
-    """Every condition with a loop or a procedure is the retriever `agent_<name>`; a floor is
-    the plain retriever its strategy names, so it is not registered twice."""
-    if not c.strategy.loop and c.strategy.retriever:
+    """Every condition run through a harness is the retriever `agent_<name>`; a floor is the
+    plain retriever its strategy names, so it is not registered twice."""
+    if c.strategy.retriever:
         return
     from agent_search.retrievers.registry import _REGISTRY, register
 

@@ -62,7 +62,7 @@ def resolve_strategy(name: str) -> str:
     from agent_search.strategies.conditions import CONDITIONS
     cond = CONDITIONS.get(name)
     if cond is not None:
-        if not cond.strategy.loop and cond.strategy.retriever:
+        if cond.strategy.retriever:
             return cond.strategy.retriever
         return f"agent_{name}"
     return name

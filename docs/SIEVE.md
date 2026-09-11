@@ -1,6 +1,6 @@
 # Sieve: the Boolean-filtered search, inspect, fetch setting
 
-Sieve is one interface setting in the SkimSearchAgent harness, the one proposed in *"Search,
+Sieve is one interface setting in the SkimSearchAgent framework, the one proposed in *"Search,
 Inspect, Fetch: Exploiting Boolean Retrieval for Deep-Research Agents."* It adds four separable
 stages on top of the shared agent loop.
 
@@ -22,7 +22,7 @@ stages on top of the shared agent loop.
 
 ## Running Sieve
 
-The three ranker variants are ordinary conditions of the harness:
+The three ranker variants are ordinary conditions of the framework:
 
 ```bash
 # Boolean-filtered BM25
@@ -94,7 +94,7 @@ experiment cannot mix rankers:
    `DenseOnlyStructuralExecutor._fuse_soft`). The coverage-tier fallback for a many-clause AND
    fuses within tiers by the same rule. Pool size: `BQL_SOFT_POOL` (default 100).
 2. **Dense similarity always comes from the persisted embedding cache** built by
-   `skimsearchagent-build-indexes --retriever dense --model <dense_model>`. The harness refuses
+   `skimsearchagent-build-indexes --retriever dense --model <dense_model>`. The run refuses
    to start a dense arm without that cache and never encodes documents online; only the query
    is encoded, once per search call. The model is the run's `dense_model` (`--dense-model`,
    or `DENSE_MODEL`, default `BAAI/bge-base-en-v1.5`) for every dense arm, so Sieve's ranker, its

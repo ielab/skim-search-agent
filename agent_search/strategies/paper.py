@@ -40,5 +40,5 @@ from agent_search.strategies.base import STRATEGIES as _ALL  # noqa: E402
 from agent_search.strategies.conditions import CONDITIONS as _CONDS, condition as _condition  # noqa: E402
 
 for _name, _s in list(_ALL.items()):
-    if _name not in _CONDS and _s.domain in (None, "general") and (_s.loop or _s.procedure or _s.retriever):
+    if _name not in _CONDS and _s.domain in (None, "general"):
         _condition(_name, "research", _name)
