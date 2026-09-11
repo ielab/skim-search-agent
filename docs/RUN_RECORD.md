@@ -24,9 +24,9 @@ runs/<agent|retrieval_only>/<dataset>/<model>/<retriever>[/seed=N]/
 | `experiment_file`, `experiment_file_sha256`, `experiment`, `experiment_overrides`, `experiment_sha256` | the experiment file the run came from, its hash as written, the setting that actually ran (overrides applied), the overrides, and the hash of that setting |
 
 A run's **identity** is the subset of those keys listed in `RUN_IDENTITY_KEYS`
-(`agent_search/evaluation/run_eval.py`): dataset, retriever, model, policy, backend, budgets,
-seed, prompt hash and env knobs. The harness refuses to resume into a directory whose identity
-differs.
+(`agent_search/evaluation/identity.py`): dataset, retriever, model, dense model, policy, backend,
+max steps, temperature, seed, level, k, corpus limit, prompt profile, prompt hash and env knobs.
+The harness refuses to resume into a directory whose identity differs.
 
 ## `rows.jsonl`: one row per instance
 

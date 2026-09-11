@@ -5,7 +5,7 @@ Leelanupab, 2026), https://arxiv.org/abs/2608.27912; code and released checkpoin
 https://github.com/ielab/ITER.
 
 
-ITER (Zhou et al., https://github.com/ielab/ITER) trains a dense retriever from the trajectories
+ITER (Chen et al., https://github.com/ielab/ITER) trains a dense retriever from the trajectories
 of a search agent and evaluates it inside the agent loop: the retriever is conditioned on what
 the agent already searched, and it is trained to return documents the agent has not read yet.
 This page maps the paper's setup onto this library: the strategy, the backbones, the retrievers,

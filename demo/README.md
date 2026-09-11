@@ -37,8 +37,8 @@ The page ships 6 example questions (they live in `corpus_data.json`). Those are 
 BrowseComp-Plus queries with known gold answers, so the page checks the run against gold when one
 is selected. Free-text questions about anything in the collection also work.
 
-The demo runs the paper's read budgets, not the library defaults: `MAX_VISIT_TOKENS` and
-`MAX_SECTION_TOKENS` are both set to 12,000, and `SNIPPET_TOKENS` stays at the library default of
+The demo pins the paper's read budgets explicitly rather than relying on the library defaults:
+`MAX_VISIT_TOKENS` and `MAX_SECTION_TOKENS` are both set to 12,000, and `SNIPPET_TOKENS` stays at
 32. Set `SNIPPET_TOKENS` in the environment before starting the server (32, 64, 128, 256 or 512)
 and the search cards widen to match, which shows the snippet-width sweep.
 

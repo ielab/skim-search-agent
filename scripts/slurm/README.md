@@ -63,7 +63,7 @@ sbatch --account=ACCT --export=ALL scripts/slurm/iter_smoke_eval.sbatch     # tr
 ## ITER paper settings on samples
 
 `iter_sample.sbatch` indexes the sample datasets with a retriever, serves the backbone and runs
-the sample experiment files (see docs/TRAINING.md, "Sample a paper setting first"):
+the sample experiment files (see docs/ITER.md, "Sample a paper setting first"):
 
 ```bash
 sbatch --account=ACCT --qos=express --export=ALL,VLLM_PYTHON=/path/to/vllm-env/bin/python scripts/slurm/iter_sample.sbatch

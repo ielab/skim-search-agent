@@ -96,7 +96,7 @@ named `agent_<condition>`.
 ```
 agent_search/
   tokens.py        the token ruler every length limit uses; errors.py: SetupError (a run cannot start)
-  corpus/          units, the on-disk document store, corpus fingerprints, code repositories, flat export
+  corpus/          units, the on-disk document store, corpus fingerprints, code repositories, flat export, grounding ("did you mean")
   retrievers/
     base.py        the Retriever contract, Hit, Observation
     lexical/       scorer.py (the BM25 scorer), bm25.py (in memory), pyserini.py (Lucene), grep.py
@@ -112,9 +112,9 @@ agent_search/
                    search_dedup/, search_bm25_dci/, visit/, fetch/, fetch_code/, get_document/, bash/, read/, grep/
   tasks/           base.py (Task), render.py (template + declarations + manuals), then research/, research_dedup/,
                    codefix/, codefix_patch/ (prompt.md + task.py each)
-  strategies/      base.py (Strategy), conditions.py (the registry), paper.py (the paper's names), then one file per
-                   family: search_visit.py, autoread.py, search_fetch.py, sieve.py, indri.py, dci.py, dedup.py,
-                   codefix.py, rag.py, retrieval_only.py
+  strategies/      base.py (Strategy), names.py (friendly CLI names), conditions.py (the registry), paper.py
+                   (the paper's names), then one file per family: search_visit.py, autoread.py, search_fetch.py,
+                   sieve.py, indri.py, dci.py, dedup.py, codefix.py, rag.py, retrieval_only.py
   agent/
     loop.py        one episode: reason, act, observe
     policies.py    AgentPolicy (a model), ScriptPolicy and KeywordPolicy (scripted)
@@ -127,7 +127,10 @@ agent_search/
     datasets/      base.py (Instance, the registry), swebench.py, fixtures.py, beir.py, topics.py
     corpus_units.py, scoring.py, identity.py, runner.py, run_eval.py (the entry point)
     metrics.py, doc_scoring.py, fix_scoring.py, llm_judge.py, build_indexes.py, sample.py, rows.py, config.py
-  training/        queries.py (query styles), triples.py (tiered negatives), retriever.py (the trainer), history.py, retriever_eval.py
+    ground_truth.py (SWE-bench gold patch -> localization ground truth), patch_synthesis.py (fix edits -> a
+    unified diff), swebench_apptainer.py (self-hosted SWE-bench resolve-rate harness)
+  training/        queries.py (query styles), triples.py (tiered negatives), build_triples.py (the entry point),
+                   retriever.py (the trainer), history.py, retriever_eval.py, patches/ (the FlagEmbedding patch)
   experiment.py    the experiment-file schema; cli.py; api.py
 ```
 

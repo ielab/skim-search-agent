@@ -61,14 +61,23 @@ def test_env_knobs_in_configuration_tables_are_read_by_the_code():
 
 def test_strategies_and_datasets_named_in_readme_exist():
     from agent_search.evaluation.datasets import available_datasets
-    from agent_search.strategies.names import STRATEGIES
+    from agent_search.strategies import CONDITIONS
+    from agent_search.strategies.names import STRATEGIES, resolve_strategy
+    from agent_search.retrievers.registry import available
     readme = (REPO / "README.md").read_text(encoding="utf-8")
     table = readme.split("## Strategies", 1)[1].split("\n## ", 1)[0]
-    named = set(re.findall(r"`([a-z0-9_]+)`", table.split("|---|")[1] if "|---|" in table else table))
-    retriever_names = {"bm25", "bm25_lucene", "dense", "bql", "grep"}
-    unknown = {n for n in named if n not in STRATEGIES and n not in retriever_names and not n.startswith("dataset=")}
-    unknown -= {"code_fixture"}
-    assert not unknown, f"README strategies table names unknown strategies: {sorted(unknown)}"
+    rows = [l for l in table.splitlines() if l.startswith("|") and not l.startswith("|---") and "strategy" not in l.split("|")[1].lower()]
+    named = set()
+    for row in rows:
+        cells = row.split("|")
+        named |= set(re.findall(r"`([a-z0-9_]+)`", cells[2]))       # the names column
+    assert named, "the README strategies table has no names"
+    runnable = available()
+    unknown = {n for n in named if resolve_strategy(n) not in runnable}
+    assert not unknown, f"README strategies table names strategies that do not run: {sorted(unknown)}"
+    # and every strategy the code defines is runnable by its own name or a friendly name
+    missing = {n for n in STRATEGIES if resolve_strategy(n) not in runnable} | {n for n in CONDITIONS if resolve_strategy(n) not in runnable}
+    assert not missing, f"strategies without a runnable condition: {sorted(missing)}"
     # dataset names used in shell commands must be registered (Python examples may invent names)
     for line in readme.splitlines():
         if line.strip().startswith("skimsearchagent"):

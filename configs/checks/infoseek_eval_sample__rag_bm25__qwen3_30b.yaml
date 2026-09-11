@@ -1,0 +1,58 @@
+# SkimSearchAgent experiment file (schema 1). ONE file = ONE complete setting.
+# Run:      skimsearchagent run <this file> [section.key=value ...]
+# Validate: skimsearchagent validate <this file>
+# Every key that changes what runs or how it is measured is listed; unknown keys are errors.
+schema: 1
+name: check_infoseek_eval_sample_rag_bm25_qwen3_30b
+strategy: rag_bm25   # friendly name (skimsearchagent --help) or agent_<condition>
+
+# --- dataset: what is searched and asked
+dataset:
+  name: infoseek_eval_sample # registered dataset (`skimsearchagent-eval --help` lists them)
+  limit: null                            # cap the number of questions (null = all)
+  corpus_limit: null                     # cap the shared corpus (null = all; queries whose gold docs fall outside are dropped with a warning)
+  only_instances: null                   # path to a file of instance ids to run (null = all)
+
+# --- model: the language model driving the agent
+model:
+  name: Qwen/Qwen3-30B-A3B-Instruct-2507 # model id: gpt-* / gemini-* route to their APIs; anything else is served (backend api) or in-process (backend vllm); null = the scripted stub policy
+  policy: null                           # llm | stub; null = llm when a model is named, else stub
+  backend: api # api (an OpenAI-compatible server at api_base) | vllm (in-process)
+  api_base: http://127.0.0.1:8000/v1 # OpenAI-compatible endpoint for backend=api
+  tp: 1 # tensor parallelism for backend=vllm
+  temperature: 0.6                       # sampling temperature
+  seed: 42                               # sampling seed (fixed for reproducibility)
+  seeds: null                            # variance band: a list such as [0, 1, 2] -> one seed=N run directory per seed (overrides seed)
+  reasoning_effort: low                  # OpenAI reasoning models only
+  timeout_s: 600                         # per-request timeout for API clients
+  retry_attempts: 5                      # retries on rate limits / transient errors
+
+# --- agent: the episode loop
+agent:
+  ctx_tokens: 83558 # history budget in model tokens kept in the prompt
+
+# --- retrieval: engines and ranking
+retrieval:
+  bm25_backend: local # local (pure Python) | pyserini (Lucene, Java 21+; paper)
+  bm25_index: null                       # prebuilt Lucene index directory for the pyserini backend; null = built under index_root
+
+# --- evaluation: scoring
+evaluation:
+  level: function                        # function | file (code arm only; documents ignore it)
+  k: [1, 3, 5, 10]                       # rank cutoffs for @k metrics
+  workers: 2 # concurrent episodes (use with a served model)
+  judge_model: null                      # LLM judge for document answers (null = off)
+  judge_api_base: null                   # endpoint for a served judge
+  rejudge: false                         # re-grade rows that already carry a verdict
+
+# --- output: where the run record goes
+output:
+  runs_dir: runs/checks # root of the run record (runs_dir/<kind>/<dataset>/<model>/<retriever>)
+  results_dir: null                      # explicit run directory (overrides runs_dir layout)
+  index_root: indexes                    # where persistent indexes and embedding caches live
+  rebuild: false                         # rebuild persistent indexes
+  allow_config_drift: false              # resume even if the directory holds a different experiment
+
+# --- env: any other environment knob, verbatim (escape hatch; recorded in config.json)
+env:
+  HF_HUB_OFFLINE: '1'

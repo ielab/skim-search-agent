@@ -33,3 +33,12 @@ alias("research_bm25_fetch_snip", "research", "search_fetch")
 alias("research_dense_fetch", "research", "search_fetch_dense")
 alias("research_hybrid_fetch_snip", "research", "search_fetch_hybrid")
 alias("research_indri_snip", "research", "indri")
+
+# every other document strategy runs under its own name with the research task, so a strategy
+# never exists without a way to run it
+from agent_search.strategies.base import STRATEGIES as _ALL  # noqa: E402
+from agent_search.strategies.conditions import CONDITIONS as _CONDS, condition as _condition  # noqa: E402
+
+for _name, _s in list(_ALL.items()):
+    if _name not in _CONDS and _s.domain in (None, "general") and (_s.loop or _s.procedure or _s.retriever):
+        _condition(_name, "research", _name)
