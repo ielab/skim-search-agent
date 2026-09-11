@@ -119,6 +119,17 @@ Table 1. The paper uses these:
 | `agent_research_indri_snip` | Indri-executor comparison |
 | one-shot floors | the `rag_bm25`, `rag_dense` and `rag_hybrid` strategies (`skimsearchagent run`) |
 
+### Agent runs on BrowseComp-Plus structured, all 830 questions
+
+The paper's cells, rerun from `dev` with Tongyi-DeepResearch-30B-A3B served by vLLM (98k
+window), seed 42, temperature 0.6, 100 steps, 5 results per search, 12,000-token reads, judged
+by gpt-4o-mini with the BrowseComp judge prompt. Prompt tokens are summed over every model
+call of an episode; completion tokens likewise. A row is added as its run completes.
+
+| strategy | condition | judged accuracy | steps | completion tokens | prompt tokens |
+|---|---|---|---|---|---|
+| Search-Visit (BM25) | `agent_research_bm25` | 36.7% (305/830) | 54.5 | 11.3k | 1.63M |
+
 ### Retrieval floors on BrowseComp-Plus structured
 
 The floors rank once with the raw question and no agent (`strategy=bm25`, `dense`, `hybrid`,
