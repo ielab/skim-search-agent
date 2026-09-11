@@ -217,7 +217,10 @@ def _run_config_dict(args, domain: str) -> dict:
             cfg["prompt_profile"] = c.task.prompt_file                 # the task's template file
             # hash the composed system prompt (task + tool declarations + manuals) for
             # reproducibility
-            cfg["prompt_sha256"] = c.system_sha256(getattr(args, "field_profile", None) or None)
+            from agent_search.evaluation.datasets import dataset_field_profile
+            profile = dataset_field_profile(args.dataset, getattr(args, "field_profile", None) or None)
+            cfg["prompt_field_profile"] = profile
+            cfg["prompt_sha256"] = c.system_sha256(profile)
         except Exception:
             pass
     try:
