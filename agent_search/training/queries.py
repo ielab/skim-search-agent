@@ -16,7 +16,7 @@ Styles (ITER's names are kept so results line up with the paper):
   documents, ``i4`` adds notes too, ``i5`` notes only, ``i6``/``i7`` are ``i3``/``i4`` with the
   shorter agent-view snippets and no id tags.
 
-Token truncation uses the library's token ruler (`agent_search.core.tokens`), so this module has
+Token truncation uses the library's token ruler (`agent_search.tokens`), so this module has
 no tokenizer dependency; the numbers are the ones ITER used (64-token snippets, 256-token
 budgets, 128-token document items).
 """
@@ -25,7 +25,7 @@ from __future__ import annotations
 import re
 from typing import Callable, Iterable, Optional, Sequence
 
-from agent_search.core.tokens import count_tokens, truncate_tokens
+from agent_search.tokens import count_tokens, truncate_tokens
 
 STYLES = ("plain", "mem", "docs", "i0", "i1", "i2", "i3", "i4", "i5", "i6", "i7")
 DEFAULT_STYLE = "i2"

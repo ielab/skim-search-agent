@@ -12,7 +12,7 @@ import json
 import os
 from typing import Optional
 
-from agent_search.core.tokens import ruler_name
+from agent_search.tokens import ruler_name
 
 
 def _resolve_env_knobs() -> dict:

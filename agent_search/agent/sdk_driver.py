@@ -24,8 +24,8 @@ _FIX = re.compile(r"<fix>(.*?)</fix>", re.DOTALL | re.IGNORECASE)
 from agents import Agent, OpenAIChatCompletionsModel, Runner, function_tool, set_tracing_disabled
 
 from agent_search.agent.loop import _extract_answer
-from agent_search.core.tokens import cap_tokens
-from agent_search.models import (
+from agent_search.tokens import cap_tokens
+from agent_search.agent.backbone import (
     _GEMINI_BASE_URL, is_gemini_model, is_openai_model)
 
 # Returned as `final_output` (set as `final`) when the SDK's own `max_turns` is exhausted, before
@@ -37,7 +37,7 @@ _MAX_TURNS_PLACEHOLDER = "(max turns exceeded — no final answer)"
 # Caps (whitespace tokens) on the per-step evidence string the closer and retry forcing calls
 # see. Env-overridable so a run with unusually verbose tool args or observations can widen them
 # without a code change. A character cap here would silently interact with the token-budget
-# knobs elsewhere (see agent_search.core.tokens's module docstring), so this uses the same token
+# knobs elsewhere (see agent_search.tokens's module docstring), so this uses the same token
 # ruler as the rest of the library instead of `str(...)[:N]`.
 CLOSER_EVIDENCE_ARG_TOKENS = int(os.environ.get("CLOSER_EVIDENCE_ARG_TOKENS", "32"))
 CLOSER_EVIDENCE_OBS_TOKENS = int(os.environ.get("CLOSER_EVIDENCE_OBS_TOKENS", "160"))
@@ -427,7 +427,7 @@ def run_episode_sdk(ws, question: str, *, model: str = "gpt-4o-mini", api_base: 
 
         # the episode's own evidence trace, shared by both the closer call and the retries below.
         # Computed once, defensively (an empty trace is still valid input to either prompt). Token
-        # (not character) caps: see agent_search.core.tokens's module docstring for why a
+        # (not character) caps: see agent_search.tokens's module docstring for why a
         # character cap must never stand in for a token budget in this library.
         try:
             ev = "\n".join(f"[{n}] {cap_tokens(str(a), CLOSER_EVIDENCE_ARG_TOKENS)} -> "

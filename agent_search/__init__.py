@@ -6,7 +6,7 @@ Quick programmatic use::
     result = research("Which treaty ended the Mexican-American War?", docs, model="gpt-4o-mini")
 
 Layers (each a directory, each replaceable through a documented contract; see
-``agent_search.core.interfaces`` and docs/EXTENDING.md):
+``agent_search.retrievers.base`` and docs/EXTENDING.md):
 
 * ``corpus``      : documents -> retrievable ``Unit``s; dataset loaders live in
                     ``evaluation.datasets``.

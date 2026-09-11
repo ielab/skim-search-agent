@@ -23,14 +23,14 @@ behind one set of contracts, one run record, and one evaluation layer.
 | 01 | **Corpus & document representation** | `Unit` (`doc_id`, `title`, `body`, optional `sections`, `metadata`); one dataset registry; corpora too large for memory are served from an on-disk document store | corpus builders, dataset loaders, field profiles | `agent_search/corpus/`, `agent_search/evaluation/datasets/`, `corpus_build/` |
 | 02 | **Retrieval & reranking** | `Retriever.index / search`; persistent indexes keyed by corpus identity and content fingerprint; one engine registry per corpus shared by every tool | BM25 (local or Lucene), dense encoders, RRF fusion, BQL fielded retrieval, Indri-style structured retrieval, your ranker | `agent_search/retrievers/` |
 | 03 | **Tools, tasks, strategies** | a *tool* is one atomic action with its declaration, its code and its manual; a *task* is the goal and the answer protocol; a *strategy* is a combination of tools with options; a *condition* is a task with a strategy | tools, tasks, strategies, conditions | `agent_search/tools/`, `agent_search/tasks/`, `agent_search/strategies/` |
-| 04 | **Agent runtime** | `run_episode` (reason, act, observe), budgets in tokens, forced-answer handling; the Agents-SDK driver as an alternative runtime | policies, models, drivers | `agent_search/agent/`, `agent_search/models/` |
+| 04 | **Agent runtime** | `run_episode` (reason, act, observe), budgets in tokens, forced-answer handling; the Agents-SDK driver as an alternative runtime | policies, models, drivers | `agent_search/agent/` (the loop, policies, drivers, and `backbone/` with the model providers) |
 | 05 | **Evaluation & evidence** | the run record (`rows.jsonl` + `config.json` + `results.json`), resume semantics, run identity | metrics, judges, paired statistics | `agent_search/evaluation/`, `scripts/summarize_runs.py`, `scripts/compare_cells.py` |
 | 06 | **Training & rollouts** | every episode is a full trajectory (prompts, tool calls, observations, tokens, what each search listed and each read opened) | retriever training from trajectories (the ITER recipe, shipped); policy SFT/RL consumers | `agent_search/training/`, `rows.jsonl` (see [TRAINING.md](TRAINING.md), [RUN_RECORD.md](RUN_RECORD.md)) |
 
-Modules 01 through 04 declare their contracts in
-[`agent_search/core/interfaces.py`](../agent_search/core/interfaces.py) and
-[`agent_search/tools/base.py`](../agent_search/tools/base.py). Every built-in implements them
-the same way a plugin does. [EXTENDING.md](EXTENDING.md) covers each extension point with a
+Each family declares its contract in a base module next to its implementations:
+`retrievers/base.py`, `tools/base.py`, `tasks/base.py`, `strategies/base.py`,
+`agent/policies.py` and `agent/backbone/base.py`. Every built-in implements them the same way
+a plugin does. [EXTENDING.md](EXTENDING.md) covers each extension point with a
 runnable example.
 
 ## The rule behind the layout
@@ -95,9 +95,10 @@ named `agent_<condition>`.
 
 ```
 agent_search/
-  core/            the contracts (Retriever, Model, Policy), the token ruler, OrderedSeen, SetupError
+  tokens.py        the token ruler every length limit uses; errors.py: SetupError (a run cannot start)
   corpus/          units, the on-disk document store, corpus fingerprints, code repositories, flat export
   retrievers/
+    base.py        the Retriever contract, Hit, Observation
     lexical/       scorer.py (the BM25 scorer), bm25.py (in memory), pyserini.py (Lucene), grep.py
     dense/         base.py (DenseRetriever) + bge.py, coderank.py, qwen3_embedding.py, trained.py; belief.py; vector_index.py
     bql/           the Boolean structural method: parser, executor, dense fusion, the BQL retriever
@@ -106,7 +107,7 @@ agent_search/
     backend.py     which engine serves BQL and Indri (Python reference or Lucene)
     engines.py     the per-corpus engine registry the tools share
     registry.py    name -> retriever builder; plugin discovery; conditions registered as agent_<name>
-  tools/           base.py (Tool, EpisodeState, ToolBox), budgets.py (the token knobs), common.py (shared rendering),
+  tools/           base.py (Tool, EpisodeState, ToolBox, the Workspace contract), seen.py (OrderedSeen), budgets.py (the token knobs), common.py (shared rendering),
                    then one folder per tool: search_bm25/, search_dense/, search_hybrid/, search_bql/, search_indri/,
                    search_dedup/, search_bm25_dci/, visit/, fetch/, fetch_code/, get_document/, bash/, read/, grep/
   tasks/           base.py (Task), render.py (template + declarations + manuals), then research/, research_dedup/,
@@ -119,7 +120,8 @@ agent_search/
     policies.py    AgentPolicy (a model), ScriptPolicy and KeywordPolicy (scripted)
     actions.py     parsing tool calls and answers out of a generation
     forced_answer.py, sdk_driver.py
-  models/          one file per provider: openai_chat.py, openai_reasoning.py, gemini.py, vllm_local.py; usage.py, retry.py, text.py
+    backbone/      the model providers, one file each: openai_chat.py, openai_reasoning.py, gemini.py, vllm_local.py;
+                   base.py (the Model contract), usage.py, retry.py, text.py
   evaluation/
     agent_runner.py  ConditionAgent (a condition run as a Retriever), ProcedureAgent (loop-free strategies)
     datasets/      base.py (Instance, the registry), swebench.py, fixtures.py, beir.py, topics.py
@@ -164,7 +166,7 @@ hash and fails if any change moves it.
 
 ## Length is measured in tokens, never characters
 
-Every limit the agent runs into is a **token** count (`agent_search/core/tokens.py`): snippet
+Every limit the agent runs into is a **token** count (`agent_search/tokens.py`): snippet
 width, whole-document and section read budgets, shell-output and per-line caps, the prompt history
 budget. Read caps count whitespace tokens, the paper's ruler, which stays
 tokenizer-independent. Measurement and the history budget use tiktoken `o200k_base` when it is

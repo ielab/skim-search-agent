@@ -13,7 +13,7 @@ import sys
 import threading
 from typing import Any, Optional
 
-from agent_search.core.errors import SetupError
+from agent_search.errors import SetupError
 
 
 class Engines:

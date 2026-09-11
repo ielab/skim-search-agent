@@ -1,7 +1,7 @@
-"""agent_search.core.tokens: the single token ruler; there is no character-based limit."""
+"""agent_search.tokens: the single token ruler; there is no character-based limit."""
 import pytest
 
-from agent_search.core import tokens as T
+from agent_search import tokens as T
 
 
 def test_cap_tokens_is_whitespace_token_based():

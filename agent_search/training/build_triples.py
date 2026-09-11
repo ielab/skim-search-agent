@@ -7,7 +7,7 @@
 dataset supplies the document texts (positives and negatives are stored as full text, the form
 FlagEmbedding reads). Labellers: `oracle` (gold document ids from the run record), `answer`
 (the gold answer appears in the document), or `judge:<model>` (ITER's LLM judge over the agent's
-post-read reasoning; the model is routed like any other, see agent_search.models).
+post-read reasoning; the model is routed like any other, see agent_search.agent.backbone).
 """
 from __future__ import annotations
 
@@ -66,7 +66,7 @@ def make_labeller(spec: str, text_of) -> T.Labeller:
     if spec == "answer":
         return T.make_answer_labeller(text_of)
     if spec.startswith("judge:"):
-        from agent_search.models import make_generate
+        from agent_search.agent.backbone import make_generate
         model = spec.split(":", 1)[1]
         return T.make_llm_judge(make_generate(model=model, backend="api"))
     raise SystemExit(f"unknown labeller {spec!r}: oracle | answer | judge:<model>")

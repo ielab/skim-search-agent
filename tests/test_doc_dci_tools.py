@@ -121,7 +121,7 @@ def test_same_corpus_key_reuses_export_dir():
     assert a.state.scratch["dci_dir"] == b.state.scratch["dci_dir"]
 
 
-# --- token caps (no character/byte caps anywhere — agent_search.core.tokens) ------------------
+# --- token caps (no character/byte caps anywhere — agent_search.tokens) ------------------
 
 def test_tail_truncate_keeps_last_n_whitespace_tokens_not_bytes():
     """`_tail_truncate`'s size limit is WHITESPACE TOKENS, not bytes: a line whose token count

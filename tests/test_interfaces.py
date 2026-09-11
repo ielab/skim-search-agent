@@ -1,7 +1,11 @@
-"""The contracts in agent_search.core.interfaces are real: the built-ins satisfy them and a
+"""The contracts in agent_search.retrievers.base are real: the built-ins satisfy them and a
 minimal user implementation of each is accepted by the loop and the harness."""
 from agent_search.agent.loop import Task, run_episode
-from agent_search.core import Model, OrderedSeen, Policy, Retriever, Workspace
+from agent_search.agent.backbone.base import Model
+from agent_search.tools.seen import OrderedSeen
+from agent_search.agent.policies import Policy
+from agent_search.retrievers.base import Retriever
+from agent_search.tools.base import Workspace
 from agent_search.corpus.units import units_from_documents
 
 DOCS = [
@@ -21,7 +25,7 @@ def test_a_plain_callable_is_a_model():
 
 
 def test_builtin_backends_satisfy_model():
-    from agent_search.models import openai_compat_generate
+    from agent_search.agent.backbone import openai_compat_generate
 
     class _Client:
         class chat:

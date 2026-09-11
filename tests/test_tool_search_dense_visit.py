@@ -206,7 +206,7 @@ def test_research_dense_resolves_via_registry_as_densevisit_arm():
 def test_densevisit_index_raises_clear_error_when_cache_missing(tmp_path):
     """This baseline needs a persisted dense doc-embedding cache — a missing cache must raise
     a CLEAR error at index() time, never silently fall back to live-encoding the corpus."""
-    from agent_search.core.errors import SetupError
+    from agent_search.errors import SetupError
     from agent_search.retrievers.registry import RetrieverConfig, build_factory
 
     r = build_factory("agent_research_dense", RetrieverConfig(

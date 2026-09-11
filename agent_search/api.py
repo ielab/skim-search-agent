@@ -13,7 +13,7 @@ The command line goes through the same objects used here: a strategy resolves to
 *condition* (a task paired with a strategy of tools), and ``run_episode`` drives a *policy*
 over the strategy's tools. Pass a model as any ``messages -> text``
 callable (``generate=``), or name one (``model=``) and let
-``agent_search.models.make_generate`` route it.
+``agent_search.agent.backbone.make_generate`` route it.
 """
 from __future__ import annotations
 
@@ -78,7 +78,7 @@ def build_agent(strategy: str = DEFAULT_STRATEGY, *,
     dense = dense_model or default_dense_model(domain)
 
     if generate is None and model is not None:
-        from agent_search.models import make_generate
+        from agent_search.agent.backbone import make_generate
         generate = make_generate(model=model, backend=backend, api_base=api_base, tp=tp,
                                  temperature=temperature, seed=seed)
 

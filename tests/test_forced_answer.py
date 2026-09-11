@@ -139,7 +139,7 @@ def test_force_msg_is_a_tool_response_shaped_instruction():
 
 
 # --- usage accounting: the forcing call is the LARGEST prompt of an episode, must not be
-# missing from cost accounting (agent_search.models' thread-local usage ledger) ---------
+# missing from cost accounting (agent_search.agent.backbone' thread-local usage ledger) ---------
 
 def _fake_client_with_usage(text, prompt_tokens=11, completion_tokens=3):
     def create(**kwargs):
@@ -150,7 +150,7 @@ def _fake_client_with_usage(text, prompt_tokens=11, completion_tokens=3):
 
 
 def test_call_prefill_records_usage_on_shared_ledger():
-    import agent_search.models as B
+    import agent_search.agent.backbone as B
     B.reset_usage()
     client = _fake_client_with_usage("Paris", prompt_tokens=11, completion_tokens=3)
     call_prefill(client, "m", [{"role": "user", "content": "Q"}])
@@ -160,7 +160,7 @@ def test_call_prefill_records_usage_on_shared_ledger():
 
 
 def test_call_plain_ask_records_usage_on_shared_ledger():
-    import agent_search.models as B
+    import agent_search.agent.backbone as B
     B.reset_usage()
     client = _fake_client_with_usage("<answer>Paris</answer>", prompt_tokens=20, completion_tokens=5)
     call_plain_ask(client, "m", [{"role": "user", "content": "Q"}])

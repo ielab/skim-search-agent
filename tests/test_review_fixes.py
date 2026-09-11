@@ -6,7 +6,7 @@ import threading
 
 import pytest
 
-from agent_search.core.errors import SetupError
+from agent_search.errors import SetupError
 from agent_search.corpus.docstore import JsonlDocStore, LazyUnits
 from agent_search.corpus.units import units_from_documents
 
@@ -235,7 +235,7 @@ def test_subset_corpus_keeps_weak_negatives():
 
 
 def test_title_shortener_counts_tokens():
-    from agent_search.core.tokens import count_tokens
+    from agent_search.tokens import count_tokens
     from agent_search.training.queries import _title_of
     long_title = " ".join(f"word{i}" for i in range(40)) + "\nrest"
     short = _title_of(long_title)

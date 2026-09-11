@@ -26,7 +26,7 @@ from typing import Optional, Sequence
 
 from agent_search.corpus.units import CodeUnit, code_tokenize
 from agent_search.retrievers.lexical.scorer import BM25
-from agent_search.core.interfaces import Retriever
+from agent_search.retrievers.base import Retriever
 
 # minimal stop set so keyword patterns are discriminative identifiers, not glue words
 _STOP = {

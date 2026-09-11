@@ -69,7 +69,7 @@ def test_budget_stops_count_toward_timeout_rate():
 
 
 def test_missing_artifact_aborts_the_run_instead_of_erroring_every_instance(tmp_path):
-    from agent_search.core.errors import SetupError
+    from agent_search.errors import SetupError
     from agent_search.evaluation.datasets import load_dataset_by_name
 
     class Broken:

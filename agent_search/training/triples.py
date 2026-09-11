@@ -34,7 +34,7 @@ import re
 import statistics
 from typing import Any, Callable, Iterable, Mapping, Optional, Sequence
 
-from agent_search.core.tokens import count_tokens
+from agent_search.tokens import count_tokens
 from agent_search.evaluation.rows import observations_of
 from agent_search.training.queries import DEFAULT_STYLE, reasoning_text, render_query
 
@@ -131,7 +131,7 @@ AnalysisText:
 def make_llm_judge(generate: Callable[[list], str]) -> Labeller:
     """ITER's protocol: an LLM reads the agent's post-read reasoning and says RELEVANT or
     NOT_RELEVANT. ``generate`` is any `messages -> text` callable (see
-    `agent_search.models.make_generate`)."""
+    `agent_search.agent.backbone.make_generate`)."""
     def label(doc_id: str, reasoning: str, row: Mapping[str, Any]) -> bool:
         if not (reasoning or "").strip():
             return False

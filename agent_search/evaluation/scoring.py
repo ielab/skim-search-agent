@@ -13,9 +13,9 @@ import threading
 from typing import Callable, Optional, Sequence
 
 from agent_search.corpus.code_repo import get_files
-from agent_search.core.errors import SetupError
-from agent_search.core.interfaces import Retriever
-from agent_search.core.tokens import count_tokens
+from agent_search.errors import SetupError
+from agent_search.retrievers.base import Retriever
+from agent_search.tokens import count_tokens
 
 from .rows import observations_of
 
@@ -99,7 +99,7 @@ _THINK_RE = re.compile(r"<think>(.*?)</think>", re.DOTALL | re.IGNORECASE)
 def _obs_token_count(text: str) -> int:
     """Token count for a tool observation, on one fixed ruler across every arm, so structured
     `fetch`-a-section vs flat `visit`-whole-doc vs bm25 doc tokens are compared on the same scale,
-    independent of the run's billing tokenizer. See `agent_search.core.tokens.count_tokens`
+    independent of the run's billing tokenizer. See `agent_search.tokens.count_tokens`
     (tiktoken o200k_base when installed, whitespace tokens otherwise, never characters)."""
     return count_tokens(text)
 

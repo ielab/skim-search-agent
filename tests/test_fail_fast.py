@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from agent_search.core.errors import SetupError
+from agent_search.errors import SetupError
 from agent_search.evaluation import run_eval
 from agent_search.evaluation.datasets import Instance
 

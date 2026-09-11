@@ -204,7 +204,7 @@ writes `judge_summary.json` next to the rows. Rows that already have a verdict a
 ### Environment knobs
 
 Every length budget is a token count. The budgets below are counted on the library's whitespace
-ruler (`agent_search/core/tokens.py`), except the context budgets `AGENT_CTX_TOKENS` and
+ruler (`agent_search/tokens.py`), except the context budgets `AGENT_CTX_TOKENS` and
 `AGENT_CTX_WINDOW`, which are model tokens. There are no character limits.
 
 "Before import" marks a knob the module reads when it loads; the `skimsearchagent` launcher
@@ -300,10 +300,10 @@ handles that for you.
 
 | knob | default | what it does | read by |
 |---|---|---|---|
-| `LLM_TIMEOUT_S` | 600 | HTTP timeout for every model call | `agent_search/models/openai_chat.py` |
-| `LLM_RETRY_ATTEMPTS` | 5 | attempts per model call before giving up | `agent_search/models/retry.py` |
-| `LLM_RETRY_BASE_S` | 1.0 | base delay of the retry backoff | `agent_search/models/retry.py` |
-| `REASONING_EFFORT` | `low` | reasoning effort for OpenAI reasoning models | `agent_search/models/openai_reasoning.py` |
+| `LLM_TIMEOUT_S` | 600 | HTTP timeout for every model call | `agent_search/agent/backbone/openai_chat.py` |
+| `LLM_RETRY_ATTEMPTS` | 5 | attempts per model call before giving up | `agent_search/agent/backbone/retry.py` |
+| `LLM_RETRY_BASE_S` | 1.0 | base delay of the retry backoff | `agent_search/agent/backbone/retry.py` |
+| `REASONING_EFFORT` | `low` | reasoning effort for OpenAI reasoning models | `agent_search/agent/backbone/openai_reasoning.py` |
 | `AGENT_SEARCH_MAX_CONSECUTIVE_ERRORS` | 3 | stop a run after this many consecutive failed questions before any success (an unreachable endpoint, a broken index); `0` disables | `agent_search/evaluation/run_eval.py` |
 | `AGENT_DRIVER` | auto | `loop` (text-parsed tool calls) or `sdk` (OpenAI Agents SDK, native tool calling, document arms only) | `agent_search/evaluation/agent_runner.py` |
 | `AGENT_DEFAULT_CONDITION` | `research_snip` | the condition the bare `agent` alias means (before import) | `agent_search/strategies/conditions.py` |
@@ -312,8 +312,8 @@ handles that for you.
 
 #### Secrets
 
-`OPENAI_API_KEY` and `GEMINI_API_KEY` are read when a client is built (`agent_search/models/openai_chat.py`,
-`agent_search/models/openai_reasoning.py`, `agent_search/models/gemini.py`,
+`OPENAI_API_KEY` and `GEMINI_API_KEY` are read when a client is built (`agent_search/agent/backbone/openai_chat.py`,
+`agent_search/agent/backbone/openai_reasoning.py`, `agent_search/agent/backbone/gemini.py`,
 `agent_search/evaluation/llm_judge.py`, `agent_search/agent/sdk_driver.py`) and never written to
 any record. A local vLLM server needs no key.
 

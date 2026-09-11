@@ -60,7 +60,7 @@ import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Callable, Optional, Sequence
 
-from agent_search.core.tokens import cap_tokens as _cap_tokens
+from agent_search.tokens import cap_tokens as _cap_tokens
 from agent_search.corpus.units import CodeUnit, units_from_documents
 from agent_search.retrievers.dense.belief import default_model as _default_dense_model
 from agent_search.evaluation.datasets import Instance, load_dataset_by_name
@@ -278,7 +278,7 @@ def stuff_docs(doc_ids: Sequence[str], ubyid: dict,
     `model`'s own tokenizer when available); 0 (the default, env ONESHOT_DOC_CAP) means UNCAPPED
    , the classic one-shot RAG stuffs FULL documents (user-set design: the no-agent baseline must
     feed literal everything; only guard is the model's own context). Non-zero mirrors convention
-    the `visit` tool's whole-doc read caps (`agent_search.core.tokens.cap_tokens`/MAX_VISIT_TOKENS),
+    the `visit` tool's whole-doc read caps (`agent_search.tokens.cap_tokens`/MAX_VISIT_TOKENS),
     so a stuffed doc here is comparable in size to what an agent arm sees per fetch/visit."""
     out = []
     for doc_id in doc_ids:
@@ -407,10 +407,10 @@ def make_generate(model: str, api_base: str, api_key: Optional[str] = None,
                   max_tokens: int = DEFAULT_MAX_TOKENS, client=None) -> Callable:
     """generate(messages) -> (text, prompt_tokens, completion_tokens). A plain OpenAI client
     against `api_base` (a served vLLM, e.g. Tongyi on :8101, or the real OpenAI API), deliberately
-    NOT `agent_search.models.openai_compat_generate` (that helper's
+    NOT `agent_search.agent.backbone.openai_compat_generate` (that helper's
     `_repair_open_tag`/`_truncate_at_tool_response` post-processing is tool-call-loop-specific;
     a one-shot completion has no tool-call stop string to repair). `temperature`/`seed` default
-    to the harness's own deterministic settings (agent_search.models). `max_tokens`
+    to the harness's own deterministic settings (agent_search.agent.backbone). `max_tokens`
     defaults to DEFAULT_MAX_TOKENS (env ONESHOT_MAX_TOKENS, default 4000): a hardcoded
     512 lets the Tongyi reasoning model burn its whole completion budget inside <think>...</think>
     and never reach <answer>."""

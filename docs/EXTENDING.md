@@ -1,9 +1,9 @@
 # Extending SkimSearchAgent
 
-Every extension is a registration against a contract in
-[`agent_search/core/interfaces.py`](../agent_search/core/interfaces.py) (retrievers, models,
-policies) or [`agent_search/tools/base.py`](../agent_search/tools/base.py) and
-[`agent_search/tasks/base.py`](../agent_search/tasks/base.py) (tools, tasks). The harness does not
+Every extension is a registration against a base class that lives next to its family:
+`agent_search/retrievers/base.py` (retrievers), `agent_search/agent/backbone/base.py` (model
+providers), `agent_search/agent/policies.py` (policies), `agent_search/tools/base.py` (tools)
+and `agent_search/tasks/base.py` (tasks). The harness does not
 special-case the built-ins, so a registered component gets the same run record, metrics and
 resume behaviour. Each section below is a complete, runnable example.
 [`examples/plugin_strategy.py`](../examples/plugin_strategy.py) and
@@ -60,7 +60,7 @@ skimsearchagent dataset=my_qa strategy=sieve_bm25 model=gpt-4o-mini
 ## 2. A retriever or ranker
 
 ```python
-from agent_search.core import Retriever
+from agent_search.retrievers.base import Retriever
 from agent_search.retrievers.registry import RetrieverConfig, register
 
 class MyRetriever(Retriever):
@@ -118,7 +118,7 @@ manual (a Markdown file rendered into the prompt after the declarations). The bu
 folder each under `agent_search/tools/`; a plugin's tool is just the class.
 
 ```python
-from agent_search.core import cap_tokens
+from agent_search.tokens import cap_tokens
 from agent_search.tools.base import Tool
 
 class TitleLookup(Tool):
@@ -141,7 +141,7 @@ A bound tool sees `self.units`, `self.ubyid` (doc id to unit), `self.state` (the
 per corpus and shared with the other tools), `self.files` (the repository files, when
 `needs_files = True`) and `self.corpus_key`. Options are class attributes a strategy overrides by
 keyword (`SearchBm25(name="bm25q_search", query_biased=True)`); `on_bind()` runs once per episode.
-Text limits inside a tool are token caps (`cap_tokens`, `count_tokens` in `agent_search.core.tokens`).
+Text limits inside a tool are token caps (`cap_tokens`, `count_tokens` in `agent_search.tokens`).
 
 The engines a tool can name are the kinds in `agent_search/retrievers/engines.py`: `bm25`,
 `dense`, `bql`, `bql_fused`, `bql_dense`, `bql_plain`, `indri`. To use a retriever registered in
@@ -212,7 +212,7 @@ research(question, docs, strategy="sieve_bm25", generate=my_generate)
 ```
 
 To make a provider selectable by name on the command line (`model.name: my-model-x`), add a
-matcher and a branch to `make_generate` in `agent_search/models/__init__.py`; the OpenAI and
+matcher and a branch to `make_generate` in `agent_search/agent/backbone/__init__.py`; the OpenAI and
 Gemini branches show the pattern. Set `.client` and `.model` attributes on the returned callable
 if the forced-answer elicitation should reuse your client.
 

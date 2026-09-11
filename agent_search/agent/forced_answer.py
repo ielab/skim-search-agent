@@ -34,7 +34,7 @@ offline backfill script.
 
 Usage accounting and retries: `call_prefill` and `call_plain_ask` build the largest prompt of an
 episode, since they re-send the whole conversation once more. Each records its `resp.usage` via
-`agent_search.models._record_usage` (the same `_cached_tokens`/`_reasoning_tokens` decomposition
+`agent_search.agent.backbone._record_usage` (the same `_cached_tokens`/`_reasoning_tokens` decomposition
 `backends.py` itself uses), so this forcing call is never missing from cost accounting. Both
 calls also go through `backends._with_retries` (exponential backoff on a transient
 429/5xx/connection/timeout failure), the same helper `backends.py`'s own
@@ -48,7 +48,7 @@ from typing import Optional, Tuple
 
 DEFAULT_PREFILL_MAX_TOKENS = 200         # the answer span only, no room for tool-call syntax
 DEFAULT_FALLBACK_MAX_TOKENS = 512        # the one plain-ask fallback, same cap the harness uses
-DEFAULT_TEMPERATURE = 0.6                # matches agent_search.models' Tongyi-native default
+DEFAULT_TEMPERATURE = 0.6                # matches agent_search.agent.backbone' Tongyi-native default
 DEFAULT_SEED = 42
 
 FORCE_MSG = (
@@ -77,13 +77,13 @@ def prefill_messages_for(messages: list) -> list:
 
 
 def _record_call_usage(resp) -> None:
-    """Record `resp.usage` on the shared per-episode ledger (agent_search.models). The
+    """Record `resp.usage` on the shared per-episode ledger (agent_search.agent.backbone). The
     largest prompt of an episode, the whole conversation re-sent for the forcing call, must not
     be missing from cost accounting just because it went through this module instead of
     backends.py's own generate() callables. Lazy import: avoids a module-load-time circular
     import (backends.py doesn't import this module, but keeping the import local mirrors
     `elicit_final_answer`'s own lazy import of `loop._extract_answer` just below)."""
-    from agent_search.models import _cached_tokens, _reasoning_tokens, _record_usage
+    from agent_search.agent.backbone import _cached_tokens, _reasoning_tokens, _record_usage
     u = getattr(resp, "usage", None)
     if u is not None:
         _record_usage(getattr(u, "prompt_tokens", 0), getattr(u, "completion_tokens", 0),
@@ -102,7 +102,7 @@ def call_prefill(client, model: str, messages: list, *, max_tokens: int = DEFAUL
 
     Routed through `backends._with_retries` (transient 429/5xx/connection/timeout only; see
     module docstring) and records `resp.usage` on the shared per-episode ledger."""
-    from agent_search.models import _with_retries
+    from agent_search.agent.backbone import _with_retries
     resp = _with_retries(lambda: client.chat.completions.create(
         model=model, messages=prefill_messages_for(messages), max_tokens=max_tokens,
         temperature=temperature, seed=seed, stop=["</answer>"],
@@ -118,7 +118,7 @@ def call_plain_ask(client, model: str, messages: list, *, max_tokens: int = DEFA
     (`FALLBACK_MSG` appended as the next user turn).
 
     Routed through `backends._with_retries` and records `resp.usage`, same as `call_prefill`."""
-    from agent_search.models import _with_retries
+    from agent_search.agent.backbone import _with_retries
     msgs = messages + [{"role": "user", "content": f"<tool_response>\n{FALLBACK_MSG}\n</tool_response>"}]
     resp = _with_retries(lambda: client.chat.completions.create(
         model=model, messages=msgs, max_tokens=max_tokens, temperature=temperature, seed=seed))

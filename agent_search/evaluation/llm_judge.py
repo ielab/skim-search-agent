@@ -136,7 +136,7 @@ def judge_answer(question: str, gold_answer: str, response: str, *,
 def make_judge(model: str = "gpt-4o-mini", *, api_base: Optional[str] = None,
                client=None) -> Callable[[str], str]:
     """A judge `generate(prompt) -> str` (JSON object, temperature 0) that auto-routes by model
-    name, the same way the agent backend does (`agent_search.models.make_generate`). There is no
+    name, the same way the agent backend does (`agent_search.agent.backbone.make_generate`). There is no
     separate "gpt-based vs vLLM-based" setting: the model name decides the endpoint.
       - an OpenAI model (gpt-*/o-*/chatgpt-*) -> the OpenAI API (key from OPENAI_API_KEY).
       - a Gemini model (gemini-*) -> Gemini's OpenAI-compatible endpoint (key from GEMINI_API_KEY).
@@ -148,7 +148,7 @@ def make_judge(model: str = "gpt-4o-mini", *, api_base: Optional[str] = None,
     if client is None:
         from openai import OpenAI
 
-        from agent_search.models import (
+        from agent_search.agent.backbone import (
             _GEMINI_BASE_URL, _OPENAI_BASE_URL, is_gemini_model, is_openai_model)
         if is_openai_model(model):
             client = OpenAI(base_url=_OPENAI_BASE_URL,

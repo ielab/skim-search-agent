@@ -12,8 +12,8 @@ from __future__ import annotations
 
 from typing import Optional, Sequence
 
-from agent_search.core.units import Unit
-from agent_search.core.interfaces import Retriever
+from agent_search.corpus.units import CodeUnit as Unit
+from agent_search.retrievers.base import Retriever
 from agent_search.retrievers.bql.executor import StructuralExecutor
 from agent_search.retrievers.bql.parser import parse
 from agent_search.retrievers.bql.types import check

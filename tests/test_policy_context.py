@@ -9,7 +9,7 @@ import pytest
 
 from agent_search.agent.loop import Step, Task
 from agent_search.agent.policies import AgentPolicy, default_ctx_tokens
-from agent_search.core.tokens import count_tokens
+from agent_search.tokens import count_tokens
 from agent_search.strategies import CONDITIONS
 
 SYSTEM = CONDITIONS["research_snip"].render()

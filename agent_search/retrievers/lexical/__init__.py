@@ -11,7 +11,7 @@ declares `"bm25"` in its `engines` tuple (see `tools/base.py`) gets whichever en
 resolution built.
 
 Both engines expose the identical `search(query, k) -> list[str]` interface
-(`agent_search.core.interfaces.Retriever`), so swapping the backend never touches a caller's
+(`agent_search.retrievers.base.Retriever`), so swapping the backend never touches a caller's
 listing/best_line rendering, only which engine answers a query.
 """
 from __future__ import annotations
@@ -46,7 +46,7 @@ def build_bm25_engine(units: Sequence[CodeUnit], index_root: str = "indexes",
         raise ValueError(
             f"unknown BM25_BACKEND={backend!r} — choose 'local' (default) or 'pyserini'.")
     if getattr(units, "lazy", False):
-        from agent_search.core.errors import SetupError
+        from agent_search.errors import SetupError
         raise SetupError(
             f"corpus key {key!r} is an on-disk document store; the in-memory BM25 cannot load it. "
             f"Use BM25_BACKEND=pyserini with BM25_INDEX_PATH (retrieval.bm25_backend / "

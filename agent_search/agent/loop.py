@@ -50,9 +50,9 @@ DEFAULT_CTX_STOP_FRAC = 0.90
 
 def _last_prompt_tokens(usage_fn: Optional[Callable[[], list]]) -> int:
     """The most recently observed prompt_tokens: the size of the last real generate() call's
-    prompt. Read live off `usage_fn` (in production, `agent_search.models.usage_events`, a
+    prompt. Read live off `usage_fn` (in production, `agent_search.agent.backbone.usage_events`, a
     thread-local list appended to by every real backend call; see
-    `agent_search/models/usage.py::_record_usage`). This is the running context-size proxy the
+    `agent_search/agent/backbone/usage.py::_record_usage`). This is the running context-size proxy the
     early-stop check below compares against the budget threshold. Never raises: an episode with
     no usage_fn, or one that has not produced any events yet, never trips the early stop."""
     if usage_fn is None:
@@ -96,7 +96,7 @@ class WorkspaceLike(Protocol):
     def surfaced(self) -> Sequence[str]:
         """Doc ids the episode has surfaced so far, in first-seen order: the agent's
         retrieval ranking for the rank metrics. Every document tool box provides it (see
-        ``agent_search.core.seen.OrderedSeen``). A tool box with no location ranking (the
+        ``agent_search.tools.seen.OrderedSeen``). A tool box with no location ranking (the
         code-fix task, scored on its <fix> block) may omit it; the loop then reads an
         empty ranking via ``getattr(..., "surfaced", [])``."""
         ...

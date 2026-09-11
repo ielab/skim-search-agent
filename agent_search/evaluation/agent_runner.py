@@ -11,7 +11,7 @@ import os
 import threading
 from typing import Callable, Optional, Sequence
 
-from agent_search.core.interfaces import Retriever
+from agent_search.retrievers.base import Retriever
 from agent_search.corpus.units import CodeUnit
 from agent_search.retrievers.engines import Engines
 from agent_search.strategies.conditions import Condition, get_condition
@@ -99,7 +99,7 @@ class ConditionAgent(Retriever):
             return traj.located
         from agent_search.agent.loop import Task as LoopTask, run_episode
         from agent_search.tasks.codefix.guards import fix_guard_for
-        import agent_search.models as backends
+        import agent_search.agent.backbone as backends
         from agent_search.training.history import CURRENT, QueryContext, dense_query_style
         from agent_search.training.triples import is_read_action, is_search_action, read_ids
         backends.reset_usage()
@@ -133,7 +133,7 @@ class ConditionAgent(Retriever):
         from datetime import date
         from agent_search.agent.loop import Step, Trajectory, resolve_locations
         from agent_search.agent.sdk_driver import run_episode_sdk
-        from agent_search.models import DEFAULT_MODEL
+        from agent_search.agent.backbone import DEFAULT_MODEL
         system = _re.sub(r"\n{3,}", "\n\n", self.system_prompt()).strip()
         system = system.replace("{{step_budget}}", str(self.max_steps))
         user_input = f"Current date: {date.today().isoformat()}\n\n{query}"
@@ -206,7 +206,7 @@ class ProcedureAgent(Retriever):
 
     def search(self, query: str, k: int) -> list:
         from agent_search.agent.loop import Step, Trajectory, _extract_answer
-        import agent_search.models as backends
+        import agent_search.agent.backbone as backends
         backends.reset_usage()
         engine_map = {e: self.engines.get(e) for e in self.strategy.engines}
         doc_ids, msgs, raw = self.strategy.procedure.run(query, engine_map, self._ubyid, self._generate)
@@ -295,7 +295,7 @@ def build_condition_agent(cfg, condition_name: str):
         policy_factory = lambda: KeywordPolicy(cond.tool_names)  # noqa: E731
     else:
         from agent_search.agent.policies import AgentPolicy
-        from agent_search.models import DEFAULT_MODEL, is_gemini_model, is_openai_model, make_generate
+        from agent_search.agent.backbone import DEFAULT_MODEL, is_gemini_model, is_openai_model, make_generate
         mdl = cfg.model or DEFAULT_MODEL
         gen = make_generate(model=mdl, backend=cfg.backend, api_base=cfg.api_base, tp=cfg.tp,
                             temperature=cfg.temperature, seed=cfg.seed)
@@ -345,7 +345,7 @@ def _build_loop_free(cfg, cond: Condition, dense_model: str):
         return build_factory(strat.retriever, cfg)
     gen = None
     if cfg.policy != "stub":
-        from agent_search.models import DEFAULT_MODEL, make_generate
+        from agent_search.agent.backbone import DEFAULT_MODEL, make_generate
         gen = make_generate(model=cfg.model or DEFAULT_MODEL, backend=cfg.backend, api_base=cfg.api_base,
                             tp=cfg.tp, temperature=cfg.temperature, seed=cfg.seed)
     return lambda: ProcedureAgent(cond, gen, dense_model=dense_model, index_root=cfg.index_root, rebuild=cfg.rebuild)

@@ -13,7 +13,7 @@ import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Optional, Sequence
 
-from agent_search.core.errors import SetupError
+from agent_search.errors import SetupError
 
 from .config import RunConfig, results_dir_for
 from .datasets import Instance, load_dataset_by_name

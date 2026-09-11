@@ -7,7 +7,7 @@ prompt layout, depth and ranking; it keeps its own record shape under `runs/_one
 the prompt with the served model's tokenizer, where this module uses the library ruler.
 
 Lengths: every document is cut to an equal share of the prompt budget, measured with the model
-ruler (`agent_search.core.tokens.truncate_tokens`). The budget is `AGENT_CTX_TOKENS` (the run's
+ruler (`agent_search.tokens.truncate_tokens`). The budget is `AGENT_CTX_TOKENS` (the run's
 `agent.ctx_tokens`) minus the completion reserve (`RAG_MAX_TOKENS`, default 4000) minus a fixed
 margin for the instruction and the question. The record is one step named `retrieve` and the
 answer read from the one generation, scored like an agent row.
@@ -18,7 +18,7 @@ import os
 from dataclasses import dataclass
 from typing import Callable, Optional, Sequence
 
-from agent_search.core.tokens import count_tokens, truncate_tokens
+from agent_search.tokens import count_tokens, truncate_tokens
 from agent_search.strategies.base import Strategy, register_strategy
 
 SYSTEM_PROMPT = (

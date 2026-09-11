@@ -21,7 +21,7 @@ from typing import Optional, Sequence
 
 from agent_search.corpus.fingerprint import corpus_fingerprint
 from agent_search.corpus.units import CodeUnit
-from agent_search.core.interfaces import Retriever
+from agent_search.retrievers.base import Retriever
 from agent_search.retrievers.dense.vector_index import build_index, index_exists, load_index, save_index
 
 SERVING_NOTE = "skimsearchagent_dense.json"
@@ -263,7 +263,7 @@ class DenseRetriever(Retriever):
             self._doc_ids = self._index.doc_ids
             return self
         if getattr(units, "lazy", False):
-            from agent_search.core.errors import SetupError
+            from agent_search.errors import SetupError
             raise SetupError(
                 f"corpus key {key!r} is an on-disk document store; dense retrieval over it needs a "
                 f"prebuilt index: set DENSE_INDEX_PATH (retrieval.dense_index) to its directory")

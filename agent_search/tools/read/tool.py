@@ -16,7 +16,7 @@ import os
 from pathlib import Path
 from typing import Optional
 
-from agent_search.core.tokens import cap_tokens
+from agent_search.tokens import cap_tokens
 from agent_search.tools.bash.tool import _surface_from_text
 from agent_search.tools.base import Tool
 

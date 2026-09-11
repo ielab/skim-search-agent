@@ -131,7 +131,7 @@ def _infobox(u: CodeUnit) -> "dict[str, str]":
 
 class _SeenMixin:
     """Adds a `surfaced` property, the first-seen-order list from an `OrderedSeen` held in
-    `self.seen` (`agent_search.core.seen`). Current tools get `surfaced` from `EpisodeState`
+    `self.seen` (`agent_search.tools.seen`). Current tools get `surfaced` from `EpisodeState`
     in `agent_search/tools/base.py` instead; this mixin is not used by any built-in tool."""
 
     @property
@@ -167,5 +167,5 @@ def rrf_fuse(bm25_ids: "Sequence[str]", dense_ids: "Sequence[str]", k: int = RRF
 
 def _cap_tokens(text: str, max_tokens: int, marker: str = "") -> str:
     """Truncate `text` to `max_tokens` on the library's ruler, appending `marker` when cut."""
-    from agent_search.core.tokens import cap_tokens
+    from agent_search.tokens import cap_tokens
     return cap_tokens(text, max_tokens, marker)

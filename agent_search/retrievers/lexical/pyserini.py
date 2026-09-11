@@ -75,7 +75,7 @@ from typing import Optional, Sequence
 
 from agent_search.corpus.fingerprint import corpus_fingerprint
 from agent_search.corpus.units import CodeUnit
-from agent_search.core.interfaces import Retriever
+from agent_search.retrievers.base import Retriever
 
 
 @contextlib.contextmanager
@@ -159,7 +159,7 @@ class BM25Pyserini(Retriever):
                 self._searcher.set_bm25(self.k1, self.b)
             return self
         if getattr(units, "lazy", False):
-            from agent_search.core.errors import SetupError
+            from agent_search.errors import SetupError
             raise SetupError(
                 f"corpus key {key!r} is an on-disk document store; BM25 over it needs a prebuilt "
                 f"Lucene index: set BM25_INDEX_PATH (retrieval.bm25_index) to its directory")

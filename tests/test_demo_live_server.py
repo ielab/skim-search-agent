@@ -194,9 +194,9 @@ def test_usage_snapshot_reports_read_tokens(monkeypatch):
 
 
 def test_read_tokens_measures_fetched_document_text(monkeypatch):
-    """`read_tokens` is `agent_search.core.tokens.count_tokens` over the SAME fetched text
+    """`read_tokens` is `agent_search.tokens.count_tokens` over the SAME fetched text
     `read_chars` measures with `len(...)` — a real fetch against the actual demo corpus."""
-    from agent_search.core.tokens import count_tokens
+    from agent_search.tokens import count_tokens
     from demo.corpus import CORPUS
 
     doc = CORPUS[0]

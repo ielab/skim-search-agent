@@ -22,7 +22,7 @@ from __future__ import annotations
 import argparse
 import os
 
-from agent_search.core.errors import SetupError
+from agent_search.errors import SetupError
 
 from .config import (
     AgentArgs,

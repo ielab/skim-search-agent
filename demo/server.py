@@ -10,7 +10,7 @@ cumulative token/cost meter. The request's `api_key` is used to build that run's
 callable and nothing else: never logged, never stored, never echoed back in the stream.
 
 Per-strategy token accounting works BECAUSE of the thread-per-strategy design:
-`agent_search.models`'s usage ledger is thread-local, so `reset_usage()` at worker
+`agent_search.agent.backbone`'s usage ledger is thread-local, so `reset_usage()` at worker
 start + `usage_totals()` inside on_step reads exactly this episode's cumulative usage (the
 loop only attaches per-step tokens after an episode ends, so streaming reads the ledger live)."""
 from __future__ import annotations
@@ -50,8 +50,8 @@ from pydantic import BaseModel, Field                          # noqa: E402
 
 from agent_search.agent.loop import Task, run_episode          # noqa: E402
 from agent_search.agent.policies import AgentPolicy            # noqa: E402
-from agent_search.core.tokens import count_tokens               # noqa: E402
-import agent_search.models as backends                       # noqa: E402
+from agent_search.tokens import count_tokens               # noqa: E402
+import agent_search.agent.backbone as backends                       # noqa: E402
 from agent_search.retrievers.engines import Engines             # noqa: E402
 from agent_search.strategies.conditions import get_condition   # noqa: E402
 from agent_search.tools.base import EpisodeState                # noqa: E402
@@ -246,7 +246,7 @@ def _run_strategy(strategy: str, req: RunRequest, out: queue.Queue) -> None:
         # strategy gives up early and the other keeps hopping. `read_chars` is a character count;
         # kept (never mixed with the token ruler) because the compiled React bundle
         # (demo/app/dist/index.html, which this change cannot rebuild here) reads this exact
-        # field name. `read_tokens` is the token-ruler companion (agent_search.core.tokens.
+        # field name. `read_tokens` is the token-ruler companion (agent_search.tokens.
         # count_tokens, tiktoken o200k when available) for anything reading the live event
         # stream directly rather than through the prebuilt page.
         read_chars = {"n": 0}

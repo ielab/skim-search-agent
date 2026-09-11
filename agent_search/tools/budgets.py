@@ -1,7 +1,7 @@
 """Environment-tunable size knobs for the doc-research tool families.
 
 Every constant here is read from `os.environ` at import time, so a config file that sets
-the env var before import controls it. `agent_search/core/tokens.py` defines the token
+the env var before import controls it. `agent_search/tokens.py` defines the token
 counter these budgets are measured in; nothing here is a character cap.
 """
 import os

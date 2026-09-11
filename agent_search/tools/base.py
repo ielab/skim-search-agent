@@ -19,7 +19,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Mapping, Optional, Sequence
 
-from agent_search.core.seen import OrderedSeen
+from agent_search.tools.seen import OrderedSeen
+from typing import Protocol, runtime_checkable
 
 ENGINE_KINDS = ("bm25", "dense", "bql", "bql_fused", "bql_dense", "bql_plain", "indri")
 
@@ -38,6 +39,26 @@ class EpisodeState:
     @property
     def surfaced(self) -> list:
         return list(self.seen)
+
+
+
+@runtime_checkable
+class Workspace(Protocol):
+    """The tool surface an episode drives.
+
+    ``run`` dispatches one tool call by name and returns the text observation fed back to
+    the policy. A tool error is itself a returned observation, never a raised exception.
+    ``tools`` lists the tool names this workspace answers to (the condition's toolset).
+    ``surfaced`` is the doc ids the episode has surfaced so far in first-seen order: the
+    agent's retrieval ranking for rank metrics (built-ins keep an
+    ``agent_search.tools.seen.OrderedSeen`` as ``seen`` and expose it as ``surfaced``)."""
+
+    tools: Sequence[str]
+
+    def run(self, name: str, args: dict) -> str: ...
+
+    @property
+    def surfaced(self) -> Sequence[str]: ...
 
 
 class Tool:

@@ -7,7 +7,7 @@ real vLLM server, without loading a model.
 import sys
 from types import ModuleType, SimpleNamespace
 
-from agent_search.models import openai_compat_generate, vllm_generate
+from agent_search.agent.backbone import openai_compat_generate, vllm_generate
 from agent_search.agent.loop import Task, run_episode
 from agent_search.agent.policies import AgentPolicy
 from agent_search.strategies import CONDITIONS
@@ -97,7 +97,7 @@ def test_make_generate_routes_backbone_through_vllm_for_any_condition(monkeypatc
     condition's registry builder makes it, so the codefix_grep/research_dci baselines get the
     identical vLLM path as codefix/research, not a condition-specific branch. `vllm` isn't
     installed offline, so stub the module (same pattern as test_vllm_backend_sampling_params)."""
-    import agent_search.models as B
+    import agent_search.agent.backbone as B
 
     seen = {}
     fake_out = SimpleNamespace(

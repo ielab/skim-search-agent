@@ -161,7 +161,7 @@ condition("title_agent", task="research", strategy="title_only")
 **A retriever**:
 
 ```python
-from agent_search.core import Retriever
+from agent_search.retrievers.base import Retriever
 from agent_search.retrievers.registry import register
 
 class MyRetriever(Retriever):

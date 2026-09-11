@@ -15,7 +15,7 @@ from collections import Counter
 from datetime import date
 from typing import Callable, List, Sequence
 
-from agent_search.core.tokens import count_tokens, truncate_tokens
+from agent_search.tokens import count_tokens, truncate_tokens
 from agent_search.corpus.units import code_tokenize
 
 # History budget (model tokens) for AgentPolicy: see `default_ctx_tokens`.
@@ -58,7 +58,7 @@ class AgentPolicy:
     Length is governed in tokens only. ``ctx_tokens`` is the total token budget for the
     (assistant, observation) history pairs kept in the prompt, never a per-observation
     cap and never a character count. Tokens are counted on the library's measurement ruler
-    (``agent_search.core.tokens.count_tokens``: tiktoken ``o200k_base`` when installed,
+    (``agent_search.tokens.count_tokens``: tiktoken ``o200k_base`` when installed,
     whitespace tokens otherwise)."""
 
     def __init__(self, generate: Callable[[list], str], system: str,
@@ -220,6 +220,17 @@ class KeywordPolicy:
 
 
 import re as _re
+
+
+from typing import Any, Protocol, Sequence, runtime_checkable
+
+
+@runtime_checkable
+class Policy(Protocol):
+    """Decides the next raw generation from the task and the steps so far. The loop
+    parses ONE tool call (or a terminal ``<answer>``) out of what it returns."""
+
+    def propose(self, task: Any, history: Sequence[Any]) -> str: ...
 
 # a code fetch renders "[1] path/to/file.py :: Qual.name": pull the first part/path.
 _FETCH_HEAD = _re.compile(r"^\[\d+\]\s+(\S+)\s+::\s*(.*)$", _re.MULTILINE)

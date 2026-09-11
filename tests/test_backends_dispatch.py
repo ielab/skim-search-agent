@@ -4,7 +4,7 @@ endpoint; the trained backbone keeps its vLLM path. This is the "test anytime" p
 `--model gpt-4o-mini` (or `gemini-*`) plus a key runs the whole pipeline, no cluster."""
 from types import SimpleNamespace
 
-import agent_search.models as B
+import agent_search.agent.backbone as B
 
 
 def _fake_client(sink):

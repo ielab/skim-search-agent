@@ -495,7 +495,7 @@ def test_research_hybrid_fetch_snip_resolves_via_registry():
 # =============================================================================================
 
 def test_hybridvisit_index_raises_clear_error_when_dense_cache_missing(tmp_path):
-    from agent_search.core.errors import SetupError
+    from agent_search.errors import SetupError
     from agent_search.retrievers.registry import RetrieverConfig, build_factory
 
     r = build_factory("agent_research_hybrid", RetrieverConfig(
@@ -505,7 +505,7 @@ def test_hybridvisit_index_raises_clear_error_when_dense_cache_missing(tmp_path)
 
 
 def test_hybridfetchsnip_index_raises_clear_error_when_dense_cache_missing(tmp_path):
-    from agent_search.core.errors import SetupError
+    from agent_search.errors import SetupError
     from agent_search.retrievers.registry import RetrieverConfig, build_factory
 
     r = build_factory("agent_research_hybrid_fetch_snip", RetrieverConfig(

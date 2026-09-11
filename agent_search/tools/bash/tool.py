@@ -7,7 +7,7 @@ filled incrementally by the `bm25_search` tool (`agent_search.tools.search_bm25_
 stages new hits; that directory is removed once the episode state is garbage-collected.
 
 Output combines stdout and stderr, tail-truncated to ~2000 lines or `BASH_MAX_TOKENS`
-whitespace tokens, never a byte or character cap (see `agent_search.core.tokens`). Every
+whitespace tokens, never a byte or character cap (see `agent_search.tokens`). Every
 exported filename mentioned in the command or its output is surfaced (added to
 `state.seen`), the gold-document coverage signal the `dci` and `bounded_dci` strategies
 report.
@@ -23,7 +23,7 @@ import weakref
 from pathlib import Path
 from typing import Optional
 
-from agent_search.core.tokens import count_ws_tokens
+from agent_search.tokens import count_ws_tokens
 from agent_search.corpus.flat_export import export_flat_corpus
 from agent_search.tools.base import Tool
 

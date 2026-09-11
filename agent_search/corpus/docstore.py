@@ -261,7 +261,7 @@ def refuse_lazy(units, engine: str, knob: str) -> None:
     load whole. `engine` names the engine, `knob` the setting that serves it from a prebuilt
     index instead."""
     if is_lazy(units):
-        from agent_search.core.errors import SetupError
+        from agent_search.errors import SetupError
         raise SetupError(
             f"the corpus is an on-disk document store ({len(units)} documents); {engine} would "
             f"have to load all of it into memory. Use a prebuilt index instead ({knob}), or a "

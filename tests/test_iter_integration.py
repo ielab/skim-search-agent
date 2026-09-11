@@ -196,7 +196,7 @@ def test_lazy_corpus_with_external_faiss_index_never_materialises_units(tmp_path
 
 
 def test_in_memory_engines_refuse_a_lazy_corpus(tmp_path, monkeypatch):
-    from agent_search.core.errors import SetupError
+    from agent_search.errors import SetupError
     from agent_search.retrievers.dense import DenseRetriever
     from agent_search.retrievers.lexical import build_bm25_engine
     p = tmp_path / "corpus.jsonl"

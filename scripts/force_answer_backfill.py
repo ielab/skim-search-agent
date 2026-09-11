@@ -136,7 +136,7 @@ from typing import Callable, Optional, Sequence
 
 from agent_search.agent.loop import Step, Task, _extract_answer
 from agent_search.agent.policies import AgentPolicy
-from agent_search.core.tokens import count_tokens
+from agent_search.tokens import count_tokens
 # The prefill-elicitation MECHANISM (call_prefill/call_plain_ask/prefill_messages_for +
 # FORCE_MSG/FALLBACK_MSG + the default tuning knobs) now lives in agent_search.agent.forced_answer,
 # shared with the LIVE inline elicitation in agent_search/agent/loop.py's terminal branch (see that
@@ -157,7 +157,7 @@ from agent_search.agent.forced_answer import (
 )
 
 METHOD = "forced_terminal_prefill_v1"
-DEFAULT_CTX_TOKENS = 110_000              # model tokens (agent_search.core.tokens ruler; documented above)
+DEFAULT_CTX_TOKENS = 110_000              # model tokens (agent_search.tokens ruler; documented above)
 
 
 # --- tolerant rows.jsonl / recovered_answers.jsonl I/O -----------------------------------------
@@ -325,7 +325,7 @@ def needs_recovery(final_answer: Optional[str]) -> bool:
 
 def build_client(api_base: str, api_key: Optional[str] = None):
     """A plain OpenAI-compatible client against `api_base` (a served vLLM, or a real OpenAI-
-    compatible endpoint). Deliberately NOT `agent_search.models.openai_compat_generate`
+    compatible endpoint). Deliberately NOT `agent_search.agent.backbone.openai_compat_generate`
    , that helper's stop-sequence/tag-repair post-processing is tool-call-LOOP-specific, and (more
     importantly here) it has no way to pass vLLM's `continue_final_message`/`add_generation_prompt`
     prefill fields through `extra_body`. Mirrors `scripts/oneshot_rag.py::make_generate`'s plain-

@@ -1035,8 +1035,8 @@ def _rank_leaves(expr: Expr) -> list:
 # --- agent-facing helpers: parse+execute a BQL string -> Observation --------
 
 def hits_from_ranked(ranked, units_by_id: dict):
-    from agent_search.core.interfaces import Hit
-    from agent_search.core.tokens import cap_tokens
+    from agent_search.retrievers.base import Hit
+    from agent_search.tokens import cap_tokens
     hits = []
     for doc_id, score in ranked:
         u = units_by_id.get(doc_id)
@@ -1049,7 +1049,7 @@ def hits_from_ranked(ranked, units_by_id: dict):
 
 def execute_bql(bql: str, executor, units_by_id: dict, k: int = 100):
     """Parse -> typecheck -> execute. Errors come back as Observations."""
-    from agent_search.core.interfaces import Observation
+    from agent_search.retrievers.base import Observation
     from agent_search.retrievers.bql.parser import parse
     from agent_search.retrievers.bql.types import check
     r = parse(bql)

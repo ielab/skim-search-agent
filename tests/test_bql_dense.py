@@ -449,7 +449,7 @@ def test_research_bql_dense_snip_resolves_via_registry_as_bqldensesnip_arm():
 
 
 def test_bqldensesnip_index_raises_clear_error_when_cache_missing(tmp_path):
-    from agent_search.core.errors import SetupError
+    from agent_search.errors import SetupError
     from agent_search.retrievers.registry import RetrieverConfig, build_factory
 
     r = build_factory("agent_research_bql_dense_snip", RetrieverConfig(
@@ -544,7 +544,7 @@ def test_research_bql_dense_fetch_resolves_via_registry_as_bqldensefetch_arm():
 
 
 def test_bqldensefetch_index_raises_clear_error_when_cache_missing(tmp_path):
-    from agent_search.core.errors import SetupError
+    from agent_search.errors import SetupError
     from agent_search.retrievers.registry import RetrieverConfig, build_factory
 
     r = build_factory("agent_research_bql_dense_fetch", RetrieverConfig(

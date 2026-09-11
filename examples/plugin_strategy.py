@@ -13,7 +13,7 @@ different list of documents in place of `DOCS`. docs/EXTENDING.md has the full c
 from __future__ import annotations
 
 from agent_search import research
-from agent_search.core import cap_tokens
+from agent_search.tokens import cap_tokens
 from agent_search.strategies.base import Strategy, register_strategy
 from agent_search.strategies.conditions import condition
 from agent_search.tools.base import Tool

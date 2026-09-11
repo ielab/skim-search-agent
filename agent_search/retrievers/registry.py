@@ -44,7 +44,7 @@ import sys
 from dataclasses import dataclass
 from typing import Callable, Optional
 
-from agent_search.core.interfaces import Retriever
+from agent_search.retrievers.base import Retriever
 
 RetrieverFactory = Callable[[], Retriever]
 
