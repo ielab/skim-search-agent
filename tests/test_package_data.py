@@ -43,7 +43,7 @@ def test_task_prompts_and_tool_manuals_are_package_data():
 
 
 def test_every_prompt_file_the_loader_needs_is_matched_by_package_data():
-    from agent_search.prompts import loader
+    from agent_search.legacy.prompts import loader
     root = Path(loader.PROMPT_ROOT)
     needed = {root / "tools.yaml", root / "conditions.yaml"}
     needed |= set((root / "tasks").glob("*.md"))

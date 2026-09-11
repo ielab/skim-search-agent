@@ -1,5 +1,5 @@
 """The BQL structural index is pre-buildable offline (Phase 1 / STEP 0) and loaded
-by the agent, so its O(N) postings+BM25 build is paid ONCE off the clock — never
+by the agent, so its O(N) postings+BM25 build is paid once off the clock, never
 inside the first search_bql tool call of an episode (the localize/deep-research tail).
 
 Mirrors the dense/pyserini persistent-index contract: build_indexes.py writes it,

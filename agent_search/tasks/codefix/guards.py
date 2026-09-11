@@ -6,11 +6,12 @@ from __future__ import annotations
 
 
 def _code_fix_guard(ws):
-    """Build a fix_guard(fix_text, steps) -> (ok, why) closure over a CodeFixWorkspace.
+    """Build a fix_guard(fix_text, steps) -> (ok, why) closure for the search/fetch strategy.
 
-    A <fix> is accepted only after the episode has (a) run a successful search and (b)
-    fetched the exact file the fix names — otherwise it's a guess, bounced back with an
-    actionable reason (same policy as the sandbox's probe_code grounding guard). Path
+    `ws` is the episode's bound ToolBox; it is accepted for a uniform guard signature but
+    the guard itself only inspects the step history. A <fix> is accepted only after the
+    episode has (a) run a successful search and (b) fetched the exact file the fix names.
+    Otherwise it is a guess, and the guard bounces it back with an actionable reason. Path
     matching is suffix-lenient, matching agent_search.evaluation.fix_scoring."""
     from agent_search.evaluation.fix_scoring import fix_file, is_grounded
 
@@ -48,18 +49,18 @@ def _code_fix_guard(ws):
 
 
 def _code_grep_guard(ws):
-    """The grep baseline's fix_guard(fix_text, steps) -> (ok, why): a <fix> is accepted only
-    after a successful `grep` (>=1 match) AND a `read` of the exact file named in `file:` —
-    identical POLICY to `_code_fix_guard`, just reading `grep`/`read` observation shapes instead
-    of `search`/`fetch` ones."""
+    """The grep baseline's fix_guard(fix_text, steps) -> (ok, why). A <fix> is accepted only
+    after a successful `grep` (at least one match) and a `read` of the exact file named in
+    `file:`. Same policy as `_code_fix_guard`, reading `grep`/`read` observation shapes
+    instead of `search`/`fetch` ones."""
     from agent_search.evaluation.fix_scoring import fix_file, is_grounded
 
     def guard(fix_text: str, steps) -> tuple:
         searched = any(
             s.name == "grep" and not s.observation.startswith("0 matches")
             for s in steps)
-        # GrepReadWorkspace.read() echoes "{path} lines s-e of N:\n..." — the resolved path is
-        # the observation's first token, UNLESS it errored (no such file / ambiguous name).
+        # The `read` tool (source="repo") echoes "{path} lines s-e of N:\n..."; the resolved
+        # path is the observation's first token, unless it errored (no such file / ambiguous name).
         read_paths: set = set()
         for s in steps:
             if s.name != "read" or s.observation.lstrip().startswith("ERROR"):

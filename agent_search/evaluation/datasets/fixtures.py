@@ -55,7 +55,7 @@ def fixture_instances() -> list[Instance]:
 
 def _doc_corpus_fixture(name: str) -> list[Instance]:
     """Tiny inline shared-corpus instance (no staging) so the doc-retrieval path is
-    testable anywhere — mirrors the BrowseComp/multi-hop shape: question + evidence + answer."""
+    testable anywhere, in the BrowseComp/multi-hop shape: question + evidence + answer."""
     docs = [
         {"_id": "d_guadalupe", "title": "Treaty of Guadalupe Hidalgo",
          "text": "The Treaty of Guadalupe Hidalgo ended the Mexican-American War in 1848."},

@@ -5,17 +5,17 @@ All functions are per-query and operate on document ids:
   gold      : set of relevant doc ids (the gold-patch locations)
 
 - recall_at_k : fraction of gold ids appearing in the top-k.
-- hit_at_k    : 1.0 iff ANY gold id is in the top-k (classic IR Top-N / Hit@k;
+- hit_at_k    : 1.0 iff any gold id is in the top-k (classic IR Top-N / Hit@k;
                 the soft companion to the strict all-gold acc_at_k).
 - precision_at_k / f1_at_k : textbook precision@k (|gold∩topk|/k) and its F1 with
-                recall@k. NOTE: gold sets here are tiny (often 1 function), so
-                precision@k is mechanically capped at |gold|/k — report as a
-                surgicality DIAGNOSTIC (tight Boolean query vs broad grep), not a
+                recall@k. Gold sets here are tiny (often 1 function), so
+                precision@k is mechanically capped at |gold|/k. Report it as a
+                surgicality diagnostic (tight Boolean query vs broad grep), not a
                 headline; the SWE-bench loc standard is acc_at_k (LocAgent/SweRank).
 - average_precision_at_k : AP (BugLocator/MAP lineage); MAP = mean over instances.
-- acc_at_k    : 1.0 iff min(|gold|, k) gold ids are in the top-k, else 0.0 —
-                exactly LocAgent's released acc_at_k (eval_metric.py): all-or-
-                nothing per instance, R-Precision-style, NOT any-hit. The min()
+- acc_at_k    : 1.0 iff min(|gold|, k) gold ids are in the top-k, else 0.0.
+                Exactly LocAgent's released acc_at_k (eval_metric.py): all-or-
+                nothing per instance, R-Precision-style, not any-hit. The min()
                 means an instance with more gold locations than k can still
                 score 1.0 when the entire top-k is gold (strict `gold ⊆ top-k`
                 would make Acc@1 impossible for every multi-gold instance).
@@ -68,7 +68,7 @@ def ndcg_at_k(retrieved: Sequence[str], gold: set[str], k: int) -> float:
 # --- end-to-end answer metrics (QA datasets; offline, no judge) ---------------
 
 def _normalize_answer(text: str) -> str:
-    """SQuAD-style normalization, matching the OFFICIAL HotpotQA / 2WikiMultihopQA eval scripts
+    """SQuAD-style normalization, matching the official HotpotQA / 2WikiMultihopQA eval scripts
     verbatim (lower -> remove punctuation -> remove articles a/an/the -> collapse whitespace):
 
         def normalize_answer(s):
@@ -78,7 +78,7 @@ def _normalize_answer(text: str) -> str:
             def lower(text): return text.lower()
             return white_space_fix(remove_articles(remove_punc(lower(s))))
 
-    Do not reorder these steps — the published EM/F1 numbers depend on this exact pipeline."""
+    Do not reorder these steps: the published EM/F1 numbers depend on this exact pipeline."""
     text = text.lower()
     text = "".join(c for c in text if c not in set(string.punctuation))
     text = re.sub(r"\b(a|an|the)\b", " ", text)
@@ -87,8 +87,8 @@ def _normalize_answer(text: str) -> str:
 
 def answer_em(prediction: str, gold: str) -> float:
     """Exact match after normalization (the standard QA EM; HotpotQA/2WikiMultihopQA canonical
-    metric). Requires the WHOLE normalized prediction to equal the whole normalized gold —
-    per the published protocol, the answerer is expected to emit a short span, not a sentence
+    metric). Requires the whole normalized prediction to equal the whole normalized gold,
+    per the published protocol: the answerer is expected to emit a short span, not a sentence
     (see agent_search/tasks/research/prompt.md, which instructs exactly that)."""
     if not gold:
         return 0.0
@@ -102,12 +102,12 @@ _YES_NO = {"yes", "no", "noanswer"}
 
 
 def answer_f1(prediction: str, gold: str) -> float:
-    """Token-overlap F1 after normalization (the standard QA F1) — robust to the
+    """Token-overlap F1 after normalization (the standard QA F1), robust to the
     model answering in a sentence while gold is a short span.
 
     Follows the official HotpotQA scorer: a yes/no/noanswer prediction that does not equal
     the gold scores 0 (no partial credit for "yes" against "yes, in 1999"), and an empty
-    token overlap — including both sides normalizing to nothing — scores 0."""
+    token overlap, including both sides normalizing to nothing, scores 0."""
     if not gold:
         return 0.0
     p_norm, g_norm = _normalize_answer(prediction), _normalize_answer(gold)
@@ -134,15 +134,15 @@ def answer_f1(prediction: str, gold: str) -> float:
 
 def support_f1(surfaced_doc_ids: Sequence[str], gold_doc_ids: set[str]) -> float:
     """MuSiQue SUPPORT F1: set-F1 between the agent's surfaced/retrieved supporting-doc ids and
-    the gold supporting-doc ids (MuSiQue's paired metric alongside Answer F1 — it grades WHICH
+    the gold supporting-doc ids (MuSiQue's paired metric alongside Answer F1: it grades which
     paragraphs the system used to answer, not just whether the answer string is right).
 
         precision = |surfaced ∩ gold| / |surfaced|
         recall    = |surfaced ∩ gold| / |gold|
         f1        = harmonic mean
 
-    Order-free (a set, not a ranking) — unlike acc_at_k/recall_at_k above, which are for the
-    code-localization arm's RANKED retrieval. Empty gold or empty surfaced set -> 0.0."""
+    Order-free (a set, not a ranking), unlike acc_at_k/recall_at_k above, which are for the
+    code-localization arm's ranked retrieval. Empty gold or empty surfaced set -> 0.0."""
     gold = set(gold_doc_ids or ())
     surfaced = set(surfaced_doc_ids or ())
     if not gold or not surfaced:
@@ -201,13 +201,13 @@ def average_precision_at_k(retrieved: Sequence[str], gold: set[str], k: int) -> 
     return score / denom if denom else 0.0
 
 
-# --- cutoff-FREE set metrics (native to Boolean/grep: a query returns a SET, not
-# a ranking; these answer "how do you cut off" = you don't — you report the whole
+# --- cutoff-free set metrics (native to Boolean/grep: a query returns a set, not
+# a ranking; these answer "how do you cut off" with "you don't", you report the whole
 # returned set). Degenerate for dense (it ranks the whole corpus, no set), so use
 # them to characterize the index-free set tools, not as a cross-condition headline.
 
 def set_recall(retrieved: Sequence[str], gold: set[str]) -> float:
-    """Did the query's FULL returned set contain the gold? |set ∩ gold| / |gold|."""
+    """Did the query's full returned set contain the gold? |set ∩ gold| / |gold|."""
     if not gold:
         return 0.0
     return len(set(retrieved) & gold) / len(gold)

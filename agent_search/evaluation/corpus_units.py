@@ -1,7 +1,7 @@
 """Corpus units for one instance: build them, or reuse a cached build.
 
-Covers the code arm (parse a repo's files into `CodeUnit`s, with a disk
-cache keyed by repo@commit) and the document arm (wrap a fixed corpus's
+Covers the code domain (parse a repo's files into `CodeUnit`s, with a disk
+cache keyed by repo@commit) and the document domain (wrap a fixed corpus's
 docs as units). `_units_for_instance` is the single entry point `scoring.py`
 calls; it picks inline files, a shared docstore, a shared doc list, or the
 disk cache, depending on what the instance carries.
@@ -69,8 +69,8 @@ _UNITS_CACHE_VERSION = "v2"
 
 def _units_disk_path(inst: Instance, cache_dir: str) -> str:
     """Visible sibling of the repo cache (default: data/units_cache/), one pickle
-    per repo@commit — the build-once parsed-corpus artifact, NOT a retrieval
-    index (the method stays index-free; this caches AST chunking only)."""
+    per repo@commit: the build-once parsed-corpus artifact, not a retrieval
+    index. The method stays index-free; this caches AST chunking only."""
     key = re.sub(r"[^A-Za-z0-9_.@-]+", "__", f"{inst.repo}@{inst.base_commit}")
     parent = os.path.dirname(os.path.normpath(cache_dir)) or "."
     return os.path.join(parent, "units_cache", f"{key}-{_UNITS_CACHE_VERSION}.pkl")
@@ -88,9 +88,9 @@ def _units_for_instance(inst: Instance, cache_dir: str, allow_clone: bool,
                         ) -> tuple[list[CodeUnit], dict, Optional[dict]]:
     """Build corpus units, reusing shared fixed-corpus document chunks across queries.
 
-    Returns (units, by_file, files) where `files` is the raw {path -> source} dict the
-    multi-tool localization agent reads — or None when units came from the disk cache
-    (which stores only the AST chunking, not the raw files)."""
+    Returns (units, by_file, files) where `files` is the raw {path -> source} dict passed
+    to tools that declare `needs_files` (`bash`, `read`, `grep`, and others), or None when
+    units came from the disk cache (which stores only the AST chunking, not the raw files)."""
     if inst.docstore is not None:
         # an on-disk corpus: one lazy view per corpus key, shared by every query
         from agent_search.corpus.docstore import LazyUnits
@@ -117,8 +117,8 @@ def _units_for_instance(inst: Instance, cache_dir: str, allow_clone: bool,
         return units, by_file, files
 
     # Disk cache per repo@commit: git-archive + AST-chunking a whole repo is the
-    # per-instance bottleneck, repeated across the 4 agent conditions and every
-    # resume. Best-effort: corrupt/missing cache just rebuilds.
+    # per-instance bottleneck, repeated across every code-domain condition run against
+    # this instance and every resume. Best-effort: corrupt/missing cache just rebuilds.
     path = _units_disk_path(inst, cache_dir)
     if os.path.exists(path):
         try:

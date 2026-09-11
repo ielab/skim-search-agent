@@ -1,18 +1,18 @@
-"""LLM-as-judge for deep-research answers — the BrowseComp / BrowseComp-Plus grading protocol.
+"""LLM-as-judge for deep-research answers: the BrowseComp / BrowseComp-Plus grading protocol.
 
-`agent_search/evaluation/doc_scoring.py` grades a doc answer with EXACT-MATCH + token-F1, gated on grounding.
-That is STRICT: a correct answer wrapped in a sentence ("Mike Medavoy, ... founded the company")
-scores 0 even though it is right. The BrowseComp and BrowseComp-Plus benchmarks do NOT grade that
-way — they use an LLM JUDGE (the "BrowseComp Appendix F" prompt) that extracts the final answer
-from the response and decides whether it matches the gold. This module reproduces that judge
-VERBATIM, so our deep-research accuracy is comparable to the benchmark's own metric, not an
-over-strict proxy.
+`agent_search/evaluation/doc_scoring.py` grades a doc answer with exact-match plus token-F1,
+gated on grounding. That is strict: a correct answer wrapped in a sentence ("Mike Medavoy, ...
+founded the company") scores 0 even though it is right. The BrowseComp and BrowseComp-Plus
+benchmarks do not grade that way. They use an LLM judge (the "BrowseComp Appendix F" prompt)
+that extracts the final answer from the response and decides whether it matches the gold. This
+module reproduces that judge prompt exactly, so our deep-research accuracy is comparable to the
+benchmark's own metric, not an over-strict proxy.
 
-POST-HOC + OPTIONAL. The core eval stays deterministic and API-free (`doc_scoring.py`). This grades
-a FINISHED run's `rows.jsonl` — it adds `judge_correct` per row and writes `judge_summary.json`
-(accuracy). The judge model is a free parameter (`--judge-model`, default a cheap one), so graders
-can be swapped for an ablation. A cheap model is a fine judge here: the task is a yes/no
-answer-equivalence check, not generation.
+This grading step is post-hoc and optional: the core eval stays deterministic and API-free
+(`doc_scoring.py`). This module grades a finished run's `rows.jsonl`. It adds `judge_correct`
+per row and writes `judge_summary.json` (accuracy). The judge model is a free parameter
+(`--judge-model`, default a cheap one), so graders can be swapped for an ablation. A cheap
+model is a fine judge here: the task is a yes/no answer-equivalence check, not generation.
 
     # judge on the OpenAI API (cheap):
     python -m agent_search.evaluation.llm_judge --results-dir runs/... --judge-model gpt-4o-mini --dataset musique_structured
@@ -29,7 +29,7 @@ import re
 from pathlib import Path
 from typing import Callable, Optional
 
-# The BrowseComp Appendix F judge prompt — VERBATIM, matching the BrowseComp-Plus benchmark's own
+# The BrowseComp Appendix F judge prompt, verbatim: matches the BrowseComp-Plus benchmark's own
 # judge prompt and the gate this project runs via `scripts/judge_cells.py`. Do not paraphrase:
 # fidelity to this exact prompt is what makes the resulting accuracy comparable to the published
 # benchmark number instead of a home-grown proxy.
@@ -69,7 +69,7 @@ def _parse_judge_json(raw: str) -> dict:
 def _norm_exact(s: str) -> str:
     """Conservative normalization for the exact-match short-circuit: strip whitespace, surrounding
     markdown bold/italic, and trailing punctuation, then casefold. Interior differences escalate to
-    the judge (mirrors RISE's short-circuit — a byte-exact answer never needs an LLM call)."""
+    the judge, following RISE's short-circuit: a byte-exact answer never needs an LLM call."""
     s = (s or "").strip()
     prev = None
     while prev != s:
@@ -83,18 +83,19 @@ def _norm_exact(s: str) -> str:
     return s.casefold()
 
 
-# Default judge model — a cheap OpenAI model is sufficient (yes/no equivalence check, not
+# Default judge model: a cheap OpenAI model is sufficient (yes/no equivalence check, not
 # generation). Configurable via the `model` param of `judge_answer` or this env var.
 DEFAULT_JUDGE_MODEL = os.environ.get("LLM_JUDGE_MODEL", "gpt-4o-mini")
 
 
 def judge_answer_detail(question: str, gold_answer: str, response: str,
                         generate: Callable[[str], str], *, short_circuit: bool = True) -> dict:
-    """Grade ONE (question, gold, response) the BrowseComp-Plus way, with full judge detail.
+    """Grade one (question, gold, response) triple the BrowseComp-Plus way, with full judge detail.
 
-    `generate(prompt) -> str` returns the judge's JSON text — injectable for tests, backend-agnostic.
-    Returns {judge_correct: bool, judge_extracted: str, judge_reasoning: str}. An empty response is
-    'no' with no call; a normalized exact match is 'yes' with no call (cost saver)."""
+    `generate(prompt) -> str` returns the judge's JSON text; it is injectable for tests and
+    backend-agnostic. Returns {judge_correct: bool, judge_extracted: str, judge_reasoning: str}.
+    An empty response is 'no' with no call; a normalized exact match is 'yes' with no call
+    (cost saver)."""
     resp = (response or "").strip()
     if not resp:
         return {"judge_correct": False, "judge_extracted": "None", "judge_reasoning": "no answer"}
@@ -106,7 +107,7 @@ def judge_answer_detail(question: str, gold_answer: str, response: str,
     raw = generate(prompt)
     data = _parse_judge_json(raw)
     if not data or "correct" not in data:
-        # An unparseable judge reply is an ERROR, not a "no": recording it as wrong would
+        # An unparseable judge reply is an error, not a "no": recording it as wrong would
         # silently deflate accuracy. The row keeps the raw reply so it can be re-judged.
         return {"judge_correct": None, "judge_error": "unparseable judge reply",
                 "judge_raw": (raw or "")[:], "judge_extracted": "None", "judge_reasoning": ""}
@@ -119,14 +120,14 @@ def judge_answer(question: str, gold_answer: str, response: str, *,
                  model: str = DEFAULT_JUDGE_MODEL,
                  generate: Optional[Callable[[str], str]] = None,
                  api_base: Optional[str] = None, short_circuit: bool = True) -> float:
-    """The public entry point: grade ONE (question, gold_answer, predicted_answer) the
-    BrowseComp / BrowseComp-Plus way and return 1.0 (correct) or 0.0 (incorrect) — the paper's
+    """The public entry point: grade one (question, gold_answer, predicted_answer) triple the
+    BrowseComp / BrowseComp-Plus way and return 1.0 (correct) or 0.0 (incorrect), the paper's
     LLM-as-judge protocol for this benchmark (see module docstring).
 
     `model` (or the `LLM_JUDGE_MODEL` env var) selects the judge; default is a cheap OpenAI
     model (gpt-4o-mini). `generate` is injectable (e.g. for tests, to avoid a real API call);
     when omitted, a judge client is built for `model` via `make_judge` (routes to the OpenAI
-    API using OPENAI_API_KEY, or another backend by model name — see `make_judge`)."""
+    API using OPENAI_API_KEY, or another backend by model name; see `make_judge`)."""
     gen = generate if generate is not None else make_judge(model, api_base=api_base)
     detail = judge_answer_detail(question, gold_answer, response, gen, short_circuit=short_circuit)
     return 1.0 if detail["judge_correct"] else 0.0
@@ -134,20 +135,20 @@ def judge_answer(question: str, gold_answer: str, response: str, *,
 
 def make_judge(model: str = "gpt-4o-mini", *, api_base: Optional[str] = None,
                client=None) -> Callable[[str], str]:
-    """A judge `generate(prompt) -> str` (JSON object, temperature 0) that AUTO-ROUTES by model
-    name — exactly like the agent backend (`agent_search.models.backends.make_generate`). You never
-    say "gpt-based vs vLLM-based": the model name decides the endpoint.
+    """A judge `generate(prompt) -> str` (JSON object, temperature 0) that auto-routes by model
+    name, the same way the agent backend does (`agent_search.models.make_generate`). There is no
+    separate "gpt-based vs vLLM-based" setting: the model name decides the endpoint.
       - an OpenAI model (gpt-*/o-*/chatgpt-*) -> the OpenAI API (key from OPENAI_API_KEY).
       - a Gemini model (gemini-*) -> Gemini's OpenAI-compatible endpoint (key from GEMINI_API_KEY).
       - anything else -> a served OpenAI-compatible endpoint at `api_base` (a `vllm serve <model>`),
-        so the same cluster that serves the agent can serve the judge — pass the run's own api_base.
+        so the same cluster that serves the agent can serve the judge; pass the run's own api_base.
     `client` is injectable for offline tests. JSON mode uses the server's guided decoding when
     available and falls back to a plain call otherwise (the parser is forgiving; this also covers
     Gemini, whose OpenAI-compat endpoint may not support `response_format` the same way)."""
     if client is None:
         from openai import OpenAI
 
-        from agent_search.models.backends import (
+        from agent_search.models import (
             _GEMINI_BASE_URL, _OPENAI_BASE_URL, is_gemini_model, is_openai_model)
         if is_openai_model(model):
             client = OpenAI(base_url=_OPENAI_BASE_URL,
@@ -167,7 +168,7 @@ def make_judge(model: str = "gpt-4o-mini", *, api_base: Optional[str] = None,
                   temperature=0.0, max_tokens=512)
         try:                                            # JSON mode (OpenAI + vLLM guided decoding)
             resp = client.chat.completions.create(response_format={"type": "json_object"}, **kw)
-        except Exception:                               # noqa: BLE001 — server without JSON mode: plain call
+        except Exception:                               # noqa: BLE001 - server without JSON mode: plain call
             resp = client.chat.completions.create(**kw)
         return resp.choices[0].message.content or "{}"
 
@@ -175,7 +176,7 @@ def make_judge(model: str = "gpt-4o-mini", *, api_base: Optional[str] = None,
 
 
 def _questions_from_dataset(dataset: Optional[str]) -> dict:
-    """{instance_id: problem_statement} — for rows.jsonl written before `question` was carried."""
+    """{instance_id: problem_statement}, for rows.jsonl rows that carry no `question` field."""
     if not dataset:
         return {}
     from agent_search.evaluation.datasets import load_dataset_by_name
@@ -188,9 +189,9 @@ def judge_run_dir(results_dir: str, generate: Callable[[str], str], *,
     """Grade every answered doc row in <results_dir>/rows.jsonl (add `judge_correct` in place, write
     judge_summary.json, return the summary). The question comes from the row (`question`) or, for
     older rows that lack it, from `dataset` by instance_id. Rows with no `gold_answer` (e.g. the code
-    arm) are skipped — this metric is doc-QA only.
+    arm) are skipped: this metric is doc-QA only.
 
-    Idempotent: a row that already carries a verdict (`judge_correct` is True/False) is NOT
+    Idempotent: a row that already carries a verdict (`judge_correct` is True/False) is not
     re-judged unless ``force=True``; rows whose earlier judge reply was unparseable
     (`judge_correct` is None) are retried. rows.jsonl is rewritten atomically (temp file +
     rename) so an interrupt can never truncate the run's only durable artifact."""

@@ -105,7 +105,7 @@ def _infer(expr: Expr) -> Granularity:
         bind = gran_level(expr.spec)
         child = _coarser(_infer(expr.left), _infer(expr.right))
         if child.value > bind.value:
-            # lattice rule: a binder cannot scope a coarser pattern —
+            # lattice rule: a binder cannot scope a coarser pattern:
             # NEAR/w5(NEAR/file(a,b), c) is ill-formed, not silently LINE-level
             raise _TypeError(
                 f"NEAR/{expr.spec} cannot bind a {child.name}-level operand",
@@ -131,7 +131,7 @@ def check(expr: Expr) -> TypeResult:
     """Assign a granularity level or return a structured error.
 
     Well-typed -> TypeResult(ok=True, level=...). Ill-typed -> ok=False with a
-    reason and the offending node; such a query is NEVER executed and its error
+    reason and the offending node; such a query is never executed and its error
     becomes agent observation / RL signal.
     """
     try:

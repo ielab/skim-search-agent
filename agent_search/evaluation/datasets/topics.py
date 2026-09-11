@@ -118,7 +118,7 @@ def _topics_qrels_loader(name: str, root: str | None = None, corpus: str | None 
 
 
 # ITER's sets: topics (+ answers, + TREC qrels when they exist) over a chunked corpus. Stage
-# them as data/<name>/topics.tsv [qrels.txt] and data/corpora/<corpus>/corpus.jsonl — see
+# them as data/<name>/topics.tsv [qrels.txt] and data/corpora/<corpus>/corpus.jsonl; see
 # corpus_build/README.md. InfoSeek has answers but no document labels (answer-only).
 register_dataset("infoseek_eval", domain="general")(_topics_qrels_loader("infoseek_eval", corpus="wiki25_512"))
 register_dataset("infoseek_train", domain="general")(_topics_qrels_loader("infoseek_train", corpus="wiki25_512"))

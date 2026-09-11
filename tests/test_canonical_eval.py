@@ -1,7 +1,7 @@
 """Canonical per-dataset eval protocol tests.
 
-Covers the switch from an invented "cover-EM" (substring containment — no paper uses it) to
-each dataset's PUBLISHED metric:
+Covers the switch from an invented "cover-EM" (substring containment, which no paper uses) to
+each dataset's published metric:
 
   HotpotQA / 2WikiMultihopQA : Answer EM + F1, SQuAD-style normalization (agent_search.evaluation.metrics).
   MuSiQue                    : Answer F1 (already covered) + SUPPORT F1 over gold-doc-id sets

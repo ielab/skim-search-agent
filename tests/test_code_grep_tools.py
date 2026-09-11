@@ -1,10 +1,11 @@
-"""The code-fix GREP baseline ACI: RegexGrep (real regex -> matching LINES) + a line-range read.
+"""The code-fix grep baseline ACI: RegexGrep (real regex to matching lines) plus a line-range
+read.
 
-grep(pattern) returns matching lines as `path:line: text` (RISE-style — real regex, case-
-insensitive, no BM25 rerank, no Boolean); read(path, start, end) returns a capped line-range
-slice, never structured parts. Malformed inputs recover instead of dead-ending, same contract
-shape as CodeFixWorkspace."""
-from agent_search.agent.tools.code_grep import GrepReadWorkspace, RegexGrep
+grep(pattern) returns matching lines as `path:line: text` (RISE-style: real regex,
+case-insensitive, no BM25 rerank, no Boolean); read(path, start, end) returns a capped
+line-range slice, never structured parts. Malformed inputs recover instead of dead-ending,
+same contract shape as CodeFixWorkspace."""
+from agent_search.legacy.workspaces.code_grep import GrepReadWorkspace, RegexGrep
 from agent_search.corpus.units import units_from_python_source
 
 SRC = (

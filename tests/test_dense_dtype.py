@@ -7,7 +7,11 @@ import json
 
 import pytest
 
-from agent_search.retrievers.dense import dense as D
+from agent_search.retrievers import dense as D
+
+
+def _resolve_dtype(model_id, device=None):
+    return D.DenseRetriever(model_id, encoder=object()).resolve_dtype(device)
 
 
 def test_trainer_note_records_the_training_precision(tmp_path):
@@ -23,14 +27,14 @@ def test_dtype_resolution_order(tmp_path, monkeypatch):
     ck = tmp_path / "ckpt"; ck.mkdir()
     (ck / "skimsearchagent_dense.json").write_text(json.dumps({"dtype": "bfloat16"}))
     monkeypatch.delenv("DENSE_DTYPE", raising=False)
-    assert D.resolve_dtype(str(ck)) == "bfloat16"                  # the note
-    assert D.resolve_dtype("BAAI/bge-base-en-v1.5") == "float32"   # no note: float32
+    assert _resolve_dtype(str(ck)) == "bfloat16"                  # the note
+    assert _resolve_dtype("BAAI/bge-base-en-v1.5") == "float32"   # no note: float32
     monkeypatch.setenv("DENSE_DTYPE", "fp16")
-    assert D.resolve_dtype(str(ck)) == "float16"                   # the knob wins
-    assert D.resolve_dtype(str(ck), device="cpu") == "bfloat16"    # no fp16 matmul on a CPU
+    assert _resolve_dtype(str(ck)) == "float16"                   # the knob wins
+    assert _resolve_dtype(str(ck), device="cpu") == "bfloat16"    # no fp16 matmul on a CPU
     monkeypatch.setenv("DENSE_DTYPE", "int8")
     with pytest.raises(ValueError, match="DENSE_DTYPE"):
-        D.resolve_dtype(str(ck))
+        _resolve_dtype(str(ck))
 
 
 def test_precision_separates_caches_and_is_recorded_on_the_index(tmp_path, monkeypatch):
@@ -58,5 +62,5 @@ def test_precision_separates_caches_and_is_recorded_on_the_index(tmp_path, monke
 
 def test_bf16_tensors_become_float32_numpy():
     torch = pytest.importorskip("torch")
-    out = D._to_numpy(torch.ones(2, 3, dtype=torch.bfloat16))
+    out = D.to_numpy(torch.ones(2, 3, dtype=torch.bfloat16))
     assert out.dtype.name == "float32" and out.shape == (2, 3)

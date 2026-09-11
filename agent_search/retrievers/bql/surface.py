@@ -1,11 +1,11 @@
-"""BQL field-tagged Boolean SURFACE syntax -> BQL string (the existing executor AST).
+"""BQL field-tagged Boolean surface syntax -> BQL string (the existing executor AST).
 
-This is the agent-facing query surface for BOTH arms: a field-tagged Boolean form —
-`term[field]`, `AND`/`OR`/`NOT`, phrase, wildcard — that every LLM writes fluently from
-pretraining, translated to the BQL the executor already runs. So the parser/typechecker/
-executor and ALL their tests are reused untouched; only the surface changes. The structural
-operators (AST region scope, NEAR, the structural fetch) are still ours, reached via the
-field aliases below.
+This is the agent-facing query surface for both domains (documents and code): a field-tagged
+Boolean form (`term[field]`, `AND`/`OR`/`NOT`, phrase, wildcard) that every LLM writes fluently
+from pretraining, translated to the BQL the executor already runs. The parser, type checker and
+executor, and all their tests, are reused untouched; only the surface changes. The structural
+operators (AST region scope, NEAR, the structural fetch) are still reached via the field aliases
+below.
 
 Surface grammar:
   term[field]        -> IN(field, term)
@@ -15,10 +15,10 @@ Surface grammar:
   term*  /  term*[f] -> PREFIX(term)  /  IN(f, PREFIX(term))    (wildcard)
   A AND B, A OR B    -> passthrough (BQL uses the same infix)
   A NOT B            -> A AND NOT(B)   (binary NOT is set-difference; BQL's NOT is unary-in-AND)
-  A AND NOT B        -> A AND NOT(B)   (explicit AND already present -- must NOT double up to
-                                         the malformed "A AND AND NOT(B)"; see `_pass2`)
-  -term / -"a b"     -> NOT(term)      (a `-`-prefixed atom, no space, negates just that ONE
-                                         atom -- Google-style; folds into the surrounding
+  A AND NOT B        -> A AND NOT(B)   (explicit AND already present, so it must not double up
+                                         to the malformed "A AND AND NOT(B)"; see `_pass2`)
+  -term / -"a b"     -> NOT(term)      (a `-`-prefixed atom, no space, negates just that one
+                                         atom, Google-style; folds into the surrounding
                                          multi-word run's AND, e.g. `alpha -gamma` ->
                                          `AND(alpha, NOT(gamma))`, same "NOT is unary-in-AND"
                                          constraint as binary NOT above; see `_run_to_bql`. A
@@ -37,14 +37,15 @@ span), `date[<2023-12]`, `date[>=2019-06]`, `date[2019-06..2021]`. RANGE is `A..
 widens to its full span (1980 -> 1980-01-01..1980-12-31; `<2023-12` means before 2023-12-01;
 `>=2019` means from 2019-01-01). This is lowered to `IN(date, term)` where the term's text is
 a canonical `__daterange__LO__HI` encoding (LO/HI are normalized ISO bounds or the literal
-`open`) that `executor.py` recognizes and evaluates against `unit.metadata['date']` — reusing
-the existing `In(Region.DATE, Term)` node rather than adding a new AST leaf, so the parser,
-type checker, `_rank_leaves`, and every other BQL-string consumer need no changes and the
-result round-trips through `bql_parse` untouched. `BQL_DATE_RANGE=0` disables the rewrite, so
-`date[...]` falls through to the OLD passthrough-field lowering (exact-token behavior).
+`open`), which `executor.py` recognizes and evaluates against `unit.metadata['date']`. It
+reuses the existing `In(Region.DATE, Term)` node rather than adding a new AST leaf, so the
+parser, type checker, `_rank_leaves`, and every other BQL-string consumer need no changes and
+the result round-trips through `bql_parse` untouched. `BQL_DATE_RANGE=0` disables the rewrite,
+so `date[...]` falls through to plain passthrough-field lowering (exact-token behavior).
 
-Field aliases are DOMAIN-CONFIGURABLE (the customizable block). Unknown field -> passed through
-so the executor's type checker rejects it with a readable reason (useful agent feedback).
+Field aliases are configurable per domain (the customizable block below). An unknown field is
+passed through so the executor's type checker rejects it with a readable reason (useful agent
+feedback).
 """
 from __future__ import annotations
 
@@ -55,7 +56,7 @@ from datetime import date, timedelta
 from typing import Optional
 
 # alias -> list of canonical BQL regions (a combo alias like `tiab` expands to several).
-# CODE_FIELDS is the code arm's surface; DOC_FIELDS is the deep-research arm's surface.
+# CODE_FIELDS is the codefix task's surface; DOC_FIELDS is the research task's surface.
 DOC_FIELDS = {
     "title": ["title"], "ti": ["title"],
     "body": ["body"], "text": ["body"], "ab": ["body"], "abstract": ["body"],
@@ -86,7 +87,7 @@ _TOK = re.compile(r"""\s*(?:
 _OPS = {"AND", "OR", "NOT"}
 # Google-style `-`-prefixed negation ("alpha -gamma"): a `-` immediately (no space)
 # before a word or quoted phrase -- distinguished from the `word` pattern above (which
-# can never itself START with `-`, only contain one internally, e.g. "well-known"), so
+# can never itself start with `-`, only contain one internally, e.g. "well-known"), so
 # these two alternatives never compete for the same input. See `_pass1`'s run-collection
 # loop and `_run_to_bql` for how a negated run element becomes `NOT(...)`.
 _NEG_KINDS = ("negword", "negquote")
@@ -94,13 +95,13 @@ _NEG_KINDS = ("negword", "negquote")
 
 # --- typed date ranges: `date[RANGE]` -> IN(date, __daterange__LO__HI) ------
 #
-# Rewritten at the RAW STRING level, before tokenization, into a single atom whose text
-# already carries the canonical encoding — so the existing word tokenizer/run-collector
+# Rewritten at the raw string level, before tokenization, into a single atom whose text
+# already carries the canonical encoding, so the existing word tokenizer/run-collector
 # (which knows nothing about date ranges) treats it exactly like any other bare word, and
 # `_leaf` above unwraps it into the IN(date, ...) leaf. This is what lets `date[1980..1989]`
 # combine naturally with neighboring bare terms (`treaty date[1980..1989]` ->
-# `AND(treaty, IN(date, __daterange__...))`) via the SAME multi-word-run machinery that
-# already ANDs `Command handle[def]` -> no separate case for "a leaf beside other leaves".
+# `AND(treaty, IN(date, __daterange__...))`) via the same multi-word-run machinery that
+# already ANDs `Command handle[def]`, with no separate case for "a leaf beside other leaves".
 _DATE_RANGE_PREFIX = "__daterange__"
 _DATE_FIELD_RE = re.compile(r"\bdate\[([^\[\]]*)\]", re.IGNORECASE)
 _PARTIAL_DATE_RE = re.compile(r"^(\d{4})(?:-(\d{2})(?:-(\d{2}))?)?$")
@@ -155,14 +156,14 @@ def _shift_day(iso: str, delta: int) -> Optional[str]:
     try:
         y, mo, d = (int(x) for x in iso.split("-"))
         return (date(y, mo, d) + timedelta(days=delta)).isoformat()
-    except Exception:  # noqa: BLE001 — malformed bound -> caller treats as unparseable
+    except Exception:  # noqa: BLE001, malformed bound -> caller treats as unparseable
         return None
 
 
 def _parse_date_range_spec(spec: str) -> Optional[tuple]:
     """`date[...]`'s bracket content -> (lo, hi), either an ISO 'YYYY-MM-DD' string or None
     (open-ended). Returns None if `spec` isn't a recognizable range (caller then leaves the
-    ORIGINAL `date[...]` text untouched, so an unrecognized spec degrades to the old generic
+    original `date[...]` text untouched, so an unrecognized spec falls back to plain
     term[field] lowering rather than erroring)."""
     if not spec:
         return None
@@ -246,10 +247,10 @@ def _run_to_bql(run: list[tuple[str, bool]], fields: list[str], alias: dict) -> 
       query (see `_pass1`'s dispatch) -- a truly standalone negation has no valid
       BQL form and is correctly left to raise a clear type-check error
       ("AND needs at least one positive clause"), not papered over here.
-    - UNQUOTED multi-word (an entity name typed bare) -> AND of the field-scoped terms,
-      each `NOT(...)`-wrapped if it was `-`-prefixed (all POSITIVE words present,
-      order-independent — forgiving; a strict phrase 0-hits too often)
-    - a QUOTED span the user wrote -> stays a phrase (they asked for contiguity)
+    - unquoted multi-word (an entity name typed bare) -> AND of the field-scoped terms,
+      each `NOT(...)`-wrapped if it was `-`-prefixed (all positive words present,
+      order-independent: forgiving, since a strict phrase 0-hits too often)
+    - a quoted span the user wrote -> stays a phrase (they asked for contiguity)
     So `Command handle[def]` -> AND(IN(def,Command), IN(def,handle));
        `"cannot rollback"[string]` -> IN(string, "cannot rollback");
        `alpha -gamma` -> AND(alpha, NOT(gamma))."""
@@ -266,10 +267,10 @@ def _run_to_bql(run: list[tuple[str, bool]], fields: list[str], alias: dict) -> 
 
 def _pass1(query: str, alias: dict) -> list[str]:
     """Collapse each atom(+field) into one BQL-leaf token; keep AND/OR/NOT/( ) as control tokens.
-    A RUN of consecutive bare words ending in [field] scopes the whole run — so a multi-word
+    A run of consecutive bare words ending in [field] scopes the whole run, so a multi-word
     name like `Command handle[def]` becomes AND(IN(def,Command), IN(def,handle)). A `-`-prefixed
-    word/quote (`negword`/`negquote`) is part of the SAME run as any adjacent word/quote (so
-    `alpha -gamma` collects into ONE run, not two juxtaposed-with-no-operator units), just
+    word/quote (`negword`/`negquote`) is part of the same run as any adjacent word/quote (so
+    `alpha -gamma` collects into one run, not two juxtaposed-with-no-operator units), just
     tagged negated -- `_run_to_bql` wraps it in `NOT(...)`."""
     toks = _tokens(query)
     out, i = [], 0
@@ -330,17 +331,17 @@ def _unit(toks: list[str], i: int) -> tuple[str, int]:
 
 
 def _pass2(toks: list[str]) -> str:
-    """Emit BQL, rewriting binary `NOT B` -> `AND NOT( B )` -- but ONLY when an infix
+    """Emit BQL, rewriting binary `NOT B` -> `AND NOT( B )`, but only when an infix
     operator isn't already immediately in front of it. `_pass1` emits a literal "NOT"
-    control token whenever the ORIGINAL surface text had the literal keyword NOT
-    (case-insensitive), whether or not the user ALSO typed an explicit AND/OR right
+    control token whenever the original surface text had the literal keyword NOT
+    (case-insensitive), whether or not the user also typed an explicit AND/OR right
     before it:
       - `A NOT B`     (no explicit AND) -> out ends with a leaf; still needs "AND "
                        prepended so the result is valid BQL (`A AND NOT(B)`).
       - `A AND NOT B` (explicit AND)    -> out already ends with "AND"; prepending a
-                       SECOND "AND" produced the adversarial-verification-caught bug:
-                       the malformed, unparseable `A AND AND NOT(B)`. Since the infix
-                       operator is already there, just emit `NOT(B)` and let it attach.
+                       second "AND" would produce the malformed, unparseable
+                       `A AND AND NOT(B)`. Since the infix operator is already there,
+                       just emit `NOT(B)` and let it attach.
     The same reasoning applies to `A OR NOT B` (would otherwise become the equally
     malformed `A OR AND NOT(B)`) -- checked generically via "does `out` already end in
     an infix operator", not AND-specific."""
@@ -364,8 +365,8 @@ def to_bql(query: str, domain: str = "code") -> str:
     """Translate a field-tagged surface query to a BQL string. `domain` selects the field
     aliases (code = AST regions; doc = title/body/section/...).
 
-    NOTE: run the round-trip check via the test suite (tests/test_surface.py),
-    not as ``python surface.py`` — executing this file as a script puts the bql/ dir on
+    Run the round-trip check via the test suite (tests/test_surface.py),
+    not as ``python surface.py``: executing this file as a script puts the bql/ dir on
     sys.path[0], shadowing the stdlib ``types`` module that ``bql/types`` is named after."""
     alias = DOC_FIELDS if domain == "doc" else CODE_FIELDS
     if _date_range_enabled():

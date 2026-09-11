@@ -2,7 +2,7 @@
 
 The flat backend is exercised fully (no dependency). The FAISS backends run only
 where faiss is installed (cluster); everywhere else they're skipped. The point of
-the layer is that a much larger corpus is a backend swap, not a rewrite — and that a
+the layer is that a much larger corpus is a backend swap, not a rewrite, and that a
 missing faiss degrades to flat instead of crashing.
 """
 import json

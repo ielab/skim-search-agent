@@ -11,7 +11,7 @@ import yaml
 
 from agent_search import cli
 from agent_search import experiment as X
-from agent_search.agent.tools.doc_dedup import DedupSearchWorkspace
+from agent_search.legacy.workspaces.doc_dedup import DedupSearchWorkspace
 from agent_search.corpus.docstore import JsonlDocStore, LazyUnits
 from agent_search.corpus.units import units_from_documents
 from agent_search.evaluation import datasets as DS
@@ -53,7 +53,7 @@ def test_dedup_search_hides_already_seen_and_lists_them():
 
 
 def test_dedup_conditions_and_strategies_are_registered():
-    from agent_search.prompts import load_condition
+    from agent_search.legacy.prompts import load_condition
     from agent_search.strategies.names import STRATEGIES, DENSE_STRATEGIES
     for cond, tools in (("research_dedup_bm25", ("bm25_search", "get_document")),
                         ("research_dedup_dense", ("search", "get_document"))):
@@ -151,8 +151,8 @@ class _FakeEncoder:
 
 
 def test_lazy_corpus_with_external_faiss_index_never_materialises_units(tmp_path, monkeypatch):
-    from agent_search.agent.retriever import AgentRetriever
-    from agent_search.retrievers.dense.dense import DenseRetriever
+    from agent_search.legacy.retriever import AgentRetriever
+    from agent_search.retrievers.dense import DenseRetriever
     p = tmp_path / "corpus.jsonl"
     p.write_text("\n".join(json.dumps({"docid": d["_id"], "text": d["text"]}) for d in DOCS) + "\n")
     units = LazyUnits(JsonlDocStore(str(p)))
@@ -160,7 +160,7 @@ def test_lazy_corpus_with_external_faiss_index_never_materialises_units(tmp_path
     ext, emb = _external_faiss(tmp_path, list(units))
     monkeypatch.setenv("DENSE_INDEX_PATH", str(ext))
     r = DenseRetriever("fake/model", encoder=_FakeEncoder(list(units), emb), index_root=str(tmp_path / "idx"))
-    monkeypatch.setattr("agent_search.retrievers.dense.dense.query_prefix_for", lambda m: "")
+    monkeypatch.setattr(DenseRetriever, "query_prefix_for", lambda self: "")
     assert r.is_cached("anything")
     r.index(units, key="wiki")                     # opens the external index; no encoding, no cache dir
     assert not (tmp_path / "idx").exists()
@@ -181,7 +181,7 @@ def test_lazy_corpus_with_external_faiss_index_never_materialises_units(tmp_path
 
 def test_in_memory_engines_refuse_a_lazy_corpus(tmp_path, monkeypatch):
     from agent_search.core.errors import SetupError
-    from agent_search.retrievers.dense.dense import DenseRetriever
+    from agent_search.retrievers.dense import DenseRetriever
     from agent_search.retrievers.lexical import build_bm25_engine
     p = tmp_path / "corpus.jsonl"
     p.write_text(json.dumps({"docid": "1", "text": "a\nb"}) + "\n")
@@ -195,7 +195,11 @@ def test_in_memory_engines_refuse_a_lazy_corpus(tmp_path, monkeypatch):
 
 
 def test_pooling_resolution_for_released_checkpoints(tmp_path, monkeypatch):
-    from agent_search.retrievers.dense.dense import resolve_pooling
+    from agent_search.retrievers.dense import DenseRetriever
+
+    def resolve_pooling(model_id):
+        return DenseRetriever(model_id, encoder=object()).resolve_pooling()
+
     ck = tmp_path / "ckpt"; ck.mkdir()
     (ck / "config.json").write_text(json.dumps({"model_type": "qwen3", "hidden_size": 1024}))
     monkeypatch.delenv("DENSE_POOLING", raising=False)
@@ -275,12 +279,16 @@ def test_docstore_corpus_runs_through_the_harness_with_a_prebuilt_lucene_index(t
 
 
 def test_hub_ids_resolve_to_their_cached_snapshot_for_pooling(tmp_path, monkeypatch):
-    from agent_search.retrievers.dense.dense import _local_snapshot, resolve_pooling
+    from agent_search.retrievers.dense import DenseRetriever, local_snapshot
+
+    def resolve_pooling(model_id):
+        return DenseRetriever(model_id, encoder=object()).resolve_pooling()
+
     monkeypatch.setenv("HF_HUB_OFFLINE", "1")
     monkeypatch.delenv("DENSE_POOLING", raising=False)
-    assert _local_snapshot(str(tmp_path)) == str(tmp_path)
-    assert _local_snapshot("nobody/definitely-not-a-cached-model") is None
-    snap = _local_snapshot("Yuqi-Zhou/LRAT-Qwen3-Embedding-0.6B")
+    assert local_snapshot(str(tmp_path)) == str(tmp_path)
+    assert local_snapshot("nobody/definitely-not-a-cached-model") is None
+    snap = local_snapshot("Yuqi-Zhou/LRAT-Qwen3-Embedding-0.6B")
     if snap is None:
         pytest.skip("LRAT checkpoint not in the local HF cache")
     # a released decoder checkpoint without a sentence-transformers config: last-token pooling
@@ -293,7 +301,7 @@ def test_concurrent_episodes_build_a_shared_engine_once(monkeypatch):
     each build (load) it; the first builds, the others wait and reuse it."""
     import threading
     import time
-    from agent_search.agent import retriever as R
+    from agent_search.legacy import retriever as R
 
     calls = []
 
@@ -325,7 +333,7 @@ def test_get_document_cap_is_the_configured_visit_budget():
     import subprocess
     import sys
     code = (
-        "from agent_search.agent.tools.doc_dedup import DedupSearchWorkspace\n"
+        "from agent_search.legacy.workspaces.doc_dedup import DedupSearchWorkspace\n"
         "from agent_search.corpus.units import units_from_documents\n"
         "u = units_from_documents([{'_id': '1', 'title': 'T', 'text': ' '.join(f'w{i}' for i in range(400))}])\n"
         "ws = DedupSearchWorkspace(u, lambda q, k: ['1'])\n"

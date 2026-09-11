@@ -1,10 +1,9 @@
-"""`get_document`: open one document by its DocID (ITER's search strategy's second tool).
+"""`get_document`: open one document by its DocID (the second tool in ITER's dedup strategies).
 
-Ported from `agent_search.agent.tools.doc_dedup.DedupSearchWorkspace.get_document`. Accepts a
-bare doc_id, a ``DocID:<id>`` string (as rendered by `agent_search.tools.search_dedup`), or —
-when the id is purely numeric and not itself a doc_id — a 1-based rank into the last search's
-`state.last_hits`. The read is capped at `MAX_VISIT_TOKENS` (tokens, never characters). The
-document is added to `state.seen` and `state.reads`.
+Accepts a bare doc_id, a ``DocID:<id>`` string (as rendered by `agent_search.tools.search_dedup`),
+or, when the id is purely numeric and not itself a doc_id, a 1-based rank into the last
+search's `state.last_hits`. The read is capped at `MAX_VISIT_TOKENS` (tokens, never
+characters). The document is added to `state.seen` and `state.reads`.
 """
 from __future__ import annotations
 

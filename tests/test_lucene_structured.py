@@ -1,20 +1,20 @@
 """Semantics validation for the `lucene` structured backend
-(`agent_search/retrievers/lucene/`) against BOTH pure-Python reference
-engines (`indri`, `bql`) it compiles for -- see that package's `__init__.py`.
+(`agent_search/retrievers/lucene/`) against both pure-Python reference
+engines (`indri`, `bql`) it compiles for; see that package's `__init__.py`.
 
 Per the task's validation contract (documented, not exact-ranking equality):
   1. Pure-boolean/filter queries (analyzer-light: `#band`, `#filreq`/`#filrej`,
-     date ranges, `AND`/`OR`/`NOT`) must return the SAME MATCH SET as the Python
+     date ranges, `AND`/`OR`/`NOT`) must return the same match set as the Python
      reference.
-  2. Graded queries (`#combine`/`#weight`/BM25 ranking) must be DIRECTIONALLY
-     consistent -- a rank correlation threshold, not exact score/order equality
-     (the Lucene compiler documents real approximations: SUM-of-scores vs
-     weighted-MEAN-of-log-beliefs; see `indri_compiler.py`'s module docstring).
-  3. Span/date/field ops are checked on hand-built docs with KNOWN answers.
+  2. Graded queries (`#combine`/`#weight`/BM25 ranking) must be directionally
+     consistent: a rank correlation threshold, not exact score/order equality
+     (the Lucene compiler documents real approximations, sum-of-scores vs
+     weighted-mean-of-log-beliefs; see `indri_compiler.py`'s module docstring).
+  3. Span/date/field ops are checked on hand-built docs with known answers.
 
-Requires a real JVM (pyserini/pyjnius) -- module-scoped fixtures build one small
-Lucene index and reuse it for every test in this file (JVM boot + a ~30-doc index
-build is the expensive part, not the per-test queries).
+Requires a real JVM (pyserini/pyjnius). Module-scoped fixtures build one small
+Lucene index and reuse it for every test in this file; JVM boot plus a ~30-doc index
+build is the expensive part, not the per-test queries.
 """
 from __future__ import annotations
 
@@ -481,7 +481,7 @@ def test_is_built_rejects_stale_doc_count_and_rebuilds(tmp_path):
     also cross-checks the index's own `numDocs()` (a cheap `DirectoryReader` open,
     no postings I/O -- see `_lucene_doc_count`) against the CURRENT corpus size when
     `build()` calls it, mirroring the doc-count congruence checks added to
-    `retrievers/dense/dense.py` and `retrievers/lexical/pyserini.py`."""
+    `retrievers/dense/base.py` and `retrievers/lexical/pyserini.py`."""
     idx_root = str(tmp_path)
     dataset = "congruence_test"
 
@@ -581,7 +581,7 @@ def test_isearch_tool_text_shows_zero_hits_and_warning_under_lucene_backend(luce
     """End-to-end through the agent-facing tool layer (doc_indri.IndriFetchWorkspace):
     the Lucene backend's 0-hit result must render a VISIBLE warning line, not just
     silently report "(0 hits)" indistinguishable from a normal empty-result query."""
-    from agent_search.agent.tools.doc_indri import IndriFetchWorkspace
+    from agent_search.legacy.workspaces.doc_indri import IndriFetchWorkspace
     adapter = LuceneIndriAdapter(lucene_eng)
     ws = IndriFetchWorkspace(units, executor=adapter, op_nudge=False)
     out = ws.run("isearch", {"query": "dog.bogusfield"})

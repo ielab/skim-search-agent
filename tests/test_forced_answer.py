@@ -1,7 +1,8 @@
-"""Unit tests for the shared prefill-elicitation mechanism (agent_search/agent/forced_answer.py) —
-extracted from scripts/force_answer_backfill.py so agent_search/agent/loop.py's inline elicitation
-and the offline backfill script share ONE implementation. No GPU/model/network needed; the client
-is a stub recording call kwargs (mirrors tests/test_force_answer_backfill.py's `_fake_client`).
+"""Unit tests for the shared prefill-elicitation mechanism (agent_search/agent/forced_answer.py),
+used by both agent_search/agent/loop.py's inline elicitation and the offline backfill script in
+scripts/force_answer_backfill.py so the two share one implementation. No GPU/model/network
+needed; the client is a stub recording call kwargs (same pattern as
+tests/test_force_answer_backfill.py's `_fake_client`).
 """
 from __future__ import annotations
 
@@ -138,7 +139,7 @@ def test_force_msg_is_a_tool_response_shaped_instruction():
 
 
 # --- usage accounting: the forcing call is the LARGEST prompt of an episode, must not be
-# missing from cost accounting (agent_search.models.backends' thread-local usage ledger) ---------
+# missing from cost accounting (agent_search.models' thread-local usage ledger) ---------
 
 def _fake_client_with_usage(text, prompt_tokens=11, completion_tokens=3):
     def create(**kwargs):
@@ -149,7 +150,7 @@ def _fake_client_with_usage(text, prompt_tokens=11, completion_tokens=3):
 
 
 def test_call_prefill_records_usage_on_shared_ledger():
-    from agent_search.models import backends as B
+    import agent_search.models as B
     B.reset_usage()
     client = _fake_client_with_usage("Paris", prompt_tokens=11, completion_tokens=3)
     call_prefill(client, "m", [{"role": "user", "content": "Q"}])
@@ -159,7 +160,7 @@ def test_call_prefill_records_usage_on_shared_ledger():
 
 
 def test_call_plain_ask_records_usage_on_shared_ledger():
-    from agent_search.models import backends as B
+    import agent_search.models as B
     B.reset_usage()
     client = _fake_client_with_usage("<answer>Paris</answer>", prompt_tokens=20, completion_tokens=5)
     call_plain_ask(client, "m", [{"role": "user", "content": "Q"}])

@@ -1,16 +1,18 @@
-"""Tests for the BQL v2 agent condition (`research_v2` — typed date[RANGE] ranges +
-constraint-coverage feedback) and the Indri graded query-language backend (`research_indri`).
+"""Tests for the BQL v2 toolset (typed date[RANGE] ranges plus constraint-coverage feedback,
+formerly the `research_v2` condition) and the Indri graded query-language backend (formerly
+`research_indri`). Both conditions were later pruned from conditions.yaml; the underlying
+toolsets and workspaces are still tested directly here.
 
 CPU-only; a small (~25-doc) synthetic corpus with dates/sections. The plain `research`
 condition/toolset/DocSearchFetch default behavior must match exactly regardless of these
-additions — several assertions below pin that explicitly.
+additions; several assertions below pin that explicitly.
 """
 from __future__ import annotations
 
 import pytest
 
-from agent_search.agent.tools.doc_indri import IndriFetchWorkspace
-from agent_search.agent.tools.doc_research import DocSearchFetch
+from agent_search.legacy.workspaces.doc_indri import IndriFetchWorkspace
+from agent_search.legacy.workspaces.sieve import DocSearchFetch
 from agent_search.corpus.units import CodeUnit
 
 

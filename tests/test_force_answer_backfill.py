@@ -34,7 +34,7 @@ FULL_OBSERVATION = "FULL UNCAPPED OBSERVATION " + ("x" * 700)   # > 600 chars, d
 def _synthetic_row(instance_id="inst_1", final_answer="", prompt_profile_path="research_dci"):
     """A minimal but schema-faithful row: trajectory[i]['observation'] deliberately holds a
     DIFFERENT (short) placeholder than observations[i], mirroring the real display-cap
-    (`agent_search/agent/retriever.py::_trajectory_meta` truncates trajectory[i]['observation']
+    (`agent_search/legacy/retriever.py::_trajectory_meta` truncates trajectory[i]['observation']
     to 600 chars) so a test can assert the reconstruction used the FULL field, never the capped one."""
     trajectory = [
         {"action": "bash", "args": {"command": "grep -ril foo ."}, "query": "",

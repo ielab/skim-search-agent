@@ -1,14 +1,13 @@
 """`isearch`: Indri graded query-language search over a structure table.
 
-Ported from `agent_search.agent.tools.doc_indri.IndriFetchWorkspace`/`IndriVisitWorkspace`,
-logic unchanged. isearch(query, k) scores documents by Dirichlet-smoothed belief (the manual,
-`indri_doc.md`, has the combination math) -- a query never hard-zeros -- and renders the same
-structure table `search_bql` renders (section names, infobox keys, no bodies), plus one line
-naming the weakest constraint for the top hit. An operator nudge (a hint toward
+isearch(query, k) scores documents by Dirichlet-smoothed belief (the manual, `indri_doc.md`,
+has the combination math); a query never hard-zeros. It renders the same structure table
+`search_bql` renders (section names, infobox keys, no bodies), plus one line naming the
+weakest constraint for the top hit. An operator nudge (a hint toward
 `#combine`/`.field`/`#date:between` syntax) is appended, capped, whenever the raw query used
-no operator at all; this arm has no earlier baseline whose behavior must stay put, so the
-nudge is on by default. Pairs with `fetch` (agent_search.tools.fetch) or `visit`
-(agent_search.tools.visit, alias `visit_v`) depending on the toolset a strategy assembles.
+no operator at all; the nudge is on by default. Pairs with `fetch`
+(agent_search.tools.fetch) or `visit` (agent_search.tools.visit, alias `visit_v`) depending on
+the toolset a strategy assembles.
 
 Options:
   snippets -- append a one-line best-matching excerpt per hit (`isearch_s`, `isearch_v`).
@@ -20,8 +19,8 @@ import re
 from agent_search.tools.base import Tool
 from agent_search.tools.common import _INTRO, _infobox, best_line, sections_from_body
 
-# a mechanical, CORPUS-FREE mid-episode nudge -- derived only from the agent's own raw query
-# text -- toward the `#combine`/`.field`/`#date:between` operator surface the manual teaches,
+# a mechanical, corpus-free mid-episode nudge, derived only from the agent's own raw query
+# text, toward the `#combine`/`.field`/`#date:between` operator surface the manual teaches,
 # for a query that used none of it.
 _HASH_OP_RE = re.compile(r"#")
 _FIELD_SUFFIX_RE = re.compile(r"\w\.[A-Za-z]+")
@@ -126,23 +125,23 @@ class SearchIndri(Tool):
         entry["infobox"] = _infobox(u) if u is not None else {}
         return secs
 
-    # -- isearch: Indri belief ranking -> STRUCTURE table (no bodies) --------------------
+    # -- isearch: Indri belief ranking -> structure table (no bodies) --------------------
 
     def _search_impl(self, query: str, k: int = 5) -> str:
         query = (query or "").strip()
         if not query:
             return "empty query"
         res = self.iex.search(query, k=k)
-        # an unrecognized `.field` name is a VALID Indri QL query that just restricts to a
-        # field with zero postings -- quietly returning fewer/zero hits, indistinguishable
-        # from a genuinely zero-hit query on a real field. `.warning` (populated identically
-        # by every backend via `unknown_query_fields`) makes that visible here, on every
-        # return path (error / 0-hit / hit-bearing) -- `getattr` guards a test double that
-        # predates this field.
+        # an unrecognized `.field` name is a valid Indri QL query that restricts to a field
+        # with zero postings, quietly returning fewer or zero hits, indistinguishable from a
+        # genuinely zero-hit query on a real field. `.warning` (populated identically by
+        # every backend via `unknown_query_fields`) makes that visible here, on every return
+        # path (error / 0-hit / hit-bearing); `getattr` guards a test double that does not set
+        # this field.
         warning = getattr(res, "warning", None)
         if res.error:
-            # the engine's structured parse/execution error IS the syntax feedback (names the
-            # unsupported/malformed op) -- surfaced verbatim, no re-wording.
+            # the engine's structured parse/execution error is the syntax feedback (names the
+            # unsupported/malformed op), surfaced verbatim, with no rewording.
             text = f"ERROR: {res.error}"
             return f"{text}\n{warning}" if warning else text
         state = self.state
@@ -170,7 +169,7 @@ class SearchIndri(Tool):
                     line += f"  » {snip}"
             lines.append(line)
         if res.diagnostics:
-            # the child contributing the LOWEST log-belief to the TOP hit -- the constraint
+            # the child contributing the lowest log-belief to the top hit: the constraint
             # the top-ranked doc satisfies least well (the manual coaches reading this).
             weakest_repr, weakest_logb = min(res.diagnostics, key=lambda d: d[1])
             lines.append(f"weakest constraint for top hit: {weakest_repr} (logb={weakest_logb:.2f})")

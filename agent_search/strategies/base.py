@@ -25,7 +25,7 @@ class Strategy:
     sdk: bool = True                       # may run through the Agents-SDK driver
     extra_engines: tuple = ()              # engines a procedure needs beyond its tools
     retriever: Optional[str] = None        # loop=False: the registered retriever that IS the strategy (a floor)
-    procedure: Optional[object] = None     # loop=False: a callable(question, engines, model) -> answer text (RAG)'
+    procedure: Optional[object] = None     # loop=False: a callable(question, engines, model) -> answer text (RAG)
 
     @property
     def engines(self) -> tuple:

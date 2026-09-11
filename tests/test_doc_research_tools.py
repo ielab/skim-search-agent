@@ -1,13 +1,14 @@
 """The deep-research doc ACI: DocSearchFetch (search -> fetch a section) + Bm25Visit baseline.
 
-search(query) returns ranked ARTICLES + their SECTION structure (NO bodies); fetch([rank,
-section]) pulls a named section (or infobox). Sections are derived LIVE from the body's `##`
-markers. The bm25 baseline is search + visit-the-whole-doc. Fetch references resolve by rank
-OR doc_id/title (integer doc_ids must NOT be mis-read as ranks)."""
+search(query) returns ranked articles and their section structure, no bodies; fetch([rank,
+section]) pulls a named section (or infobox). Sections are derived live from the body's `##`
+markers. The bm25 baseline is search plus visit-the-whole-doc. Fetch references resolve by
+rank or doc_id/title; an integer doc_id must not be mis-read as a rank."""
 import os
 
-from agent_search.agent.tools.doc_research import (Bm25Visit, DenseVisit, DocSearchFetch,
-                                                   sections_from_body)
+from agent_search.legacy.workspaces.search_visit import Bm25Visit, DenseVisit
+from agent_search.legacy.workspaces.sieve import DocSearchFetch
+from agent_search.legacy.workspaces.common import sections_from_body
 from agent_search.corpus.units import units_from_documents
 
 # a structured doc (## markers in the body) + a flat doc (no markers), one integer-id doc.
@@ -213,7 +214,7 @@ def test_max_section_tokens_env_resolution_fresh_process():
     import subprocess
     import sys as _sys
 
-    code = ("import agent_search.agent.tools.doc_research as m; "
+    code = ("import agent_search.legacy.workspaces.budgets as m; "
             "print(m.MAX_SECTION_TOKENS, m.MAX_VISIT_TOKENS)")
 
     def _run(env_overrides):
@@ -298,7 +299,8 @@ def test_serp_listing_default_five_and_env_ten_in_a_fresh_process():
     import sys as _sys
 
     code = (
-        "import agent_search.agent.tools.doc_research as m\n"
+        "import agent_search.legacy.workspaces.search_visit as m\n"
+        "import agent_search.legacy.workspaces.budgets as b\n"
         "from agent_search.corpus.units import units_from_documents\n"
         "docs = [{'_id': f'd{i:02d}', 'title': f'Common Topic {i}',\n"
         "         'text': f'common topic document number {i}'} for i in range(12)]\n"
@@ -309,7 +311,7 @@ def test_serp_listing_default_five_and_env_ten_in_a_fresh_process():
         "        ids = [u.doc_id for u in units]\n"
         "        return ids[: (k or len(ids))]\n"
         "d_out = m.DenseVisit(units, engine=Stub()).run('dense_search', {'query': 'common topic'})\n"
-        "print(m.BM25_VISIT_TOPK, m.DENSE_VISIT_TOPK,\n"
+        "print(b.BM25_VISIT_TOPK, b.DENSE_VISIT_TOPK,\n"
         "      len(bm_out.strip().splitlines()) - 1, len(d_out.strip().splitlines()) - 1)\n")
 
     def _run(env_overrides):
@@ -333,7 +335,7 @@ def test_serp_listing_default_five_and_env_ten_in_a_fresh_process():
 def test_bm25_serp_listing_ignores_a_hallucinated_k_arg():
     """tools.yaml's bm25_search schema exposes ONLY `query`; a hallucinated `k` in the model's
     tool-call args must NOT resize the SERP listing — depth is the env knob's alone."""
-    import agent_search.agent.tools.doc_research as m
+    import agent_search.legacy.workspaces.budgets as m
     bw = Bm25Visit(units_from_documents(SERP_DOCS))
     baseline = _listing_count(bw.run("bm25_search", {"query": "common topic"}))
     assert baseline == m.BM25_VISIT_TOPK          # the resolved knob (5 unless env-overridden)
@@ -344,7 +346,7 @@ def test_bm25_serp_listing_ignores_a_hallucinated_k_arg():
 def test_dense_serp_listing_ignores_a_hallucinated_k_arg():
     """The dense twin of the bm25 test above (dense_search's schema likewise exposes only
     `query`; DENSE_VISIT_TOPK alone sets the depth)."""
-    import agent_search.agent.tools.doc_research as m
+    import agent_search.legacy.workspaces.budgets as m
     units = units_from_documents(SERP_DOCS)
     dv = DenseVisit(units, engine=_StubDenseEngine([u.doc_id for u in units]))
     baseline = _listing_count(dv.run("dense_search", {"query": "common topic"}))

@@ -1,5 +1,5 @@
-"""Flat-vs-structured corpus FAIRNESS: a structured doc and its flat twin must give bm25/dense
-the SAME searchable input — they differ ONLY in the scopeable fields that BQL uses. This guards
+"""Flat-vs-structured corpus fairness: a structured doc and its flat twin must give bm25/dense
+the same searchable input; they differ only in the scopeable fields that BQL uses. This guards
 the headline control (the flat/structured pair isolates BQL's value, not a content difference)."""
 from agent_search.corpus.units import units_from_documents
 from agent_search.retrievers.bql.executor import StructuralExecutor

@@ -1,4 +1,8 @@
-"""The BQL sieve: field-tagged Boolean/date search over a structure table, plus fetch.
+"""Pre-0.3 BQL sieve: field-tagged Boolean/date search over a structure table, plus fetch.
+
+Kept so the parity tests can compare against it. The current equivalent is the `sieve` family
+of strategies in `agent_search/strategies/sieve.py`, built from the `search_bql` and `fetch`/
+`visit` tools in `agent_search/tools/`.
 
 `DocSearchFetch` is the paper's method: search(query, k) translates the field-tagged
 surface (term[field], AND/OR/NOT, (), wildcard*, "phrase") to BQL and returns a candidate
@@ -123,13 +127,13 @@ class DocSearchFetch(_SeenMixin):
         self.coverage = coverage
         # DEFAULT OFF: emit `_DATE_NUDGE_HINT` after a search whose raw query text carries a
         # bare temporal clue (see `_has_bare_temporal_clue`), capped at `_DATE_NUDGE_CAP` per
-        # episode/instance. Wired True only by callers that opt in (agent/retriever.py); the
+        # episode/instance. Wired True only by callers that opt in (legacy/retriever.py); the
         # plain `research` condition and Bm25FetchWorkspace leave it off.
         self.date_nudge = date_nudge
         self._date_nudge_emitted = 0
         # research_snip (DEFAULT OFF, `snippets=True`): `_render_hits` appends a one-line
         # best-matching excerpt (see `_best_line`) to every search hit. Callers other than the
-        # docsnip arm (agent/retriever.py) leave this off, so their listing carries no excerpt.
+        # docsnip arm (legacy/retriever.py) leave this off, so their listing carries no excerpt.
         self.snippets = snippets
 
     def _secs(self, doc_id: str) -> dict:
@@ -432,11 +436,11 @@ class DocSearchFetch(_SeenMixin):
             # "search_bqlds"/"fetch_bqlds" are research_bql_dense_snip's tool NAMES (mirroring
             # research_snip's search_s/fetch_s exactly — see BQL_DENSE / bql/dense_fuse.py):
             # SAME DocSearchFetch(snippets=True) workspace, the only difference is the
-            # DENSE-ATTACHED executor `agent/retriever.py`'s 'bqldensesnip' arm builds.
+            # DENSE-ATTACHED executor `legacy/retriever.py`'s 'bqldensesnip' arm builds.
             # "search_bqldf"/"fetch_bqldf" are research_bql_dense_fetch's tool NAMES (mirroring
             # the PLAIN `doc` arm's bare search/fetch exactly — see BQL_DENSE / bql/dense_fuse.py):
             # SAME DocSearchFetch() plain (snippets=False, the constructor default) workspace, the
-            # only difference is the DENSE-ATTACHED executor `agent/retriever.py`'s
+            # only difference is the DENSE-ATTACHED executor `legacy/retriever.py`'s
             # 'bqldensefetch' arm builds — this is research_bql_dense_snip minus the snippet.
             if name in ("search", "search_v2", "search_s", "search_bqlds", "search_bqldf"):
                 q = args.get("query") or args.get("q") or ""
@@ -489,7 +493,7 @@ class BqlVisitWorkspace(DocSearchFetch):
         super().__init__(units, executor=executor, ubyid=ubyid, coverage=True,
                          date_nudge=date_nudge, snippets=True)  # snippets ALWAYS on — not a caller knob
         # `tool_names` (DEFAULT None -> the class default above): the dense-attached sibling
-        # this class also backs (agent/retriever.py's 'bqldensevisit' arm, ranked by a
+        # this class also backs (legacy/retriever.py's 'bqldensevisit' arm, ranked by a
         # DENSE-ATTACHED `executor` — see BQL_DENSE / bql/dense_fuse.py) needs its OWN tool
         # NAMES (search_bqld/visit_bqld) so tools.yaml/sdk_driver.py can give it its own
         # <tools> listing entry, the SAME reason every other sibling condition in this module
@@ -564,7 +568,7 @@ class BqlVisitWorkspace(DocSearchFetch):
 class BqlDonlyVisitWorkspace(BqlVisitWorkspace):
     """The dense-only-ranked sibling of `BqlVisitWorkspace`'s dense-attached variant (the
     bqldensevisit arm) — SAME `BqlVisitWorkspace` behavior (with its own `tool_names`) except the
-    executor passed in by `agent/retriever.py`'s 'bqldonlyvisit' arm is a
+    executor passed in by `legacy/retriever.py`'s 'bqldonlyvisit' arm is a
     `DenseOnlyStructuralExecutor` (dense-ONLY candidate ordering) instead of a plain
     `StructuralExecutor` with a `DenseBelief` attached (RRF). `search_bqldo`/`visit_bqldo` are
     this arm's own tool names, translated to `search_bv`/`visit_bv` before delegating to the
@@ -579,7 +583,7 @@ class BqlDonlyVisitWorkspace(BqlVisitWorkspace):
 
 class DocSearchFetchDonlySnip(DocSearchFetch):
     """research_bql_donly_snip — the dense-only-ranked sibling of research_bql_dense_snip
-    (`DocSearchFetch(snippets=True)`) — except the executor passed in by `agent/retriever.py`'s
+    (`DocSearchFetch(snippets=True)`) — except the executor passed in by `legacy/retriever.py`'s
     'bqldonlysnip' arm is a `DenseOnlyStructuralExecutor` (dense-ONLY ordering WITHIN each
     coverage tier — the tier STRUCTURE itself, and the exact-hit filter, are untouched) instead
     of a plain `StructuralExecutor` with a `DenseBelief` attached (RRF-within-tier).

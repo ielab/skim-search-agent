@@ -1,4 +1,6 @@
-"""Environment-tunable size knobs for the doc-research tool families.
+"""Pre-0.3 environment-tunable size knobs for the doc-research tool families.
+
+Kept so the parity tests can compare against it. `agent_search/tools/budgets.py` replaces it.
 
 Every constant here is read from `os.environ` at import time, so a config file that sets
 the env var before import controls it. `agent_search/core/tokens.py` defines the token

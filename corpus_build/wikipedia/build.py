@@ -1,20 +1,20 @@
 #!/usr/bin/env python3
-"""Rebuild the multi-hop corpora (hotpotqa / 2wiki / musique — all Wikipedia, keyed by title)
+"""Rebuild the multi-hop corpora (hotpotqa / 2wiki / musique, all Wikipedia, keyed by title)
 from the full STRUCTURED article in `wikimedia/structured-wikipedia` (pre-parsed sections +
 infobox + abstract). The Wikipedia title IS the article identity, so a title match (after
-norm/strip normalization) is trusted as-is — no content check. A title with NO article
+norm/strip normalization) is trusted as-is, no content check. A title with NO article
 (renamed/deleted) is DROPPED; queries left with no gold are dropped too. The corpus is therefore
-a SUBSET of the original — fine, since we re-run retrieval on it.
+a SUBSET of the original, fine, since we re-run retrieval on it.
 
-Emits a PAIR over the SAME kept docs + SAME pruned queries/qrels:
+Emits a PAIR over the same kept docs + same pruned queries/qrels:
   data/<name>_structured/  corpus.jsonl = {_id, title, section, infobox, text}  (scopeable fields)
   data/<name>_flat/        corpus.jsonl = {_id, title, text}                    (same text, no fields)
 bm25/dense see identical content in both arms; only BQL's IN(section/infobox,·) field-scoping
-differs — so the pair isolates exactly the value of structure.
+differs, so the pair isolates exactly the value of structure.
 
   python build.py inspect                               # SEE the schema (first rows, INSTANT)
 
-  # FAST path — download the parquet ONCE, then scan all shards in parallel.
+  # fast path, download the parquet once, then scan all shards in parallel.
   # NB: the config `enwiki_namespace_0` is stored at `enwiki/data/*.parquet` in the repo:
   hf download wikimedia/structured-wikipedia --repo-type dataset \
       --include "enwiki/data/*.parquet" --local-dir ./sw
@@ -26,7 +26,7 @@ differs — so the pair isolates exactly the value of structure.
 
 DEPS (staging node): `datasets` (streaming) OR just `pyarrow` (+ `hf` CLI) for the --sw-path
 parallel scan; optional `duckdb huggingface_hub` for --engine duckdb. The --sw-path scan reuses
-the EXACT title matching, so the result is identical — just I/O-parallel from local disk.
+the exact title matching, so the result is identical, just I/O-parallel from local disk.
 Copy `data/*_flat/` and `data/*_structured/` to the GPU node afterwards.
 """
 from __future__ import annotations
@@ -43,7 +43,7 @@ from urllib.parse import unquote, urlparse
 
 def _tqdm(it, **kw):
     """tqdm if installed, else the bare iterable (builds run on a staging node where tqdm
-    may be absent — never hard-fail on a progress bar)."""
+    may be absent, never hard-fail on a progress bar)."""
     try:
         from tqdm import tqdm
         return tqdm(it, **kw)
@@ -62,7 +62,7 @@ def title_from_url(url: str) -> str:
 
 
 def norm_title(t: str) -> str:
-    """NFC + entity-unescape + underscores->spaces + casefold — so 'Sanaa', 'sanaa',
+    """NFC + entity-unescape + underscores->spaces + casefold, so 'Sanaa', 'sanaa',
     'San%C4%81' / '&amp;' variants collide correctly."""
     t = html.unescape(t or "")
     t = unicodedata.normalize("NFC", t)
@@ -83,7 +83,7 @@ def strip_key(t: str) -> str:
     return _STRIP_NONALNUM.sub("", "".join(c for c in n if not unicodedata.combining(c)))
 
 
-# ── DEFENSIVE structured-wikipedia parser (lose nothing; robust to schema variants) ──
+# ── defensive structured-wikipedia parser (lose nothing; robust to schema variants) ──
 # Real shape (per the dataset card + observed rows): sections are
 #   [{type:"section", name, has_parts:[{type:"paragraph", value}, {type:"list", has_parts:[
 #     {type:"list_item", value|has_parts}]}, {type:"image", caption}, {type:"table", ...},
@@ -180,7 +180,7 @@ def _section_text(parts) -> str:
 
 
 # structured-wikipedia labels the article LEAD as a section named "Abstract" (Wikipedia leads are
-# unnamed) AND repeats it in the separate `abstract` field. Emitting both duplicated the lead (once
+# unnamed) and repeats it in the separate `abstract` field. Emitting both duplicated the lead (once
 # as unheaded text, once under `## Abstract`). These names mean "the lead" -> treat as the (intro).
 _LEAD_NAMES = {"abstract", "introduction", "intro", "lead"}
 
@@ -188,7 +188,7 @@ _LEAD_NAMES = {"abstract", "introduction", "intro", "lead"}
 def extract_sections(sections_field, abstract: str = "") -> list:
     """structured-wikipedia `sections` -> a MATCHED, ordered [{heading, level, text}] list, with the
     article lead as a single heading-less (intro) part. Dedupes the lead: structured-wikipedia ships
-    the lead BOTH as an "Abstract" section and in the `abstract` field — we keep ONE (preferring the
+    the lead both as an "Abstract" section and in the `abstract` field, we keep one (preferring the
     fuller section), so no paragraph is emitted twice."""
     data = _loads(sections_field)
     out = []
@@ -203,7 +203,7 @@ def extract_sections(sections_field, abstract: str = "") -> list:
                 out.append({"heading": None, "level": 0, "text": render_part(p)})
     walk(data, 2)
 
-    # Resolve the lead ONCE. If the first section IS the lead (named "Abstract"/etc. or already
+    # Resolve the lead once. If the first section is the lead (named "Abstract"/etc. or already
     # unheaded), demote it to the heading-less (intro) and drop the redundant `abstract` field.
     # Otherwise (no lead section) fall back to the `abstract` field as the (intro).
     if out and (not out[0]["heading"] or out[0]["heading"].strip().lower() in _LEAD_NAMES):
@@ -274,8 +274,8 @@ def build_index_streaming(titles: set, config: str) -> dict:
 # --- parallel scan over a LOCALLY-DOWNLOADED copy of the parquet shards ------
 # Download once (`hf download wikimedia/structured-wikipedia --repo-type dataset
 # --include "<config>/*" --local-dir <dir>`), then scan all shards across CPU cores. The match
-# logic is byte-for-byte the streaming one (norm_title on name AND url-derived title), so the
-# result set is identical — just I/O-parallel from local disk instead of a serial network stream.
+# logic is byte-for-byte the streaming one (norm_title on name and url-derived title), so the
+# result set is identical, just I/O-parallel from local disk instead of a serial network stream.
 
 _WANT: set | None = None
 _WANT_STRIP: set | None = None
@@ -458,7 +458,7 @@ def cmd_inspect(a):
     """Dump a few RAW structured-wikipedia rows so we can verify the schema before trusting it.
 
     NOTE: this is a STREAMING dataset of 7.6M rows with no server-side index, so `--title X`
-    is a LINEAR scan until X is found — it can read many shards (minutes) and shows a progress
+    is a LINEAR scan until X is found, it can read many shards (minutes) and shows a progress
     bar so you know it's alive. To just eyeball the schema, run WITHOUT --title: the first rows
     arrive immediately."""
     from datasets import load_dataset
@@ -534,8 +534,8 @@ def cmd_build(a):
             is_gold = did in gold_ids
             n_gold += is_gold
             # match exactly first (so a true exact title can't lose to a strip-collision), then by
-            # the stronger strip key. The title IS the article identity (Wikipedia titles are
-            # unique), so a title match is trusted as-is — no containment check.
+            # the stronger strip key. The title is the article identity (Wikipedia titles are
+            # unique), so a title match is trusted as-is, no containment check.
             row = exact.get(norm_title(title))
             via_strip = False
             if row is None and strip:
@@ -548,8 +548,8 @@ def cmd_build(a):
             secs = extract_sections(row.get("sections"), row.get("abstract") or "")
             ib = parse_infobox(row.get("infoboxes"))
             body = build_body(secs, ib) or (d.get("text") or "")   # never emit an empty doc
-            # Sections ship as a MATCHED, ordered list of {heading, text} parts (each `##` section
-            # kept WITH its own body), so downstream `fetch` reads a real slice and IN(section,·)
+            # Sections ship as a matched, ordered list of {heading, text} parts (each `##` section
+            # kept with its own body), so downstream `fetch` reads a real slice and IN(section,·)
             # scopes to a named part instead of re-deriving from `##` markers. `section` (joined
             # headings) is kept for back-compat + a quick heading match; `text` is the full flattened
             # body used by bm25/dense and shared byte-identically with the flat twin.
@@ -557,8 +557,8 @@ def cmd_build(a):
                              for s in secs if (s["heading"] or s["text"])]
             section = " ".join(s["heading"] for s in secs if s["heading"])
             infobox = "\n".join(f"{k}: {v}" for k, v in ib.items())
-            # STRUCTURED exposes sections/infobox as scopeable FIELDS (BQL IN(section/infobox,·));
-            # FLAT aggregates the SAME content into one text blob (no fields). Same docs, same
+            # structured exposes sections/infobox as scopeable FIELDS (BQL IN(section/infobox,·));
+            # flat aggregates the same content into one text blob (no fields). Same docs, same
             # text -> bm25/dense identical across the pair; only BQL's field-scoping differs.
             cS.write(json.dumps({"_id": d["_id"], "title": title, "sections": sections_list,
                                  "section": section, "infobox": infobox, "text": body},
@@ -571,7 +571,7 @@ def cmd_build(a):
             n_gold_kept += is_gold
 
     # prune queries/qrels to the kept docs: drop gold pointing at removed docs, then drop any
-    # query left with no gold (single-gold queries whose gold vanished disappear). Write to BOTH.
+    # query left with no gold (single-gold queries whose gold vanished disappear). Write to both.
     queries = _read_queries(src)
     kept_q = [q for q in queries if (qrels.get(_qid(q), set()) & kept_ids)]
     for od in (out_struct, out_flat):
@@ -612,7 +612,7 @@ def cmd_build(a):
 # ── push a built pair to Hugging Face (one private repo per dataset) ──────────
 
 def _dataset_card(dataset: str, repo_id: str) -> str:
-    """A minimal dataset card (no `configs:` block — the HF viewer would choke on the nested
+    """A minimal dataset card (no `configs:` block, the HF viewer would choke on the nested
     `sections` field and the two-arm layout; the corpus is consumed by the harness, not the viewer)."""
     return f"""---
 license: cc-by-sa-4.0
@@ -651,11 +651,11 @@ cp -r data/_hf/{dataset}/flat       data/{dataset}_flat
 
 
 def cmd_push(a):
-    """Upload a built flat+structured PAIR to a Hugging Face dataset repo — one repo per dataset,
+    """Upload a built flat+structured PAIR to a Hugging Face dataset repo, one repo per dataset,
     mirroring `browsecomp-plus-structured`: `<namespace>/<dataset>-structured` with `structured/`
     and `flat/` subdirs (each `corpus.jsonl` + `queries.jsonl` + `qrels/test.tsv`). Sections are
     NATIVE to structured-wikipedia (deterministic, no paid batch), so there is no `sections.jsonl`
-    artifact (unlike browsecomp). Private by default — pass `--public` to override."""
+    artifact (unlike browsecomp). Private by default, pass `--public` to override."""
     from huggingface_hub import HfApi
     api = HfApi()
     arms = [("structured", os.path.join(a.data_dir, f"{a.dataset}_structured")),
@@ -711,22 +711,22 @@ def _self_test():
     assert "founded long ago" in h and "- first" in h and "nested" in h         # list + nested item
     assert "old map" in h and "Year | Pop" in h and "1990 | 100" in h           # image caption + table rows
     assert "city of Sheba" in secs[2]["text"]                                   # link-run paragraph
-    # the emitted `sections` list keeps each heading MATCHED to its own text (the abstract's
+    # the emitted `sections` list keeps each heading matched to its own text (the abstract's
     # heading-less lead -> "(intro)"), so downstream `fetch`/IN(section,·) address a real slice.
     sections_list = [{"heading": s["heading"] or "(intro)", "text": s["text"]}
                      for s in secs if (s["heading"] or s["text"])]
     assert [s["heading"] for s in sections_list] == ["(intro)", "History", "Antiquity"]
     assert sections_list[0]["text"] == "Sanaa is the capital." and "founded long ago" in sections_list[1]["text"]
-    # LEAD DEDUP: structured-wikipedia ships the lead BOTH as an "Abstract" section and in the
-    # `abstract` field — extract_sections must keep it ONCE (the fuller section, demoted to (intro)),
-    # never emit it twice (the bug that put the lead before AND under `## Abstract`).
+    # LEAD DEDUP: structured-wikipedia ships the lead both as an "Abstract" section and in the
+    # `abstract` field, extract_sections must keep it once (the fuller section, demoted to (intro)),
+    # never emit it twice (the bug that put the lead before and under `## Abstract`).
     dup = extract_sections(json.dumps([
         {"type": "section", "name": "Abstract", "has_parts": [{"type": "paragraph", "value": "The full lead paragraph."}]},
         {"type": "section", "name": "Plot", "has_parts": [{"type": "paragraph", "value": "Plot summary."}]}]),
         abstract="Short lead.")
     assert [s["heading"] for s in dup] == [None, "Plot"], [s["heading"] for s in dup]
     assert dup[0]["text"] == "The full lead paragraph."          # the SECTION lead kept, abstract field dropped
-    assert sum("lead" in s["text"].lower() for s in dup) == 1    # exactly once — no duplication
+    assert sum("lead" in s["text"].lower() for s in dup) == 1    # exactly once, no duplication
     ib = parse_infobox(json.dumps([{"type": "infobox", "has_parts": [
         {"type": "field", "name": "office", "value": "President"},
         {"type": "field", "name": "office", "value": "Senator"},                # repeat -> accumulate
@@ -790,8 +790,8 @@ def main():
 if __name__ == "__main__":
     _rc = main()
     # HF `datasets` streaming (pyarrow/native reader) can call std::terminate during normal
-    # interpreter teardown after we break out of the stream early ("Aborted (core dumped)" AFTER
-    # the output is printed). os._exit skips that faulty native cleanup — our files are already
+    # interpreter teardown after we break out of the stream early ("Aborted (core dumped)" after
+    # the output is printed). os._exit skips that faulty native cleanup, our files are already
     # closed (with-blocks) by the time main() returns, so nothing is lost.
     sys.stdout.flush()
     sys.stderr.flush()

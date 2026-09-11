@@ -30,8 +30,8 @@ class BM25:
         return self.index_tokenized({d: code_tokenize(t) for d, t in docs.items()})
 
     def index_tokenized(self, docs: Mapping[str, Sequence[str]]) -> "BM25":
-        """Index pre-tokenized docs (callers that already hold token lists —
-        e.g. the structural executor — skip re-tokenization)."""
+        """Index pre-tokenized docs (callers that already hold token lists,
+        e.g. the structural executor, skip re-tokenization)."""
         self._doc_ids, self._tfs, self._lens = [], [], []
         self._df = Counter()
         for doc_id, toks in docs.items():
@@ -57,10 +57,10 @@ class BM25:
         return score
 
     def score_terms(self, terms: Sequence[str]) -> list[tuple[str, float]]:
-        """Score EVERY indexed doc against `terms`, keeping zero scores.
+        """Score every indexed doc against `terms`, keeping zero scores.
 
         Set->ranking use: the docs are a Boolean candidate set, so membership is
-        already decided — a candidate whose own text shares no term with the
+        already decided; a candidate whose own text shares no term with the
         query (matched via file scope / qualname) must stay in the ranking, not
         vanish the way `search`'s score>0 filter would make it. Sorted by
         (-score, doc_id): deterministic."""
@@ -70,8 +70,8 @@ class BM25:
 
     def score_subset(self, terms: Sequence[str],
                      doc_ids: Sequence[str]) -> list[tuple[str, float]]:
-        """Score only `doc_ids` (a Boolean candidate set) against THIS index's
-        corpus statistics — the scorer is built once over the whole corpus and a
+        """Score only `doc_ids` (a Boolean candidate set) against this index's
+        corpus statistics: the scorer is built once over the whole corpus and a
         query just reads off the precomputed per-doc tf/len + corpus idf for its
         candidates, instead of rebuilding a fresh per-candidate-set index every
         call (which made a broad query over a large corpus re-tokenize hundreds of
@@ -89,7 +89,7 @@ class BM25:
         return math.log(1 + (self._n - df + 0.5) / (df + 0.5))
 
     def search_with_count(self, query: str, k: int = 100) -> tuple[list[tuple[str, float]], int]:
-        """Top-k plus the UNTRUNCATED number of matching (score>0) docs — so an
+        """Top-k plus the untruncated number of matching (score>0) docs, so an
         agent observation can report the true match count, consistent with the
         grep and BQL tools, instead of a k-capped one."""
         q_terms = code_tokenize(query)

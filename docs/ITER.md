@@ -121,7 +121,7 @@ job, express queue):
 | held-out training | 99 InfoSeek training trajectories (97 triples, answer labels), Qwen3-Embedding-0.6B, bf16, 3 epochs | loss decreases each epoch; the checkpoint serves in bfloat16 |
 | held-out eval, retriever | the trained checkpoint vs its base vs the released ITER-0.6B on 20 InfoSeek-Eval triples the training never saw | recall@1 0.45 / 0.30 / 0.45; recall@5 0.60 / 0.75 / 0.75; recall@10 0.70 / 0.85 / 0.85 |
 | held-out eval, agent | `dedup_dense` on the 20-question InfoSeek-Eval sample, Tongyi, 40 steps, the trained checkpoint vs its base | judged accuracy 65% (13/20) vs 60% (12/20); 25.7 vs 27.6 steps per question |
-| after the 0.3 restructure | the InfoSeek-Eval sample again with the released ITER-0.6B, its index rebuilt in bfloat16 | judged accuracy 50% (10/20), 25 steps per question; replaying the earlier run's 20 trajectories through the old and the new code gives identical observations on all 486 steps (`scripts/replay_check.py`), so the difference from the 70% above is the index precision and sampling |
+| after the 0.3 restructure | the InfoSeek-Eval sample again with the released ITER-0.6B, its index rebuilt in bfloat16, seed 42: the code before the restructure vs after, same setting | judged accuracy 65% (13/20) for both; a second run of the new code scored 50% (10/20) at the same seed (vLLM sampling is not bit-reproducible); replaying the earlier run's 20 trajectories through the old and the new code gives identical observations on all 486 steps |
 | one-shot RAG | `rag_bm25` on the same sample, Tongyi: BM25 top 5 in one prompt, one call | judged accuracy 70% (14/20), 3 empty answers |
 
 The sample numbers are smoke checks over 20 questions each, not paper results. The held-out

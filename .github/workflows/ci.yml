@@ -48,12 +48,12 @@ jobs:
           python -m venv /tmp/clean && /tmp/clean/bin/pip install -q dist/*.whl
           cd /tmp && /tmp/clean/bin/python - <<'EOF'
           import agent_search
-          from agent_search.prompts import load_condition
-          prof = load_condition("research_snip", "general")
-          assert prof.tool_names, prof
+          from agent_search.strategies import CONDITIONS
+          c = CONDITIONS["research_snip"]
+          assert c.render()
           from agent_search.retrievers.registry import available
           assert "agent_research_snip" in available()
-          print("installed package OK:", agent_search.__version__, len(prof.system), "chars of prompt")
+          print("installed package OK:", agent_search.__version__, len(c.render()), "chars of prompt")
           EOF
       - name: Console scripts
         run: /tmp/clean/bin/skimsearchagent --help | head -5

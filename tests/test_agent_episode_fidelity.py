@@ -1,11 +1,12 @@
-"""Tongyi-loop fidelity + episode semantics under the unified agent loop:
-quoted-call/STOP inside <think> must not preempt the real tool call; the LAST
-<tool_call> wins; <answer> is terminal; the accumulated ranking is recency-then-rank;
-each retrieval engine is built only when its tool is in the toolset.
+"""Tongyi-loop fidelity and episode semantics under the unified agent loop:
+a quoted call or STOP marker inside <think> must not preempt the real tool
+call; the last <tool_call> wins; <answer> is terminal; the accumulated ranking
+is recency-then-rank; each retrieval engine is built only when its tool is in
+the toolset.
 """
 from agent_search.agent.actions import parse_tool_call
 from agent_search.agent.loop import Task, _final_locations, run_episode
-from agent_search.agent.retriever import AgentRetriever
+from agent_search.legacy.retriever import AgentRetriever
 from agent_search.corpus.units import CodeUnit
 
 THINK_THEN_CALL = (
@@ -32,7 +33,7 @@ def test_answer_is_terminal_and_carries_the_answer():
 
 
 def test_episode_records_final_answer():
-    from agent_search.agent.tools.doc_research import DocSearchFetch
+    from agent_search.legacy.workspaces.sieve import DocSearchFetch
     ws = DocSearchFetch([])                     # doc arm: <answer> is the terminal
 
     class AnswerPolicy:

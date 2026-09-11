@@ -1,15 +1,16 @@
-"""KeywordPolicy — the no-model stub that drives ANY toolset (never a hardcoded condition
-name) so check_conditions.py / trace_agent_chat.py exercise a whole arm with no LLM.
+"""KeywordPolicy: the no-model stub that drives any toolset, never a hardcoded condition
+name, so check_conditions.py / trace_agent_chat.py exercise a whole arm with no LLM.
 
 Walks each arm's own script: search->fetch (the method), bm25_search->visit (retrieve-then-
-visit), grep->read (the code baseline), or bash->read (the DCI baseline) — then the arm's
+visit), grep->read (the code baseline), or bash->read (the DCI baseline), then the arm's
 terminal (<fix> for code, <answer> for docs)."""
 from agent_search.agent.loop import Task, run_episode
 from agent_search.agent.policies import KeywordPolicy
-from agent_search.agent.tools.code_fix import CodeFixWorkspace
-from agent_search.agent.tools.code_grep import GrepReadWorkspace
-from agent_search.agent.tools.doc_dci import DciWorkspace
-from agent_search.agent.tools.doc_research import Bm25Visit, DocSearchFetch
+from agent_search.legacy.workspaces.code_fix import CodeFixWorkspace
+from agent_search.legacy.workspaces.code_grep import GrepReadWorkspace
+from agent_search.legacy.workspaces.doc_dci import DciWorkspace
+from agent_search.legacy.workspaces.search_visit import Bm25Visit
+from agent_search.legacy.workspaces.sieve import DocSearchFetch
 from agent_search.corpus.units import units_from_documents, units_from_python_source
 
 SRC = (

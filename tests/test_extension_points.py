@@ -1,4 +1,4 @@
-"""End-to-end proof of the extension contract: a plugin adds a NEW tool, toolset, condition,
+"""End-to-end proof of the extension contract: a plugin adds a new tool, toolset, condition,
 and workspace without editing the library, and the result is a runnable strategy with the same
 run record as the built-ins."""
 import json
@@ -12,10 +12,10 @@ REPO = Path(__file__).resolve().parent.parent
 
 PLUGIN = textwrap.dedent('''
     """A minimal SkimSearchAgent plugin: one tool, one toolset, one condition, one workspace."""
-    from agent_search.agent.retriever import register_workspace
+    from agent_search.legacy.retriever import register_workspace
     from agent_search.core.seen import OrderedSeen
-    from agent_search.prompts.loader import register_tool, register_toolset
-    from agent_search.prompts.registry import register_condition
+    from agent_search.legacy.prompts.loader import register_tool, register_toolset
+    from agent_search.legacy.prompts.registry import register_condition
 
     register_tool("title_lookup",
                   description="Return every document whose title contains the given words.",
@@ -78,7 +78,7 @@ def test_plugin_registers_a_runnable_strategy(tmp_path, monkeypatch):
     importlib.reload(my_skim_plugin)
 
     from agent_search import research
-    from agent_search.prompts import load_condition
+    from agent_search.legacy.prompts import load_condition
     from agent_search.retrievers.registry import available
 
     assert "agent_plugin_title" in available()

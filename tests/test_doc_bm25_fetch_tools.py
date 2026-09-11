@@ -1,14 +1,15 @@
-"""The RETRIEVAL-BOUNDED structured-read ACI: Bm25FetchWorkspace (bm25 top-k retrieval, then
-fetch a named SECTION — DocSearchFetch's read side on Bm25Visit's retrieval).
+"""The retrieval-bounded structured-read ACI: Bm25FetchWorkspace (bm25 top-k retrieval, then
+fetch a named section, DocSearchFetch's read side on Bm25Visit's retrieval).
 
-It is DocSearchFetch's read (search LISTS structure — section names + infobox keys, NO bodies;
-fetch pulls one named section) on plain BM25 retrieval, so the ONLY difference from `research`
-is the retrieval stage, and the ONLY difference from `research_bm25` is the read. Retrieval is
-LIVE per bm25_search call (identical retrieval BEHAVIOR to Bm25Visit for the same queries — the
-one-shot-at-construction design was a bug that broke the controlled comparison); the section-fetch
-machinery is INHERITED from DocSearchFetch (not duplicated). Completes the controlled set with
-research_bm25 (whole-doc visit) and research_bm25_dci (bash/read shell) over identical bm25 retrieval."""
-from agent_search.agent.tools.doc_research import Bm25FetchWorkspace, Bm25Visit
+It is DocSearchFetch's read (search lists structure, section names and infobox keys, no
+bodies; fetch pulls one named section) on plain BM25 retrieval, so the only difference from
+`research` is the retrieval stage, and the only difference from `research_bm25` is the read.
+Retrieval is live per bm25_search call, with retrieval behavior identical to Bm25Visit for
+the same queries; the section-fetch machinery is inherited from DocSearchFetch, not
+duplicated. Completes the controlled set with research_bm25 (whole-doc visit) and
+research_bm25_dci (bash/read shell) over identical bm25 retrieval."""
+from agent_search.legacy.workspaces.search_fetch import Bm25FetchWorkspace
+from agent_search.legacy.workspaces.search_visit import Bm25Visit
 from agent_search.corpus.units import units_from_documents
 from agent_search.retrievers.lexical.bm25 import BM25Local
 

@@ -1,16 +1,16 @@
 """Offline wiring test for the real LLM backend (no GPU/model needed).
 
-An injected fake OpenAI-compatible client verifies the full chain:
-backend -> AgentPolicy -> run_episode -> located, exactly as it runs against a real
-vLLM server, without loading a model.
+An injected fake OpenAI-compatible client verifies the full chain: backend ->
+AgentPolicy -> run_episode -> the final answer, exactly as it runs against a
+real vLLM server, without loading a model.
 """
 import sys
 from types import ModuleType, SimpleNamespace
 
-from agent_search.models.backends import openai_compat_generate, vllm_generate
+from agent_search.models import openai_compat_generate, vllm_generate
 from agent_search.agent.loop import Task, run_episode
 from agent_search.agent.policies import AgentPolicy
-from agent_search.prompts import get_prompt_spec
+from agent_search.legacy.prompts import get_prompt_spec
 
 
 def _fake_client(responses):
@@ -97,7 +97,7 @@ def test_make_generate_routes_backbone_through_vllm_for_any_condition(monkeypatc
     condition's registry builder makes it, so the codefix_grep/research_dci baselines get the
     identical vLLM path as codefix/research, not a condition-specific branch. `vllm` isn't
     installed offline, so stub the module (same pattern as test_vllm_backend_sampling_params)."""
-    from agent_search.models import backends as B
+    import agent_search.models as B
 
     seen = {}
     fake_out = SimpleNamespace(
@@ -130,7 +130,7 @@ def test_make_generate_routes_backbone_through_vllm_for_any_condition(monkeypatc
 def test_research_dci_episode_drives_through_agentpolicy_and_run_episode():
     """The DCI baseline's full episode shape: bash -> read -> <answer>, through the SAME
     AgentPolicy/run_episode chain as the method (only the workspace + toolset differ)."""
-    from agent_search.agent.tools.doc_dci import DciWorkspace
+    from agent_search.legacy.workspaces.doc_dci import DciWorkspace
     from agent_search.corpus.units import units_from_documents
 
     docs = [{"_id": "d1", "title": "Doc One", "text": "The answer is forty-two."}]

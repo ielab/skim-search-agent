@@ -1,16 +1,16 @@
-"""LIVE-retrieval regression test for `Bm25DciWorkspace` (agent_search.agent.tools.doc_bm25_dci).
+"""Live-retrieval test for `Bm25DciWorkspace` (agent_search.legacy.workspaces.doc_bm25_dci).
 
-BUGFIX under test: `bm25_search` used to be a ONE-SHOT retrieval fixed at construction on the
-raw episode query — a tool call with a DIFFERENT query string just replayed that same fixed
-ranking, so a doc outside the construction-time top-k could never be surfaced no matter what
-the agent searched for. This starved the arm relative to its live-retrieval sibling
-(`Bm25Visit` in doc_research.py), which re-runs bm25 per call.
+`bm25_search` retrieves live on every call rather than replaying a ranking fixed at
+construction on the raw episode query: a tool call with a different query string must
+re-rank, so a doc outside the construction-time top-k can still surface. This matches its
+live-retrieval sibling `Bm25Visit`, which re-runs bm25 per call.
 
-This file builds a small multi-topic corpus where the construction-time query and a LATER
+This file builds a small multi-topic corpus where the construction-time query and a later
 in-episode query are deliberately disjoint (near-zero term overlap), so a doc that could only
-ever be found by the later query is a direct probe of "does re-searching change the ranking."
+ever be found by the later query is a direct probe of whether re-searching changes the
+ranking.
 """
-from agent_search.agent.tools.doc_bm25_dci import Bm25DciWorkspace
+from agent_search.legacy.workspaces.doc_bm25_dci import Bm25DciWorkspace
 from agent_search.corpus.units import units_from_documents
 from agent_search.retrievers.lexical.bm25 import BM25Local
 

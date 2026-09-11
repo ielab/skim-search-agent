@@ -1,9 +1,8 @@
-"""Offline tests for scripts/compare_cells.py's `metrics()` — specifically that its `empty`
-computation is the SAME predicate `scripts/force_answer_backfill.py` selects rows for recovery
-on (`needs_recovery`), not a re-implemented inline check. This is the fix for the asymmetry bug:
-force_answer_backfill used to select empty-only rows for recovery while compare_cells counted
-placeholder answers ("...", ".", "..") as empty too, so placeholder rows in some cells were never
-backfilled even though they were already being counted (and penalized) as empty here.
+"""Offline tests for scripts/compare_cells.py's `metrics()`: specifically, that its `empty`
+computation is the same predicate `scripts/force_answer_backfill.py` selects rows for recovery
+on (`needs_recovery`), not a re-implemented inline check, so placeholder answers ("...", ".",
+"..") that compare_cells counts, and penalizes, as empty are exactly the rows
+force_answer_backfill picks up for recovery.
 """
 from scripts.compare_cells import metrics
 from scripts.force_answer_backfill import needs_recovery

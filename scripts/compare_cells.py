@@ -5,18 +5,18 @@
     python scripts/compare_cells.py --dataset browsecomp_plus_structured
     python scripts/compare_cells.py --out docs/comparison_$(date +%Y%m%d_%H%M).md
 
-Every run ALSO writes the full markdown output to comparison_result.md at the repo root
-(DEFAULT_OUT below — overwritten each run, regardless of --out; --out is an additional copy).
+Every run also writes the full markdown output to comparison_result.md at the repo root
+(DEFAULT_OUT below, overwritten each run regardless of --out; --out is an additional copy).
 The final stdout line names the file(s) written.
 
 Per cell: n, EM% (canonical answer_em), lenient contains-gold%, gold-surfaced-in-observations%,
-mean cumulative tokens, mean steps, empty% AFTER recovery overlay, recovered count; plus paired
-EM delta + exact McNemar p vs the same-dataset baseline on mutual instance ids.
-Recovery overlay via force_answer_backfill.load_rows_with_recovery (sidecar files, live-safe).
-`empty%` uses force_answer_backfill.needs_recovery (the SAME predicate the backfill script
-selects rows on: empty/whitespace-only OR a placeholder answer like "...") so this table's
-`empty` count and what force_answer_backfill.py actually recovers can never disagree.
-Registry below mirrors the current validation tier — edit REGISTRY when cells change.
+mean cumulative tokens, mean steps, empty% after the recovery overlay, recovered count, plus
+paired EM delta and exact McNemar p against the same-dataset baseline on mutual instance ids.
+The recovery overlay comes from force_answer_backfill.load_rows_with_recovery (sidecar files,
+live-safe). `empty%` uses force_answer_backfill.needs_recovery, the same predicate the backfill
+script selects rows on (empty, whitespace-only, or a placeholder answer such as "..."), so this
+table's `empty` count and what force_answer_backfill.py actually recovers never disagree.
+REGISTRY holds the current validation tier: edit it when cells change.
 """
 from __future__ import annotations
 
@@ -39,38 +39,38 @@ from scripts.force_answer_backfill import (  # noqa: E402
 MODEL_DIR = "Tongyi-DeepResearch-30B-A3B"
 _DOCID_RE = None
 
-# Every run ALWAYS writes the full markdown output (tables + Legend) here — repo root,
-# overwritten each run — regardless of --out (which remains an ADDITIONAL optional path).
+# Every run always writes the full markdown output (tables + Legend) here, repo root,
+# overwritten each run, regardless of --out (which remains an additional optional path).
 # A module-level constant (not inlined in main()) so tests can monkeypatch it to a tmp path
 # instead of touching the real repo-root file. Never under runs/ (repo convention).
 DEFAULT_OUT = Path(__file__).resolve().parent.parent / "comparison_result.md"
 
 # --- per-cell metrics cache: INCREMENTAL, append-aware -----------------------------------------
-# rows.jsonl is APPEND-ONLY with UNIQUE instance_ids (agent_search.evaluation.run_eval.evaluate / _load_rows:
+# rows.jsonl is APPEND-only with unique instance_ids (agent_search.evaluation.run_eval.evaluate / _load_rows:
 # each finished instance is appended once via `sink = open(rows_path, "a")`; a resumed run reads
-# `done` ids first and only appends NEW ones — earlier lines are never rewritten). ~20+ cells are
+# `done` ids first and only appends new ones, earlier lines are never rewritten). ~20+ cells are
 # being appended to continuously by live SLURM jobs, so the OLD cache (keyed on whole-file
 # mtime+size) missed on every run for those cells and paid a full reread + full gold_doc_recall
-# regex over the ENTIRE file (wiki cells now 5000-7000+ rows, some files ~1GB). Fix: split each
+# regex over the entire file (wiki cells now 5000-7000+ rows, some files ~1GB). Fix: split each
 # row's metrics into
 #   (a) ROW-INTRINSIC (expensive: the regex, tok, llm_calls, surfaced, raw final_answer/gold_answer
-#       string, instance_id) — depends ONLY on that row's bytes in rows.jsonl, which never change
+#       string, instance_id), depends only on that row's bytes in rows.jsonl, which never change
 #       once written. Cached INCREMENTALLY per cell as {instance_id -> intrinsic}, plus how many
 #       bytes of rows.jsonl have been processed so far.
-#   (b) OVERLAY-DEPENDENT (cheap: em/lenient/empty after the recovery overlay, judge verdict) —
+#   (b) OVERLAY-DEPENDENT (cheap: em/lenient/empty after the recovery overlay, judge verdict) , 
 #       depends on recovered_answers.jsonl / judge_cache.jsonl, which can change for
-#       already-written rows. Recomputed FRESH every run from the cached intrinsic dict, never
+#       already-written rows. Recomputed fresh every run from the cached intrinsic dict, never
 #       cached itself.
 # On each run: if rows.jsonl's byte size is unchanged since the cached payload, trust the cache
-# outright (no I/O on rows.jsonl at all — the "idle cell" fast path). If it GREW, confirm the
+# outright (no I/O on rows.jsonl at all, the "idle cell" fast path). If it grew, confirm the
 # growth is append-only (a hash of the first `n_bytes` cached bytes still matches what's on disk
-# now) before reading ONLY the new tail bytes/lines and merging their intrinsic metrics in; a
+# now) before reading only the new tail bytes/lines and merging their intrinsic metrics in; a
 # shrink or a prefix-hash mismatch (e.g. prune_rows.py / a surgical repair rewrote the file) falls
-# back to a full re-read from byte 0 — correctness first. Never written under runs/ (repo
+# back to a full re-read from byte 0, correctness first. Never written under runs/ (repo
 # convention: runs/ is data, not scratch). Cache key is just the cond_dir path (stable across
-# appends — the payload itself carries the byte-offset/hash provenance needed to validate a hit).
+# appends, the payload itself carries the byte-offset/hash provenance needed to validate a hit).
 CACHE_DIR = Path("analysis/.compare_cache")
-# Bumped whenever the SHAPE of a cached intrinsic entry changes (e.g. new precomputed fields) —
+# Bumped whenever the SHAPE of a cached intrinsic entry changes (e.g. new precomputed fields) , 
 # _read_cache rejects any payload whose version doesn't match as a plain miss (self-healing full
 # recompute for that cell), so an old-format cache file on disk can never cause a KeyError/crash
 # against code that expects the new shape.
@@ -87,7 +87,7 @@ def _cache_path(cond_dir: Path) -> Path:
 
 def _read_cache(cond_dir: Path):
     """The cached payload dict for cond_dir, or None on any miss (file absent, unreadable/corrupt
-    — e.g. a torn write — wrong-shape, or a stale cache file from a different `_CACHE_VERSION` —
+   , e.g. a torn write, wrong-shape, or a stale cache file from a different `_CACHE_VERSION` , 
     in which case callers silently fall back to a full recompute)."""
     cpath = _cache_path(cond_dir)
     if not cpath.exists():
@@ -104,7 +104,7 @@ def _read_cache(cond_dir: Path):
 
 def _write_cache(cond_dir: Path, payload: dict) -> None:
     """Best-effort: a failed cache write must never fail the run (e.g. a racing sibling process,
-    or a read-only analysis/ in some environment) — the data is only an optimization."""
+    or a read-only analysis/ in some environment), the data is only an optimization."""
     try:
         CACHE_DIR.mkdir(parents=True, exist_ok=True)
         cpath = _cache_path(cond_dir)
@@ -117,7 +117,7 @@ def _write_cache(cond_dir: Path, payload: dict) -> None:
 
 def _file_prefix_hash(path: Path, n: int) -> str:
     """sha1 of the first `n` bytes of `path` (n<=0 -> hash of the empty string). Cheap relative to
-    JSON-parsing + regexing the same bytes — this is what makes append-only validation affordable
+    JSON-parsing + regexing the same bytes, this is what makes append-only validation affordable
     even on the ~1GB rows.jsonl files this repo now has."""
     h = hashlib.sha1()
     if n > 0:
@@ -135,7 +135,7 @@ def _file_prefix_hash(path: Path, n: int) -> str:
 def _read_tail_lines(path: Path, start_byte: int):
     """Complete '\\n'-terminated lines from byte offset `start_byte` to EOF, plus the byte offset
     immediately after the last complete line consumed. A torn trailing line (a live job's
-    in-progress write) is left UNCONSUMED — the returned end offset stops before it, so it gets
+    in-progress write) is left unconsumed, the returned end offset stops before it, so it gets
     re-read whole once it's complete on a later call. Mirrors `load_rows_tolerant`'s / run_eval's
     `_load_rows`'s tolerance for a live-appending file (skip an unparsable/incomplete trailing
     line, never crash)."""
@@ -158,21 +158,21 @@ def _read_tail_lines(path: Path, start_byte: int):
 
 
 def _qid_of(iid: str, dataset: str) -> str:
-    """qids may themselves contain '__' (musique '2hop__X_Y') — strip the dataset prefix only."""
+    """qids may themselves contain '__' (musique '2hop__X_Y'), strip the dataset prefix only."""
     return iid.split(f"{dataset}__", 1)[-1] if dataset and iid.startswith(f"{dataset}__") \
         else iid.rsplit("__", 1)[-1]
 
 
 def _row_intrinsic(r: dict, gold_ids: set) -> dict:
-    """The part of a row's metrics that depends ONLY on that row's own bytes in rows.jsonl and
+    """The part of a row's metrics that depends only on that row's own bytes in rows.jsonl and
     never changes once the row is written: the gold_doc_recall regex, tok, llm_calls, surfaced,
-    the raw gold_answer/final_answer strings (final_answer here is PRE-recovery-overlay —
-    overlaying happens later in `_apply_overlay`), AND em_raw/lenient_raw/empty_raw — the
+    the raw gold_answer/final_answer strings (final_answer here is pre-recovery-overlay , 
+    overlaying happens later in `_apply_overlay`), and em_raw/lenient_raw/empty_raw, the
     em/lenient/empty a row would have IF NOT recovery-overlaid. These three are, strictly, a
     function of only ans_raw/gold (both already intrinsic), so they're safe to compute once here
     and cache forever too: `answer_em` (agent_search/evaluation/metrics.py, out of this script's scope to
-    change) normalizes both strings from scratch on every call — a real cost at 1000s of rows/cell
-    — so `_apply_overlay` reuses these precomputed values for the (vast majority) of rows the
+    change) normalizes both strings from scratch on every call, a real cost at 1000s of rows/cell
+   , so `_apply_overlay` reuses these precomputed values for the (vast majority) of rows the
     recovery overlay never touches, and only re-derives em/lenient/empty from scratch for the
     small subset that actually got a genuine recovered answer."""
     gold = str(r.get("gold_answer") or "")
@@ -188,8 +188,8 @@ def _row_intrinsic(r: dict, gold_ids: set) -> dict:
              else (r.get("initial_prompt_tokens") or 0)
                   + (r.get("context_once_tokens") or 0)
                   + (r.get("output_tokens") or r.get("completion_tokens") or 0)),
-        # count-once INPUT (what the model reads: initial prompt + each retrieved doc once) and
-        # OUTPUT (generated) — these two sum to `tok` (total_tokens_once). Split into columns.
+        # count-once input (what the model reads: initial prompt + each retrieved doc once) and
+        # output (generated), these two sum to `tok` (total_tokens_once). Split into columns.
         tok_in=(r.get("initial_prompt_tokens") or 0) + (r.get("context_once_tokens") or 0),
         tok_out=(r.get("output_tokens") or r.get("completion_tokens") or 0),
         llm_calls=r.get("llm_calls") or r.get("n_steps") or len(observations_of(r)),
@@ -221,15 +221,15 @@ def _load_recovered_map(cond_dir: Path) -> dict:
 def _apply_overlay(intrinsic: dict, cond_dir: Path) -> dict:
     """The OVERLAY-DEPENDENT half of metrics(): em/lenient/empty (after the recovery overlay) and
     the judge verdict, computed FRESH every call from the cached intrinsic dict plus a fresh read
-    of the (cheap) recovered_answers.jsonl / judge_cache.jsonl sidecars — so a judge/recovery pass
+    of the (cheap) recovered_answers.jsonl / judge_cache.jsonl sidecars, so a judge/recovery pass
     landing new results is picked up correctly without ever re-reading rows.jsonl. Produces
     exactly the same per-instance dict shape as `metrics()` below (and is provably equivalent to
-    it: `metrics()` is itself expressed in terms of `_row_intrinsic` — see below).
+    it: `metrics()` is itself expressed in terms of `_row_intrinsic`, see below).
 
     For the (vast majority of) rows the recovery overlay never touches, `ans == ans_raw`
     identically, so em/lenient/empty are read straight off `_row_intrinsic`'s precomputed
     em_raw/lenient_raw/empty_raw rather than re-normalizing the same strings through
-    `answer_em` again on every single run — that redundant renormalization (of every row, every
+    `answer_em` again on every single run, that redundant renormalization (of every row, every
     warm run) was the actual remaining hot path once rows.jsonl re-parsing was eliminated. Only
     the small subset of genuinely-recovered rows pay for a fresh `answer_em` call, on their (new,
     different) recovered answer."""
@@ -280,7 +280,7 @@ def gold_doc_recall(row, gold_ids: set) -> bool:
     """True if any gold corpus id appears in a RETRIEVAL context of the observations.
     String ids (wiki 'd_ed_wood'): word-bounded anywhere (zero false positives measured).
     Numeric ids (browsecomp): only in listing lines ('  1  25898  '), fetch echoes ('[25898 ยง'),
-    or dci file paths ('./25898.txt') — free-text numbers ('118 episodes') must not count
+    or dci file paths ('./25898.txt'), free-text numbers ('118 episodes') must not count
     (verified false positive browsecomp__991)."""
     if not gold_ids:
         return False
@@ -399,18 +399,18 @@ REGISTRY = [
 ]
 ONESHOT = [("one-shot bm25", "bm25"), ("one-shot dense", "dense")]  # browsecomp only
 
-# One line per DISTINCT cell label (order = first appearance in REGISTRY/ONESHOT), rendered as
+# One line per distinct cell label (order = first appearance in REGISTRY/ONESHOT), rendered as
 # the "## Legend" section after the tables. Wording is derived from the actual condition/toolset
 # code, not guessed: agent_search/strategies/paper.py (condition -> task x strategy
 # binding + tool descriptions), agent_search/tools/*/tool.py (the tools:
 # Bm25Visit/DenseVisit/HybridVisit/BqlVisitWorkspace/DocSearchFetch/...), agent_search/agent/
-# retriever.py (the env-knob retrofits — INDRI_DENSE=1 / BQL_DENSE=1 attach a DenseBelief onto
-# the SAME condition's executor; these knobs are set per RUN SUBDIR, not per condition name, which
+# retriever.py (the env-knob retrofits, INDRI_DENSE=1 / BQL_DENSE=1 attach a DenseBelief onto
+# the same condition's executor; these knobs are set per RUN SUBDIR, not per condition name, which
 # is why e.g. "indri visit" and "indri+dense visit" share the same REGISTRY `cond` string), and
-# agent_search/retrievers/indri/dense_belief.py (DENSE_MODEL env override for the
+# agent_search/retrievers/dense/belief.py (DENSE_MODEL env override for the
 # "qwen *" cells' embedder swap) / scripts/oneshot_rag.py (the one-shot baseline).
 # A drift guard (tests/test_compare_cells.py) asserts this list's labels exactly match the
-# distinct labels in REGISTRY + ONESHOT — keep both in sync when either changes.
+# distinct labels in REGISTRY + ONESHOT, keep both in sync when either changes.
 LEGEND_CELLS = [
     ("SERP bm25 [BASELINE]",
      "The reference condition every other cell is compared against. The agent searches with "
@@ -720,8 +720,8 @@ def load_judge_cache(cond_dir: Path) -> dict:
 def metrics(rows, qrels=None, dataset="", judge_cache=None):
     """Full from-scratch computation over an already-overlaid row list (as produced by
     `load_rows_with_recovery`: `final_answer` already replaced by any genuine recovery,
-    `recovered` already set). Expressed in terms of `_row_intrinsic`/`_qid_of` — the SAME building
-    blocks the incremental cache (`_compute_cell`/`_apply_overlay`) uses — so the two computation
+    `recovered` already set). Expressed in terms of `_row_intrinsic`/`_qid_of`, the same building
+    blocks the incremental cache (`_compute_cell`/`_apply_overlay`) uses, so the two computation
     paths can never silently drift apart; `ans_raw` from `_row_intrinsic` IS the (possibly already
     overlaid) `final_answer` on `r` here, since this function doesn't do its own overlaying."""
     from hashlib import sha1 as _sha1
@@ -760,7 +760,7 @@ def _compute_cell(cond_dir_str: str, dataset: str, qrels: dict, use_cache: bool)
     (reading only newly-appended bytes when the cache validates as still append-only; a full
     re-read from byte 0 otherwise), then apply the overlay-dependent fields fresh. Runs inside a
     ProcessPoolExecutor worker when dispatched from main() (the regex-heavy intrinsic pass is
-    CPU-bound, so threads wouldn't help under the GIL) — module-level and picklable-argument-only
+    CPU-bound, so threads wouldn't help under the GIL), module-level and picklable-argument-only
     (str/dict of str/bool) so it survives the fork/pickle boundary; also safe to call directly
     in-process (tests do this, and main()'s own "trusted unchanged" fast path does too).
     Returns (exists, metrics_dict): `exists` is whether rows.jsonl was present (registry cells
@@ -787,14 +787,14 @@ def _compute_cell(cond_dir_str: str, dataset: str, qrels: dict, use_cache: bool)
         if size_now == cached_n:
             # Unchanged byte size: nothing was appended, and this pipeline never rewrites
             # rows.jsonl in place at an identical byte length (prune/repair always change the
-            # row count, hence the length) — trust the cache without touching rows.jsonl at all.
+            # row count, hence the length), trust the cache without touching rows.jsonl at all.
             # This is the near-zero-cost path for a cell that is fully idle between two runs.
             start = cached_n
             intrinsic = dict(cached.get("intrinsic") or {})
             trusted_unchanged = True
         elif size_now > cached_n and _file_prefix_hash(rows_path, cached_n) == cached["prefix_hash"]:
             # Confirmed append-only growth: the bytes we already processed are still exactly the
-            # file's prefix, so only the NEW tail needs the expensive regex pass.
+            # file's prefix, so only the new tail needs the expensive regex pass.
             start = cached_n
             intrinsic = dict(cached.get("intrinsic") or {})
         # else: size shrank, or the prefix hash no longer matches (e.g. a prune/repair rewrote
@@ -852,11 +852,11 @@ def main():
             job_dirs[str(Path("runs/_oneshot") / ds / variant)] = ds
 
     # Split cells into three tiers so the common case (a fully idle cell between two runs) never
-    # pays subprocess/IPC overhead OR a redundant cache-file reparse:
+    # pays subprocess/IPC overhead or a redundant cache-file reparse:
     #   - rows.jsonl absent -> resolved trivially in-process, no work.
-    #   - cache present AND rows.jsonl's byte size is unchanged since it -> "trusted unchanged":
+    #   - cache present and rows.jsonl's byte size is unchanged since it -> "trusted unchanged":
     #     resolved in-process directly from the cache payload we already read here (only the cheap
-    #     overlay is recomputed) — never touches rows.jsonl, and never re-reads/re-parses the
+    #     overlay is recomputed), never touches rows.jsonl, and never re-reads/re-parses the
     #     cache file a second time the way calling _compute_cell again would.
     #   - anything else (cold, grown, or shrunk/rewritten) -> genuinely needs the regex-heavy
     #     intrinsic pass, dispatched to the ProcessPoolExecutor for CPU parallelism.
@@ -978,8 +978,8 @@ def main():
         lines.append(f"- **{col}**: {desc}")
     text = "\n".join(lines)
     print(text)
-    # ALWAYS write the canonical output file (repo root, overwritten each run) — --out is an
-    # ADDITIONAL optional path, not a replacement. The final stdout line names what was written.
+    # always write the canonical output file (repo root, overwritten each run), --out is an
+    # additional optional path, not a replacement. The final stdout line names what was written.
     rendered = f"# Cell comparison (auto-generated)\n{text}\n"
     written = [DEFAULT_OUT]
     DEFAULT_OUT.write_text(rendered)

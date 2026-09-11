@@ -1,7 +1,7 @@
-"""Index-free structural executor — THE METHOD.
+"""Index-free structural executor: the method.
 
 Evaluates a parsed BQL query directly against live code units (re-parsed from the
-current files each call), with NO persisted index and NO embeddings. This is the
+current files each call), with no persisted index and no embeddings. This is the
 "complex grep": Boolean logic + AST scope + recall expansion, run over live text.
 
 Semantics (reference implementation):
@@ -17,7 +17,7 @@ Semantics (reference implementation):
     co-occurrence (a conjunction has no single position); the type checker already
     rejects In/Near operands inside windows.
   - IN(def/call/comment/string/sig) use real AST scope:
-    IN(call,x) matches where x is called, IN(def,x) where it's defined, etc. — the
+    IN(call,x) matches where x is called, IN(def,x) where it's defined, etc.: the
     differentiator from plain grep. (ast-grep is the faster cross-language backend.)
   - EXPAND is a bounded prefix/identifier-variant match in the current executor.
 """
@@ -40,10 +40,10 @@ from agent_search.retrievers.bql.ast import (
 from agent_search.retrievers.bql.structure import region_token_bags
 from agent_search.retrievers.bql.dense_fuse import (
     fuse_coverage_tiers, fuse_ranked)
-# NEW, additive-only import (research_bql_donly_visit/research_bql_donly_snip — see
-# `DenseOnlyStructuralExecutor`/`load_or_build_dense_only` at the bottom of this file): a
-# SEPARATE import statement (not folded into the one above) so the existing import line above,
-# used by every pre-existing BQL_DENSE-consuming condition, is never touched.
+# Kept as a separate import statement (not folded into the one above) for the dense-only
+# executor (`DenseOnlyStructuralExecutor`/`load_or_build_dense_only` at the bottom of this
+# file, used by the `sieve_dense`/`sieve_visit_dense` strategies), so it is obvious this
+# import serves only that class.
 from agent_search.retrievers.bql.dense_fuse import (
     fuse_coverage_tiers_dense_only, fuse_ranked_dense_only)
 
@@ -59,19 +59,20 @@ _REGION_KEY = {
 # document field regions handled by _field_bags. AUTHOR/DATE/INFOBOX come from unit metadata.
 _FIELD_REGIONS = {Region.TITLE, Region.BODY, Region.SECTION, Region.DOC,
                   Region.AUTHOR, Region.DATE, Region.INFOBOX}
-# EVERY doc field is now narrowable. BODY/DOC use the combined corpus postings (body text
-# dominates that index, so it's already tight); the SPARSE fields below get their OWN inverted
-# index (token -> units where the token appears IN THAT FIELD), so IN(title/section/infobox/
-# author/date, x) narrows to the EXACT matching docs (or empty -> instant) instead of a full
-# O(N) scan that built every doc's field bags on the query clock. That scan was the 30s+/query
-# (infobox/author/date) tail; with fielded postings a field query is a dict lookup + set op.
+# Every doc field is narrowable. BODY/DOC use the combined corpus postings (body text
+# dominates that index, so it's already tight); the sparse fields below get their own inverted
+# index (token -> units where the token appears in that field), so IN(title/section/infobox/
+# author/date, x) narrows to the exact matching docs (or empty, instant) instead of a full
+# O(N) scan that would build every doc's field bags on the query clock: a 30s+/query
+# (infobox/author/date) tail without it. With fielded postings a field query is a dict lookup
+# plus a set operation.
 _PREFILTER_FIELDS = {Region.TITLE, Region.BODY, Region.SECTION, Region.DOC}
 _INDEXED_FIELDS = frozenset({Region.TITLE, Region.SECTION, Region.INFOBOX,
                              Region.AUTHOR, Region.DATE})
 
 # --- BQL v2 Feature 1: typed date-range queries (surface.py `date[RANGE]`) --------------
 #
-# The surface lowers `date[1980..1989]` to `IN(date, __daterange__1980-01-01__1989-12-31)` —
+# The surface lowers `date[1980..1989]` to `IN(date, __daterange__1980-01-01__1989-12-31)`,
 # an ordinary In(Region.DATE, Term) node whose term text carries a canonical range encoding,
 # rather than a new AST leaf (see surface.py's module docstring for why: it keeps the
 # parser/type-checker/_rank_leaves untouched and the string round-trips through bql_parse).
@@ -84,31 +85,32 @@ _ISO_DATE_PREFIX_RE = re.compile(r"^(\d{4})-(\d{2})-(\d{2})")
 #
 # Cap on the per-(doc, child) exact-_eval pool: for an AND whose children are all unnarrowable
 # (e.g. every clause a Prefix), the candidate union is the whole corpus, and testing N children
-# against N units is the same O(N) work run_with_count already pays — but coverage_topk pays it
-# even on a HIT-having query's near-miss, so cap it to the top BM25-scored slice like the spec's
-# "top ~2000 docs" guidance, not literal N.
+# against N units is the same O(N) work run_with_count already pays. coverage_topk pays it
+# even on a hit-having query's near-miss, though, so cap it to the top BM25-scored slice like
+# the spec's "top ~2000 docs" guidance, not literal N.
 _COVERAGE_POOL_CAP = 2000
 # Size of the 0-hit fallback pool (`soft_topk`): the lexically closest docs plus, when a dense
-# belief is attached, the dense side's nearest neighbours, before the arm's ranker orders them.
+# belief is attached, the dense side's nearest neighbours, before the condition's ranking
+# model orders them.
 _SOFT_POOL = int(os.environ.get("BQL_SOFT_POOL", "100"))
 
-# Above this corpus size, narrow the live scan with an inverted-index PREFILTER
+# Above this corpus size, narrow the live scan with an inverted-index prefilter
 # (filter-then-verify) instead of scanning every unit per query. Below it (the common
-# per-query code repo), keep the plain O(N) live scan unchanged. Override with
+# per-query code repo), keep the plain O(N) live scan. Override with
 # AGENT_SEARCH_BQL_PREFILTER_MIN; the prefilter is recall-safe, so results are
-# IDENTICAL either way — only the speed differs.
+# identical either way, only the speed differs.
 _PREFILTER_MIN_UNITS = int(os.environ.get("AGENT_SEARCH_BQL_PREFILTER_MIN", "5000"))
 
 # Persistent-index format version: bump if the pickled executor layout changes, so old
-# artifacts are ignored (a stale path just misses and rebuilds — never loads wrong data).
-_BQL_INDEX_VERSION = "v3"    # v3: slim pickle — persist only postings/field-postings/BM25;
+# artifacts are ignored (a stale path just misses and rebuilds; it never loads wrong data).
+_BQL_INDEX_VERSION = "v3"    # v3: slim pickle, persisting only postings/field-postings/BM25;
                              # units + per-unit token caches rebuild from the corpus on load
 
 
 def bql_index_path(index_root: str, key: str) -> str:
-    """Where a corpus's prebuilt BQL structural index lives — mirrors dense/pyserini
+    """Where a corpus's prebuilt BQL structural index lives: the same layout as dense/pyserini
     under `index_root`, keyed by corpus. The build step (build_indexes.py) writes here;
-    the agent's `load_or_build` reads here, so a corpus is prewarmed ONCE, offline."""
+    `load_or_build` reads here, so a corpus is prewarmed once, offline."""
     safe = re.sub(r"[^A-Za-z0-9_.@-]+", "__", key or "corpus")
     return os.path.join(index_root, "bql", f"{safe}-{_BQL_INDEX_VERSION}.pkl")
 
@@ -120,46 +122,46 @@ class StructuralExecutor:
         self.units = list(units)
         self._ubyid: dict[str, CodeUnit] = {u.doc_id: u for u in self.units}
         # Guards the O(N) lazy region-vocab build so N concurrent episodes (shared executor,
-        # workers>1) build it ONCE, not N times GIL-serialized — the browsecomp 6x-wedge fix.
+        # workers>1) build it once, not N times GIL-serialized.
         self._vocab_lock = threading.Lock()
         # per-unit token list/set + per-token line number (for line-distance NEAR)
         self._utoks: dict[str, list[str]] = {}
         self._uset: dict[str, set] = {}
         self._ulines: dict[str, list[int]] = {}
-        # AST region bags and field bags are built LAZILY per unit on the first
+        # AST region bags and field bags are built lazily per unit on the first
         # IN(...) query that needs them: an ast.parse per unit is the dominant
         # build cost, and many episodes never use structural scope at all.
         self._region: dict[str, dict] = {}
         self._fields: dict[str, dict[Region, list[str]]] = {}
-        # File-level token bags (NEAR/file, IN(file, ·)) are built LAZILY per path on first
+        # File-level token bags (NEAR/file, IN(file, ·)) are built lazily per path on first
         # use: most queries never use file scope, and for a large shared-document corpus
-        # (one unit per path) an eager concat is a full SECOND copy of every token — the
-        # dominant memory cost. Only the cheap path->doc_ids map is built up front.
+        # (one unit per path) an eager concat would be a full second copy of every token,
+        # the dominant memory cost. Only the cheap path->doc_ids map is built up front.
         self._ftoks: dict[str, list[str]] = {}            # lazy cache: path -> file tokens
         self._units_by_path: dict[str, list[str]] = {}    # path -> doc_ids (refs, cheap)
         self._bm: Optional[BM25] = None        # corpus-level rerank scorer, built once
         # token -> set of unit indices, built lazily for large corpora (the prefilter)
         self._postings: Optional[dict] = None
-        # per-FIELD inverted index: {Region -> {token -> set of unit indices}} for the sparse
+        # per-field inverted index: {Region -> {token -> set of unit indices}} for the sparse
         # doc fields (title/section/infobox/author/date), so IN(field, x) narrows exactly.
         self._field_postings: Optional[dict] = None
         self._prefilter_on = len(self.units) >= _PREFILTER_MIN_UNITS
-        # region -> union of that region's tokens across ALL units, built lazily on the
+        # region -> union of that region's tokens across all units, built lazily on the
         # first suggest() call (the grounding 'did you mean' vocabulary). Index-free: it
         # just aggregates the per-unit bags above, costs nothing unless suggest is called.
         self._region_vocab: Optional[dict] = None
         self._global_vocab: set = set()
         # Lazy per-corpus sorted (date, unit-index) index for date-range queries (BQL v2
-        # Feature 1): built on the FIRST date-range query, not here — most corpora/episodes
+        # Feature 1): built on the first date-range query, not here, since most corpora/episodes
         # never issue one. Guarded by its own lock, same double-checked pattern as _region_vocab.
         self._date_lock = threading.Lock()
         self._date_keys: Optional[list] = None
         self._date_units: Optional[list] = None
-        # dense-fused ranking (BQL_DENSE, DEFAULT OFF — see bql/dense_fuse.py): a
-        # structural.indri.dense_belief.DenseBelief, or None. NOT persisted (excluded from
-        # `_PERSIST`, same rationale as `units`/`dense` on IndriExecutor — see
-        # indri/model.py's own Deviations) — a pickle-loaded executor has `dense=None` until
-        # `attach_dense(...)` is called, mirroring `attach_units`.
+        # dense-fused ranking (BQL_DENSE, default off; see bql/dense_fuse.py): an
+        # agent_search.retrievers.dense.belief.DenseBelief, or None. Not persisted (excluded from
+        # `_PERSIST`, the same rationale as `units`/`dense` on IndriExecutor; see
+        # indri/model.py's own Deviations), so a pickle-loaded executor has `dense=None` until
+        # `attach_dense(...)` is called, the same as `attach_units`.
         self.dense = None
         for u in self.units:
             toks, lns = _tok_lines(u.qualname, u.code)
@@ -169,13 +171,14 @@ class StructuralExecutor:
             self._units_by_path.setdefault(u.path, []).append(u.doc_id)
 
     def _ensure_toks(self, doc_id: str) -> None:
-        """Lazily tokenize+cache ONE unit on first access. After a slim-pkl LOAD, attach_units
-        leaves _utoks/_uset/_ulines EMPTY: the persisted postings + BM25 already carry everything
-        a whole-corpus scan needs, so only the per-query `_eval` on the prefilter's CANDIDATE subset
-        actually touches per-unit tokens. Tokenizing just those candidates (sub-ms each) replaces the
-        ~7-min eager re-tokenize of all N units on load. Fresh builds populate eagerly in __init__,
-        so this is a no-op there. Assign _utoks LAST so `doc_id in self._utoks` signals all three
-        caches are ready to a concurrent reader (dict writes are atomic under the GIL)."""
+        """Lazily tokenize and cache one unit on first access. After a slim-pkl load, attach_units
+        leaves _utoks/_uset/_ulines empty: the persisted postings and BM25 already carry everything
+        a whole-corpus scan needs, so only the per-query `_eval` on the prefilter's candidate subset
+        actually touches per-unit tokens. Tokenizing just those candidates (sub-ms each) avoids an
+        eager re-tokenize of all N units on load, which would cost several minutes for a large
+        corpus. Fresh builds populate eagerly in __init__, so this is a no-op there. Assign _utoks
+        last so `doc_id in self._utoks` signals all three caches are ready to a concurrent reader
+        (dict writes are atomic under the GIL)."""
         if doc_id in self._utoks:
             return
         u = self._ubyid.get(doc_id)
@@ -188,9 +191,9 @@ class StructuralExecutor:
         self._utoks[doc_id] = toks
 
     def _file_toks(self, path: str) -> list:
-        """All tokens in a unit's FILE = path tokens + every sibling unit's tokens, built
-        once per path on first use and cached. Identical to the old eager build, only
-        deferred — so a corpus whose queries never use file scope never pays for it."""
+        """All tokens in a unit's file: path tokens plus every sibling unit's tokens, built
+        once per path on first use and cached lazily, so a corpus whose queries never use
+        file scope never pays for it."""
         toks = self._ftoks.get(path)
         if toks is None:
             toks = list(code_tokenize(path))
@@ -213,10 +216,10 @@ class StructuralExecutor:
         return bags
 
     def _field_bag(self, doc_id: str, region: Region) -> list:
-        """Tokens of ONE document field for `doc_id`, built lazily and cached per (doc, field).
-        `_eval` only ever needs the SINGLE field a leaf is scoped to, so we build just that field
-        — NOT all seven. The old all-fields build re-tokenized the FULL BODY on every infobox/
-        title/section check, so a query matching many docs re-tokenized hundreds of bodies (900ms+
+        """Tokens of one document field for `doc_id`, built lazily and cached per (doc, field).
+        `_eval` only ever needs the single field a leaf is scoped to, so this builds just that
+        field, not all seven: re-tokenizing the full body on every infobox/title/section check
+        would mean a query matching many docs re-tokenizes hundreds of bodies (900ms+
         single-thread, tens of seconds under 8-worker GIL contention). Per-field keeps it sub-ms."""
         cache = self._fields.get(doc_id)
         if cache is None:
@@ -244,8 +247,8 @@ class StructuralExecutor:
     # --- grounding: region-aware near-miss suggestions ----------------------
 
     def _build_region_vocab(self) -> dict:
-        """Union of each region's tokens across ALL units — the vocabulary a 'did you
-        mean' draws from, keyed by Region. Reuses the SAME per-unit bag builders as
+        """Union of each region's tokens across all units: the vocabulary a 'did you
+        mean' draws from, keyed by Region. Reuses the same per-unit bag builders as
         matching (_region_bags / _field_bags), so it's exact and adds no second index;
         built once and cached. Only called from suggest(), so a corpus that never asks
         for suggestions never pays for it.
@@ -272,7 +275,7 @@ class StructuralExecutor:
         """The token set a leaf is checked against: its IN(region) vocab, or the global
         union for a bare (unscoped) leaf."""
         if self._region_vocab is None:
-            # Build ONCE across concurrent episodes: without this lock N workers each rebuild the
+            # Build once across concurrent episodes: without this lock N workers each rebuild the
             # whole-corpus vocab (GIL-serialized -> N x the ~minutes cost on browsecomp's 67k docs).
             lock = getattr(self, "_vocab_lock", None) or threading.Lock()
             with lock:
@@ -285,12 +288,12 @@ class StructuralExecutor:
     def suggest(self, query: str) -> str:
         """Region-aware near-miss grounding for a (typically empty) BQL result.
 
-        Parses `query`, walks the AST, and for each leaf token that is ABSENT from its
+        Parses `query`, walks the AST, and for each leaf token that is absent from its
         target region's vocabulary emits a 'no `foo` in region `call`; did you mean: bar'
         hint (the region is whichever IN(...) the leaf sits under, else the global scope).
         Returns "" when the query doesn't parse, when every leaf token already exists (so
         the 0 result is real, not a typo), or when nothing close is found. Capped at the
-        first ~3 missing terms. Purely advisory: never raises — any failure yields ""."""
+        first ~3 missing terms. Purely advisory: never raises, any failure yields ""."""
         try:
             from agent_search.retrievers.bql.parser import parse
             r = parse(query)
@@ -316,7 +319,7 @@ class StructuralExecutor:
                     break
             return "; ".join(hints)
         except Exception:
-            return ""                             # advisory only — never break a query
+            return ""                             # advisory only, never break a query
 
     # --- public API ---------------------------------------------------------
 
@@ -327,8 +330,8 @@ class StructuralExecutor:
     # --- offline prebuild: pay the O(N) build once, off the clock -----------
 
     def prewarm(self) -> "StructuralExecutor":
-        """Build the O(N) LAZY structures NOW — the inverted postings (large corpus only)
-        and the corpus-level BM25 rerank scorer — so the FIRST search_bql call in an agent
+        """Build the lazy structures now: the inverted postings (large corpus only)
+        and the corpus-level BM25 rerank scorer, so the first search_bql call in an agent
         episode doesn't pay them on the clock. Idempotent (each build is cached)."""
         if self._prefilter_on:
             self._postings_index()
@@ -339,14 +342,14 @@ class StructuralExecutor:
     # --- slim pickling: persist only the index; rebuild per-unit caches on load ------
     # Measured on a 68k-doc corpus: postings 231MB + field_postings 4MB + BM25 770MB = ~1GB of
     # genuine index, but units + token caches (_utoks/_uset/_ulines) = ~8GB of data that rebuilds
-    # from the corpus in ~5s. So we pickle ONLY the index and re-attach units at load time.
+    # from the corpus in ~5s. So this pickles only the index and re-attaches units at load time.
     _PERSIST = ("_postings", "_field_postings", "_bm", "_prefilter_on")
 
     def __getstate__(self) -> dict:
         st = {k: getattr(self, k, None) for k in self._PERSIST}
         st["_doc_id_order"] = [u.doc_id for u in self.units]   # ~few MB; validates the re-attach
         # Content fingerprint (agent_search.corpus.fingerprint): same doc_ids in the same
-        # ORDER can still carry DIFFERENT text (a unit edited in place) -- the doc-id-order
+        # order can still carry different text (a unit edited in place); the doc-id-order
         # check above can't see that. attach_units re-derives this from the units it's given
         # and raises on a mismatch, exactly like the order check.
         st["_corpus_fingerprint"] = corpus_fingerprint(self.units)
@@ -365,15 +368,15 @@ class StructuralExecutor:
         self._date_lock = threading.Lock()     # not pickled; the date index rebuilds lazily too
         self._date_keys = None; self._date_units = None
         self._units_attached = False
-        self.dense = None                      # not persisted — see `attach_dense`
+        self.dense = None                      # not persisted; see `attach_dense`
 
     def attach_dense(self, dense) -> "StructuralExecutor":
-        """Attach (or detach, via `dense=None`) a `DenseBelief` post-construction — mirrors
-        `IndriExecutor.attach_dense` exactly (indri/model.py). `dense` is excluded from
+        """Attach (or detach, via `dense=None`) a `DenseBelief` post-construction, the same
+        pattern as `IndriExecutor.attach_dense` (indri/model.py). `dense` is excluded from
         `_PERSIST`, so a pickle-loaded executor needs this called again after `attach_units`.
         Purely a setter: `run_with_count`/`coverage_topk` check `self.dense is not None`
-        themselves, so a corpus that never attaches dense gets byte-identical pre-dense
-        behavior (see bql/dense_fuse.py's module docstring)."""
+        themselves, so a corpus that never attaches dense gets the same behavior as without
+        dense fusion (see bql/dense_fuse.py's module docstring)."""
         self.dense = dense
         return self
 
@@ -381,8 +384,8 @@ class StructuralExecutor:
         from agent_search.corpus.docstore import refuse_lazy
         refuse_lazy(units, "the BQL structural engine", "STRUCTURED_BACKEND=lucene with a prebuilt index")
         """Rebuild units + doc-id map + token caches from the corpus after a slim-pkl load. The
-        persisted postings reference unit INDICES, so `units` MUST be in the SAME order as at
-        build time — validated against the stored doc-id order; a mismatch (corpus changed)
+        persisted postings reference unit indices, so `units` must be in the same order as at
+        build time, validated against the stored doc-id order; a mismatch (corpus changed)
         raises so load_or_build falls back to a fresh build rather than returning wrong hits."""
         units = list(units)
         order = getattr(self, "_doc_id_order", None)
@@ -390,25 +393,25 @@ class StructuralExecutor:
             raise ValueError("units order != persisted index order (corpus changed) — rebuild")
         stored_fp = getattr(self, "_corpus_fingerprint", None)
         if stored_fp is not None and corpus_fingerprint(units) != stored_fp:
-            # Same doc_ids, same order, but DIFFERENT content (a unit edited in place) --
+            # Same doc_ids, same order, but different content (a unit edited in place):
             # the order check above can't see this; the content fingerprint can.
             raise ValueError("units content != persisted index fingerprint (corpus changed) — rebuild")
         self.units = units
         self._ubyid = {u.doc_id: u for u in units}
         self._utoks = {}; self._uset = {}; self._ulines = {}; self._units_by_path = {}
-        # Token caches stay EMPTY here — built LAZILY per candidate by _ensure_toks (the persisted
-        # postings + BM25 cover every whole-corpus need; only per-query _eval touches per-unit
-        # tokens). This replaces the ~7-min eager re-tokenize of all N units on load with sub-ms
-        # per-candidate cost. Only the cheap path->doc_ids grouping (no tokenization) is built now.
+        # Token caches stay empty here, built lazily per candidate by _ensure_toks (the persisted
+        # postings and BM25 cover every whole-corpus need; only per-query _eval touches per-unit
+        # tokens). This keeps load at sub-ms per candidate instead of eagerly re-tokenizing every
+        # unit. Only the cheap path->doc_ids grouping (no tokenization) is built now.
         for u in units:
             self._units_by_path.setdefault(u.path, []).append(u.doc_id)
         self._units_attached = True
         return self
 
     def save(self, path: str) -> str:
-        """Prewarm, then persist ONLY the index (postings + field postings + BM25); __getstate__
-        to `path`, written atomically. `load()` reads it back so the agent skips the build.
-        Sibling document corpora reuse ONE artifact (one corpus key)."""
+        """Prewarm, then persist only the index (postings, field postings, BM25) via
+        __getstate__ to `path`, written atomically. `load()` reads it back so a run skips the
+        build. Sibling document corpora reuse one artifact (one corpus key)."""
         self.prewarm()
         os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
         tmp = f"{path}.tmp.{os.getpid()}"
@@ -421,9 +424,9 @@ class StructuralExecutor:
     def load(path: str) -> "StructuralExecutor":
         """Load a prewarmed executor written by `save()` (a ready-to-query index).
 
-        GC is DISABLED across the unpickle: this index is a huge object graph (postings = tens of
+        GC is disabled across the unpickle: this index is a huge object graph (postings = tens of
         millions of int/set objects; ~34GB live). Python's cyclic GC fires every ~700 allocations
-        and each pass scans the ENTIRE live heap — so when the caller already holds a big corpus in
+        and each pass scans the entire live heap, so when the caller already holds a big corpus in
         memory (run_eval: 100k docs), GC-during-unpickle degrades to O(n^2) and a 44s load balloons
         to 10min+. Disabling GC for the load (re-enabled after) keeps it at the ~seconds it takes in
         isolation. No leak risk: pickle builds a tree here, not cycles that need collecting mid-load."""
@@ -438,37 +441,37 @@ class StructuralExecutor:
                 gc.enable()
 
     def _corpus_bm(self) -> BM25:
-        """BM25 over the WHOLE corpus, built once and reused across queries. The
-        index-free part is candidate SELECTION (the live Boolean scan below);
+        """BM25 over the whole corpus, built once and reused across queries. The
+        index-free part is candidate selection (the live Boolean scan below);
         ranking the survivors is a shared scoring layer, and its corpus
-        statistics don't change per query — so we pay the index build once, not
-        once per turn (a broad query over a large corpus used to re-tokenize
-        hundreds of big docs every call: the 300s+ per-query tail)."""
+        statistics don't change per query, so the index build is paid once, not
+        once per turn (a broad query over a large corpus would otherwise re-tokenize
+        hundreds of big docs every call: a 300s+ per-query tail)."""
         if self._bm is None:
-            for u in self.units:                 # only on a FRESH build (persisted on load); ensure
+            for u in self.units:                 # only on a fresh build (persisted on load); ensure
                 self._ensure_toks(u.doc_id)      # tokens exist even if reached via the lazy load path
             self._bm = BM25().index_tokenized(
                 {u.doc_id: self._utoks[u.doc_id] for u in self.units})
         return self._bm
 
     def _fuse_soft(self, terms, pool: list) -> list:
-        """Order a fallback pool with the SAME ranker the exact path uses when a dense belief is
+        """Order a fallback pool with the same ranker the exact path uses when a dense belief is
         attached (RRF of BM25 and dense here; dense-only in `DenseOnlyStructuralExecutor`)."""
         return fuse_ranked(self.dense, " ".join(terms), pool)
 
     def soft_topk(self, terms, k: int = 5) -> list:
         """The graceful-degradation fallback for a 0-hit Boolean query (exact AND is brittle
-        under paraphrase/obfuscation: the right doc is often CLOSE but not an exact conjunctive
+        under paraphrase/obfuscation: the right doc is often close but not an exact conjunctive
         match). Returns [(doc_id, score)] best-first.
 
-        INVARIANT — the fallback ranks with the SAME ranker, over the SAME index, as the exact
-        path: Boolean is for filtering only; ranking is the arm's model. Without a dense belief
-        that is the persisted corpus-level BM25 (`_corpus_bm`, the same scorer `run_with_count`
-        orders exact matches with). With a dense belief attached (the `sieve` family), the pool is
-        the union of the lexically closest `BQL_SOFT_POOL` docs and the dense side's own nearest
-        neighbours — read from the persisted embedding cache, never encoded online — ordered by
-        the arm's fusion rule (`_fuse_soft`). A fallback can therefore never rank by a model the
-        exact path does not use."""
+        Invariant: the fallback ranks with the same ranker, over the same index, as the exact
+        path. Boolean is for filtering only; ranking is the condition's model. Without a dense
+        belief that is the persisted corpus-level BM25 (`_corpus_bm`, the same scorer
+        `run_with_count` orders exact matches with). With a dense belief attached (the `sieve`
+        family), the pool is the union of the lexically closest `BQL_SOFT_POOL` docs and the
+        dense side's own nearest neighbours, read from the persisted embedding cache, never
+        encoded online, ordered by the fusion rule (`_fuse_soft`). A fallback can therefore
+        never rank by a model the exact path does not use."""
         terms = list(terms)
         pool_n = max(k, _SOFT_POOL)
         scored = self._corpus_bm().score_terms(terms)
@@ -476,7 +479,7 @@ class StructuralExecutor:
         if self.dense is not None:
             try:
                 dense_top = list(self.dense.top_k_doc_ids(" ".join(terms), k=pool_n) or [])
-            except Exception:  # noqa: BLE001 — a dense-side failure degrades to the BM25 pool
+            except Exception:  # noqa: BLE001, a dense-side failure degrades to the BM25 pool
                 dense_top = []
             have = {d for d, _ in pool}
             pool += [(d, 0.0) for d in dense_top if d not in have and d in self._ubyid]
@@ -485,25 +488,25 @@ class StructuralExecutor:
         return pool[:k]
 
     def coverage_topk(self, expr: Expr, k: int = 5) -> list:
-        """Constraint-COVERAGE ranking for a 0-hit AND (BQL v2 Feature 2): a hard 6-term
-        conjunction that matches NOTHING tells the agent nothing about which clause is the
+        """Constraint-coverage ranking for a 0-hit AND (BQL v2 Feature 2): a hard 6-term
+        conjunction that matches nothing tells the agent nothing about which clause is the
         problem. Rank the corpus by (# of the AND's children matched DESC, BM25 over the
         query's positive terms DESC) instead, so a doc satisfying 5 of 6 constraints outranks
-        one satisfying 2 — pinpointing which constraint to loosen/drop, vs. `soft_topk`'s
+        one satisfying 2, pinpointing which constraint to loosen or drop, versus `soft_topk`'s
         undifferentiated bag-of-terms relevance.
 
         Returns [(doc_id, matched_mask, n_matched, score)], mask aligned with the AND's
         children (True at index i iff unit._eval-matches children[i]; a Not(...) child counts
-        as matched when the negation holds — `_eval` already inverts it). A non-AND `expr`
-        (single constraint) has nothing to break down -> degrades to `soft_topk` with a
-        1-element mask (True) per hit, since the whole point is showing SOME relevance
+        as matched when the negation holds, since `_eval` already inverts it). A non-AND `expr`
+        (single constraint) has nothing to break down, so it degrades to `soft_topk` with a
+        1-element mask (True) per hit, since the whole point is showing some relevance
         ordering even where the exact clause doesn't literally match."""
         if not isinstance(expr, And):
             terms = _rank_leaves(expr)
             return [(d, (True,), 1, s) for d, s in self.soft_topk(terms, k=k)]
         children = list(expr.children)
-        # Recall-safe per-child candidate SUPERSETS (the same machinery run_with_count uses),
-        # unioned into a pool of "docs matching >=1 child" — narrower than the whole corpus
+        # Recall-safe per-child candidate supersets (the same machinery run_with_count uses),
+        # unioned into a pool of "docs matching >=1 child", narrower than the whole corpus
         # whenever at least one child is narrowable (an unnarrowable child, e.g. Prefix, or a
         # Not, safely widens the pool to everything rather than dropping a possible match).
         pool = _union(self._candidates(c) for c in children)
@@ -523,7 +526,7 @@ class StructuralExecutor:
             toks, tset = self._utoks[u.doc_id], self._uset[u.doc_id]
             mask = tuple(self._eval(c, toks, tset, u) for c in children)
             n = sum(mask)
-            if n:                                 # 0-matched docs are noise, not signal — drop
+            if n:                                 # 0-matched docs are noise, not signal: drop
                 rows.append((u.doc_id, mask, n))
         if not rows:
             return []
@@ -531,10 +534,10 @@ class StructuralExecutor:
         rows = [(d, mask, n, scores.get(d, 0.0)) for d, mask, n in rows]
         rows.sort(key=lambda r: (-r[2], -r[3], r[0]))        # coverage desc, then BM25, then id
         if self.dense is not None:
-            # BQL_DENSE dense-fused ranking: RRF bm25 x dense WITHIN each coverage tier only —
-            # a doc can never be promoted past a doc with MORE matched constraints (see
-            # bql/dense_fuse.py's "Coverage tiers" section). `terms` is the SAME positive leaf
-            # bag the BM25 side above just scored with — the dense query text mirrors it (no
+            # BQL_DENSE dense-fused ranking: RRF bm25 x dense within each coverage tier only,
+            # so a doc can never be promoted past a doc with more matched constraints (see
+            # bql/dense_fuse.py's "Coverage tiers" section). `terms` is the same positive leaf
+            # bag the BM25 side above just scored with; the dense query text mirrors it (no
             # raw surface query text is threaded this far; see run_with_count's own comment).
             rows = fuse_coverage_tiers(self.dense, " ".join(terms), rows)
         return rows[:k]
@@ -542,19 +545,19 @@ class StructuralExecutor:
     def run_with_count(self, expr: Expr, k: int = 100) -> tuple[list[tuple[str, float]], int]:
         """Return the top-k ranked hits plus the untruncated match count.
 
-        Boolean retrieval returns a SET; rank metrics need an order. The matched
+        Boolean retrieval returns a set; rank metrics need an order. The matched
         set is ordered by a BM25 scorer over the query's positive leaf terms
-        (GrepRAG-style rerank) — index-free SELECTION (the live scan), shared
-        SCORING. Uses corpus-level idf (built once, reused) rather than rebuilding
+        (GrepRAG-style rerank): index-free selection (the live scan), shared
+        scoring. Uses corpus-level idf (built once, reused) rather than rebuilding
         per-candidate-set stats each call; zero-score candidates (matched via file
         scope / qualname) stay ranked, after scored ones.
         """
         # Selection: scan the units and keep those that _eval-match. For a large
-        # corpus this is the inverted-index PREFILTER (a recall-safe candidate subset),
-        # so we _eval only candidates, not all N units (bql_spec.md §6, filter-then-
-        # verify). Small corpora (per-query code repos) scan everything — same result,
+        # corpus this is the inverted-index prefilter (a recall-safe candidate subset),
+        # so this only _evals candidates, not all N units (bql_spec.md §6, filter-then-
+        # verify). Small corpora (per-query code repos) scan everything: same result,
         # the index-free path. _eval is the exact arbiter either way, so the prefilter
-        # never changes WHICH units match, only how many we have to test.
+        # never changes which units match, only how many there are to test.
         leaves = _rank_leaves(expr)
         scan = self._candidate_units(expr)
         matched = []
@@ -566,14 +569,14 @@ class StructuralExecutor:
             return [], 0
         ranked = self._corpus_bm().score_subset(leaves, matched)
         if self.dense is not None:
-            # BQL_DENSE dense-fused ranking (DEFAULT OFF — see bql/dense_fuse.py): `matched` is
-            # the FULL exact-match filter-passing set (every doc here satisfied the WHOLE
-            # boolean/field/date filter — one coverage tier by construction), so this is a
+            # BQL_DENSE dense-fused ranking (default off; see bql/dense_fuse.py): `matched` is
+            # the full exact-match filter-passing set (every doc here satisfied the whole
+            # boolean/field/date filter, one coverage tier by construction), so this is a
             # single-tier RRF fuse of the bm25 ranking above with dense similarity restricted
-            # to THESE SAME doc_ids (never a global dense search — see dense_fuse.py's "Why
+            # to these same doc_ids (never a global dense search; see dense_fuse.py's "Why
             # dense scoring is restricted..." section: the filter's candidate set is the only
-            # thing that can ever appear in `ranked`, before OR after fusion). Dense query text
-            # mirrors `leaves` (the SAME positive terms the BM25 side just scored with) — no
+            # thing that can ever appear in `ranked`, before or after fusion). Dense query text
+            # mirrors `leaves` (the same positive terms the BM25 side just scored with); no
             # raw surface query string is threaded down to the executor.
             ranked = fuse_ranked(self.dense, " ".join(leaves), ranked)
         return ranked[:k], len(matched)
@@ -590,8 +593,8 @@ class StructuralExecutor:
                 self._ensure_toks(u.doc_id)      # fresh-build path has eager tokens; no-op there
                 toks = set(self._uset[u.doc_id])
                 toks.update(code_tokenize(u.path))    # the `section` field falls back to path
-                # Index the document FIELD bags too, so IN(title/body/section, x) can
-                # narrow safely even if a field carries a token NOT in qualname+code
+                # Index the document field bags too, so IN(title/body/section, x) can
+                # narrow safely even if a field carries a token not in qualname+code
                 # (units_from_documents folds fields into code, but a custom CodeUnit
                 # may not). DOC's bag is already _uset. _eval still verifies exactly.
                 for field in (u.title, u.section, u.body):
@@ -603,14 +606,15 @@ class StructuralExecutor:
         return self._postings
 
     def _field_postings_index(self) -> dict:
-        """{Region -> {token -> set of unit indices}} for the SPARSE doc fields
-        (_INDEXED_FIELDS). Built ONCE (offline in prewarm, persisted in the pkl). Tokenizes ONLY
-        those fields directly from each unit — using the SAME source resolution as `_field_bags`,
+        """{Region -> {token -> set of unit indices}} for the sparse doc fields
+        (_INDEXED_FIELDS). Built once (offline in prewarm, persisted in the pkl). Tokenizes only
+        those fields directly from each unit, using the same source resolution as `_field_bags`,
         so a candidate from the postings is guaranteed to match `_eval`'s field check (no recall
-        loss) — and NOT the big body/doc bags (those stay on the combined index). This is the O(N)
-        work that used to run per-query on every infobox/author/date scan, paid once here. At
-        query time IN(field, x) is a dict lookup + set intersection (sub-ms); a miss is empty
-        (instant) instead of a full O(N) scan that built every doc's field bags on the clock."""
+        loss), and not the big body/doc bags (those stay on the combined index). This pays the
+        O(N) cost that would otherwise run per query on every infobox/author/date scan once,
+        here. At query time IN(field, x) is a dict lookup plus a set intersection (sub-ms); a
+        miss is empty (instant) instead of a full O(N) scan that builds every doc's field bags
+        on the clock."""
         if self._field_postings is None:
             fp: dict = {f: {} for f in _INDEXED_FIELDS}
             for i, u in enumerate(self.units):
@@ -631,7 +635,7 @@ class StructuralExecutor:
 
     def _ensure_date_index(self) -> tuple:
         """Lazy per-corpus sorted (date-string, unit-index) index for date-range queries,
-        built on first use and cached — ~sub-second for 100k docs (one regex + one sort).
+        built on first use and cached: ~sub-second for 100k docs (one regex + one sort).
         Units with a missing/malformed date are excluded (they can never match a range).
         Rebuilds correctly after a slim-pkl load: it isn't persisted (not in `_PERSIST`), so
         it's just rebuilt from `self.units` here, same as the other lazy per-unit caches."""
@@ -649,15 +653,15 @@ class StructuralExecutor:
         return self._date_keys, self._date_units
 
     def _date_range_indices(self, lo: Optional[str], hi: Optional[str]) -> set:
-        """EXACT unit-index set matching `[lo, hi]` (either bound may be open), via binary
-        search over the lazy sorted date index — the range narrows instead of scanning."""
+        """Exact unit-index set matching `[lo, hi]` (either bound may be open), via binary
+        search over the lazy sorted date index: the range narrows instead of scanning."""
         keys, units_idx = self._ensure_date_index()
         lo_pos = bisect.bisect_left(keys, lo) if lo is not None else 0
         hi_pos = bisect.bisect_right(keys, hi) if hi is not None else len(keys)
         return set(units_idx[lo_pos:hi_pos]) if hi_pos > lo_pos else set()
 
     def _candidate_units(self, expr: Expr) -> list:
-        """The units _eval must test: a recall-safe candidate SUBSET from the inverted
+        """The units _eval must test: a recall-safe candidate subset from the inverted
         index for a large corpus, else all units (the plain live scan)."""
         if not self._prefilter_on:
             return self.units
@@ -665,16 +669,16 @@ class StructuralExecutor:
         return self.units if cand is None else [self.units[i] for i in cand]
 
     def _candidates(self, expr: Expr, field: Optional[Region] = None) -> Optional[set]:
-        """Recall-safe SUPERSET of unit indices that COULD match `expr`, from the inverted
-        index. ``None`` means "can't narrow — treat as the whole corpus". `field` threads the
+        """Recall-safe superset of unit indices that could match `expr`, from the inverted
+        index. ``None`` means "can't narrow, treat as the whole corpus". `field` threads the
         enclosing ``IN(field, ...)`` scope down to the leaf terms, so a term resolves against
-        THAT field's own postings (title/section/infobox/author/date) instead of the corpus-wide
-        postings — turning an infobox/author/date query from a full O(N) scan into an exact
+        that field's own postings (title/section/infobox/author/date) instead of the corpus-wide
+        postings, turning an infobox/author/date query from a full O(N) scan into an exact
         postings lookup (empty -> instant). Looser than ``_eval`` (ignores token position and
         negation), so every true match is in the returned set; ``_eval`` verifies exactly."""
-        # postings source for a leaf under the current field scope: the field's OWN inverted
+        # postings source for a leaf under the current field scope: the field's own inverted
         # index when it's one of the sparse indexed fields, else the combined corpus postings
-        # (BODY/DOC/unscoped — the combined index already covers the doc's full text tightly).
+        # (BODY/DOC/unscoped: the combined index already covers the doc's full text tightly).
         post = (self._field_postings_index()[field] if field in _INDEXED_FIELDS
                 else self._postings_index())
         if isinstance(expr, Term):
@@ -696,27 +700,26 @@ class StructuralExecutor:
             return _isect((self._candidates(expr.left, field), self._candidates(expr.right, field)))
         if isinstance(expr, In):
             # typed date-range leaf (BQL v2 Feature 1): resolve via the lazy sorted date index
-            # (binary search -> the EXACT match set) instead of the generic field-token postings
-            # path below — the range's encoded term text (e.g. "__daterange__1980-01-01__...")
+            # (binary search, the exact match set) instead of the generic field-token postings
+            # path below. The range's encoded term text (e.g. "__daterange__1980-01-01__...")
             # tokenizes into sub-tokens (year/month/day) whose AND-intersection would almost
             # never hold for a real single-date field, silently narrowing to empty.
             if expr.region == Region.DATE and isinstance(expr.child, Term):
                 rng = _parse_daterange_term(expr.child.text)
                 if rng is not None:
                     return self._date_range_indices(*rng)
-            # narrow via the field's inverted index for ANY doc field (incl. infobox/author/date).
+            # narrow via the field's inverted index for any doc field (incl. infobox/author/date).
             if expr.region in _FIELD_REGIONS:
                 return self._candidates(expr.child, field=expr.region)
-            # FILE (term may sit in a SIBLING unit) and the CODE AST regions (def/call/sig — lazy
+            # FILE (term may sit in a sibling unit) and the code AST regions (def/call/sig: lazy
             # ast.parse bags; `sig` holds ast.unparse-normalized tokens absent from source) can't
-            # be narrowed from token postings -> None (scan; small per-repo code corpora).
+            # be narrowed from token postings, so this returns None (scan; small per-repo code
+            # corpora).
             if expr.region == Region.FILE or expr.region in _REGION_KEY:
                 return None
             # No other case exists: `_FIELD_REGIONS` (7) + `_REGION_KEY` (5) + FILE (1) is
-            # every member of the 13-value `Region` enum, with no overlap -- so this `In`
-            # branch is exhaustive and always returns above. (Verified: a prior
-            # "any other doc-ish region" fallback here was provably unreachable and has
-            # been removed.)
+            # every member of the 13-value `Region` enum, with no overlap, so this `In`
+            # branch is exhaustive and always returns above.
         return None
 
     # --- evaluation ---------------------------------------------------------
@@ -826,13 +829,13 @@ def _unit_date(u: CodeUnit) -> Optional[str]:
 
 def _isect(sets) -> Optional[set]:
     """Intersection for the prefilter, where None means 'the whole corpus' (no
-    constraint, skipped). Returns None only if EVERY input was None. An empty set is a
+    constraint, skipped). Returns None only if every input was None. An empty set is a
     real constraint (a required token that no unit has) -> empty result.
 
-    SMALLEST-FIRST: sort the postings by size and intersect from the smallest, so a
-    rare term (tiny set) drives the work and we never copy/iterate a huge common
-    postings list (the standard inverted-index intersection order). The returned set is
-    always a FRESH copy the caller owns -- never a live reference into the postings index
+    Smallest-first: sort the postings by size and intersect from the smallest, so a
+    rare term (tiny set) drives the work and a huge common postings list is never
+    copied or iterated (the standard inverted-index intersection order). The returned set is
+    always a fresh copy the caller owns, never a live reference into the postings index
     (with only one input, `&` never runs, so this must copy explicitly or a caller
     mutating the result would corrupt the shared postings set)."""
     present = [s for s in sets if s is not None]
@@ -900,8 +903,8 @@ def _phrase_in(terms: list, toks: list) -> bool:
 
 
 def _seq_positions(seq: list, toks: list) -> Optional[list]:
-    """All indices COVERED by contiguous occurrences of `seq` in `toks` —
-    window distance then measures to the nearest part of the match, not just
+    """All indices covered by contiguous occurrences of `seq` in `toks`: window
+    distance then measures to the nearest part of the match, not just
     its first token."""
     n = len(seq)
     if n == 0:
@@ -929,7 +932,7 @@ def _positions(expr: Expr, toks: list) -> Optional[list]:
             p = _positions(c, toks)
             if p is None:
                 # a child with no occurrences contributes nothing; a child that
-                # is structurally unpositionable forces the fallback — telling
+                # is structurally unpositionable forces the fallback. Telling
                 # those apart needs the child's own match test, so be exact:
                 if isinstance(c, (Term, Phrase, Prefix, Expand)):
                     continue            # positionable kind, just absent here
@@ -964,14 +967,14 @@ def _int_suffix(spec: str, default: int = 5) -> int:
 
 
 def _suggest_leaves(expr: Expr, region: Optional[Region]) -> list:
-    """Collect (token, target_region) pairs for grounding: EVERY constituent token of each
+    """Collect (token, target_region) pairs for grounding: every constituent token of each
     leaf, tagged with the region it must exist in. A leaf under IN(R, ...) targets R; a bare
-    leaf targets None (the global scope). NOT subtrees are skipped — an absent excluded token
-    is not a typo to suggest.
+    leaf targets None (the global scope). NOT subtrees are skipped, since an absent excluded
+    token is not a typo to suggest.
 
     Checking every token (not just the head) is what catches the common compound miss: the
-    agent guesses `polygon_to_masks` but the symbol is `polygon_to_mask` — head `polygon`
-    exists, so only the trailing `masks`->`mask` reveals the typo. Tokens that DO exist are
+    agent guesses `polygon_to_masks` but the symbol is `polygon_to_mask`. The head `polygon`
+    exists, so only the trailing `masks`->`mask` reveals the typo. Tokens that do exist are
     dropped later in suggest(), so this only ever surfaces the genuinely-absent ones.
 
     `region` threads the current IN-scope down the walk; nested IN takes the innermost."""
@@ -1065,16 +1068,17 @@ def execute_bql(bql: str, executor, units_by_id: dict, k: int = 100):
 
 def load_or_build(units, index_root: Optional[str] = None, key: Optional[str] = None,
                   rebuild: bool = False, dense=None) -> "StructuralExecutor":
-    """Return a PREWARMED executor loaded from disk if `build_indexes.py` materialized one
-    for this corpus, else build it in memory (lazy, unchanged). This is what makes the
-    agent's search_bql load a prebuilt index instead of building it inside the first
-    episode. A missing/corrupt/stale artifact silently falls back to a fresh build, so
-    correctness never depends on the cache — only speed does.
+    """Return a prewarmed executor loaded from disk if `build_indexes.py` materialized one
+    for this corpus, else build it in memory. This is what makes `search_bql` load a
+    prebuilt index instead of building it inside the first episode. A missing, corrupt or
+    stale artifact silently falls back to a fresh build, so correctness never depends on
+    the cache, only speed does.
 
-    `dense` (a `structural.indri.dense_belief.DenseBelief`, or None — BQL_DENSE, DEFAULT OFF)
-    is attached AFTER load/build either way, mirroring `build_indri_engine`'s own `dense=`
-    forwarding: it's never persisted (excluded from `_PERSIST`), so a freshly-loaded pickle's
-    `.dense` is None until this attaches it, same as a fresh in-memory build."""
+    `dense` (an `agent_search.retrievers.dense.belief.DenseBelief`, or None; BQL_DENSE,
+    default off) is attached after load/build either way, the same as `build_indri_engine`'s
+    own `dense=` forwarding: it's never persisted (excluded from `_PERSIST`), so a
+    freshly-loaded pickle's `.dense` is None until this attaches it, same as a fresh
+    in-memory build."""
     if index_root and key and not rebuild:
         path = bql_index_path(index_root, key)
         if os.path.exists(path):
@@ -1084,10 +1088,9 @@ def load_or_build(units, index_root: Optional[str] = None, key: Optional[str] = 
                 return ex.attach_dense(dense)
             except Exception:
                 pass                       # corrupt/stale/order-mismatch pickle -> rebuild from units
-    # No prebuilt artifact: build in memory, but PERSIST it so this O(N) build (e.g. ~45 min over
-    # browsecomp's 100k docs) is paid ONCE, not re-paid by every condition/restart. Previously only
-    # build_indexes.py (STEP 0) saved; a run that skipped prebuild rebuilt every time and discarded
-    # it. Best-effort + atomic: a failed/raced save just means the next run rebuilds — never wrong.
+    # No prebuilt artifact: build in memory, but persist it so this O(N) build (e.g. ~45 min over
+    # browsecomp's 100k docs) is paid once, not re-paid by every condition or restart.
+    # Best-effort and atomic: a failed or raced save just means the next run rebuilds, never wrong.
     ex = StructuralExecutor(units)
     if index_root and key:
         try:
@@ -1101,8 +1104,8 @@ class BQLIndexBuilder:
     """Offline persister for the BQL structural index, so `build_indexes.py` can pre-build
     it exactly like dense/pyserini: `.index(units, key)` writes a prewarmed executor to
     disk; `.is_cached(key)` reports whether it already exists (skip the corpus parse).
-    The agent loads it back via `load_or_build`. Keyed by corpus, so a shared document
-    corpus is built ONCE and reused across all its queries."""
+    `load_or_build` reads it back. Keyed by corpus, so a shared document corpus is built
+    once and reused across all its queries."""
     name = "search_bql"
 
     def __init__(self, index_root: str = "indexes", rebuild: bool = False):
@@ -1117,36 +1120,36 @@ class BQLIndexBuilder:
         return self
 
 
-# --- NEW, additive-only DENSE-ONLY executor (research_bql_donly_visit / research_bql_donly_snip)
+# --- Dense-only executor (`sieve_dense` / `sieve_visit_dense`, aliased as
+# --- `research_bql_donly_snip` / `research_bql_donly_visit`)
 #
-# The candidate-ordering twin of `StructuralExecutor` (never a modification of it — every method,
-# attribute, and call site above this comment is untouched): `run_with_count`/`coverage_topk` are
-# OVERRIDDEN (their bodies are duplicated, not edited in place, since the parent methods are used
-# by every existing BQL-family condition — `research`/`research_v2`/`research_snip`/
-# `research_bql_visit`/`research_bql_dense_visit`/`research_bql_dense_snip`/
-# `research_bql_dense_fetch`) so that when a `DenseBelief` is attached, the ORDER of
-# filter-passing candidates comes purely from `dense_rank_for_candidates`
+# The candidate-ordering twin of `StructuralExecutor` (every method, attribute, and call site
+# above this class is untouched): `run_with_count`/`coverage_topk` are overridden (their bodies
+# are duplicated, not edited in place, since the parent methods are used by every other
+# BQL-family condition) so that when a `DenseBelief` is attached, the order of filter-passing
+# candidates comes purely from `dense_rank_for_candidates`
 # (`fuse_ranked_dense_only`/`fuse_coverage_tiers_dense_only`, dense_fuse.py) instead of RRF
-# (`fuse_ranked`/`fuse_coverage_tiers`). Candidate SELECTION — everything above the `if
-# self.dense is not None:` line in each method — is copied verbatim, so the filter/coverage-tier
+# (`fuse_ranked`/`fuse_coverage_tiers`). Candidate selection, everything above the `if
+# self.dense is not None:` line in each method, is copied verbatim, so the filter/coverage-tier
 # semantics can never drift from the parent class.
 class DenseOnlyStructuralExecutor(StructuralExecutor):
-    """research_bql_donly_visit/research_bql_donly_snip's executor: identical boolean/field/date
-    FILTER and coverage-tier STRUCTURE to `StructuralExecutor` — a document that fails the filter
-    can never appear, and a doc can never cross a coverage-tier boundary, exactly as before. The
-    ONLY difference is the ORDER of filter-passing candidates once a `DenseBelief` is attached
-    (`self.dense is not None`, set via the inherited `attach_dense` — never overridden here):
-    purely `dense_rank_for_candidates`, not RRF(bm25, dense). See `load_or_build_dense_only`
-    below for how a real (persisted-index-backed) instance of this class is constructed, and
-    `dense_fuse.py`'s "dense-ONLY ordering" section for the fusion functions."""
+    """The executor `sieve_dense`/`sieve_visit_dense` use: identical boolean/field/date
+    filter and coverage-tier structure to `StructuralExecutor`. A document that fails the filter
+    can never appear, and a doc can never cross a coverage-tier boundary, exactly as in the
+    parent class. The only difference is the order of filter-passing candidates once a
+    `DenseBelief` is attached (`self.dense is not None`, set via the inherited `attach_dense`,
+    never overridden here): purely `dense_rank_for_candidates`, not RRF(bm25, dense). See
+    `load_or_build_dense_only` below for how a real (persisted-index-backed) instance of this
+    class is constructed, and `dense_fuse.py`'s "Dense-only ordering" section for the fusion
+    functions."""
 
     def _fuse_soft(self, terms, pool: list) -> list:
-        """Dense-ONLY ordering of the 0-hit fallback pool — the same ranker as this executor's
+        """Dense-only ordering of the 0-hit fallback pool: the same ranker as this executor's
         exact path, so the fallback never ranks by a model the exact path does not use."""
         return fuse_ranked_dense_only(self.dense, " ".join(terms), pool)
 
     def run_with_count(self, expr: Expr, k: int = 100) -> tuple[list[tuple[str, float]], int]:
-        """DENSE-ONLY sibling of `StructuralExecutor.run_with_count` — selection logic (leaves,
+        """Dense-only sibling of `StructuralExecutor.run_with_count`: selection logic (leaves,
         `_candidate_units`, `_eval`, the bm25 rerank of the exact-match set) copied verbatim;
         only the final fuse call differs (`fuse_ranked_dense_only` instead of `fuse_ranked`)."""
         leaves = _rank_leaves(expr)
@@ -1160,14 +1163,14 @@ class DenseOnlyStructuralExecutor(StructuralExecutor):
             return [], 0
         ranked = self._corpus_bm().score_subset(leaves, matched)
         if self.dense is not None:
-            # DENSE-ONLY (research_bql_donly_visit/research_bql_donly_snip): the SAME
-            # single-tier filter-passing candidate set `run_with_count` always had — only the
-            # ORDER is now pure dense rank, not RRF(bm25, dense) — see dense_fuse.py.
+            # Dense-only: the same single-tier filter-passing candidate set `run_with_count`
+            # always had; only the order is now pure dense rank, not RRF(bm25, dense).
+            # See dense_fuse.py.
             ranked = fuse_ranked_dense_only(self.dense, " ".join(leaves), ranked)
         return ranked[:k], len(matched)
 
     def coverage_topk(self, expr: Expr, k: int = 5) -> list:
-        """DENSE-ONLY sibling of `StructuralExecutor.coverage_topk` — pool/candidate/mask/
+        """Dense-only sibling of `StructuralExecutor.coverage_topk`: pool/candidate/mask/
         coverage-tier-sort logic copied verbatim; only the final fuse call differs
         (`fuse_coverage_tiers_dense_only` instead of `fuse_coverage_tiers`)."""
         if not isinstance(expr, And):
@@ -1189,7 +1192,7 @@ class DenseOnlyStructuralExecutor(StructuralExecutor):
             toks, tset = self._utoks[u.doc_id], self._uset[u.doc_id]
             mask = tuple(self._eval(c, toks, tset, u) for c in children)
             n = sum(mask)
-            if n:                                 # 0-matched docs are noise, not signal — drop
+            if n:                                 # 0-matched docs are noise, not signal: drop
                 rows.append((u.doc_id, mask, n))
         if not rows:
             return []
@@ -1197,24 +1200,24 @@ class DenseOnlyStructuralExecutor(StructuralExecutor):
         rows = [(d, mask, n, scores.get(d, 0.0)) for d, mask, n in rows]
         rows.sort(key=lambda r: (-r[2], -r[3], r[0]))        # coverage desc, then BM25, then id
         if self.dense is not None:
-            # DENSE-ONLY (research_bql_donly_visit/research_bql_donly_snip): SAME coverage-tier
-            # boundaries as `coverage_topk` (a doc can never cross a tier) — only the WITHIN-tier
-            # order is now pure dense rank, not RRF(bm25, dense) — see dense_fuse.py.
+            # Dense-only: the same coverage-tier boundaries as `coverage_topk` (a doc can
+            # never cross a tier); only the within-tier order is now pure dense rank, not
+            # RRF(bm25, dense). See dense_fuse.py.
             rows = fuse_coverage_tiers_dense_only(self.dense, " ".join(terms), rows)
         return rows[:k]
 
 
 def load_or_build_dense_only(units, index_root: Optional[str] = None, key: Optional[str] = None,
                              rebuild: bool = False, dense=None) -> "DenseOnlyStructuralExecutor":
-    """research_bql_donly_visit/research_bql_donly_snip's executor constructor: reuses
-    `load_or_build` VERBATIM (SAME on-disk `indexes/bql/<key>...pkl` index, SAME
-    `attach_units`/`attach_dense` contract, SAME in-memory-build-and-persist fallback — nothing
-    about loading/building/persisting the index is reimplemented here), then swaps the already-
-    fully-constructed instance's CLASS to `DenseOnlyStructuralExecutor` — a pure `__class__`
-    reassignment on an existing object, not a second construction path, so the two dense-fused
-    BQL arms ('bqldensevisit'/'bqldensesnip', RRF) and the two dense-ONLY arms
-    ('bqldonlyvisit'/'bqldonlysnip') share the exact same persisted index artifact and only
-    differ in which class's `run_with_count`/`coverage_topk` answers a query."""
+    """Executor constructor for `sieve_dense`/`sieve_visit_dense`: reuses `load_or_build`
+    verbatim (the same on-disk `indexes/bql/<key>...pkl` index, the same `attach_units`/
+    `attach_dense` contract, the same in-memory-build-and-persist fallback; nothing about
+    loading, building or persisting the index is reimplemented here), then swaps the
+    already-constructed instance's class to `DenseOnlyStructuralExecutor`. This is a pure
+    `__class__` reassignment on an existing object, not a second construction path, so the
+    dense-fused BQL conditions (RRF) and the dense-only conditions share the exact same
+    persisted index artifact and only differ in which class's `run_with_count`/
+    `coverage_topk` answers a query."""
     ex = load_or_build(units, index_root=index_root, key=key, rebuild=rebuild, dense=dense)
     ex.__class__ = DenseOnlyStructuralExecutor
     return ex

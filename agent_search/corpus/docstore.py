@@ -6,8 +6,8 @@ optional `title`) and builds a byte-offset index next to it on first use
 line parse, and the store never holds more than the ids in memory (ints as a numpy array, so
 the 11.2M-chunk wiki corpus ITER used takes ~200 MB of ids, not 18 GB of text).
 
-`LazyUnits` presents the store as the sequence of `CodeUnit`s the harness and the workspaces
-expect, without materialising it: `len()` and positional access work, iteration streams, and
+`LazyUnits` presents the store as the sequence of `CodeUnit`s the harness and the tools expect,
+without materialising it: `len()` and positional access work, iteration streams, and
 `by_id` is a mapping that builds a unit on demand (with a small LRU cache). Retrieval over such
 a corpus goes through prebuilt indexes on disk (`DENSE_INDEX_PATH`, `BM25_INDEX_PATH`); the
 in-memory engines refuse it loudly rather than trying to load everything.

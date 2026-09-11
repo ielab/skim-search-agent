@@ -1,4 +1,4 @@
-"""OpenAI-compatible chat backend — chat models (gpt-4o*) and any OpenAI-compatible server
+"""OpenAI-compatible chat backend: chat models (gpt-4o*) and any OpenAI-compatible server
 (a served vLLM, or the real OpenAI API when `base_url` is pointed at it)."""
 from __future__ import annotations
 
@@ -22,13 +22,13 @@ def openai_compat_generate(model: str = DEFAULT_MODEL, *,
     """Call an OpenAI-compatible chat endpoint (vLLM server or API). `client` is
     injectable for offline tests. Start a server with: `vllm serve <model>`.
 
-    `api_key` defaults to the `OPENAI_API_KEY` env var (so pointing `base_url` at
-    the real OpenAI API "just works" for quick commercial-model testing), falling
-    back to vLLM's placeholder `"EMPTY"` when that var is unset (a local vLLM
-    server ignores the key entirely, so this default is a no-op for it).
+    `api_key` defaults to the `OPENAI_API_KEY` env var, so pointing `base_url` at
+    the real OpenAI API works for quick commercial-model testing with no other setup.
+    It falls back to vLLM's placeholder `"EMPTY"` when that var is unset; a local vLLM
+    server ignores the key entirely, so this default is a no-op for it.
 
     `seed` is passed through for reproducible sampling (vLLM/OpenAI honor it);
-    leave it None for the legacy non-deterministic behavior."""
+    leave it None to allow non-deterministic sampling."""
     if client is None:
         from openai import OpenAI
         client = OpenAI(base_url=base_url, api_key=api_key or os.environ.get("OPENAI_API_KEY", "EMPTY"),
@@ -51,15 +51,15 @@ def openai_compat_generate(model: str = DEFAULT_MODEL, *,
                           _cached_tokens(u), _reasoning_tokens(u))
         return _truncate_at_tool_response(_repair_open_tag(resp.choices[0].message.content or ""))
 
-    # Expose the underlying (client, model) as attributes on the closure — a PURE ADDITION (function
-    # attributes never change how `generate(prompt)` itself behaves) that lets
+    # Expose the underlying (client, model) as attributes on the closure. Setting these
+    # attributes does not change how `generate(prompt)` itself behaves; it lets
     # `agent_search.agent.loop.run_episode`'s inline forced-answer elicitation
-    # (`agent_search/agent/forced_answer.py`) reuse the SAME OpenAI-compatible client + model the
-    # episode's own policy is already talking to, rather than opening a second connection or (worse)
-    # threading client/model through every caller of `AgentPolicy`. In-process vLLM (`vllm_generate`,
-    # no HTTP client) and any generate callable built without these attributes simply has no inline
-    # elicitation available — `run_episode` checks `getattr(..., "client", None)` and degrades to
-    # `elicitation="prefill_failed"` (never crashes).
+    # (`agent_search/agent/forced_answer.py`) reuse the same OpenAI-compatible client and model
+    # the episode's own policy is already talking to, instead of opening a second connection or
+    # threading client/model through every caller of `AgentPolicy`. In-process vLLM
+    # (`vllm_generate`, no HTTP client) and any generate callable built without these attributes
+    # has no inline elicitation available: `run_episode` checks `getattr(..., "client", None)`
+    # and degrades to `elicitation="prefill_failed"` instead of crashing.
     generate.client = client
     generate.model = model
     return generate

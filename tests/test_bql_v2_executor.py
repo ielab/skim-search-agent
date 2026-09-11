@@ -2,9 +2,9 @@
 ranking (see the surface.py / executor.py module docstrings for the design rationale).
 
 Both features address measured BrowseComp-Plus deficits: (1) temporal clues ("in the
-1980s") were inexpressible against ISO `date` metadata — only exact-token matching; (2) a
-hard multi-constraint AND that matches nothing gave the agent no signal about WHICH
-constraint failed, only `soft_topk`'s undifferentiated bag-of-terms fallback.
+1980s") were inexpressible against ISO `date` metadata, since only exact-token matching was
+available; (2) a hard multi-constraint AND that matches nothing gave the agent no signal about
+which constraint failed, only `soft_topk`'s undifferentiated bag-of-terms fallback.
 
 CPU-only; a small (~30-unit) synthetic corpus with `metadata={'date': ...}`.
 """

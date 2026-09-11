@@ -261,10 +261,10 @@ handles that for you.
 | `INDRI_POOL_CAP` | 5000 | Indri's candidate pool size (before import) | `agent_search/retrievers/indri/model.py` |
 | `INDRI_RESCORE_M` | 300 | how many candidates Indri rescores in its second stage | `agent_search/retrievers/indri/model.py` |
 | `DENSE_QUERY_STYLE` | `plain` | how the dense query is written from the agent's history (`plain`, `mem`, `docs`, `i1` to `i7`); must match the trained retriever | `agent_search/training/history.py` |
-| `DENSE_QUERY_INSTRUCTION` | unset | the query instruction prefix; unset means the checkpoint's serving note or the built-in table | `agent_search/retrievers/dense/dense.py` |
-| `DENSE_POOLING` | unset | `last_token`, `mean` or `cls` for a checkpoint without a sentence-transformers config; unset means the serving note, then a guess from the model type | `agent_search/retrievers/dense/dense.py` |
-| `DENSE_DTYPE` | unset | the precision the dense encoder runs in: `float32`, `float16` or `bfloat16`. Unset means the checkpoint's serving note (a model trained with bf16 is served in bf16), else float32. Caches and index metadata carry it. | `agent_search/retrievers/dense/dense.py` |
-| `DENSE_INDEX_PATH` | unset | a prebuilt vector index to serve instead of the per-corpus cache (this library's cache directory, or ITER's `index.faiss` plus `index.lookup.pkl`); required for an on-disk corpus | `agent_search/retrievers/dense/dense.py` |
+| `DENSE_QUERY_INSTRUCTION` | unset | the query instruction prefix; unset means the checkpoint's serving note or the built-in table | `agent_search/retrievers/dense/base.py` |
+| `DENSE_POOLING` | unset | `last_token`, `mean` or `cls` for a checkpoint without a sentence-transformers config; unset means the serving note, then a guess from the model type | `agent_search/retrievers/dense/base.py` |
+| `DENSE_DTYPE` | unset | the precision the dense encoder runs in: `float32`, `float16` or `bfloat16`. Unset means the checkpoint's serving note (a model trained with bf16 is served in bf16), else float32. Caches and index metadata carry it. | `agent_search/retrievers/dense/base.py` |
+| `DENSE_INDEX_PATH` | unset | a prebuilt vector index to serve instead of the per-corpus cache (this library's cache directory, or ITER's `index.faiss` plus `index.lookup.pkl`); required for an on-disk corpus | `agent_search/retrievers/dense/base.py` |
 | `AGENT_SEARCH_ANN_EF_SEARCH` | 0 | HNSW `efSearch` for a prebuilt index; 0 keeps the built-in value | `agent_search/retrievers/dense/vector_index.py` |
 | `AGENT_SEARCH_FAISS_MMAP` | unset | `1` memory-maps a prebuilt FAISS index instead of reading it into RAM | `agent_search/retrievers/dense/vector_index.py` |
 | `BM25_INDEX_PATH` | unset | a prebuilt Lucene index for the pyserini backend; required for an on-disk corpus | `agent_search/retrievers/lexical/pyserini.py` |
@@ -282,7 +282,7 @@ handles that for you.
 | `AGENT_SEARCH_ANN_MIN` | 1,000,000 | corpus size at which `auto` picks HNSW | `agent_search/retrievers/dense/vector_index.py` |
 | `AGENT_SEARCH_ANN_PQ_MIN` | 8,000,000 | corpus size at which `auto` picks IVF-PQ | `agent_search/retrievers/dense/vector_index.py` |
 | `AGENT_SEARCH_FLAT_FAISS` | off | use FAISS for the exact `flat` search (faster, same results) | `agent_search/retrievers/dense/vector_index.py` |
-| `AGENT_SEARCH_DENSE_DEVICE` | auto | the device the dense encoder runs on (`cpu` when a vLLM server owns the GPU) | `agent_search/retrievers/dense/dense.py` |
+| `AGENT_SEARCH_DENSE_DEVICE` | auto | the device the dense encoder runs on (`cpu` when a vLLM server owns the GPU) | `agent_search/retrievers/dense/base.py` |
 | `SKIMSEARCHAGENT_PLUGINS` | unset | comma-separated modules imported before the registries are read, so they can register things | `agent_search/retrievers/registry.py` |
 | `AGENT_SEARCH_DATA` | `data` | where datasets are read from (before import) | `agent_search/evaluation/datasets/base.py` |
 | `AGENT_SEARCH_DCI_CACHE` | `$TMPDIR/agent_search_dci` | where the DCI arms export their flat text files | `agent_search/corpus/flat_export.py` |
@@ -301,9 +301,9 @@ handles that for you.
 | knob | default | what it does | read by |
 |---|---|---|---|
 | `LLM_TIMEOUT_S` | 600 | HTTP timeout for every model call | `agent_search/models/openai_chat.py` |
-| `LLM_RETRY_ATTEMPTS` | 5 | attempts per model call before giving up | `agent_search/models/backends.py` |
-| `LLM_RETRY_BASE_S` | 1.0 | base delay of the retry backoff | `agent_search/models/backends.py` |
-| `REASONING_EFFORT` | `low` | reasoning effort for OpenAI reasoning models | `agent_search/models/backends.py` |
+| `LLM_RETRY_ATTEMPTS` | 5 | attempts per model call before giving up | `agent_search/models/retry.py` |
+| `LLM_RETRY_BASE_S` | 1.0 | base delay of the retry backoff | `agent_search/models/retry.py` |
+| `REASONING_EFFORT` | `low` | reasoning effort for OpenAI reasoning models | `agent_search/models/openai_reasoning.py` |
 | `AGENT_SEARCH_MAX_CONSECUTIVE_ERRORS` | 3 | stop a run after this many consecutive failed questions before any success (an unreachable endpoint, a broken index); `0` disables | `agent_search/evaluation/run_eval.py` |
 | `AGENT_DRIVER` | auto | `loop` (text-parsed tool calls) or `sdk` (OpenAI Agents SDK, native tool calling, document arms only) | `agent_search/evaluation/agent_runner.py` |
 | `AGENT_DEFAULT_CONDITION` | `research_snip` | the condition the bare `agent` alias means (before import) | `agent_search/strategies/conditions.py` |
@@ -312,7 +312,8 @@ handles that for you.
 
 #### Secrets
 
-`OPENAI_API_KEY` and `GEMINI_API_KEY` are read when a client is built (`agent_search/models/backends.py`,
+`OPENAI_API_KEY` and `GEMINI_API_KEY` are read when a client is built (`agent_search/models/openai_chat.py`,
+`agent_search/models/openai_reasoning.py`, `agent_search/models/gemini.py`,
 `agent_search/evaluation/llm_judge.py`, `agent_search/agent/sdk_driver.py`) and never written to
 any record. A local vLLM server needs no key.
 

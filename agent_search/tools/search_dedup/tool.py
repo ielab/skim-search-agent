@@ -1,15 +1,14 @@
-"""`search`: ITER's search strategy — keyword/dense search with de-duplication.
+"""`search`: ITER's search strategy, keyword/dense search with de-duplication.
 
-Ported from `agent_search.agent.tools.doc_dedup.DedupSearchWorkspace.search`. Each call
-over-fetches a pool (`pool_k`), drops every document already surfaced by an earlier search this
-episode (kept in `state.scratch["dedup_searched"]`), and shows the top `top_k` of the rest.
-Documents that would have ranked in the top-k but were surfaced before are listed under
-"Already-seen" so the agent can reopen them with `get_document`
+Each call over-fetches a pool (`pool_k`), drops every document already surfaced by an earlier
+search this episode (kept in `state.scratch["dedup_searched"]`), and shows the top `top_k` of
+the rest. Documents that would have ranked in the top-k but were surfaced before are listed
+under "Already-seen" so the agent can reopen them with `get_document`
 (`agent_search.tools.get_document`).
 
-`ranking="dense"` (default) queries the run's dense model; `ranking="bm25"` queries BM25. Result
-rendering follows ITER: ``DocID:<id>``, ``[<title>]``, then the opening `SNIPPET_TOKENS` tokens
-of the document.
+`ranking="dense"` (default) queries the run's dense model; `ranking="bm25"` queries BM25.
+Result rendering follows ITER: ``DocID:<id>``, ``[<title>]``, then the opening
+`SNIPPET_TOKENS` tokens of the document.
 """
 from __future__ import annotations
 

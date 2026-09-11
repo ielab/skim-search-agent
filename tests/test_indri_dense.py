@@ -1,24 +1,24 @@
-"""Tests for the DENSE-EMBEDDING belief source of the Indri graded retrieval engine
-(`agent_search/retrievers/indri/dense_belief.py` + the additive, default-OFF
+"""Tests for the dense-embedding belief source of the Indri graded retrieval engine
+(`agent_search/retrievers/dense/belief.py` and the default-off
 `dense=` hooks in `model.py`).
 
-CPU-only, tiny corpus, deterministic hash-based STUB encoder (no model download):
+CPU-only, tiny corpus, deterministic hash-based stub encoder (no model download):
 
-1. dense-off parity guard — `IndriExecutor(units)` and `IndriExecutor(units, dense=None)`
-   produce byte-identical hits + diagnostics across representative queries.
-2. dense-on recall — a doc with NO lexical overlap with the query but an engineered-
-   similar stub vector enters the pool (dense expansion) and ranks TOP at high w.
-3. w=0 — lexical-only relative order and scores are preserved (dense only expands
+1. dense-off parity guard: `IndriExecutor(units)` and `IndriExecutor(units, dense=None)`
+   produce byte-identical hits and diagnostics across representative queries.
+2. dense-on recall: a doc with no lexical overlap with the query but an engineered-
+   similar stub vector enters the pool (dense expansion) and ranks top at high w.
+3. w=0: lexical-only relative order and scores are preserved (dense only expands
    the pool; the combination is a no-op).
 4. diagnostics gain a '#dense' contribution entry.
-5. `_plain_terms` operator stripping (mirrors doc_indri's `_indri_query_terms`).
-+ robustness: a dense source that RAISES degrades silently to lexical-only.
-+ one-encode-per-search: expansion + scoring share a memoized query vector.
+5. `_plain_terms` operator stripping (same pattern as doc_indri's `_indri_query_terms`).
++ robustness: a dense source that raises degrades silently to lexical-only.
++ one-encode-per-search: expansion and scoring share a memoized query vector.
 
 Real-corpus integration check (browsecomp_plus_structured + local bge-base HF
 snapshot, offline): encoding ~200-300 real docs on this login node's CPU takes
 ~200-300s (measured: 300 docs in 298.9s, ~1 s/doc at 512 tokens), far too slow for
-the default suite — gated behind INDRI_DENSE_INTEGRATION=1 and skipped otherwise.
+the default suite, so it is gated behind INDRI_DENSE_INTEGRATION=1 and skipped otherwise.
 """
 from __future__ import annotations
 
@@ -32,7 +32,7 @@ import numpy as np
 import pytest
 
 from agent_search.corpus.units import CodeUnit
-from agent_search.retrievers.indri.dense_belief import (
+from agent_search.retrievers.dense.belief import (
     DenseBelief, _plain_terms, _plain_text)
 from agent_search.retrievers.indri.model import IndriExecutor
 

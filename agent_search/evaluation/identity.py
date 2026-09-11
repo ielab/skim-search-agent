@@ -2,7 +2,7 @@
 
 `_run_config_dict` builds the full config.json payload for a run (CLI args, env
 knobs, prompt hash, package/git version). `RUN_IDENTITY_KEYS` is the subset of
-that payload which defines WHICH experiment a run directory holds; a resume
+that payload which defines which experiment a run directory holds; a resume
 whose invocation differs on any of those keys is refused by
 `_check_run_identity` unless the caller passes `allow_drift`.
 """
@@ -16,10 +16,10 @@ from agent_search.core.tokens import ruler_name
 
 
 def _resolve_env_knobs() -> dict:
-    """Snapshot of the env-var knobs that materially define a run's RETRIEVAL condition
+    """Snapshot of the env-var knobs that materially define a run's retrieval condition
     (dense/BQL/indri toggles, token caps, ANN backend, agent driver/condition) but live
     outside `args`, so two run dirs could otherwise differ only by env and be
-    indistinguishable on disk. Read via the SAME resolved constants/helpers the consuming
+    indistinguishable on disk. Read via the same resolved constants/helpers the consuming
     code itself uses (imported, not re-read with a second copy of the default) wherever
     one is importable; an identical inline `os.environ.get(..., default)` otherwise
     (private module state or a check with no default sentinel).
@@ -36,25 +36,27 @@ def _resolve_env_knobs() -> dict:
         from agent_search.tools.budgets import MAX_SECTION_TOKENS, MAX_VISIT_TOKENS, SNIPPET_TOKENS
         knobs["MAX_VISIT_TOKENS"] = MAX_VISIT_TOKENS
         knobs["MAX_SECTION_TOKENS"] = MAX_SECTION_TOKENS
-        # listing-snippet window, BOTH arms: the method cells' query-biased excerpt
-        # (research_snip / *_fetch_snip) AND the visit baselines' opening
-        # window (research_bm25/dense/hybrid, bm25_dci) — see doc_research.opening_line.
-        # Recorded because it is a sweep axis: without it a SNIPPET_TOKENS=64 run is
-        # indistinguishable from a default one in config.json.
+        # listing-snippet window, used both by the method conditions' query-biased excerpt
+        # (research_snip / *_fetch_snip) and by the visit baselines' opening
+        # window (research_bm25/dense/hybrid, research_bm25_dci); see
+        # agent_search.tools.common.opening_line. Recorded because it is a sweep axis:
+        # without it a SNIPPET_TOKENS=64 run is indistinguishable from a default one in
+        # config.json.
         knobs["SNIPPET_TOKENS"] = SNIPPET_TOKENS
     except Exception:
         pass
 
-    # agent_search/evaluation/datasets.py:default_dense_model — the raw KNOB (unset vs an explicit
-    # override), not the per-run RESOLVED value (that's already recorded at config.json's
+    # agent_search/evaluation/datasets.py:default_dense_model: the raw knob (unset vs an explicit
+    # override), not the per-run resolved value (that's already recorded at config.json's
     # top level as `dense_model`, via args.dense_model / RunConfig.resolved()). Overrides the
-    # GENERAL-domain dense embedder default only (e.g. `Qwen/Qwen3-Embedding-0.6B`); the
-    # code-domain default (CodeRankEmbed) never reads this var — see that function's
+    # document-domain dense embedder default only (e.g. `Qwen/Qwen3-Embedding-0.6B`); the
+    # code-domain default (CodeRankEmbed) never reads this var, see that function's
     # docstring. No single importable resolved constant exists (it's a function of domain),
     # so read inline like INDRI_DENSE below.
     knobs["DENSE_MODEL"] = _os.environ.get("DENSE_MODEL")
 
-    # agent/retriever.py:217 — no importable symbol (checked inline); same membership test.
+    # agent_search/retrievers/engines.py: no importable symbol (checked inline); same
+    # membership test.
     knobs["INDRI_DENSE"] = _os.environ.get("INDRI_DENSE") in ("1", "true", "yes")
     try:
         from agent_search.retrievers.indri.model import (
@@ -72,19 +74,19 @@ def _resolve_env_knobs() -> dict:
         knobs["BQL_DATE_RANGE"] = _date_range_enabled()
     except Exception:
         pass
-    # doc_research.py:413 — inline check, no importable symbol; mirror it (enabled unless
-    # explicitly turned off).
+    # agent_search/tools/search_bql/tool.py: inline check, no importable symbol; read the
+    # same env var the same way (enabled unless explicitly turned off).
     knobs["BQL_SOFT_FALLBACK"] = _os.environ.get("BQL_SOFT_FALLBACK", "1") not in ("0", "false", "no")
     try:
         from agent_search.retrievers.bql.executor import _PREFILTER_MIN_UNITS
         knobs["AGENT_SEARCH_BQL_PREFILTER_MIN"] = _PREFILTER_MIN_UNITS
     except Exception:
         pass
-    # BQL_DENSE dense-fused ranking (agent_search/retrievers/bql/dense_fuse.py):
-    # the RETROFIT knob for the plain doc/docv2/docsnip/bqlvisit arms (mirrors INDRI_DENSE
-    # above); research_bql_dense_visit/research_bql_dense_snip attach dense unconditionally in
-    # their own arm branch and don't read this var, but it's still recorded here for provenance
-    # (whether the retrofit was ALSO active for whichever arm this run used).
+    # BQL_DENSE dense-fused ranking (agent_search/retrievers/bql/dense_fuse.py): the env
+    # knob for a BQL condition ranked with plain BM25 (the shared `bql` engine kind), read
+    # the same way `INDRI_DENSE` is above. A condition whose strategy already fuses or uses
+    # dense ranking unconditionally (the `bql_fused`/`bql_dense` engine kinds) does not read
+    # this var, but its value is still recorded here for provenance.
     try:
         from agent_search.retrievers.bql.dense_fuse import bql_dense_enabled, RRF_K
         knobs["BQL_DENSE"] = bql_dense_enabled()
@@ -92,8 +94,9 @@ def _resolve_env_knobs() -> dict:
     except Exception:
         pass
 
-    # agent/retriever.py:366 — env override only; the non-env fallback is per-instance
-    # driver state, not a second env default, so there's nothing further to import.
+    # agent_search/evaluation/agent_runner.py:ConditionAgent.search: env override only; the
+    # non-env fallback is per-instance driver state, not a second env default, so there's
+    # nothing further to import.
     knobs["AGENT_DRIVER"] = _os.environ.get("AGENT_DRIVER")
     try:
         from agent_search.strategies.conditions import AGENT_DEFAULT_CONDITION
@@ -101,7 +104,7 @@ def _resolve_env_knobs() -> dict:
     except Exception:
         pass
 
-    # agent/loop.py::run_episode — proactive context-budget early-stop (reads these env vars
+    # agent/loop.py::run_episode: proactive context-budget early-stop (reads these env vars
     # once per episode, not at import time; see that module's comment block above
     # _last_prompt_tokens for the full rationale). Recorded here so config.json shows what
     # fraction/window this run used and whether the early-stop was active for it.
@@ -128,15 +131,15 @@ def _resolve_env_knobs() -> dict:
     except Exception:
         pass
 
-    # dense/vector_index.py:choose_backend — read inline (takes n_docs as an arg, so the
+    # dense/vector_index.py:choose_backend: read inline (takes n_docs as an arg, so the
     # module exposes no standalone resolved constant); same defaults as that function.
     knobs["AGENT_SEARCH_ANN"] = _os.environ.get("AGENT_SEARCH_ANN", "auto").lower()
     knobs["AGENT_SEARCH_ANN_MIN"] = int(_os.environ.get("AGENT_SEARCH_ANN_MIN", "1000000"))
     knobs["AGENT_SEARCH_ANN_PQ_MIN"] = int(_os.environ.get("AGENT_SEARCH_ANN_PQ_MIN", "8000000"))
 
-    # dense/vector_index.py:_flat_faiss_enabled — opt-in exact faiss.IndexFlatIP fast path
+    # dense/vector_index.py:_flat_faiss_enabled: opt-in exact faiss.IndexFlatIP fast path
     # for the `flat` backend (same stored embeddings, fp16->fp32 cast, still exact search).
-    # DEFAULT OFF: unset falls back to a numpy fp16 matmul. This only records the knob's
+    # Default off: unset falls back to a numpy fp16 matmul. This only records the knob's
     # value for provenance; episode code doesn't read it back.
     try:
         from agent_search.retrievers.dense.vector_index import _flat_faiss_enabled
@@ -144,23 +147,23 @@ def _resolve_env_knobs() -> dict:
     except Exception:
         pass
 
-    # agent_search/retrievers/lexical/__init__.py:build_bm25_engine — which BM25 ENGINE every
-    # bm25-family arm (bm25/bm25dci/bm25fetch/bm25q/bm25fetchsnip) uses this run: 'local'
-    # (default, BM25Local's dependency-free approximation) or 'pyserini' (canonical Lucene
-    # BM25). Material to results (an empirical ~0.546 top-5 Jaccard divergence between the two
-    # on browsecomp_plus — see pyserini.py's module docstring), so it belongs in provenance
-    # exactly like the other retrieval-condition knobs above.
+    # agent_search/retrievers/lexical/__init__.py:build_bm25_engine: which BM25 engine every
+    # BM25-based condition uses this run: 'local' (default, BM25Local's dependency-free
+    # approximation) or 'pyserini' (canonical Lucene BM25). Material to results (an
+    # empirical ~0.546 top-5 Jaccard divergence between the two on browsecomp_plus, see
+    # pyserini.py's module docstring), so it belongs in provenance exactly like the other
+    # retrieval-condition knobs above.
     knobs["BM25_BACKEND"] = (_os.environ.get("BM25_BACKEND") or "local").strip().lower()
 
-    # agent_search/retrievers/backend.py:structured_backend — which STRUCTURAL
-    # engine every BQL-family arm (search/search_v2/search_s/search_bv -> DocSearchFetch/
-    # BqlVisitWorkspace) and Indri-family arm (isearch/isearch_v/isearch_s ->
-    # IndriFetchWorkspace/IndriVisitWorkspace) uses this run: 'python' (default, the
-    # pure-Python reference engines) or 'lucene' (the real-Lucene LMDirichlet/BM25 backend,
+    # agent_search/retrievers/backend.py:structured_backend: which structured retrieval
+    # backend every BQL-family condition (Sieve: search/search_v2/search_s/search_bv, run
+    # through the `search_bql` tool) and Indri-family condition (isearch/isearch_v/isearch_s,
+    # run through the `search_indri` tool) uses this run: 'python' (default, the pure-Python
+    # reference engines) or 'lucene' (the real-Lucene LMDirichlet/BM25 backend,
     # indexes/lucene_structured/). Material to results (same rationale as BM25_BACKEND above).
     knobs["STRUCTURED_BACKEND"] = (_os.environ.get("STRUCTURED_BACKEND") or "python").strip().lower()
 
-    # Token-only length budgets added in 0.2.0 (there are no character caps anywhere).
+    # Every length budget in the prompt path is measured in tokens; there is no character cap.
     try:
         from agent_search.agent.policies import default_ctx_tokens
         knobs["AGENT_CTX_TOKENS"] = default_ctx_tokens()
@@ -212,7 +215,8 @@ def _run_config_dict(args, domain: str) -> dict:
             cfg["prompt_toolset"] = c.strategy.toolset_name or c.strategy.name
             cfg["prompt_strategy"] = c.strategy.name
             cfg["prompt_profile"] = c.task.prompt_file                 # the task's template file
-            # hash the COMPOSED system (task + tool declarations + manuals) for reproducibility
+            # hash the composed system prompt (task + tool declarations + manuals) for
+            # reproducibility
             cfg["prompt_sha256"] = c.system_sha256(getattr(args, "field_profile", None) or None)
         except Exception:
             pass
@@ -232,9 +236,9 @@ def _run_config_dict(args, domain: str) -> dict:
     return cfg
 
 
-# The keys that define WHICH experiment a run directory holds. A resume whose invocation
+# The keys that define which experiment a run directory holds. A resume whose invocation
 # differs on any of them is a different experiment and is refused (see _check_run_identity);
-# keys that only change HOW MUCH of the same experiment runs (limit, only_instances, workers,
+# keys that only change how much of the same experiment runs (limit, only_instances, workers,
 # runs_dir, progress flags, timestamps) are deliberately excluded.
 RUN_IDENTITY_KEYS = (
     "dataset", "retriever", "model", "dense_model", "policy", "backend", "api_base",
@@ -265,7 +269,7 @@ def _attach_experiment(cfg: dict, exp_path: Optional[str], overrides: Optional[l
         cfg["experiment_overrides"] = kv
         cfg["experiment_sha256"] = (_hashlib.sha256(_X.render(exp.data).encode("utf-8")).hexdigest()
                                     if kv else exp.sha256)
-    except Exception as e:  # noqa: BLE001 — provenance must never block a run
+    except Exception as e:  # noqa: BLE001 - provenance must never block a run
         cfg["experiment_error"] = f"{type(e).__name__}: {e}"
 
 
@@ -278,7 +282,7 @@ def _identity_view(cfg: dict) -> dict:
 def _check_run_identity(results_dir: str, cfg: dict, allow_drift: bool = False) -> None:
     """Refuse to resume into a directory whose recorded config describes a different
     experiment. Without this, changing a backend knob or a seed and re-running into the same
-    directory silently reports the OLD run as "already complete"."""
+    directory silently reports the old run as "already complete"."""
     path = os.path.join(results_dir, "config.json")
     if not os.path.exists(path):
         return

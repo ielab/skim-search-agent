@@ -27,9 +27,9 @@ class SearchBm25(Tool):
     parameters = {"type": "object", "properties": {"query": {"type": "string", "description": "A keyword query, for example: treaty that ended the Mexican-American War."}}, "required": ["query"]}
     engines = ("bm25",)
 
-    # the tools.yaml text for the structure listing (`structure=True`), with and without the
-    # excerpt sentence `snippets=True` adds. Set onto `self.description`/`self.parameters` in
-    # `__init__`; the plain (structure=False) class attributes above are left untouched.
+    # the structure-listing text (`structure=True`), with and without the excerpt sentence
+    # `snippets=True` adds. Set onto `self.description`/`self.parameters` in `__init__`; the
+    # plain (structure=False) class attributes above stay untouched.
     STRUCTURE_DESCRIPTION = ("Keyword search over the document corpus (BM25); returns ranked "
                             "docs plus their section names + infobox keys{snip} — NOT full "
                             "text; fetch a named section to read. `fetch` a named section (or "

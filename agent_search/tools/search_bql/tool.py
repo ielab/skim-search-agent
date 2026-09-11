@@ -1,12 +1,10 @@
 """`search`: field-tagged Boolean/date search over a structure table (the BQL sieve).
 
-Ported from `agent_search.agent.tools.sieve.DocSearchFetch`/`BqlVisitWorkspace`, logic
-unchanged. search(query, k) translates the field-tagged surface (term[field], AND/OR/NOT,
-(), wildcard*, "phrase") to BQL and returns a candidate table (rank, id, title, section
-names, infobox keys, matched fields, an optional excerpt) — no body content. Pairs with
-`fetch` (agent_search.tools.fetch, the named-section read) or `visit`
-(agent_search.tools.visit, the whole-doc read `BqlVisitWorkspace` pairs it with) depending on
-the toolset a strategy assembles.
+search(query, k) translates the field-tagged surface (term[field], AND/OR/NOT, (), wildcard*,
+"phrase") to BQL and returns a candidate table (rank, id, title, section names, infobox keys,
+matched fields, an optional excerpt), no body content. Pairs with `fetch`
+(agent_search.tools.fetch, the named-section read) or `visit` (agent_search.tools.visit, the
+whole-doc read) depending on the toolset a strategy assembles.
 
 Options:
   snippets    -- append a one-line best-matching excerpt per hit (`research_snip`).
@@ -39,11 +37,11 @@ from agent_search.tools.common import _INTRO, _infobox, best_line, sections_from
 
 _DATE_RANGE_PREFIX = "__daterange__"
 
-# date-nudge (`date_nudge`, DEFAULT OFF): a mechanical, CORPUS-FREE mid-episode nudge --
-# derived only from the agent's own raw query text, never from the corpus -- so it can't leak
-# retrieval information (fairness-critical). Detects a temporal clue (a standalone year, a
-# decade like "1980s", or "Month YYYY" text) written as a plain keyword OUTSIDE any date[...]
-# scope, and coaches the agent toward the typed date[RANGE] surface the skill teaches.
+# date-nudge (`date_nudge`, off by default): a mechanical nudge derived only from the agent's
+# own raw query text, never from the corpus, so it can't leak retrieval information
+# (fairness-critical). Detects a temporal clue (a standalone year, a decade like "1980s", or
+# "Month YYYY" text) written as a plain keyword outside any date[...] scope, and coaches the
+# agent toward the typed date[RANGE] surface the manual teaches.
 _YEAR_RE = re.compile(r"\b(?:18|19|20)\d{2}\b")
 _DECADE_RE = re.compile(r"\b(?:18|19|20)\d0s\b", re.IGNORECASE)
 _MONTH_YEAR_RE = re.compile(
@@ -60,8 +58,8 @@ _DATE_NUDGE_CAP = 3
 
 def _has_bare_temporal_clue(query: str) -> bool:
     """True if `query` (the raw surface text, pre-BQL) carries a year/decade/month-year clue
-    OUTSIDE any `date[...]` scope. Operates purely on the agent's own query string -- no
-    corpus lookups -- so the nudge can never leak corpus information."""
+    outside any `date[...]` scope. Operates purely on the agent's own query string, no
+    corpus lookups, so the nudge can never leak corpus information."""
     if not query:
         return False
     remainder = _DATE_SCOPE_RE.sub(" ", query)
@@ -99,8 +97,8 @@ def _child_repr(node) -> str:
 
 
 class SearchBql(Tool):
-    """search(query) -> candidate TABLE (structure only). `specs` entries a paired `fetch`
-    tool later resolves reference the RANK from the last search (int, 1-based) or an
+    """search(query) -> candidate table (structure only). `specs` entries a paired `fetch`
+    tool later resolves reference the rank from the last search (int, 1-based) or an
     explicit doc_id (str). Every doc_id surfaced (a search hit) is added to `state.seen`."""
 
     name = "search"
@@ -125,7 +123,7 @@ class SearchBql(Tool):
                   "required": ["query"]}
 
     # every name the paper's Sieve conditions exposed this search under (the model, or the
-    # keyword stub, may call any of them; the old workspace accepted the same set)
+    # keyword stub, may call any of them)
     aliases = ("search", "search_v2", "search_s", "search_bqlds", "search_bqldf", "search_bqldos",
                "search_bv", "search_bqld", "search_bqldo")
 
@@ -172,7 +170,7 @@ class SearchBql(Tool):
         u = self.ubyid.get(doc_id)
         explicit = getattr(u, "sections", None) if u is not None else None
         if explicit:
-            # STRUCTURED corpus: the matched (heading, text) parts, shipped explicitly.
+            # a structured corpus: the matched (heading, text) parts, shipped explicitly.
             out: dict = {}
             for h, t in explicit:
                 name = h or _INTRO
@@ -212,9 +210,9 @@ class SearchBql(Tool):
         return best_line(u, leaf_toks, width=width)
 
     def _render_hits(self, hit_ids: list, leaf_toks: list, header: str) -> str:
-        """Render the structure TABLE (rank, doc_id, title, §section names, ib[infobox
-        keys], matched fields) for `hit_ids` under `header`. Marks every listed doc surfaced
-        -- the gold-doc-coverage metric must count a fallback hit exactly like an exact hit."""
+        """Render the structure table (rank, doc_id, title, §section names, ib[infobox
+        keys], matched fields) for `hit_ids` under `header`. Marks every listed doc surfaced:
+        the gold-doc-coverage metric must count a fallback hit exactly like an exact hit."""
         lines = [header]
         for rank, doc_id in enumerate(hit_ids, start=1):
             u = self.ubyid.get(doc_id)
@@ -237,10 +235,10 @@ class SearchBql(Tool):
         return "\n".join(lines)
 
     def _coverage_render(self, query: str, bql: str, expr, k: int) -> Optional[str]:
-        """BQL v2 Feature 2: render `self.ex.coverage_topk(expr, k)` as the SAME structure
+        """BQL v2 Feature 2: render `self.ex.coverage_topk(expr, k)` as the same structure
         table `_render_hits` renders, plus a per-hit `cov=n/total miss=[...]` suffix naming
-        the unmatched AND children. None if coverage_topk finds nothing (caller falls back
-        to the unchanged soft_topk path)."""
+        the unmatched AND children. Returns None if coverage_topk finds nothing, so the
+        caller falls back to the soft_topk path."""
         rows = self.ex.coverage_topk(expr, k=k)
         if not rows:
             return None
@@ -266,9 +264,10 @@ class SearchBql(Tool):
         return "\n".join(out)
 
     def _search(self, query: str, k: int = 5) -> str:
-        """search(query) -> the structure TABLE, plus -- the v2 date-nudge (DEFAULT OFF) --
-        ONE appended hint line whenever the RAW query text carries a bare temporal clue
-        outside a `date[...]` scope, capped at `_DATE_NUDGE_CAP` per instance."""
+        """search(query) -> the structure table, plus, when the v2 date-nudge is enabled (off
+        by default), one appended hint line whenever the raw query text carries a bare
+        temporal clue outside a `date[...]` scope, capped at `_DATE_NUDGE_CAP` per
+        instance."""
         result = self._search_impl(query, k)
         if (self.date_nudge and self._date_nudge_emitted < _DATE_NUDGE_CAP
                 and _has_bare_temporal_clue(query)):
@@ -289,23 +288,23 @@ class SearchBql(Tool):
         if obs.error:
             return f"search: {query}  ->  {bql}\nBQL {obs.error}"
         if not obs.hits:
-            # NO corpus-token "did you mean" here: peeking at the corpus vocabulary to
-            # spell-correct a 0-hit term is a retrieval-side advantage the bm25/dci baselines
-            # (and real web search) do NOT get. The SOFT-AND fallback below is corpus-fair:
-            # it's plain BM25 over the agent's OWN query terms.
+            # There is no corpus-token "did you mean" here: peeking at the corpus vocabulary
+            # to spell-correct a 0-hit term is a retrieval-side advantage the bm25/dci
+            # baselines (and real web search) do not get. The soft-AND fallback below is
+            # corpus-fair: it is plain BM25 over the agent's own query terms.
             try:
                 parsed_expr = bql_parse(bql).expr
                 leaf_toks = [t.lower() for t in _rank_leaves(parsed_expr)]
             except Exception:  # noqa: BLE001
                 parsed_expr = None
                 leaf_toks = []
-            # coverage=True: a 0-exact-hit AND with >=2 children gets constraint-COVERAGE
-            # ranking FIRST -- it pinpoints WHICH clause failed.
+            # coverage=True: a 0-exact-hit AND with >=2 children gets constraint-coverage
+            # ranking first, which pinpoints which clause failed.
             if self.coverage and isinstance(parsed_expr, And) and len(parsed_expr.children) >= 2:
                 cov_render = self._coverage_render(query, bql, parsed_expr, k)
                 if cov_render is not None:
                     return cov_render
-            # BQL_SOFT_FALLBACK=0 disables the fallback (ablation knob); default ON.
+            # BQL_SOFT_FALLBACK=0 disables the fallback (ablation knob); default on.
             if os.environ.get("BQL_SOFT_FALLBACK", "1") in ("0", "false", "no"):
                 leaf_toks = []
             if leaf_toks:
@@ -313,15 +312,15 @@ class SearchBql(Tool):
                 if soft_hits:
                     # exact AND is brittle under paraphrase/obfuscation: fall back to the
                     # whole-corpus BM25 relevance ranking over the query's own terms. These
-                    # soft hits REPLACE last_hits (not append).
+                    # soft hits replace last_hits (not append).
                     self.state.last_hits = [doc_id for doc_id, _ in soft_hits]
                     self.state.seen.update(self.state.last_hits)
                     header = (f"search: {query}  ->  {bql}   (0 exact matches — showing top "
                               f"{len(self.state.last_hits)} CLOSEST docs by term relevance; "
                               f"fetch to verify, or pivot/loosen)")
                     return self._render_hits(self.state.last_hits, leaf_toks, header)
-            # no soft hits either (or the leaf parse failed): keep the PRIOR non-empty
-            # ranking fetchable -- a 0-hit pivot/loosen must not wipe the last good hits.
+            # no soft hits either (or the leaf parse failed): keep the prior non-empty
+            # ranking fetchable, a 0-hit pivot/loosen must not wipe the last good hits.
             prior = ("  (previous results still available to fetch)"
                      if self.state.last_hits else "")
             return (f"search: {query}  ->  {bql}   (0 matches){prior}"

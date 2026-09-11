@@ -15,10 +15,10 @@ Output under ``data/<name>/``:
     qrels/test.tsv   query-id <TAB> corpus-id <TAB> score   # supporting paragraphs = gold
 
 The corpus is the UNION of the candidate paragraphs across the split (the fixed-corpus
-"distractor" setting), qrels are the supporting paragraphs — so evidence Recall/nDCG@k is
+"distractor" setting), qrels are the supporting paragraphs, so evidence Recall/nDCG@k is
 well defined and BQL can scope over the ``title`` field.
 
-OFFLINE RULE: run this where there is internet (login node or your laptop) — the GPU node
+OFFLINE RULE: run this where there is internet (login node or your laptop), the GPU node
 then reads the staged files with no network. If a HF id/split below is wrong for your
 mirror, override it (``--hf-id`` / ``--config`` / ``--split`` with ``--only``), or download
 the raw release yourself and pass ``--input`` (a JSON array or JSONL file; the schema is
@@ -116,7 +116,7 @@ def _normalize(ex: dict) -> tuple:
 class _Corpus:
     """Deduped paragraph corpus, one stable doc_id per title (supporting-fact labels in
     all three datasets reference titles, so title-keying keeps qrels and corpus aligned;
-    the first paragraph seen for a title wins — they are the canonical intro paragraph)."""
+    the first paragraph seen for a title wins, they are the canonical intro paragraph)."""
 
     def __init__(self) -> None:
         self.docs: dict[str, dict] = {}
@@ -174,7 +174,7 @@ def stage_one(name: str, out_root: str, input_path=None,
     try:
         examples = (load_examples_file(input_path) if input_path
                     else load_examples_hf(name, hf_id, config, split))
-    except Exception as e:  # noqa: BLE001 — surface a clear, actionable message
+    except Exception as e:  # noqa: BLE001, surface a clear, actionable message
         src = HF_SOURCES[name]
         print(f"  [error] {name}: could not load ({type(e).__name__}: {e}).\n"
               f"          default HF source: {src['path']} (config={src['config']}, "

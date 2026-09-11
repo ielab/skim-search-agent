@@ -1,13 +1,13 @@
 """The bounded bm25->DCI ACI: Bm25DciWorkspace (bm25 top-k search, then bash+read rooted at
-a flat export of ONLY those k docs).
+a flat export of only those k docs).
 
-`search`/`bm25_search` replays the top-k ranking computed once at construction (the SAME
+`search`/`bm25_search` replays the top-k ranking computed once at construction (the same
 `BM25Local` engine `Bm25Visit` uses, so retrieval is byte-identical to research_bm25 for the
 same query/engine). `bash`/`read` are DciWorkspace's shell, but rooted at a staging dir that
-holds ONLY the retrieved docs — a doc outside the top-k is not on disk, so it cannot be
-grepped or read at all (bounded is a filesystem fact, not a runtime check)."""
-from agent_search.agent.tools.doc_bm25_dci import Bm25DciWorkspace
-from agent_search.agent.tools.doc_research import Bm25Visit
+holds only the retrieved docs; a doc outside the top-k is not on disk, so it cannot be
+grepped or read at all. Bounded is a filesystem fact, not a runtime check."""
+from agent_search.legacy.workspaces.doc_bm25_dci import Bm25DciWorkspace
+from agent_search.legacy.workspaces.search_visit import Bm25Visit
 from agent_search.corpus.units import units_from_documents
 from agent_search.retrievers.lexical.bm25 import BM25Local
 

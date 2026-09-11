@@ -6,8 +6,8 @@ from types import SimpleNamespace
 from agent_search.agent.loop import Step, Task, run_episode
 from agent_search.agent.policies import AgentPolicy
 from agent_search.core.tokens import count_tokens
-from agent_search.agent.tools.code_fix import CodeFixWorkspace
-from agent_search.prompts import get_prompt_spec
+from agent_search.legacy.workspaces.code_fix import CodeFixWorkspace
+from agent_search.legacy.prompts import get_prompt_spec
 from agent_search.retrievers.bql.executor import StructuralExecutor, execute_bql
 from agent_search.corpus.units import units_from_python_source
 
@@ -176,7 +176,7 @@ def test_run_episode_nudge_compliance_tags_elicitation_nudge():
 def test_run_episode_ignored_nudge_triggers_inline_prefill_and_fills_answer():
     """The model tool-calls instead of answering on the forced turn (the bug this task fixes) —
     the inline elicitation (agent_search.agent.forced_answer, reached via policy.generate's
-    client/model attributes — see agent_search/models/backends.py::openai_compat_generate) fires
+    client/model attributes — see agent_search/models/openai_chat.py::openai_compat_generate) fires
     and fills final_answer; tagged "prefill_inline"."""
     def fake_generate(messages):
         return '<tool_call>{"name":"search","arguments":{"query":"x"}}</tool_call>'
@@ -276,9 +276,9 @@ def test_run_episode_organic_answer_before_budget_has_no_elicitation_tag():
 
 # --- inline elicitation context-overflow shrink-retry (the DCI live-job bug) --------------------
 #
-# `agent_search/agent/retriever.py`'s live loop-driver wiring is exactly `fake_generate.client`/
+# `agent_search/legacy/retriever.py`'s live loop-driver wiring is exactly `fake_generate.client`/
 # `fake_generate.model` attached to `AgentPolicy.generate`, same as `openai_compat_generate`
-# (agent_search/models/backends.py) does for real. `_elicit_inline` (agent_search/agent/loop.py)
+# (agent_search/models/openai_chat.py) does for real. `_elicit_inline` (agent_search/agent/loop.py)
 # used to call `elicit_final_answer` ONCE at the policy's full, unshrunk `ctx_tokens` and let its
 # outer `except Exception` swallow a "maximum context length" 400 exactly like any other failure
 # — so a served-vLLM episode whose final-turn history overflowed the window always resent the
@@ -390,7 +390,7 @@ def _prompt_tokens_usage(sequence):
     """A stateful usage_fn double. `record()` appends the next value of `sequence` (clamped to the
     last element once exhausted) as a fake (prompt_tokens, completion_tokens, 0, 0) event; the
     returned `usage_fn` is a LIVE reader of everything recorded so far — mirrors
-    `agent_search.models.backends.usage_events` being a thread-local reader of whatever the real
+    `agent_search.models.usage_events` being a thread-local reader of whatever the real
     backend has recorded up to THIS point in the episode (see loop.py::_last_prompt_tokens)."""
     events = []
 

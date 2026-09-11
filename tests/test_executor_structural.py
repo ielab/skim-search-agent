@@ -218,7 +218,7 @@ def test_suggest_skips_negated_terms():
 def test_score_subset_matches_corpus_idf_ranking():
     """score_subset over the matched ids must equal scoring the whole corpus then
     filtering to those ids — same corpus statistics, just restricted."""
-    from agent_search.retrievers.ranking import BM25
+    from agent_search.retrievers.lexical.scorer import BM25
     docs = {f"d{i}": ["alpha", "beta"] if i % 2 else ["alpha", "gamma", "gamma"]
             for i in range(6)}
     bm = BM25().index_tokenized(docs)

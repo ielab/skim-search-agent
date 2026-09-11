@@ -26,7 +26,7 @@ def test_condition_renders_the_pinned_prompt(name):
 
 @pytest.mark.parametrize("name", sorted(PINS))
 def test_yaml_loader_still_renders_the_pinned_prompt(name):
-    from agent_search.prompts import load_condition
+    from agent_search.legacy.prompts import load_condition
     cond, _, profile = name.partition("@")
     p = load_condition(cond, profile=profile or None)
     assert p.system_sha256 == PINS[name]["sha"], f"{name}: the YAML render changed"

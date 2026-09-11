@@ -1,20 +1,20 @@
-"""NEW, ADDITIVE-only hybrid agent conditions: `research_indri_visit` (graded Indri SEARCH +
-whole-doc VISIT read) and `research_indri_snip` (graded Indri SEARCH with content snippets +
-structured SECTION fetch). Both disentangle "search interface" from "read granularity" — the
-existing cells conflate them (bm25 = keyword search + whole-doc read; indri = graded search +
-section read).
+"""IndriVisitWorkspace (graded Indri search plus whole-doc visit read; once exposed as the
+condition `research_indri_visit`, now pruned from conditions.yaml) and `research_indri_snip`
+(graded Indri search with content snippets plus structured section fetch). Both disentangle
+"search interface" from "read granularity", where the plain cells conflate them (bm25 =
+keyword search + whole-doc read; indri = graded search + section read).
 
-CPU-only. The existing `research_indri` condition/toolset/IndriFetchWorkspace default behavior
-(snippets=False) must be byte-identical after this change — asserted explicitly below.
+CPU-only. The `research_indri_snip` condition's IndriFetchWorkspace default behavior
+(snippets=False) must be byte-identical to plain search, asserted explicitly below.
 """
 from __future__ import annotations
 
 import pytest
 
-from agent_search.agent.tools.doc_indri import (
+from agent_search.legacy.workspaces.doc_indri import (
     IndriFetchWorkspace, IndriVisitWorkspace, _indri_query_terms)
 from agent_search.corpus.units import CodeUnit
-from agent_search.prompts import load_condition
+from agent_search.legacy.prompts import load_condition
 from agent_search.retrievers.registry import RetrieverConfig, build_factory
 
 
@@ -222,7 +222,7 @@ def test_isearch_known_field_has_no_warning(units):
     assert "warning" not in out.lower()
 
 
-# --- 5. INDRI_DENSE env-gated dense-belief attachment (agent_search/agent/retriever.py) --
+# --- 5. INDRI_DENSE env-gated dense-belief attachment (agent_search/legacy/retriever.py) --
 # NEW, ADDITIVE-only: the indri-family arms ('indri'/'indrivisit'/'indrisnip') optionally
 # attach a `DenseBelief` to the shared `IndriExecutor` when `INDRI_DENSE` is truthy. OFF by
 # default — all three tests below patch

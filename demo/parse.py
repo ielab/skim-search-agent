@@ -1,8 +1,8 @@
 """Observation -> card-dict parsers used by the live SSE server (demo/server.py).
 
-Each function parses ONE workspace observation string — the exact text renderings of
-`DocSearchFetch.search`/`.fetch` and `Bm25Visit.search`/`.visit` (agent_search/agent/tools/
-doc_research.py) — into the dict shape the React player's cards render. Parsers are lenient:
+Each function parses one workspace observation string, the exact text renderings of
+`DocSearchFetch.search`/`.fetch` (agent_search/legacy/workspaces/sieve.py) and
+`Bm25Visit.search`/`.visit` (agent_search/legacy/workspaces/search_visit.py), into the dict shape the React player's cards render. Parsers are lenient:
 an unparseable observation degrades to a raw-text dict, never a raised exception."""
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ import re
 HIT = re.compile(r"^\s*(\d+)\s+(\S+)\s+'([^']*)'\s+§\[([^\]]*)\]\s+ib\[([^\]]*)\]"
                  r"(?:\s+matched:\s+(\S+))?\s+»\s+(.*)$")
 FETCH = re.compile(r"^\s*\[(\S+)\s+§(.*?)\]\s+(.*)$", re.S)
-# Bm25Visit.search line: "  {rank}  {id}  {title!r}  {snippet}…" — {title!r} is Python repr,
+# Bm25Visit.search line: "  {rank}  {id}  {title!r}  {snippet}…", {title!r} is Python repr,
 # so both quote styles must match (repr picks double quotes when the title has an apostrophe).
 BM25_HIT = re.compile(r"^\s*(\d+)\s+(\S+)\s+(?:'([^']*)'|\"([^\"]*)\")\s+(.*?)…?\s*$")
 # Bm25Visit.visit header: "{doc_id}  {title!r}:" then the full text on following lines.
@@ -49,7 +49,7 @@ def parse_fetch(obs: str) -> dict:
 
 
 def parse_bm25_search(obs: str) -> dict:
-    """Bm25Visit.search observation (flat listing, NO structure chips) -> the SAME hit shape
+    """Bm25Visit.search observation (flat listing, NO structure chips) -> the same hit shape
     parse_search emits (sections/infobox empty, matched "") so HitCard renders both."""
     lines = obs.split("\n")
     m = re.match(r"search:\s*(.*?)\s+\((.*?)\)", lines[0])

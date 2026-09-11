@@ -23,31 +23,32 @@ from .run_eval import _build_corpus, _build_document_corpus, _corpus_key, _progr
 
 
 def _bm25_backend_is_pyserini() -> bool:
-    """Mirrors agent_search.retrievers.lexical.build_bm25_engine's own env resolution
-    (default 'local') without importing pyserini eagerly — step 0 must be able to answer
-    'does this run need a Lucene prebuild' from just the env var, cheaply."""
+    """Resolve the BM25 backend the same way agent_search.retrievers.lexical.build_bm25_engine
+    does (default 'local'), without importing pyserini eagerly. Step 0 has to answer 'does this
+    run need a Lucene prebuild' from just the env var, cheaply."""
     import os
     return (os.environ.get("BM25_BACKEND") or "local").strip().lower() == "pyserini"
 
 
 def _structured_backend_is_lucene() -> bool:
-    """Mirrors agent_search.retrievers.backend.structured_backend's own env
-    resolution (default 'python') without importing the structural package eagerly —
-    same cheap-answer-from-env-var motivation as `_bm25_backend_is_pyserini` above."""
+    """Resolve the structured backend the same way agent_search.retrievers.backend
+    .structured_backend does (default 'python'), without importing the structured retrieval
+    package eagerly. Same cheap-answer-from-env-var reasoning as `_bm25_backend_is_pyserini`
+    above."""
     import os
     return (os.environ.get("STRUCTURED_BACKEND") or "python").strip().lower() == "lucene"
 
 
 def prebuildable_for(retriever: str) -> list[str]:
-    """Which PERSISTENT indexes a run of `retriever` should materialize in step 0.
+    """Which persistent indexes a run of `retriever` should materialize in step 0.
 
-    The uniform "step 0" is the same for code and documents — only the corpora count
-    differs. A floor maps to itself; an agent condition pre-builds `dense` iff its
-    toolset uses embedding search, and `search_bql` iff its toolset uses BQL (its
+    The "step 0" pre-build stage is the same for code and documents: only the corpora count
+    differs. A floor maps to itself; an agent condition pre-builds `dense` if its
+    toolset uses embedding search, and `search_bql` if its toolset uses BQL (its
     O(N) postings+BM25 index is otherwise built inside the first episode, on the clock).
-    grep / bm25_local are in-memory, so they need NO step 0 (return []). A bm25-family
+    grep / bm25_local are in-memory, so they need no step 0 (return []). A bm25-family
     toolset (bm25_search/bm25q_search/bm25_search_snip) pre-builds `bm25_pyserini` too, but
-    ONLY when env `BM25_BACKEND=pyserini` — with the default 'local' backend the bm25 engine
+    only when env `BM25_BACKEND=pyserini`: with the default 'local' backend the bm25 engine
     stays in-memory, needing no step 0.
     """
     if retriever in ("dense", "bm25_pyserini", "search_bql", "search_indri", "search_lucene"):
@@ -62,10 +63,11 @@ def prebuildable_for(retriever: str) -> list[str]:
             engines = set(cond.strategy.engines)
         except Exception:
             return []
-        # the strategy's engine kinds say which artifacts a run will load: a dense arm (or a
-        # BQL arm that fuses the dense model) reads the persisted embedding cache; BQL and
-        # Indri read their own artifact, or the shared Lucene index under STRUCTURED_BACKEND=
-        # lucene; a BM25 arm reads the Pyserini index only under BM25_BACKEND=pyserini.
+        # the strategy's engine kinds say which artifacts a run will load: a condition using
+        # dense retrieval (or BQL fused with the dense model) reads the persisted embedding
+        # cache; BQL and Indri read their own artifact, or the shared Lucene index under
+        # STRUCTURED_BACKEND=lucene; a condition using BM25 reads the Pyserini index only
+        # under BM25_BACKEND=pyserini.
         kinds = []
         if engines & {"dense", "bql_fused", "bql_dense"}:
             kinds.append("dense")
@@ -124,14 +126,14 @@ def build(instances, index_root="indexes", rebuild=False, cache_dir="data/repos"
         raise ValueError(f"cannot pre-build indexes for retriever {retriever!r}")
 
     corpora = shard_by_repo(unique_corpora(instances), shard, nshards)
-    retriever_obj = make_retriever()        # one instance, reused: the encoder loads ONCE,
+    retriever_obj = make_retriever()        # one instance, reused: the encoder loads once,
                                             # and is_cached() reads the same paths .index() writes
     built = skipped = failed = 0
     missing_repos: set = set()
     for key, inst in _progress(corpora, progress):
         try:
-            # already persisted? skip the corpus's unit parse AND the (re)build entirely.
-            # This is what makes a re-run — and run.sh's STEP 0 prebuild after Phase 1 — a
+            # already persisted? skip the corpus's unit parse and the (re)build entirely.
+            # This is what makes a re-run, and run.sh's step 0 prebuild after Phase 1, a
             # true per-corpus no-op instead of re-parsing every repo/doc to feed a cache hit.
             if not rebuild and retriever_obj.is_cached(key):
                 skipped += 1
@@ -148,7 +150,7 @@ def build(instances, index_root="indexes", rebuild=False, cache_dir="data/repos"
         except RepoError:                       # repo not staged: aggregate by repo so the
             failed += 1                          # caller can report ~80 unique repos, not
             missing_repos.add(inst.repo)         # one identical line per commit (461 lines)
-        except Exception as e:  # noqa: BLE001 — keep going; one bad repo isn't fatal
+        except Exception as e:  # noqa: BLE001 - keep going; one bad repo isn't fatal
             failed += 1
             print(f"  [error] {key}: {type(e).__name__}: {e}")
     return {"corpora": len(corpora), "built": built, "skipped": skipped, "failed": failed,
@@ -179,7 +181,7 @@ def main() -> None:
 
     instances = load_dataset_by_name(args.dataset, limit=args.limit,
                                      corpus_limit=args.corpus_limit)
-    # The dense embedder MUST match what run_eval will later load (same model -> same
+    # The dense embedder must match what run_eval will later load (same model -> same
     # cache key), so default it from the dataset's domain exactly as the eval does.
     from agent_search.evaluation.datasets import dataset_domain, default_dense_model
     model = args.model or default_dense_model(dataset_domain(args.dataset))
@@ -194,16 +196,16 @@ def main() -> None:
     miss = res.get("missing_repos") or []
     if miss:
         # the common cause for a code dataset: its repos were never prefetched. Report the
-        # UNIQUE repos + the exact stage command once, instead of one error line per commit.
+        # unique repos plus the exact stage command once, instead of one error line per commit.
         print(f"\n{len(miss)} repo(s) for '{args.dataset}' are NOT staged under "
               f"{args.repo_cache} — stage them on a node WITH internet, then re-run:")
         print(f"  git clone https://github.com/<owner>/<repo> {args.repo_cache}/<owner>__<repo>   "
               f"# one per missing repo (no prefetch script ships with this release)")
         print("  missing: " + ", ".join(miss[:40]) + (" ..." if len(miss) > 40 else ""))
     # fail loudly: a shard that built nothing (all corpora errored) must not look like
-    # success — callers (scripts/run.sh Phase 0) abort instead of serving with no index.
+    # success, so callers (scripts/run.sh Phase 0) abort instead of serving with no index.
     # `skipped` (already-cached) counts as success: built==0 is fine when everything was
-    # already on disk, only an empty-AND-nothing-cached shard is the error.
+    # already on disk, only an empty-and-nothing-cached shard is the error.
     nothing_done = res["built"] == 0 and res.get("skipped", 0) == 0
     if res["failed"] > 0 or (res["corpora"] > 0 and nothing_done):
         sys.exit(1)

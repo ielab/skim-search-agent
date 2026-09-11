@@ -154,9 +154,10 @@ def test_training_file_round_trip_and_serving_note(tmp_path):
     note = R.write_serving_note(cfg, str(tmp_path / "ckpt"))
     data = json.loads(Path(note).read_text())
     assert data["pooling"] == "last_token" and data["query_instruction"] == Q.INSTRUCTIONS["i2"]
-    from agent_search.retrievers.dense import dense as D
-    assert D.query_prefix_for(str(tmp_path / "ckpt")) == Q.instruction_prefix(Q.INSTRUCTIONS["i2"])
-    assert D.query_prefix_for("BAAI/bge-base-en-v1.5") == ""
+    from agent_search.retrievers.dense import DenseRetriever
+    assert (DenseRetriever(str(tmp_path / "ckpt"), encoder=object()).query_prefix_for()
+            == Q.instruction_prefix(Q.INSTRUCTIONS["i2"]))
+    assert DenseRetriever("BAAI/bge-base-en-v1.5", encoder=object()).query_prefix_for() == ""
     bad = tmp_path / "bad.yaml"
     bad.write_text("train_data: x\nlearning_rat: 1\n")
     with pytest.raises(ValueError, match="unknown training keys"):

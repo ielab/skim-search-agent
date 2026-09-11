@@ -49,8 +49,8 @@ class _NeverIterate(LazyUnits):
 
 
 def test_workspaces_do_not_materialise_a_lazy_corpus(tmp_path):
-    from agent_search.agent.tools.doc_dedup import DedupSearchWorkspace
-    from agent_search.agent.tools.doc_research import Bm25Visit
+    from agent_search.legacy.workspaces.doc_dedup import DedupSearchWorkspace
+    from agent_search.legacy.workspaces.search_visit import Bm25Visit
     units = _NeverIterate(_store(tmp_path))
 
     class Engine:
@@ -78,7 +78,7 @@ def test_in_memory_engines_refuse_a_lazy_corpus(tmp_path):
 # --- tools ------------------------------------------------------------------------------
 
 def test_float_rank_gives_a_clean_error_not_a_crash():
-    from agent_search.agent.tools.doc_research import Bm25Visit
+    from agent_search.legacy.workspaces.search_visit import Bm25Visit
 
     class Engine:
         def search(self, q, k=5):
@@ -96,13 +96,13 @@ def test_float_rank_gives_a_clean_error_not_a_crash():
 def test_unknown_pooling_is_rejected(tmp_path, monkeypatch):
     """The check runs before any weights are loaded, so a weightless checkpoint dir is enough."""
     pytest.importorskip("sentence_transformers")
-    from agent_search.retrievers.dense import dense as D
+    from agent_search.retrievers.dense import DenseRetriever
     ck = tmp_path / "ckpt"; ck.mkdir()
     (ck / "config.json").write_text(json.dumps({"model_type": "qwen3"}))
     monkeypatch.setenv("DENSE_POOLING", "mena")
     with pytest.raises(ValueError, match="unknown pooling 'mena'"):
-        D._shared_encoder(str(ck), None, 64)
-    assert D.resolve_pooling(str(ck)) == "mena"
+        DenseRetriever(str(ck), max_seq_length=64)._shared_encoder(None)
+    assert DenseRetriever(str(ck), encoder=object()).resolve_pooling() == "mena"
 
 def test_fingerprint_sees_metadata_changes():
     from agent_search.corpus.fingerprint import corpus_fingerprint
@@ -113,7 +113,7 @@ def test_fingerprint_sees_metadata_changes():
 
 def test_external_index_built_with_another_model_is_refused(tmp_path, monkeypatch):
     import numpy as np
-    from agent_search.retrievers.dense.dense import DenseRetriever
+    from agent_search.retrievers.dense import DenseRetriever
     from agent_search.retrievers.dense.vector_index import build_index, save_index
     emb = np.eye(3, dtype="float32")
     idx = build_index(emb, ["1", "2", "3"])
@@ -127,7 +127,7 @@ def test_external_index_built_with_another_model_is_refused(tmp_path, monkeypatc
 
 def test_query_length_comes_from_the_serving_note(tmp_path):
     import numpy as np
-    from agent_search.retrievers.dense.dense import DenseRetriever
+    from agent_search.retrievers.dense import DenseRetriever
     ck = tmp_path / "ckpt"; ck.mkdir()
     (ck / "skimsearchagent_dense.json").write_text(json.dumps({"query_max_len": 2048, "max_seq_length": 512}))
 

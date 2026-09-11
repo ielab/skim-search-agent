@@ -4,7 +4,7 @@ Both the method (index-free structural executor) and the baselines (BM25/dense)
 chunk live files into function-level units and tokenize them. This lives at the top
 level so neither layer depends on the other (method and eval both depend on `units`).
 
-Chunking is done on the *live* files at query time — there is no persisted index.
+Chunking is done on the *live* files at query time: there is no persisted index.
 """
 from __future__ import annotations
 
@@ -17,7 +17,7 @@ from typing import Mapping, Sequence
 def is_test_path(path: str) -> bool:
     """SWE-bench's test-file heuristic (bm25_retrieval.py is_test / CoRNStack):
     split the path on separators and drop it if any word is test/tests/testing.
-    Applied uniformly to the corpus of EVERY condition so test exclusion can
+    Applied uniformly to the corpus of every condition so test exclusion can
     never confound the method-vs-baseline comparison."""
     words = set(re.split(r"[_\-/\.]", path.lower()))
     return bool(words & {"test", "tests", "testing"})
@@ -34,7 +34,7 @@ class CodeUnit:
     title: str | None = None
     body: str | None = None
     section: str | None = None
-    # doc arm: sections as a MATCHED, ordered list of (heading, text) parts. A structured corpus
+    # document units: sections as a matched, ordered list of (heading, text) parts. A structured corpus
     # ships them explicitly, so `fetch` reads a real slice and IN(section,·) scopes to a named part,
     # instead of re-deriving them from `##` markers in the body. None for code units and flat docs
     # (fetch then falls back to splitting the body on `##`). A tuple keeps CodeUnit hashable/frozen.
@@ -45,7 +45,7 @@ class CodeUnit:
 def units_from_python_source(path: str, source: str) -> list[CodeUnit]:
     """Extract function/method units from a Python source string.
 
-    Unparseable sources return [] (never raise) — real repos contain files that
+    Unparseable sources return [] (never raise): real repos contain files that
     don't parse under our Python version.
     """
     try:
@@ -104,7 +104,7 @@ def units_from_documents(docs: Sequence[Mapping[str, object]]) -> list[CodeUnit]
         title = str(d.get("title") or "")
         section = str(d.get("section") or d.get("heading") or "")
         body = str(d.get("text") or d.get("body") or d.get("contents") or "")
-        # A STRUCTURED corpus ships `sections` as a matched, ordered list of {heading, text} parts
+        # A structured corpus ships `sections` as a matched, ordered list of {heading, text} parts
         # (wikipedia's real `##` sections; browsecomp's LLM-inserted TOC sections). Keep them as
         # (heading, text) pairs on the unit; derive the joined-heading `section` field (for
         # IN(section,·) + the search listing) from them when a flat `section` string wasn't given.
@@ -117,18 +117,18 @@ def units_from_documents(docs: Sequence[Mapping[str, object]]) -> list[CodeUnit]
                 section = " ".join(h for h, _ in sections if h)
         if not (title or section or body or sections):
             continue
-        # The bm25/dense searchable blob is `code` ALONE, and every engine indexes
-        # `f"{qualname} {code}"` (qualname = title). So `code` is BODY ONLY here — NOT
+        # The bm25/dense searchable blob is `code` alone, and every engine indexes
+        # `f"{qualname} {code}"` (qualname = title). So `code` is body only here, not
         # title+body: title already reaches the index once via `qualname`, and folding it
-        # into `code` too would count every title token TWICE (a TF advantage no other
-        # unit kind gets — `units_from_python_source`'s `code` never repeats `qualname`
-        # either). FAIRNESS for the flat-vs-structured pair: a structured doc carries
-        # `section` (its joined headings) while its flat twin does not, but their
-        # `text`/`body` is byte-identical and already contains those headings
-        # (`## History` ...). Including the standalone `section` field here would
-        # double-count heading tokens in the structured arm only, giving bm25/dense a TF
-        # advantage the flat arm lacks — a confound. `section` stays on `u.section` for
-        # BQL's IN(section,·) to scope; it just doesn't inflate the lexical/dense blob.
+        # into `code` too would count every title token twice, a TF advantage no other unit
+        # kind gets (`units_from_python_source`'s `code` never repeats `qualname` either).
+        # For the flat-vs-structured pair specifically: a structured doc carries `section`
+        # (its joined headings) while its flat twin does not, but their `text`/`body` is
+        # byte-identical and already contains those headings (`## History` ...). Including the
+        # standalone `section` field here would double-count heading tokens in the
+        # structured corpus only, giving bm25/dense a TF advantage the flat corpus lacks: a
+        # confound. `section` stays on `u.section` for BQL's IN(section,·) to scope; it
+        # just doesn't inflate the lexical/dense blob.
         code = body
         path = str(d.get("path") or d.get("url") or doc_id)
         units.append(CodeUnit(
@@ -156,9 +156,9 @@ _CAMEL = re.compile(r"[A-Z]+(?=[A-Z][a-z])|[A-Z]?[a-z0-9]+|[A-Z]+|[0-9]+")
 def code_tokenize(text: str) -> list[str]:
     """Lowercase identifier-aware tokenizer: splits snake_case and camelCase.
 
-    ASCII words go through the camelCase splitter (byte-identical to before, so code
-    tokenization is unchanged); non-ASCII words (document corpora in other languages)
-    are kept WHOLE rather than fragmented by the ASCII-only camelCase regex."""
+    ASCII words go through the camelCase splitter; non-ASCII words (document corpora in
+    other languages) are kept whole rather than fragmented by the ASCII-only camelCase
+    regex."""
     out: list[str] = []
     for word in _WORD.findall(text):
         for part in word.split("_"):

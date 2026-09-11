@@ -21,7 +21,7 @@ def load_swebench(name: str = "princeton-nlp/SWE-bench_Verified",
     local = _local_dir(name)
     if os.path.isdir(local) and os.listdir(local):
         from datasets import load_from_disk
-        ds = load_from_disk(local)            # offline, from data/ — no network, no HF cache
+        ds = load_from_disk(local)            # offline, from data/: no network, no HF cache
     else:
         import sys
         print(f"[agent_search] WARNING: {local} is NOT staged — falling back to HuggingFace "

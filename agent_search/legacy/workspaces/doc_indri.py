@@ -1,28 +1,31 @@
-"""IndriFetchWorkspace: `isearch` (the Indri graded query-language backend) + `fetch` (the
-SAME structured section-fetch DocSearchFetch/Bm25FetchWorkspace use).
+"""IndriFetchWorkspace: `isearch` (the Indri graded query-language backend) plus `fetch` (the
+same structured section-fetch DocSearchFetch/Bm25FetchWorkspace use).
+
+Kept so the parity tests can compare against it. The current equivalent is the `indri`
+strategy in `agent_search/strategies/indri.py`, using the `search_indri` and `fetch` tools.
 
 The `indri` toolset (tools.yaml) drives this workspace. Like `Bm25FetchWorkspace` reuses
-`DocSearchFetch`'s section cache + `fetch` verbatim (see doc_research.py's module docstring),
-`IndriFetchWorkspace` subclasses `DocSearchFetch` and reuses everything EXCEPT retrieval:
-`isearch` queries an `IndriExecutor` (Dirichlet-smoothed belief scoring — a query NEVER
+`DocSearchFetch`'s section cache and `fetch` verbatim (see sieve.py's module docstring),
+`IndriFetchWorkspace` subclasses `DocSearchFetch` and reuses everything except retrieval:
+`isearch` queries an `IndriExecutor` (Dirichlet-smoothed belief scoring, a query never
 hard-zeros; see skills/indri_doc.md) instead of the BQL executor. `self.ex` (the BQL executor
-DocSearchFetch's inherited methods never touch — fetch only needs `self.ubyid`/`self._secs`)
+DocSearchFetch's inherited methods never touch; fetch only needs `self.ubyid`/`self._secs`)
 is left None, matching Bm25FetchWorkspace's own pattern.
 
-Two related workspaces cross graded Indri search with the OTHER arms' READ strategies
-(disentangling "search interface" from "read granularity" so the two axes can vary
-independently):
+Two related workspaces cross graded Indri search with the other arms' read strategies,
+disentangling "search interface" from "read granularity" so the two axes can vary
+independently:
 
-  IndriVisitWorkspace (`indri_visit` toolset) — isearch_v/visit_v: the SAME graded search as
-    `isearch` (ranking, weakest-constraint diagnostic, op_nudge), rendered WITH a per-hit
-    content snippet (`snippets=True` — fairness parity with the bm25 baseline's opening-snippet
-    listing), + a whole-doc VISIT read (mirroring Bm25Visit.visit exactly). A strict single-axis
-    swap vs research_bm25: same read, same content-bearing listing, only the search ENGINE
-    differs (graded Indri vs BM25 keyword).
+  IndriVisitWorkspace (`indri_visit` toolset), isearch_v/visit_v: the same graded search as
+    `isearch` (ranking, weakest-constraint diagnostic, op_nudge), rendered with a per-hit
+    content snippet (`snippets=True`, for fairness parity with the bm25 baseline's
+    opening-snippet listing), plus a whole-doc visit read (mirroring Bm25Visit.visit exactly).
+    A strict single-axis swap vs research_bm25: same read, same content-bearing listing, only
+    the search engine differs (graded Indri vs BM25 keyword).
 
-  IndriFetchWorkspace(snippets=True) (`research_indri_snip` x `indri_snip` toolset — the one of
-    these three registered in conditions.yaml) — isearch_s/fetch: the SAME graded search +
-    snippet listing, but a structured SECTION fetch read (the SAME `fetch` the plain `indri`
+  IndriFetchWorkspace(snippets=True) (`research_indri_snip`, the `indri_snip` toolset, the one
+    of these three registered in conditions.yaml), isearch_s/fetch: the same graded search and
+    snippet listing, but a structured section fetch read (the same `fetch` the plain `indri`
     arm uses) instead of a whole-doc visit.
 """
 from __future__ import annotations
@@ -30,8 +33,10 @@ from __future__ import annotations
 import re
 from typing import Optional, Sequence
 
-from agent_search.legacy.workspaces.doc_research import (
-    DocSearchFetch, MAX_VISIT_TOKENS, _cap_tokens, _INTRO, _infobox)
+from agent_search.legacy.workspaces.sieve import DocSearchFetch
+from agent_search.legacy.workspaces.budgets import MAX_VISIT_TOKENS
+from agent_search.legacy.workspaces.common import _INTRO, _infobox
+from agent_search.core.tokens import cap_tokens as _cap_tokens
 from agent_search.core.seen import OrderedSeen
 from agent_search.corpus.units import CodeUnit
 from agent_search.retrievers.indri.model import IndriExecutor

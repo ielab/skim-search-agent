@@ -10,14 +10,14 @@ import os
 from dataclasses import dataclass
 from typing import Any, Optional
 
-# Datasets are pre-downloaded here (on a node with internet) so the GPU node — which
-# usually has NO internet — can load them offline. See scripts/download_data.sh.
+# Datasets are pre-downloaded here (on a node with internet) so the GPU node, which
+# usually has no internet, can load them offline. See scripts/download_data.sh.
 DATA_DIR = os.environ.get("AGENT_SEARCH_DATA", "data")
 
 
 def data_dir() -> str:
-    """The current data root, read from the PACKAGE attribute (`agent_search.evaluation.
-    datasets.DATA_DIR`), not this module's own copy — tests monkeypatch the package attribute
+    """The current data root, read from the package attribute (`agent_search.evaluation.
+    datasets.DATA_DIR`), not this module's own copy. Tests monkeypatch the package attribute
     (`monkeypatch.setattr(DS, "DATA_DIR", ...)` where `DS` is the package), and every loader
     must see that override. Call this instead of referencing `DATA_DIR` directly."""
     import agent_search.evaluation.datasets as _pkg
@@ -98,7 +98,7 @@ def _qrels_from_jsonl(path: str) -> dict[str, set[str]]:
 
 
 def _sidecar_answers(root: str, name: str) -> dict:
-    """Some BEIR-style sets (browsecomp_plus) ship gold ANSWERS in a separate file, not in
+    """Some BEIR-style sets (browsecomp_plus) ship gold answers in a separate file, not in
     queries.jsonl. Look for answers.jsonl in `root`, or a `<base>_decrypted.jsonl` under the base
     dataset dir (the _structured/_flat variants share the base's answers). Returns {query_id: answer}."""
     base = name
@@ -132,13 +132,13 @@ _DATASET_PROFILE: dict[str, str] = {}
 def register_dataset(name: str, domain: str = "code", field_profile: str | None = None):
     """Decorator: bind a name to a loader ``(limit, corpus_limit) -> [Instance]``.
 
-    `domain` is declared BY the dataset (``code`` = per-query repo localization,
+    `domain` is declared by the dataset (``code`` = per-query repo localization,
     ``general`` = shared document corpus / deep research). It drives the dense
-    embedder, the prompt domain, and whether the corpus is pre-embedded — so adding
+    embedder, the prompt domain, and whether the corpus is pre-embedded, so adding
     a new dataset is a single registration, with no central list to edit.
 
-    `field_profile` selects which BQL manual variant the agent sees — the manual must
-    advertise EXACTLY the corpus's fields. A STRUCTURED corpus declares its profile
+    `field_profile` selects which BQL manual variant the agent sees: the manual must
+    advertise exactly the corpus's fields. A structured corpus declares its profile
     (``wiki`` = title/section/infobox/body, ``browsecomp`` = title/author/date/section/
     body); a flat corpus omits it and inherits the domain (general = title/body)."""
     def deco(fn):
@@ -191,16 +191,15 @@ def dataset_field_profile(name: str, override: Optional[str] = None) -> Optional
 
 
 def default_dense_model(domain: str) -> str:
-    """The default dense embedder for `domain`. Env `DENSE_MODEL` overrides the GENERAL-domain
+    """The default dense embedder for `domain`. Env `DENSE_MODEL` overrides the general-domain
     default only (e.g. `DENSE_MODEL=Qwen/Qwen3-Embedding-0.6B` to swap in Qwen3-Embedding for
-    browsecomp_plus_structured/hotpotqa_structured/etc.) — the CODE-domain default
+    browsecomp_plus_structured/hotpotqa_structured/etc.). The code-domain default
     (nomic-ai/CodeRankEmbed) is a code-trained embedder with no general-text equivalent in this
-    knob's scope, so it stays fixed regardless of DENSE_MODEL (an accidental `export
-    DENSE_MODEL=...` in a shell must never silently swap the SWE-bench code embedder).
-    Unset -> unchanged defaults (BAAI/bge-base-en-v1.5 for general), so every existing
-    run/cache is untouched by this knob's addition. The chosen model's own cache namespace
-    (`indexes/dense/<model>-sl<len>/<corpus_key>/`, from DenseRetriever._cache_dir) keeps it
-    from ever mixing with another model's embeddings."""
+    knob's scope, so it stays fixed regardless of DENSE_MODEL: an accidental `export
+    DENSE_MODEL=...` in a shell must never silently swap the SWE-bench code embedder.
+    Unset falls back to BAAI/bge-base-en-v1.5 for general. The chosen model's own cache
+    namespace (`indexes/dense/<model>-sl<len>/<corpus_key>/`, from DenseRetriever._cache_dir)
+    keeps it from ever mixing with another model's embeddings."""
     import os
     if domain == "general":
         return os.environ.get("DENSE_MODEL") or "BAAI/bge-base-en-v1.5"

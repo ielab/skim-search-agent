@@ -1,13 +1,15 @@
-"""ADDITIVE-only coverage for sdk_driver's two new toolsets: `research_v2`'s ("search_v2",
-"fetch_v2") and `research_indri`'s ("isearch", "fetch") — see agent_search/agent/tools/doc_research.py
-(search_v2/fetch_v2 alias search/fetch on DocSearchFetch.run) and agent_search/agent/tools/doc_indri.py
-(isearch on IndriFetchWorkspace.run). Before this test's corresponding fix, `_tools_for` didn't know
-these tool names, so an OpenAI-backbone SDK run over either workspace got ZERO tools.
+"""Coverage for sdk_driver's toolsets ("search_v2", "fetch_v2") and ("isearch", "fetch"), once
+exposed as the `research_v2` and `research_indri` conditions and now pruned from
+conditions.yaml, but still valid tool names on the underlying workspaces: see
+agent_search/legacy/workspaces/sieve.py (search_v2/fetch_v2 alias search/fetch on
+DocSearchFetch.run) and agent_search/legacy/workspaces/doc_indri.py (isearch on
+IndriFetchWorkspace.run). `_tools_for` must recognize these tool names, so an OpenAI-backbone
+SDK run over either workspace gets its tools.
 
 CPU-only, no network: a tiny fake workspace (tools attribute + run(name, args) recording calls,
 returning a canned string) stands in for the real DocSearchFetch/IndriFetchWorkspace. Each SDK
-`function_tool`'s underlying callable is invoked via its `.on_invoke_tool(ctx, json_args)` — the
-`agents` library's own invocation path — never a real model/API call.
+`function_tool`'s underlying callable is invoked via its `.on_invoke_tool(ctx, json_args)`, the
+`agents` library's own invocation path, never a real model/API call.
 """
 from __future__ import annotations
 

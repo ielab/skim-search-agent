@@ -53,7 +53,7 @@ def _toolbox(tools, engines):
 
 @pytest.mark.parametrize("variant", ["bm25", "bm25q", "dense", "hybrid"])
 def test_search_visit_family_matches_the_old_workspaces(variant):
-    from agent_search.agent.tools.search_visit import Bm25Visit, DenseVisit, HybridVisit
+    from agent_search.legacy.workspaces.search_visit import Bm25Visit, DenseVisit, HybridVisit
     from agent_search.tools.search_bm25.tool import SearchBm25
     from agent_search.tools.search_dense.tool import SearchDense
     from agent_search.tools.search_hybrid.tool import SearchHybrid
@@ -79,7 +79,7 @@ def test_search_visit_family_matches_the_old_workspaces(variant):
 
 @pytest.mark.parametrize("variant", ["bm25", "dense", "hybrid"])
 def test_autoread_family_matches_the_old_workspaces(variant):
-    from agent_search.agent.tools.search_visit import Bm25AutoRead, DenseAutoRead, HybridAutoRead
+    from agent_search.legacy.workspaces.search_visit import Bm25AutoRead, DenseAutoRead, HybridAutoRead
     from agent_search.tools.search_bm25.tool import SearchBm25
     from agent_search.tools.search_dense.tool import SearchDense
     from agent_search.tools.search_hybrid.tool import SearchHybrid
@@ -145,7 +145,7 @@ def _bql_toolbox(search_tool, fetch_tool, engine_kind, executor):
 
 @pytest.mark.parametrize("variant", ["plain", "snippets", "coverage_date_nudge"])
 def test_bql_sieve_family_matches_the_old_workspace(variant):
-    from agent_search.agent.tools.sieve import DocSearchFetch
+    from agent_search.legacy.workspaces.sieve import DocSearchFetch
     from agent_search.tools.fetch.tool import Fetch
     from agent_search.tools.search_bql.tool import SearchBql
 
@@ -172,7 +172,7 @@ def test_bql_sieve_family_matches_the_old_workspace(variant):
 def test_bqlvisit_matches_the_old_workspace():
     """`BqlVisitWorkspace`: the same BQL search, forced coverage/date_nudge/snippets, paired
     with a whole-doc `visit` instead of `fetch`."""
-    from agent_search.agent.tools.sieve import BqlVisitWorkspace
+    from agent_search.legacy.workspaces.sieve import BqlVisitWorkspace
     from agent_search.tools.search_bql.tool import SearchBql
     from agent_search.tools.visit.tool import Visit
 
@@ -208,7 +208,7 @@ def test_bql_donly_snip_matches_the_old_workspace():
     """`DocSearchFetchDonlySnip`: `DocSearchFetch(snippets=True)` over a dense-only-ranked
     executor (dense unattached here, so ordering degrades to the plain filter/coverage
     structure — the dense-attached fusion math is covered by test_bql_dense.py)."""
-    from agent_search.agent.tools.sieve import DocSearchFetchDonlySnip
+    from agent_search.legacy.workspaces.sieve import DocSearchFetchDonlySnip
     from agent_search.tools.fetch.tool import Fetch
     from agent_search.tools.search_bql.tool import SearchBql
 
@@ -242,7 +242,7 @@ def test_code_fix_matches_the_old_workspace():
     """`CodeFixWorkspace`: search groups hits by FILE (not by unit); fetch pulls a named
     function/method or an L-range. Neither tracks `seen`/`surfaced` in the old workspace, so
     only the rendered text is compared here."""
-    from agent_search.agent.tools.code_fix import CodeFixWorkspace
+    from agent_search.legacy.workspaces.code_fix import CodeFixWorkspace
     from agent_search.corpus.units import units_from_python_source
     from agent_search.tools.fetch_code.tool import FetchCode, SearchCode
 
@@ -290,7 +290,7 @@ def test_dci_bash_read_matches_the_old_workspace(tmp_path, monkeypatch):
     """`Bash`+`Read(source="export")` over the whole flat export match `DciWorkspace` call
     for call, including the shell-shaped bash errors and the corpus-escaping read guard."""
     monkeypatch.setenv("AGENT_SEARCH_DCI_CACHE", str(tmp_path))
-    from agent_search.agent.tools.doc_dci import DciWorkspace
+    from agent_search.legacy.workspaces.doc_dci import DciWorkspace
     from agent_search.tools.bash.tool import Bash
     from agent_search.tools.read.tool import Read
 
@@ -317,7 +317,7 @@ def test_bounded_dci_bm25_search_bash_read_matches_the_old_workspace():
     """`SearchBm25Dci`+`Bash(bounded=True)`+`Read` match `Bm25DciWorkspace`: retrieval is live
     on every call, hits are staged incrementally, and the empty-hit rendering has no "previous
     results" suffix (the reason this is its own tool, not a `SearchBm25` option)."""
-    from agent_search.agent.tools.doc_bm25_dci import Bm25DciWorkspace
+    from agent_search.legacy.workspaces.doc_bm25_dci import Bm25DciWorkspace
     from agent_search.tools.bash.tool import Bash
     from agent_search.tools.read.tool import Read
     from agent_search.tools.search_bm25_dci.tool import SearchBm25Dci
@@ -346,7 +346,7 @@ def test_bounded_dci_bm25_search_bash_read_matches_the_old_workspace():
 def test_grep_read_matches_the_old_workspace():
     """`Grep`+`Read(source="repo")` over the code fixture's files match `GrepReadWorkspace`:
     real-regex line hits, the invalid-regex literal fallback, and the bare-basename read."""
-    from agent_search.agent.tools.code_grep import GrepReadWorkspace
+    from agent_search.legacy.workspaces.code_grep import GrepReadWorkspace
     from agent_search.corpus.units import units_from_python_source
     from agent_search.evaluation.datasets.fixtures import fixture_instances
     from agent_search.tools.grep.tool import Grep
@@ -380,7 +380,7 @@ def test_dedup_search_and_get_document_matches_the_old_workspace():
     """`SearchDedup(ranking="bm25")`+`GetDocument` match `DedupSearchWorkspace`: the over-fetch
     pool, the drop-seen dedup, the "Already-seen" listing on a repeated search, and
     `get_document` by `DocID:`-prefixed id, bare id, numeric rank fallback, and a bad id."""
-    from agent_search.agent.tools.doc_dedup import DedupSearchWorkspace
+    from agent_search.legacy.workspaces.doc_dedup import DedupSearchWorkspace
     from agent_search.tools.get_document.tool import GetDocument
     from agent_search.tools.search_dedup.tool import SearchDedup
 
@@ -436,7 +436,7 @@ def _drive_named(ws, calls, search_name):
 
 
 def test_bm25fetch_matches_the_old_workspace():
-    from agent_search.agent.tools.search_fetch import Bm25FetchWorkspace
+    from agent_search.legacy.workspaces.search_fetch import Bm25FetchWorkspace
     from agent_search.tools.fetch.tool import Fetch
     from agent_search.tools.search_bm25.tool import SearchBm25
 
@@ -451,7 +451,7 @@ def test_bm25fetch_matches_the_old_workspace():
 
 
 def test_bm25fetchsnip_matches_the_old_workspace():
-    from agent_search.agent.tools.search_fetch import Bm25FetchSnipWorkspace
+    from agent_search.legacy.workspaces.search_fetch import Bm25FetchSnipWorkspace
     from agent_search.tools.fetch.tool import Fetch
     from agent_search.tools.search_bm25.tool import SearchBm25
 
@@ -466,7 +466,7 @@ def test_bm25fetchsnip_matches_the_old_workspace():
 
 
 def test_densefetch_matches_the_old_workspace():
-    from agent_search.agent.tools.search_fetch import DenseFetchWorkspace
+    from agent_search.legacy.workspaces.search_fetch import DenseFetchWorkspace
     from agent_search.tools.fetch.tool import Fetch
     from agent_search.tools.search_dense.tool import SearchDense
 
@@ -481,7 +481,7 @@ def test_densefetch_matches_the_old_workspace():
 
 
 def test_densefetchplain_matches_the_old_workspace():
-    from agent_search.agent.tools.search_fetch import DenseFetchPlainWorkspace
+    from agent_search.legacy.workspaces.search_fetch import DenseFetchPlainWorkspace
     from agent_search.tools.fetch.tool import Fetch
     from agent_search.tools.search_dense.tool import SearchDense
 
@@ -496,7 +496,7 @@ def test_densefetchplain_matches_the_old_workspace():
 
 
 def test_hybridfetchsnip_matches_the_old_workspace():
-    from agent_search.agent.tools.search_fetch import HybridFetchSnipWorkspace
+    from agent_search.legacy.workspaces.search_fetch import HybridFetchSnipWorkspace
     from agent_search.tools.fetch.tool import Fetch
     from agent_search.tools.search_hybrid.tool import SearchHybrid
 
@@ -531,7 +531,7 @@ ISEARCH_VISIT_CALLS = [
 
 
 def test_indri_matches_the_old_workspace():
-    from agent_search.agent.tools.doc_indri import IndriFetchWorkspace
+    from agent_search.legacy.workspaces.doc_indri import IndriFetchWorkspace
     from agent_search.retrievers.indri.model import IndriExecutor
     from agent_search.tools.fetch.tool import Fetch
     from agent_search.tools.search_indri.tool import SearchIndri
@@ -546,7 +546,7 @@ def test_indri_matches_the_old_workspace():
 
 
 def test_indrisnip_matches_the_old_workspace():
-    from agent_search.agent.tools.doc_indri import IndriFetchWorkspace
+    from agent_search.legacy.workspaces.doc_indri import IndriFetchWorkspace
     from agent_search.retrievers.indri.model import IndriExecutor
     from agent_search.tools.fetch.tool import Fetch
     from agent_search.tools.search_indri.tool import SearchIndri
@@ -562,7 +562,7 @@ def test_indrisnip_matches_the_old_workspace():
 
 
 def test_indrivisit_matches_the_old_workspace():
-    from agent_search.agent.tools.doc_indri import IndriVisitWorkspace
+    from agent_search.legacy.workspaces.doc_indri import IndriVisitWorkspace
     from agent_search.retrievers.indri.model import IndriExecutor
     from agent_search.tools.search_indri.tool import SearchIndri
     from agent_search.tools.visit.tool import Visit

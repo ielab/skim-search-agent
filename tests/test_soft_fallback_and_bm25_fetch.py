@@ -2,18 +2,18 @@
 
 1. soft-AND fallback (StructuralExecutor.soft_topk + DocSearchFetch.search): a 0-exact-hit
    Boolean query degrades to a whole-corpus BM25 ranking over the query's own positive leaf
-   terms, instead of just handing back a generic "loosen the query" hint — exact AND is brittle
+   terms, instead of just handing back a generic "loosen the query" hint. Exact AND is brittle
    under paraphrase/obfuscation, so the right doc is often lexically close but not an exact
    conjunctive match. The fallback is corpus-fair (BM25 over the agent's own terms only, no
    corpus-vocabulary peeking) and its hits are fetchable (last_hits/seen updated).
 
-2. live retrieval in Bm25FetchWorkspace: `bm25_search` used to be a ONE-SHOT ranking computed
-   once at construction from the raw episode question; every later `bm25_search` call just
-   re-rendered that fixed ranking, ignoring the agent's actual query. Now every call retrieves
-   LIVE, exactly like Bm25Visit.search — so the arm's controlled comparison to research_bm25
-   (same retrieval, different read) is honest.
+2. live retrieval in Bm25FetchWorkspace: `bm25_search` retrieves live on every call, exactly
+   like Bm25Visit.search, rather than replaying a ranking fixed at construction from the raw
+   episode question while ignoring the agent's actual query. This keeps the arm's controlled
+   comparison to research_bm25 (same retrieval, different read) honest.
 """
-from agent_search.agent.tools.doc_research import Bm25FetchWorkspace, DocSearchFetch
+from agent_search.legacy.workspaces.search_fetch import Bm25FetchWorkspace
+from agent_search.legacy.workspaces.sieve import DocSearchFetch
 from agent_search.corpus.units import units_from_documents
 from agent_search.retrievers.lexical.bm25 import BM25Local
 from agent_search.retrievers.bql.executor import StructuralExecutor

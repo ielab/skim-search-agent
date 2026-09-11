@@ -28,7 +28,7 @@ def read_serving_note(model_id: str) -> dict:
         if p and os.path.exists(p):
             with open(p) as fh:
                 return json.load(fh) or {}
-    except Exception:  # noqa: BLE001 — a bad note must not break loading
+    except Exception:  # noqa: BLE001: a bad note must not break loading
         pass
     return {}
 

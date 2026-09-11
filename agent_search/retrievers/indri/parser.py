@@ -2,7 +2,7 @@
 
 Source of truth: `agent_search/tools/search_indri/indri_doc.md` (verbatim-where-possible from the
 official Indri Query Language reference / quick reference / belief-operations wiki).
-This module implements the SUBSET named in that task's scope; anything outside the
+This module implements the subset named in that task's scope; anything outside the
 subset raises a structured `IndriParseError` naming the unsupported operator rather
 than silently mis-parsing it.
 
@@ -18,7 +18,7 @@ Grammar (informal, character-level recursive descent):
     field-suffix := '.' fieldlist                 (field restriction, e.g. `dog.title`)
                   | '.' '(' field ')'              (field-context evaluation, `dog.(title)`)
 
-Commas are treated as insignificant whitespace everywhere EXCEPT inside a field
+Commas are treated as insignificant whitespace everywhere except inside a field
 list (`dog.title,header`), where they separate field names. This is looser than
 official Indri (which doesn't require commas at all in most positions) but never
 rejects a query the official grammar would accept within our subset.
@@ -27,17 +27,17 @@ rejects a query the official grammar would accept within our subset.
 - No stemming/normalization distinction between `term` and `"term"`: this backend
   never stems, so both are tokenized identically via `code_tokenize`. `Term.quoted`
   is retained on the AST only for round-tripping/diagnostics, never affects matching.
-- `#od`/`#uw` WITHOUT a trailing window number (unlimited window) ARE supported
-  (`n=None` on the `Window` node) — the reference marks this optional; we implement it
-  because it costs nothing extra and the belief math for it is well defined (any-order
-  match count, or ordered-anywhere match count, over the whole field).
-- `#between(FIELD N_low N_high)` is accepted ONLY for `FIELD == date` (per the task's
+- `#od`/`#uw` without a trailing window number (unlimited window) are supported
+  (`n=None` on the `Window` node). The reference marks this optional; it is implemented
+  here because it costs nothing extra and the belief math for it is well defined
+  (any-order match count, or ordered-anywhere match count, over the whole field).
+- `#between(FIELD N_low N_high)` is accepted only for `FIELD == date` (per the task's
   scope note); any other field raises an unsupported-operator error. `#less`/`#greater`/
-  `#equals` on arbitrary numeric fields are NOT implemented (out of scope) and raise
+  `#equals` on arbitrary numeric fields are not implemented (out of scope) and raise
   unsupported-operator errors.
-- `#wsum`, `#wand`, `#sum` are NOT implemented — their belief math (weighted SUM of
-  raw beliefs / boolean AND / plain sum) differs materially from `#weight`'s weighted
-  MEAN of log-beliefs, so silently aliasing them would misrepresent the query; they
+- `#wsum`, `#wand`, `#sum` are not implemented: their belief math (weighted sum of
+  raw beliefs, boolean and, plain sum) differs materially from `#weight`'s weighted
+  mean of log-beliefs, so silently aliasing them would misrepresent the query. They
   raise a structured unsupported-operator error naming the operator.
 - `#prior`, `#any`/`#any:FIELD`, `#base64*`, extent/passage retrieval
   (`#op[field](...)`, `#op[passageW:INC](...)`), and parent/ancestor references are
@@ -486,7 +486,7 @@ def date_bounds(d: str) -> tuple:
 # --- pretty-printer (for diagnostics: naming "which constraint is weak") -----
 
 def render(expr: Expr) -> str:
-    """Compact, approximately-round-tripping rendering of an AST node — used only
+    """Compact, approximately-round-tripping rendering of an AST node: used only
     for human-readable diagnostics (not re-parsed)."""
     if expr is None:
         return "<none>"

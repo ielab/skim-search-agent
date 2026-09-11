@@ -83,7 +83,7 @@ def test_structured_run_config_auto_detects_document_domain_defaults():
 def test_search_fetch_conditions_compose_the_new_toolsets():
     """THE method: search -> fetch (research_snip's search_s/fetch_s); the doc baseline is
     (bm25_search, visit)."""
-    from agent_search.prompts import load_condition
+    from agent_search.legacy.prompts import load_condition
 
     assert load_condition("research_snip").tool_names == ("search_s", "fetch_s")
     assert set(load_condition("research_bm25").tool_names) == {"bm25_search", "visit"}
@@ -147,7 +147,7 @@ def test_config_json_env_knobs_reflect_set_env_var(tmp_path, monkeypatch):
     """A non-default env value must show up resolved in config.json, not the default.
 
     Uses INDRI_DENSE/AGENT_DRIVER (read live via `os.environ.get` on every call — see
-    agent_search/agent/retriever.py:217,366) rather than MAX_VISIT_TOKENS, which
+    agent_search/legacy/retriever.py:217,366) rather than MAX_VISIT_TOKENS, which
     doc_research.py reads once as a module-level constant AT IMPORT; reimporting that
     module mid-suite would mint a second `DocSearchFetch` class object and break
     `isinstance` checks in tests that already hold the first one.

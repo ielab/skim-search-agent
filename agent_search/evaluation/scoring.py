@@ -46,16 +46,16 @@ def _retriever_meta(retriever: Retriever) -> dict:
 def _trajectory_meta(retriever: Retriever) -> dict:
     """The episode metadata an agent retriever pre-serializes (rows.jsonl shape).
 
-    `AgentRetriever` builds this in `last_trajectory_meta` (see agent/retriever.py);
-    non-agent retrievers have none, so this is empty for them. The numeric cost fields
-    (llm_calls, n_steps, tokens) are mean-aggregated into results.json — the
-    LocAgent-style cost axis (calls + tokens to reach the result)."""
+    `ConditionAgent` builds this in `last_trajectory_meta` (see
+    `agent_search/evaluation/agent_runner.py`); non-agent retrievers have none, so this is
+    empty for them. The numeric cost fields (llm_calls, n_steps, tokens) are mean-aggregated
+    into results.json: the LocAgent-style cost axis (calls + tokens to reach the result)."""
     meta = getattr(retriever, "last_trajectory_meta", None)
     return meta if isinstance(meta, dict) else {}
 
 
 # pool size for cutoff-free set metrics on one-shot floors (the agent ignores
-# this — it returns its own accumulated set). A tool returning >this is not
+# this: it returns its own accumulated set). A tool returning >this is not
 # usefully 'retrieving'; set_precision will correctly read ~0 for it.
 _SET_K = 1000
 
@@ -97,10 +97,10 @@ _THINK_RE = re.compile(r"<think>(.*?)</think>", re.DOTALL | re.IGNORECASE)
 
 
 def _obs_token_count(text: str) -> int:
-    """Token count for a tool observation, on ONE fixed ruler across every arm — so structured
+    """Token count for a tool observation, on one fixed ruler across every arm, so structured
     `fetch`-a-section vs flat `visit`-whole-doc vs bm25 doc tokens are compared on the same scale,
     independent of the run's billing tokenizer. See `agent_search.core.tokens.count_tokens`
-    (tiktoken o200k_base when installed, whitespace tokens otherwise — never characters)."""
+    (tiktoken o200k_base when installed, whitespace tokens otherwise, never characters)."""
     return count_tokens(text)
 
 
@@ -139,11 +139,11 @@ def _score_instance(inst: Instance, retriever_factory: RetrieverFactory,
         if files is None:
             files = get_files(inst, cache_dir, allow_clone=allow_clone)
         retriever.set_files(files)
-    # Agent retrievers return their FULL accumulated set regardless of k; one-shot
+    # Agent retrievers return their full accumulated set regardless of k; one-shot
     # floors return top-k, so fetch a large pool (SET_K) for the cutoff-free set
     # metrics. @k still slices [:k] below, so headline @k numbers are unchanged.
     # a retriever that emits its own complete ranking (the agent) declares it; others
-    # are padded to _SET_K. Capability flag, not a name check — so a new agentic
+    # are padded to _SET_K. This is a capability flag, not a name check, so a new agentic
     # retriever class just sets `returns_full_set = True`.
     is_agent = getattr(retriever, "returns_full_set", False)
     k_fetch = max_k if is_agent else max(max_k, _SET_K)
@@ -199,27 +199,27 @@ def _score_instance(inst: Instance, retriever_factory: RetrieverFactory,
     row.update(_retriever_meta(retriever))
     meta = _trajectory_meta(retriever)
     row.update(meta)
-    # TOKEN COST, cache-aware — count each prefix-cached span ONCE. The raw per-step prompt_tokens
+    # Token cost, cache-aware: count each prefix-cached span once. The raw per-step prompt_tokens
     # re-sends the whole growing context every turn, so summing it (meta["prompt_tokens"]) triple-
-    # counts the cached initial prompt AND every earlier observation — which makes the method look
+    # counts the cached initial prompt and every earlier observation, which makes the method look
     # expensive precisely where it's cheap. The meaningful decomposition, each part counted once:
-    #   initial_prompt_tokens : the fixed system+task+manual+question — step 0's input, pre-retrieval,
-    #                           re-sent (cached) every later turn, so counted ONCE here.
-    #   retrieved_doc_tokens  : the accumulated observation/reasoning content that actually ENTERED
-    #                           the model's context window, counted once. Derived from the REAL
-    #                           per-step prompt_tokens vLLM reports — `max(step.prompt_tokens) -
+    #   initial_prompt_tokens : the fixed system+task+manual+question, step 0's input, pre-retrieval,
+    #                           re-sent (cached) every later turn, so counted once here.
+    #   retrieved_doc_tokens  : the accumulated observation/reasoning content that actually entered
+    #                           the model's context window, counted once. Derived from the real
+    #                           per-step prompt_tokens vLLM reports: `max(step.prompt_tokens) -
     #                           initial_prompt_tokens` is the most context the model ever actually
     #                           held at once (windows/caps mean it isn't strictly monotonic, hence
-    #                           max, not the last step) — rather than summing raw tool-output text:
-    #                           the policy truncates/caps what actually gets inserted into the
+    #                           max, not the last step), rather than summing raw tool-output text.
+    #                           The policy truncates/caps what actually gets inserted into the
     #                           prompt (a single bash "read" can be 85k-370k raw tokens while the
     #                           per-step prompt_tokens tops out at a few thousand), so summing raw
     #                           observation text would overcount badly for whole-doc/bash baselines.
-    #                           Renamed internally to context_once_tokens; the field name
-    #                           retrieved_doc_tokens stays for downstream consumers
-    #                           (runs/_summary/*.py, scripts/summarize_runs.py key off it).
+    #                           Kept under two keys: `context_once_tokens` is the internal name;
+    #                           `retrieved_doc_tokens` is the field name downstream consumers
+    #                           (runs/_summary/*.py, scripts/summarize_runs.py) key off.
     #   output_tokens         : the model's generated tokens (never cached; naturally once).
-    # total_tokens_once sums them — the real marginal work of an episode, using only REAL usage
+    # total_tokens_once sums them: the real marginal work of an episode, using only real usage
     # numbers (no raw-observation-text summation). The raw cumulative prompt_tokens/completion_tokens/
     # cached_input_tokens still ride in `meta` for billing reality.
     if "trajectory" in meta or "observations" in meta:
@@ -230,8 +230,8 @@ def _score_instance(inst: Instance, retriever_factory: RetrieverFactory,
             context_once_tokens = max(0, int(max(step_prompt_tokens)) - row["initial_prompt_tokens"])
             row["token_source"] = "prompt_tokens"
         else:
-            # no per-step prompt_tokens on this trajectory (older run / non-vLLM backend) — fall
-            # back to the old raw-observation-text estimate and flag it as such, since it can
+            # no per-step prompt_tokens on this trajectory (older run / non-vLLM backend): fall
+            # back to a raw-observation-text estimate and flag it as such, since it can
             # badly overcount relative to what the model actually saw.
             context_once_tokens = sum(_obs_token_count(o) for o in observations_of(meta))
             row["token_source"] = "fallback"
@@ -240,8 +240,8 @@ def _score_instance(inst: Instance, retriever_factory: RetrieverFactory,
         row["output_tokens"] = int(meta.get("completion_tokens") or 0)
         row["total_tokens_once"] = (row["initial_prompt_tokens"] + row["retrieved_doc_tokens"]
                                     + row["output_tokens"])
-        row["read_tokens"] = row["retrieved_doc_tokens"]     # back-compat name, now a REAL token count
-        # REASONING (generation) tokens — a SUBSET already inside output_tokens, itemized (NOT added
+        row["read_tokens"] = row["retrieved_doc_tokens"]     # back-compat name, now a real token count
+        # Reasoning (generation) tokens: a subset already inside output_tokens, itemized (not added
         # on top, so total_tokens_once stays correct). OpenAI reasoning models report it in usage
         # (meta["reasoning_tokens"]); Tongyi/vLLM instead emit it inline as <think>…</think> with no
         # usage field, so fall back to counting those spans on the same ruler. Prefer usage; else spans.
@@ -249,15 +249,15 @@ def _score_instance(inst: Instance, retriever_factory: RetrieverFactory,
         think_reason = sum(_obs_token_count(m) for s in traj_steps
                            for m in _THINK_RE.findall(str(s.get("raw_output") or "")))
         row["reasoning_tokens"] = usage_reason or think_reason
-    # CODE-FIX arm: the end-to-end metric is fix-file-ok (did the <fix>'s file: hit a gold-patch
-    # file), scored on the fix the agent committed to — not the @k of an empty ranking. The
+    # Code-fix arm: the end-to-end metric is fix-file-ok (did the <fix>'s file: hit a gold-patch
+    # file), scored on the fix the agent committed to, not the @k of an empty ranking. The
     # retrieval @k columns still compute above (all ~0 for this arm) so the row shape is uniform.
     if meta.get("fix_text"):
         from agent_search.evaluation.fix_scoring import fix_file, score_fix
         ok, _ = score_fix(meta["fix_text"], inst.patch)
         row["fix_file_ok"] = 1.0 if ok else 0.0
         row["predicted_file"] = fix_file(meta["fix_text"])
-        # PATCH mode (task taskfix_patch): compile the <fix> SEARCH/REPLACE edits into a
+        # Patch mode (task codefix_patch): compile the <fix> SEARCH/REPLACE edits into a
         # git-applyable unified diff against the base_commit `files`, carried in rows.jsonl as
         # `model_patch` for later sb-cli submission (real FAIL_TO_PASS/PASS_TO_PASS grading).
         # A no-op for the prose `codefix` twins (their fix_text has no SEARCH/REPLACE -> "").
@@ -268,7 +268,7 @@ def _score_instance(inst: Instance, retriever_factory: RetrieverFactory,
                 row["model_patch"] = patch
                 row["patch_n_edits"] = prep.n_edits
                 row["patch_n_applied"] = prep.n_applied
-    # DEEP-RESEARCH arm: grounded EM/F1 (the answer must also appear in the tool evidence) plus
+    # Deep-research arm: grounded EM/F1 (the answer must also appear in the tool evidence) plus
     # gold-doc coverage. QA datasets carry a gold answer; the doc arm surfaces evidence.
     if inst.answer:
         from agent_search.evaluation.doc_scoring import gold_doc_coverage, score_answer
@@ -289,7 +289,7 @@ def _retrieved_detail(ranking: Sequence[str], units_by_id: dict, n: int) -> list
     """What was actually retrieved, reviewable without re-running.
 
     Code units carry their exact source location (path + 1-based line span +
-    first-line snippet) — the full code is reproducible from repo@base_commit, so
+    first-line snippet); the full code is reproducible from repo@base_commit, so
     rows.jsonl stays small. Non-code/fixed-corpus docs (and file-level rankings)
     carry the doc id, plus title when the unit has one.
     """

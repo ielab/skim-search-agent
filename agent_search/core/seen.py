@@ -1,4 +1,4 @@
-"""``OrderedSeen`` — the set of documents an episode has surfaced, in first-seen order.
+"""``OrderedSeen``: the set of documents an episode has surfaced, in first-seen order.
 
 Every workspace keeps one of these as ``seen``. It behaves like a ``set`` for membership,
 ``add``/``update``/``discard``, iteration, ``len`` and truthiness, but it also remembers the
@@ -60,7 +60,7 @@ class OrderedSeen:
     # --- ranking view ---------------------------------------------------------------
     @property
     def order(self) -> list[str]:
-        """Ids in first-seen order — the episode's retrieval ranking."""
+        """Ids in first-seen order: the episode's retrieval ranking."""
         return list(self._order)
 
     def as_set(self) -> set:

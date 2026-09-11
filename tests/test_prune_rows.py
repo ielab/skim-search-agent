@@ -1,10 +1,10 @@
 """scripts/prune_rows.py -- surgical rows.jsonl row removal.
 
 Covers: basic prune, idempotency (second run is a no-op), backup creation,
-unknown-ids no-op, and the malformed-tail-line PRESERVE policy (see the
-script's module docstring for why: we cannot determine a malformed line's
-instance_id, so dropping it would be silent, unrecoverable data loss --
-this suite pins that a torn tail write survives a prune untouched).
+unknown-ids no-op, and the malformed-tail-line preserve policy (see the
+script's module docstring for why: a malformed line's instance_id cannot be
+determined, so dropping it would be silent, unrecoverable data loss).
+This suite pins that a torn tail write survives a prune untouched.
 """
 import json
 import os

@@ -13,22 +13,22 @@ MAX_VISIT_TOKENS = int(os.environ.get("MAX_VISIT_TOKENS", "12000"))
 # per-section fetch read cap, in tokens; tracks MAX_VISIT_TOKENS unless set on its own
 MAX_SECTION_TOKENS = int(os.environ.get("MAX_SECTION_TOKENS", str(MAX_VISIT_TOKENS)))
 
-# Bm25Visit/Bm25AutoRead's search listing depth
+# search_bm25's search listing depth when structure=False and full_text=False (the search_visit strategy)
 BM25_VISIT_TOPK = int(os.environ.get("BM25_VISIT_TOPK", "5"))
-# retrieve-and-read baselines' (Bm25AutoRead/DenseAutoRead/HybridAutoRead) shared top-k
+# shared top-k for the full_text=True mode of search_bm25, search_dense and search_hybrid (the autoread strategies)
 AUTOREAD_TOPK = int(os.environ.get("AUTOREAD_TOPK", "5"))
-# DenseVisit's search listing depth
+# search_dense's search listing depth when structure=False and full_text=False (the search_visit_dense strategy)
 DENSE_VISIT_TOPK = int(os.environ.get("DENSE_VISIT_TOPK", "5"))
-# Bm25FetchWorkspace/Bm25FetchSnipWorkspace's retrieval pool size
+# search_bm25's retrieval pool size when structure=True (the search_fetch strategy)
 BM25_FETCH_TOPK = int(os.environ.get("BM25_FETCH_TOPK", "10"))
-# DenseFetchWorkspace/DenseFetchPlainWorkspace's retrieval pool size
+# search_dense's retrieval pool size when structure=True (the search_fetch_dense strategy)
 DENSE_FETCH_TOPK = int(os.environ.get("DENSE_FETCH_TOPK", "10"))
 
 # Reciprocal Rank Fusion constant (Cormack, Clarke & Buettcher 2009); see common.rrf_fuse
 RRF_K = int(os.environ.get("RRF_K", "60"))
 # per-ranker pool depth queried before RRF fusion (bm25 pool and dense pool, each this deep)
 HYBRID_POOL = int(os.environ.get("HYBRID_POOL", "100"))
-# HybridVisit's post-fusion search listing depth
+# search_hybrid's post-fusion search listing depth when structure=False and full_text=False (the search_visit_hybrid strategy)
 HYBRID_VISIT_TOPK = int(os.environ.get("HYBRID_VISIT_TOPK", "5"))
-# HybridFetchSnipWorkspace's post-fusion retrieval pool size
+# search_hybrid's post-fusion retrieval pool size when structure=True (the search_fetch_hybrid strategy)
 HYBRID_FETCH_TOPK = int(os.environ.get("HYBRID_FETCH_TOPK", "10"))

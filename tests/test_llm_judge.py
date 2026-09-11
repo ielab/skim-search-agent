@@ -1,4 +1,4 @@
-"""The LLM-as-judge (BrowseComp-Plus protocol) — offline, with a stub grader."""
+"""The LLM-as-judge (BrowseComp-Plus protocol), offline, with a stub grader."""
 from types import SimpleNamespace
 
 import pytest

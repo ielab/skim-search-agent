@@ -1,24 +1,25 @@
-"""Materialize a unit collection to a FLAT FILE TREE — the DCI baseline's corpus shape.
+"""Materialize a unit collection to a flat file tree: the DCI baseline's corpus shape.
 
-DCI (Direct Corpus Interaction, `chen2026dci`; RISE's brute-force reference arm) gives the
-agent `bash` + `read` over the raw corpus FILESYSTEM, not the in-memory unit list every other
-condition searches. There is no such tree lying around (the framework is index-free — units
-live in memory), so this module writes ONE ``<doc_id>.txt`` per unit under a directory, then
-hands that directory to `agent_search.agent.tools.doc_dci.DciWorkspace`.
+DCI (Direct Corpus Interaction, `chen2026dci`; RISE's brute-force reference condition) gives the
+agent `bash` + `read` over the raw corpus filesystem, not the in-memory unit list every other
+condition searches. There is no such tree lying around, since the framework is index-free and
+units live in memory, so this module writes one ``<doc_id>.txt`` per unit under a directory,
+then hands that directory to the `bash` tool (`agent_search/tools/bash/tool.py`), which the
+`dci` and `bounded_dci` strategies read over with the `read` tool.
 
-This is a plain filesystem write, not a new persisted index: the tree lives under a tempdir
-(or `AGENT_SEARCH_DCI_CACHE` if set) and is cheap per doc (one small text write), same order of
-work as materializing a BM25/dense index for the corpus — see the module docstring's cost note.
-Keyed by `key` (the run's `corpus_id`, same identity BQL/dense index caching already uses) so a
-shared document corpus is exported ONCE per process and every DCI episode over it reuses the
-tree; a per-instance code corpus (small, ~tens of files) is cheap enough to export per episode
-and is not cached across instances.
+This is a plain filesystem write, not a persisted index: the tree lives under a tempdir
+(or `AGENT_SEARCH_DCI_CACHE` if set) and is cheap per doc (one small text write), the same order
+of work as materializing a BM25/dense index for the corpus. Keyed by `key` (the run's
+`corpus_id`, the same identity BQL/dense index caching already uses) so a shared document corpus
+is exported once per process and every DCI episode over it reuses the tree; a per-instance code
+corpus (small, tens of files) is cheap enough to export per episode and is not cached across
+instances.
 
-FLAG (heavy corpora): exporting the FULL browsecomp_plus (~100k docs) or a full multi-hop corpus
-writes ~100k small files once per process — a few seconds to tens of seconds, comparable to a
-BM25/dense prebuild, but on a shared/networked filesystem (Lustre/NFS) many small-file writes can
-be slow. Prefer a LOCAL disk or tmpfs (``AGENT_SEARCH_DCI_CACHE=/local/scratch/dci``) for a big
-corpus; the default is ``tempfile.gettempdir()`` (usually local, but confirm on your cluster).
+Heavy corpora: exporting the full browsecomp_plus (~100k docs) or a full multi-hop corpus writes
+~100k small files once per process, a few seconds to tens of seconds, comparable to a BM25/dense
+prebuild. On a shared or networked filesystem (Lustre/NFS) many small-file writes can be slow, so
+prefer a local disk or tmpfs (``AGENT_SEARCH_DCI_CACHE=/local/scratch/dci``) for a big corpus; the
+default is ``tempfile.gettempdir()`` (usually local, but confirm on your cluster).
 """
 from __future__ import annotations
 
@@ -39,7 +40,8 @@ _UNSAFE = re.compile(r"[^A-Za-z0-9_.\-]")
 _CACHE_ROOT_ENV = "AGENT_SEARCH_DCI_CACHE"
 # process-lifetime cache: {key: export_dir}, so a shared corpus (key = corpus_id) is written
 # once and every subsequent DCI episode over it (this process) reuses the same tree instead of
-# re-exporting per query — mirrors AgentRetriever building its BQL/BM25 engine once in index().
+# re-exporting per query, the same pattern as an engine built once per corpus in
+# agent_search/retrievers/engines.py.
 _EXPORTED: dict[str, Path] = {}
 
 
@@ -53,12 +55,12 @@ def _cache_root() -> Path:
 
 
 def stage_units_into(export_dir: Path, units: Sequence[CodeUnit]) -> dict[str, str]:
-    """Write one ``<safe_doc_id>.txt`` per unit into an ALREADY-EXISTING directory; return
-    {doc_id: relpath}. This is the per-file write step factored OUT of `export_flat_corpus`'s
-    loop so a caller that stages docs INCREMENTALLY (`Bm25DciWorkspace`'s live per-call
-    retrieval — see its module docstring) reuses the exact same `title\\n\\n{body_or_code}`
-    format/naming instead of duplicating it; `export_flat_corpus` itself now just calls this
-    once for its whole unit list.
+    """Write one ``<safe_doc_id>.txt`` per unit into an already-existing directory; return
+    {doc_id: relpath}. This is the per-file write step factored out of `export_flat_corpus`'s
+    loop, so a caller that stages docs incrementally (the `search_bm25_dci` tool's live
+    per-call retrieval, `agent_search/tools/search_bm25_dci/tool.py`) reuses the exact same
+    `title\\n\\n{body_or_code}` format and naming instead of duplicating it; `export_flat_corpus`
+    calls this once for its whole unit list.
     """
     doc_to_rel: dict[str, str] = {}
     for u in units:
@@ -77,10 +79,10 @@ def export_flat_corpus(units: Sequence[CodeUnit], key: Optional[str] = None,
     (export_dir, {doc_id: relpath}).
 
     Each file's body is ``title\\n\\n{body_or_code}`` when the unit carries a title (docs),
-    else just ``code`` (a code-corpus unit — DCI is only wired for the doc arm, but this stays
+    else just ``code`` (a code-corpus unit: DCI is only wired for the research task, but this stays
     generic). ``key`` scopes the export dir so a shared corpus is exported once per process and
     reused (see module docstring); a code corpus (per-instance, no `key`) gets a fresh temp dir
-    every call — cheap (tens of small files) and never collides across concurrent instances.
+    every call, cheap (tens of small files) and never colliding across concurrent instances.
     """
     if key and not rebuild and key in _EXPORTED:
         d = _EXPORTED[key]

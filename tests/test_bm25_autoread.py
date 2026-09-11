@@ -1,12 +1,12 @@
-"""`research_bm25_autoread`: the "retrieve-and-read" baseline (Bm25AutoRead) — sits between
-one-shot RAG (a single stuffed prompt, no agent loop at all) and the SERP retrieve-then-visit
-baseline (research_bm25: a listing the agent must then CHOOSE to visit). SAME plain BM25
-ranking as `Bm25Visit` (over the flat doc title+body — same engine/fallback), but `search()`
-itself renders the FULL TEXT of every one of the top `AUTOREAD_TOPK` hits (capped at
-MAX_VISIT_TOKENS per doc, the SAME `_cap_tokens` truncation/marker `Bm25Visit.visit` uses) —
-there is NO visit/fetch tool at all in this condition; a search call IS the read.
+"""`research_bm25_autoread`: the retrieve-and-read baseline (Bm25AutoRead), between one-shot
+RAG (a single stuffed prompt, no agent loop) and the SERP retrieve-then-visit baseline
+(research_bm25, a listing the agent must then choose to visit). It uses the same plain BM25
+ranking as `Bm25Visit` (over the flat doc title+body, same engine and fallback), but
+`search()` itself renders the full text of every one of the top `AUTOREAD_TOPK` hits (capped
+at MAX_VISIT_TOKENS per doc, the same `_cap_tokens` truncation and marker `Bm25Visit.visit`
+uses). There is no visit/fetch tool in this condition; a search call is the read.
 
-CPU-only, no network — a real-but-tiny in-memory BM25Local (same pattern
+CPU-only, no network: a real-but-tiny in-memory BM25Local (same pattern
 test_doc_research_tools.py / test_bm25q_baseline.py use), plus a subprocess for the
 import-time env-knob (AUTOREAD_TOPK) resolution, matching
 test_doc_research_tools.py's test_serp_listing_default_five_and_env_ten_in_a_fresh_process.
@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import os
 
-from agent_search.agent.tools.doc_research import Bm25AutoRead, Bm25Visit
+from agent_search.legacy.workspaces.search_visit import Bm25AutoRead, Bm25Visit
 from agent_search.corpus.units import units_from_documents
 
 DOCS = [
@@ -68,7 +68,7 @@ def test_search_renders_full_text_not_a_listing():
 
 
 def test_search_renders_exactly_autoread_topk_full_docs():
-    import agent_search.agent.tools.doc_research as m
+    import agent_search.legacy.workspaces.budgets as m
     ws = Bm25AutoRead(_serp_units())
     out = ws.run("bm25_read_search", {"query": "common topic"})
     # one full-text block per hit, header line not included
@@ -86,7 +86,6 @@ def test_search_renders_exactly_autoread_topk_full_docs():
 
 
 def test_search_ignores_a_hallucinated_k_arg():
-    import agent_search.agent.tools.doc_research as m
     ws = Bm25AutoRead(_serp_units())
     baseline = ws.run("bm25_read_search", {"query": "common topic"})
     widened = ws.run("bm25_read_search", {"query": "common topic", "k": 50})
@@ -110,7 +109,7 @@ def test_per_doc_text_is_truncated_at_max_visit_tokens_with_same_marker():
     import sys as _sys
 
     code = (
-        "import agent_search.agent.tools.doc_research as m\n"
+        "import agent_search.legacy.workspaces.search_visit as m\n"
         "from agent_search.corpus.units import units_from_documents\n"
         "filler = ' '.join(f'word{i}' for i in range(1500))\n"
         "docs = [{'_id': 'd00', 'title': 'Common Topic 0',\n"
@@ -174,14 +173,15 @@ def test_autoread_topk_env_default_five_and_env_three_in_a_fresh_process():
     import sys as _sys
 
     code = (
-        "import agent_search.agent.tools.doc_research as m\n"
+        "import agent_search.legacy.workspaces.search_visit as m\n"
+        "import agent_search.legacy.workspaces.budgets as b\n"
         "from agent_search.corpus.units import units_from_documents\n"
         "docs = [{'_id': f'd{i:02d}', 'title': f'Common Topic {i}',\n"
         "         'text': f'common topic document number {i}'} for i in range(12)]\n"
         "units = units_from_documents(docs)\n"
         "out = m.Bm25AutoRead(units).run('bm25_read_search', {'query': 'common topic'})\n"
         "n_blocks = len(out.split(chr(10)+chr(10))) - 1\n"
-        "print(m.AUTOREAD_TOPK, n_blocks)\n")
+        "print(b.AUTOREAD_TOPK, n_blocks)\n")
 
     def _run(env_overrides):
         env = {k: v for k, v in os.environ.items() if k != "AUTOREAD_TOPK"}
@@ -199,7 +199,7 @@ def test_autoread_topk_env_default_five_and_env_three_in_a_fresh_process():
 # --- 6. condition wiring: research_bm25_autoread resolves via the retriever registry ---------
 
 def test_research_bm25_autoread_condition_loads_uncoached():
-    from agent_search.prompts import load_condition, render_manuals
+    from agent_search.legacy.prompts import load_condition, render_manuals
 
     p = load_condition("research_bm25_autoread")
     assert p.toolset == "bm25_autoread"
@@ -238,7 +238,7 @@ def test_bm25_autoread_workspace_builds_end_to_end(tmp_path):
 
 
 def test_existing_research_bm25_condition_is_unaffected():
-    from agent_search.prompts import load_condition
+    from agent_search.legacy.prompts import load_condition
 
     p = load_condition("research_bm25")
     assert p.toolset == "research_bm25"

@@ -1,4 +1,5 @@
-from agent_search.retrievers.ranking import BM25, code_tokenize
+from agent_search.retrievers.lexical.scorer import BM25
+from agent_search.corpus.units import code_tokenize
 
 
 def test_code_tokenize_splits_camel_and_snake():

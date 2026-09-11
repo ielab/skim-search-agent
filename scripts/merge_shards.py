@@ -3,7 +3,7 @@ rows.jsonl.
 
 Companion to scripts/shard_cell.sh (INSTANCE-SHARDING): each shard task ran
 `run_eval --only-instances shard_<i>of<N>.txt --runs-dir <tier>/__shards/<CONDITION>/
-shard_<i>of<N>`, a run-dir DISTINCT from the canonical cell so its appends never
+shard_<i>of<N>`, a run-dir distinct from the canonical cell so its appends never
 collided with the canonical rows.jsonl or with other shards. This script folds those
 shard rows back into the canonical dir agent_search/evaluation/config.py:results_dir_for computes
 for the same (dataset, model, condition): <runs_dir>/agent/<dataset>/<model>/<condition>/.
@@ -14,7 +14,7 @@ run_eval would treat as done on its next invocation.
 
 Safety:
   - backs up the canonical rows.jsonl to rows.jsonl.premerge.bak before any write
-    (skipped if there's nothing to add — see idempotency below)
+    (skipped if there's nothing to add, see idempotency below)
   - dedups by instance_id: canonical rows win over shard rows, and a row already
     folded in by an earlier shard in this same pass wins over a later duplicate
     (shards SHOULD be disjoint by construction, but this is defensive, not assumed)

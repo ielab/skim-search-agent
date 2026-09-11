@@ -1,13 +1,13 @@
-"""Resolve an instance's source files at its base commit — OFFLINE-friendly.
+"""Resolve an instance's source files at its base commit, offline-friendly.
 
 Fixtures carry inline `files`. Real SWE-bench instances are read from a local clone
-cache via `git archive` — **read-only**, so:
-  * no `git checkout` -> no working-tree mutation -> safe under concurrent --workers,
-  * works fully OFFLINE (the GPU node usually has no internet).
+cache via `git archive`, read-only, so:
+  * no `git checkout`, so no working-tree mutation: safe under concurrent --workers,
+  * works fully offline (the GPU node usually has no internet).
 
-Workflow on a cluster: pre-stage the repos once on a node WITH internet (a plain
-`git clone` of each repository into `<shared dir>/<owner>__<repo>`; this release ships no
-prefetch script — the code-localization arm is retained but not part of the document
+Workflow on a cluster: pre-stage the repos once on a node with internet (a plain
+`git clone` of each repository into `<shared dir>/<owner>__<repo>`; there is no automatic
+prefetch step here, the codefix task that would need it is not part of the document
 workflow), then run the eval with `--repo-cache <shared dir>` on the GPU node.
 """
 from __future__ import annotations
@@ -82,7 +82,7 @@ def _archive_py_files(clone: str, commit: str) -> dict:
 def get_files(instance: Any, cache_dir: str = "data/repos",
               allow_clone: bool = False) -> dict:
     """Return {path: source} for all .py files at the instance's base commit
-    (read-only, in-memory — for retrieval where nothing is edited)."""
+    (read-only, in-memory, for retrieval where nothing is edited)."""
     if instance.files is not None:
         return instance.files
     clone = ensure_repo(instance.repo, cache_dir, allow_clone=allow_clone)

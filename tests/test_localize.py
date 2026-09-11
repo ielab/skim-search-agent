@@ -1,10 +1,10 @@
-"""Declared-location resolution — the workspace-agnostic localization piece of the unified
+"""Declared-location resolution: the workspace-agnostic localization piece of the unified
 agent loop (see agent_search/agent/loop.py). No model. `parse_tool_call` itself is specced
 in tests/test_actions_parser.py; no parser tests are duplicated here.
 
-The code arm's tool surface is CodeFixWorkspace (search -> fetch,
-<fix> terminal) and the grep baseline is GrepReadWorkspace (grep -> read, <fix> terminal) —
-see agent_search/agent/tools/code_fix.py and code_grep.py. `run_episode` over those
+The code arm's tool surface is CodeFixWorkspace (search -> fetch, <fix> terminal) and the
+grep baseline is GrepReadWorkspace (grep -> read, <fix> terminal); see
+agent_search/legacy/workspaces/code_fix.py and code_grep.py. `run_episode` over those
 workspaces (search->fetch->fix, fix_guard rejection, etc.) is already covered end-to-end in
 tests/test_agent_loop.py, and their own tool contracts in tests/test_code_fix_tools.py /
 tests/test_code_grep_tools.py, so those episode-level tests are not re-created here."""

@@ -92,7 +92,7 @@ include-package-data = true
 include = ["agent_search*"]
 
 # Prompt profiles, tool declarations and skill manuals are DATA the package reads at import
-# (agent_search/prompts/loader.py resolves them next to __file__); they must ship in the wheel.
+# (agent_search/legacy/prompts/loader.py resolves them next to __file__); they must ship in the wheel.
 [tool.setuptools.package-data]
 "agent_search.legacy.prompts" = ["*.yaml", "tasks/*.md", "skills/*.md", "vendor/*/*.yaml"]
 "agent_search.tasks" = ["*/prompt.md"]

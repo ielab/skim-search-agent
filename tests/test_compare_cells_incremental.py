@@ -1,13 +1,13 @@
 """End-to-end correctness tests for scripts/compare_cells.py's incremental append-aware cache
 (see the CACHE_DIR docstring in scripts/compare_cells.py for the full design rationale): the
-incremental path must produce results BYTE-IDENTICAL (as dicts) to a from-scratch, --no-cache-style
+incremental path must produce results byte-identical (as dicts) to a from-scratch, --no-cache-style
 full recompute, in every one of the scenarios the cache is meant to handle:
 
-  (i)   append-only growth -> incremental result == full recompute on the grown file
-  (ii)  a sidecar (judge_cache/recovered_answers) change on an UNCHANGED rows.jsonl -> overlay
-        fields (em/empty/judge/recovered) update correctly WITHOUT rows.jsonl's intrinsic content
+  (i)   append-only growth: incremental result equals full recompute on the grown file
+  (ii)  a sidecar (judge_cache/recovered_answers) change on an unchanged rows.jsonl: overlay
+        fields (em/empty/judge/recovered) update correctly without rows.jsonl's intrinsic content
         ever being re-parsed
-  (iii) a non-append change (prefix rewritten in place, or the file shrinks) -> falls back to a
+  (iii) a non-append change (prefix rewritten in place, or the file shrinks): falls back to a
         full recompute, and the result is correct (reflects the new content, not stale cache)
   (iv)  --no-cache bypasses the cache entirely (never reads or writes analysis/.compare_cache/)
 """

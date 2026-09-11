@@ -1,4 +1,8 @@
-"""ITER's search strategy: `search` with de-duplication, `get_document` by id.
+"""The pre-0.3 version of ITER's search strategy: `search` with de-duplication, `get_document` by id.
+
+Kept so the parity tests can compare against it. The current equivalent is the `dedup_bm25`/
+`dedup_dense` strategies in `agent_search/strategies/dedup.py`, using the `search_dedup` and
+`get_document` tools.
 
 The agent issues keyword searches over a chunked collection and opens documents by id. Each
 search over-fetches a pool (`DEDUP_POOL_K`), drops every document already surfaced by an earlier
@@ -18,8 +22,10 @@ import re
 from typing import Callable, Optional, Sequence
 
 from agent_search.legacy.retriever import WorkspaceContext, register_workspace
-from agent_search.legacy.workspaces.doc_research import MAX_VISIT_TOKENS, SNIPPET_TOKENS, _cap_tokens, opening_line
+from agent_search.legacy.workspaces.budgets import MAX_VISIT_TOKENS, SNIPPET_TOKENS
+from agent_search.legacy.workspaces.common import opening_line
 from agent_search.core.seen import OrderedSeen
+from agent_search.core.tokens import cap_tokens as _cap_tokens
 from agent_search.corpus.units import CodeUnit
 
 DEDUP_POOL_K = int(os.environ.get("DEDUP_POOL_K", "100"))

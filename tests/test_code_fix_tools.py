@@ -1,9 +1,9 @@
 """The code-fix ACI: CodeFixWorkspace search -> fetch (the code arm's tool contract).
 
-search(query) returns ranked FILES + their function/method names (NO bodies), numbered for
+search(query) returns ranked files and their function/method names, no bodies, numbered for
 fetch; fetch([rank, part]) pulls a named function/method (or an L-range) from a ranked file,
 never the whole file. Malformed inputs recover instead of dead-ending."""
-from agent_search.agent.tools.code_fix import CodeFixWorkspace
+from agent_search.legacy.workspaces.code_fix import CodeFixWorkspace
 from agent_search.corpus.units import units_from_python_source
 
 SRC = (

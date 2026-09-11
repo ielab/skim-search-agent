@@ -1,6 +1,5 @@
 """Real AST structural scoping: IN(def/call/comment/string/sig) must distinguish
-*where* a term occurs — the differentiator from plain grep. Before the fix these
-were all no-ops returning the same set."""
+*where* a term occurs, the differentiator from plain grep."""
 from agent_search.retrievers.bql.parser import parse
 from agent_search.retrievers.bql.executor import StructuralExecutor
 from agent_search.corpus.units import units_from_python_source

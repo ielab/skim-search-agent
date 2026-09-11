@@ -3,7 +3,7 @@
 A small, regular Boolean query language. It is typed by *granularity*, so ill-formed queries are
 rejected before they execute, and one abstract form compiles to several backends.
 
-**This is the EXECUTOR language, not what the agent types.** The agent writes a field-tagged
+**This is the executor language, not what the agent types.** The agent writes a field-tagged
 Boolean surface (`term[field]`, `AND`/`OR`/`NOT`, wildcard `*`, quoted `"phrase"`), and
 `agent_search/retrievers/bql/surface.py::to_bql` lowers that to the BQL below. So
 `isnan[call]` becomes `IN(call, isnan)`, `save[def] NOT test[file]` becomes `IN(def, save) AND
@@ -84,7 +84,7 @@ infix `a AND b` and `a OR b` (precedence OR below AND), parenthesized grouping l
 `(a OR b) AND c`, a top-level comma as an implicit AND, case-insensitive operator, region and
 strategy names, Lucene-style numeric proximity `NEAR/5(a, b)` (the same as `NEAR/w5`), escaped
 quotes inside quoted terms, and a **bare multi-word run** such as `IN(string, must be positive)`
-read as an implicit `PHRASE(...)`. That last form used to hard-error. All of this tolerance is
+read as an implicit `PHRASE(...)`. All of this tolerance is
 syntactic: everything canonicalizes to the same AST, and semantics and the type system do not
 change. A real parse failure returns a structured error that suggests the fix, such as quoting a
 multi-word operand or wrapping it in `PHRASE(...)`.

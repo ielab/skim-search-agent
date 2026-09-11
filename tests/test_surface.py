@@ -1,9 +1,9 @@
 """The BQL field-tagged Boolean surface (retrievers/bql/surface.to_bql).
 
-The agent-facing surface for BOTH arms — `term[field]`, AND/OR/NOT, wildcard*, "phrase" —
-lowers to a BQL string the EXISTING parser/typechecker/executor run unchanged. These tests
-pin the lowering shape and that every lowered query parses + type-checks (so the surface can
-never advertise a form the engine rejects)."""
+The agent-facing surface for both arms (`term[field]`, AND/OR/NOT, wildcard*, "phrase")
+lowers to a BQL string the existing parser/typechecker/executor run unchanged. These tests
+pin the lowering shape and that every lowered query parses and type-checks, so the surface can
+never advertise a form the engine rejects."""
 import pytest
 
 from agent_search.retrievers.bql.parser import parse

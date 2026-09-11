@@ -2,7 +2,7 @@
 
 A retriever trained from trajectories conditions on what the agent has already done: the main
 question, the sub-query it is issuing now, and what it tried and read before. Both the training
-data builder (`triples.py`) and inference (`agent_search.retrievers.indri.dense_belief`
+data builder (`triples.py`) and inference (`agent_search.retrievers.dense.belief`
 via `history.py`) call `render_query` so the string is byte-identical on both sides. That is ITER's
 one rule: train, serve, and evaluate with the same query text and the same instruction.
 

@@ -1,4 +1,4 @@
-"""Experiment files: ONE file fully determines ONE setting.
+"""Experiment files: one file fully determines one setting.
 
     skimsearchagent run configs/paper/hotpotqa_structured_sieve.yaml
     skimsearchagent run configs/paper/hotpotqa_structured_sieve.yaml model.name=gpt-4o output.runs_dir=runs/x
@@ -263,7 +263,7 @@ def _friendly(strategy: str) -> Optional[str]:
 
 
 def applies(section: str, key: str, strategy: str) -> bool:
-    """Does `strategy` read `section.key`? Unknown (plugin) strategies read everything."""
+    """True when `strategy` reads `section.key`. Unknown (plugin) strategies read every key."""
     who = APPLIES.get(f"{section}.{key}")
     if who is None:
         return True
@@ -407,7 +407,7 @@ def _coerce(value: str, default: Any) -> Any:
             parsed = yaml.safe_load(value)
         except yaml.YAMLError:
             return value
-        return parsed if isinstance(parsed, (int, float, bool)) else value
+        return parsed if isinstance(parsed, (int, float, bool, list)) else value
     return value
 
 
@@ -437,7 +437,7 @@ def apply_overrides(exp: Experiment, overrides: dict[str, str]) -> Experiment:
 # --- translation to one execution path ------------------------------------------------------
 
 def to_invocation(exp: Experiment) -> tuple[list[str], dict[str, str]]:
-    """The experiment as (run_eval argv, environment knobs) — the same shapes the key=value
+    """The experiment as (run_eval argv, environment knobs): the same shapes the key=value
     launcher produces, so a file and a command line run through one code path."""
     retriever = resolve_strategy(exp.strategy)
     args = ["--dataset", str(exp.get("dataset", "name")), "--retriever", retriever]
@@ -553,8 +553,9 @@ def render(data: dict, *, comments: bool = True) -> str:
 
 
 def template(preset: Optional[str] = None, strategy: Optional[str] = None) -> str:
-    """A complete file for `strategy` (default sieve, or the preset's): only the keys that
-    strategy reads are listed, so the file shows exactly what the setting depends on."""
+    """A complete file for `strategy` (the default strategy when omitted, or the preset's own):
+    only the keys that strategy reads are listed, so the file shows exactly what the setting
+    depends on."""
     return render(defaults(preset, strategy))
 
 

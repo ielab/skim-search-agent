@@ -1,16 +1,20 @@
-"""The agent, exposed as a Retriever — ONE class for every agent condition.
+"""The pre-0.3 agent, exposed as a Retriever: one class for every agent condition.
 
-`index(units)` then `search(issue)` drives one episode of the search -> fetch instrument
-(the whole codebase's method) and returns the ranking (empty for the code-fix arm, which
-is scored on its <fix>; the doc arm surfaces evidence). The condition is entirely the
-**toolset** + **domain** (from the prompt profile), which selects the arm's workspace:
+Kept so the parity tests can compare against it. `agent_search.evaluation.agent_runner.
+ConditionAgent` is the current runner; each arm below has a current strategy in
+`agent_search/strategies/` (see `docs/ARCHITECTURE.md` for the current names).
+
+`index(units)` then `search(issue)` drives one episode of the search-then-fetch loop and
+returns the ranking (empty for the code-fix arm, which is scored on its <fix>; the doc arm
+surfaces evidence). The condition is entirely the toolset plus domain (from the prompt
+profile), which selects the arm's workspace:
 
   code (toolset search_fetch, domain code)     -> CodeFixWorkspace (files -> functions, <fix>)
   code (toolset grep_read,    domain code)     -> GrepReadWorkspace (regex lines -> read, <fix>)
   docs (toolset research,     domain general)  -> DocSearchFetch   (articles -> sections, <answer>)
   docs (toolset research_bm25, domain general) -> Bm25Visit        (retrieve-then-visit baseline)
   docs (toolset dense_visit,  domain general)  -> DenseVisit       (retrieve-then-visit, dense
-                                                    embeddings instead of bm25 — the modern RAG default)
+                                                    embeddings instead of bm25)
   docs (toolset dci,          domain general)  -> DciWorkspace     (bash/read, whole corpus, <answer>)
   docs (toolset bm25_dci,     domain general)  -> Bm25DciWorkspace (bash/read bounded to bm25 top-k)
   docs (toolset bm25_fetch,   domain general)  -> Bm25FetchWorkspace (bm25 retrieval + section fetch)
@@ -22,66 +26,63 @@ is scored on its <fix>; the doc arm surfaces evidence). The condition is entirel
   docs (toolset indri_snip,   domain general)  -> IndriFetchWorkspace(snippets=True) (graded
                                                     Indri search + snippet listing, section fetch)
   docs (toolset bm25q_visit,  domain general)  -> Bm25Visit(query_biased=True) (a hardened
-                                                    bm25 baseline: SAME retrieve-
-                                                    then-visit shape as research_bm25, but the
-                                                    listing's per-hit snippet is QUERY-BIASED —
-                                                    fairness parity with research_snip/
-                                                    research_indri_snip's excerpt)
+                                                    bm25 baseline: the same retrieve-then-visit
+                                                    shape as research_bm25, but the listing's
+                                                    per-hit snippet is query-biased, for fairness
+                                                    parity with research_snip/research_indri_snip's
+                                                    excerpt)
   docs (toolset bql_visit,   domain general)   -> BqlVisitWorkspace (the {BQL search} x
-                                                    {whole-doc visit} factorial
-                                                    cell: the SAME BQL v2 search as the
-                                                    search_fetch_v2 arm above,
-                                                    content-bearing listing like the other visit
-                                                    cells, whole-doc visit read)
-  docs (toolset bm25_fetch_snip, domain general) -> Bm25FetchSnipWorkspace (research_bm25_fetch_snip
-                                                    — the fair-listing sibling of the plain
-                                                    bm25_fetch arm above:
-                                                    SAME bm25 retrieval + section fetch, WITH a
-                                                    per-hit best-matching excerpt in the listing)
+                                                    {whole-doc visit} factorial cell: the same
+                                                    BQL v2 search as the search_fetch_v2 arm
+                                                    above, content-bearing listing like the other
+                                                    visit cells, whole-doc visit read)
+  docs (toolset bm25_fetch_snip, domain general) -> Bm25FetchSnipWorkspace (research_bm25_fetch_snip:
+                                                    the fair-listing sibling of the plain
+                                                    bm25_fetch arm above, same bm25 retrieval and
+                                                    section fetch, with a per-hit best-matching
+                                                    excerpt in the listing)
   docs (toolset bql_dense_visit, domain general) -> BqlVisitWorkspace(tool_names=...) (the
                                                     bql_visit arm above with the shared BQL
-                                                    executor's DenseBelief
-                                                    attached: BQL_DENSE dense-fused ranking, RRF of
-                                                    bm25 + dense similarity restricted to the SAME
-                                                    filter-passing candidates — see
+                                                    executor's DenseBelief attached: BQL_DENSE
+                                                    dense-fused ranking, RRF of bm25 and dense
+                                                    similarity restricted to the same
+                                                    filter-passing candidates; see
                                                     agent_search/retrievers/bql/dense_fuse.py)
   docs (toolset bql_dense_snip,  domain general) -> DocSearchFetch(snippets=True) (research_
-                                                    bql_dense_snip — research_snip's search/fetch
-                                                    shape with the SAME dense-attached BQL executor)
-  docs (toolset bm25_autoread, domain general)   -> Bm25AutoRead (research_bm25_autoread — the
-                                                    "retrieve-and-read" baseline: SAME bm25
-                                                    ranking as research_bm25, but search() itself
-                                                    returns the FULL TEXT of every top-k hit; NO
+                                                    bql_dense_snip: research_snip's search/fetch
+                                                    shape with the same dense-attached BQL executor)
+  docs (toolset bm25_autoread, domain general)   -> Bm25AutoRead (research_bm25_autoread: the
+                                                    retrieve-and-read baseline, same bm25 ranking
+                                                    as research_bm25, but search() itself returns
+                                                    the full text of every top-k hit; no
                                                     visit/fetch tool exists in this condition)
-  docs (toolset dense_autoread, domain general)  -> DenseAutoRead (research_dense_autoread — the
-                                                    DENSE analog of research_bm25_autoread: SAME
-                                                    "retrieve-and-read" shape, SAME AUTOREAD_TOPK/
-                                                    MAX_VISIT_TOKENS, but dense embedding cosine
-                                                    similarity instead of bm25 ranking; NO
+  docs (toolset dense_autoread, domain general)  -> DenseAutoRead (research_dense_autoread: the
+                                                    dense analog of research_bm25_autoread, same
+                                                    retrieve-and-read shape, same AUTOREAD_TOPK
+                                                    and MAX_VISIT_TOKENS, but dense embedding
+                                                    cosine similarity instead of bm25 ranking; no
                                                     visit/fetch tool exists in this condition)
-  docs (toolset hybrid_autoread, domain general) -> HybridAutoRead (the BM25+DENSE HYBRID
-                                                    analog of
-                                                    bm25_autoread/dense_autoread: SAME RRF-fused
-                                                    retrieval as research_hybrid, but search()
-                                                    itself returns the FULL TEXT of every top-k
-                                                    hit; NO visit/fetch tool exists in this
-                                                    condition)
-  docs (toolset bql_donly_visit, domain general) -> BqlDonlyVisitWorkspace (the DENSE-ONLY
-                                                    sibling of the
-                                                    bql_dense_visit arm above: SAME BQL filter/listing/
-                                                    whole-doc visit read, but the shared BQL
-                                                    executor is a DenseOnlyStructuralExecutor —
-                                                    candidates ordered by pure dense rank, not
-                                                    RRF)
+  docs (toolset hybrid_autoread, domain general) -> HybridAutoRead (the bm25+dense hybrid analog
+                                                    of bm25_autoread/dense_autoread: same
+                                                    RRF-fused retrieval as research_hybrid, but
+                                                    search() itself returns the full text of
+                                                    every top-k hit; no visit/fetch tool exists
+                                                    in this condition)
+  docs (toolset bql_donly_visit, domain general) -> BqlDonlyVisitWorkspace (the dense-only
+                                                    sibling of the bql_dense_visit arm above:
+                                                    same BQL filter/listing/whole-doc visit read,
+                                                    but the shared BQL executor is a
+                                                    DenseOnlyStructuralExecutor, candidates
+                                                    ordered by pure dense rank, not RRF)
   docs (toolset bql_donly_snip,  domain general) -> DocSearchFetchDonlySnip (research_bql_donly_
-                                                    snip — the DENSE-ONLY sibling of the
-                                                    bql_dense_snip arm above: SAME BQL filter/snippet
-                                                    listing/section-fetch read, coverage-tier
-                                                    structure UNCHANGED, but within-tier ordering
-                                                    is pure dense rank, not RRF)
+                                                    snip: the dense-only sibling of the
+                                                    bql_dense_snip arm above, same BQL
+                                                    filter/snippet listing/section-fetch read,
+                                                    same coverage-tier structure, but within-tier
+                                                    ordering is pure dense rank, not RRF)
 
-So "which arm / which tools" is configuration, not code. The shared BQL executor is reused
-verbatim by both search->fetch arms; only the surface + tools + task differ.
+So which arm and which tools apply is configuration, not code. The shared BQL executor is
+reused verbatim by both search-then-fetch arms; only the surface, tools and task differ.
 """
 from __future__ import annotations
 
@@ -668,11 +669,11 @@ class AgentRetriever(Retriever):
             # retrieval as 'bm25fetch' — the fair-listing sibling's only difference is the
             # listing's content, not retrieval. 'hybridvisit'/'hybridfetchsnip' (research_hybrid/
             # research_hybrid_fetch_snip) ALSO reuse this SAME bm25 engine — it's one of the two
-            # rankers RRF fuses (see doc_research.py's HybridVisit/HybridFetchSnipWorkspace); the
+            # rankers RRF fuses (see search_visit.py's HybridVisit / search_fetch.py's HybridFetchSnipWorkspace); the
             # dense half is built separately below, alongside densevisit/densefetch's.
             # 'bm25autoread' (research_bm25_autoread) ALSO reuses this SAME bm25 engine — its
             # ranking matches 'bm25'; only the RENDER (full text vs a listing to
-            # visit) differs (see doc_research.py's Bm25AutoRead). The engine itself (BM25Local
+            # visit) differs (see search_visit.py's Bm25AutoRead). The engine itself (BM25Local
             # vs canonical-Lucene BM25Pyserini) is env `BM25_BACKEND`-selectable — see
             # `_build_bm25_engine` above; default 'local' keeps every one of these arms on the
             # same in-process engine. 'hybridautoread'
@@ -804,38 +805,38 @@ class AgentRetriever(Retriever):
             from agent_search.legacy.workspaces.code_grep import GrepReadWorkspace
             return GrepReadWorkspace(self._units, self._files)
         if arm == "bm25":
-            from agent_search.legacy.workspaces.doc_research import Bm25Visit
+            from agent_search.legacy.workspaces.search_visit import Bm25Visit
             return Bm25Visit(self._units, engine=self._bm25, ubyid=self._ubyid)
         if arm == "bm25q":
-            from agent_search.legacy.workspaces.doc_research import Bm25Visit
+            from agent_search.legacy.workspaces.search_visit import Bm25Visit
             # query_biased=True ONLY here (the bm25q arm) — the SAME bm25
             # retrieval engine as 'bm25' above, just with the listing's snippet rendered
-            # query-biased (see doc_research.py's Bm25Visit.search). The plain 'bm25' arm above
+            # query-biased (see search_visit.py's Bm25Visit.search). The plain 'bm25' arm above
             # keeps the constructor default (False).
             return Bm25Visit(self._units, engine=self._bm25, ubyid=self._ubyid,
                              query_biased=True)
         if arm == "bm25autoread":
-            from agent_search.legacy.workspaces.doc_research import Bm25AutoRead
+            from agent_search.legacy.workspaces.search_visit import Bm25AutoRead
             # SAME self._bm25 as 'bm25'/'bm25q' above (same ranking) — the
             # "retrieve-and-read" baseline's only difference is that `search` renders full text
-            # instead of a listing to visit (see doc_research.py's Bm25AutoRead).
+            # instead of a listing to visit (see search_visit.py's Bm25AutoRead).
             return Bm25AutoRead(self._units, engine=self._bm25, ubyid=self._ubyid)
         if arm == "densevisit":
-            from agent_search.legacy.workspaces.doc_research import DenseVisit
+            from agent_search.legacy.workspaces.search_visit import DenseVisit
             # self._dense_belief was built + cache-validated in index() (raises there if the
             # persisted dense cache/model is unavailable — this baseline never live-encodes).
             return DenseVisit(self._units, engine=self._dense_belief, ubyid=self._ubyid,
                               corpus_key=self._key)
         if arm == "denseautoread":
-            from agent_search.legacy.workspaces.doc_research import DenseAutoRead
+            from agent_search.legacy.workspaces.search_visit import DenseAutoRead
             # SAME self._dense_belief as 'densevisit' above (same ranking) — the
             # "retrieve-and-read" baseline's only difference is that `search` renders full text
-            # instead of a listing to visit (see doc_research.py's DenseAutoRead), exactly
+            # instead of a listing to visit (see search_visit.py's DenseAutoRead), exactly
             # mirroring how 'bm25autoread' reuses self._bm25 over 'bm25'.
             return DenseAutoRead(self._units, engine=self._dense_belief, ubyid=self._ubyid,
                                  corpus_key=self._key)
         if arm == "densefetch":
-            from agent_search.legacy.workspaces.doc_research import DenseFetchWorkspace
+            from agent_search.legacy.workspaces.search_fetch import DenseFetchWorkspace
             # SAME self._dense_belief as 'densevisit' above (built + cache-validated in index());
             # `query` is the fallback the workspace uses only if a `dense_search_f` call omits it
             # (mirrors 'bm25fetch' passing `query` to Bm25FetchWorkspace) — retrieval is LIVE per
@@ -843,22 +844,22 @@ class AgentRetriever(Retriever):
             return DenseFetchWorkspace(self._units, query, engine=self._dense_belief,
                                        ubyid=self._ubyid, corpus_key=self._key)
         if arm == "densefetchplain":
-            from agent_search.legacy.workspaces.doc_research import DenseFetchPlainWorkspace
+            from agent_search.legacy.workspaces.search_fetch import DenseFetchPlainWorkspace
             # SAME self._dense_belief as 'densevisit'/'densefetch' above (built + cache-validated
             # in index()); `query` is the fallback the workspace uses only if a `dense_search_fp`
             # call omits it — retrieval is LIVE per call either way. Only the listing differs from
-            # 'densefetch' (no per-hit excerpt) — see doc_research.py's `DenseFetchPlainWorkspace`.
+            # 'densefetch' (no per-hit excerpt); see search_fetch.py's `DenseFetchPlainWorkspace`.
             return DenseFetchPlainWorkspace(self._units, query, engine=self._dense_belief,
                                             ubyid=self._ubyid, corpus_key=self._key)
         if arm == "hybridvisit":
-            from agent_search.legacy.workspaces.doc_research import HybridVisit
+            from agent_search.legacy.workspaces.search_visit import HybridVisit
             # SAME self._bm25 (built alongside 'bm25'/'bm25fetch' etc.) and self._dense_belief
             # (built + cache-validated alongside 'densevisit'/'densefetch') — RRF fusion happens
             # LIVE per search() call, nothing new to build here.
             return HybridVisit(self._units, bm25_engine=self._bm25, dense_engine=self._dense_belief,
                                ubyid=self._ubyid, corpus_key=self._key)
         if arm == "hybridfetchsnip":
-            from agent_search.legacy.workspaces.doc_research import HybridFetchSnipWorkspace
+            from agent_search.legacy.workspaces.search_fetch import HybridFetchSnipWorkspace
             # SAME self._bm25/self._dense_belief as 'hybridvisit'; `query` is the fallback the
             # workspace uses only if a `hybrid_search_snip` call omits it (mirrors 'bm25fetch'/
             # 'densefetch' passing `query` to their own workspaces) — retrieval is LIVE per call.
@@ -866,10 +867,10 @@ class AgentRetriever(Retriever):
                                             dense_engine=self._dense_belief, ubyid=self._ubyid,
                                             corpus_key=self._key)
         if arm == "hybridautoread":
-            from agent_search.legacy.workspaces.doc_research import HybridAutoRead
+            from agent_search.legacy.workspaces.search_visit import HybridAutoRead
             # SAME self._bm25/self._dense_belief as 'hybridvisit'/'hybridfetchsnip' above — the
             # "retrieve-and-read" baseline's only difference is that `search` renders full text
-            # instead of a listing to visit (see doc_research.py's HybridAutoRead), exactly
+            # instead of a listing to visit (see search_visit.py's HybridAutoRead), exactly
             # mirroring how 'bm25autoread'/'denseautoread' reuse their own single-engine siblings.
             return HybridAutoRead(self._units, bm25_engine=self._bm25,
                                   dense_engine=self._dense_belief, ubyid=self._ubyid,
@@ -881,37 +882,37 @@ class AgentRetriever(Retriever):
             from agent_search.legacy.workspaces.doc_bm25_dci import Bm25DciWorkspace
             return Bm25DciWorkspace(self._units, query, engine=self._bm25, ubyid=self._ubyid)
         if arm == "bm25fetch":
-            from agent_search.legacy.workspaces.doc_research import Bm25FetchWorkspace
+            from agent_search.legacy.workspaces.search_fetch import Bm25FetchWorkspace
             return Bm25FetchWorkspace(self._units, query, engine=self._bm25, ubyid=self._ubyid)
         if arm == "bm25fetchsnip":
-            from agent_search.legacy.workspaces.doc_research import Bm25FetchSnipWorkspace
+            from agent_search.legacy.workspaces.search_fetch import Bm25FetchSnipWorkspace
             # SAME construction shape as 'bm25fetch' (self._bm25 built in index() above) — the
             # fair-listing sibling's only difference is the search listing's rendering, not
-            # retrieval or construction (see doc_research.py's Bm25FetchSnipWorkspace).
+            # retrieval or construction (see search_fetch.py's Bm25FetchSnipWorkspace).
             return Bm25FetchSnipWorkspace(self._units, query, engine=self._bm25, ubyid=self._ubyid)
         if arm == "docv2":
-            from agent_search.legacy.workspaces.doc_research import DocSearchFetch
+            from agent_search.legacy.workspaces.sieve import DocSearchFetch
             # date_nudge=True ONLY here (the docv2 arm) — a mechanical, corpus-free
             # mid-episode hint toward the typed date[RANGE] surface its skill teaches (see
-            # doc_research.py's `_has_bare_temporal_clue`). The plain 'doc' arm below keeps the
+            # sieve.py's `_has_bare_temporal_clue`). The plain 'doc' arm below keeps the
             # constructor default (False).
             return DocSearchFetch(self._units, executor=self._bql, ubyid=self._ubyid,
                                   coverage=True, date_nudge=True)
         if arm == "docsnip":
-            from agent_search.legacy.workspaces.doc_research import DocSearchFetch
+            from agent_search.legacy.workspaces.sieve import DocSearchFetch
             # snippets=True ONLY here (the docsnip/research_snip arm) — each search hit gets an
-            # appended one-line best-matching excerpt (see doc_research.py's `_best_line`). The
+            # appended one-line best-matching excerpt (see sieve.py's `_best_line`). The
             # plain 'doc' arm above keeps the constructor default (False).
             return DocSearchFetch(self._units, executor=self._bql, ubyid=self._ubyid,
                                   snippets=True)
         if arm == "bqlvisit":
-            from agent_search.legacy.workspaces.doc_research import BqlVisitWorkspace
+            from agent_search.legacy.workspaces.sieve import BqlVisitWorkspace
             # BqlVisitWorkspace forces coverage=True + date_nudge=True (the docv2 arm's SAME BQL v2
             # search) + snippets=True (fairness parity, forced inside the class itself — not a
             # caller knob, matching IndriVisitWorkspace's own pattern) — nothing extra to pass.
             return BqlVisitWorkspace(self._units, executor=self._bql, ubyid=self._ubyid)
         if arm == "bqldensevisit":
-            from agent_search.legacy.workspaces.doc_research import BqlVisitWorkspace
+            from agent_search.legacy.workspaces.sieve import BqlVisitWorkspace
             # BYTE-FOR-BYTE the 'bqlvisit' construction above, EXCEPT: (1) `self._bql` here is
             # the DENSE-ATTACHED executor built in index() (BQL_DENSE — see
             # bql/dense_fuse.py), and (2) `tool_names` swaps the tool surface to
@@ -920,7 +921,7 @@ class AgentRetriever(Retriever):
             return BqlVisitWorkspace(self._units, executor=self._bql, ubyid=self._ubyid,
                                      tool_names=("search_bqld", "visit_bqld"))
         if arm == "bqldonlyvisit":
-            from agent_search.legacy.workspaces.doc_research import BqlDonlyVisitWorkspace
+            from agent_search.legacy.workspaces.sieve import BqlDonlyVisitWorkspace
             # BYTE-FOR-BYTE the 'bqldensevisit' construction above, EXCEPT (1) `self._bql` here
             # is a DenseOnlyStructuralExecutor (built by 'bqldonlyvisit's own index() block, dense
             # rank ONLY — see bql/dense_fuse.py's "dense-ONLY ordering" section) and (2) the
@@ -930,16 +931,16 @@ class AgentRetriever(Retriever):
             return BqlDonlyVisitWorkspace(self._units, executor=self._bql, ubyid=self._ubyid,
                                           tool_names=("search_bqldo", "visit_bqldo"))
         if arm == "bqldensesnip":
-            from agent_search.legacy.workspaces.doc_research import DocSearchFetch
+            from agent_search.legacy.workspaces.sieve import DocSearchFetch
             # BYTE-FOR-BYTE the 'docsnip' construction below, EXCEPT `self._bql` is the
             # DENSE-ATTACHED executor built in index() (BQL_DENSE — see bql/dense_fuse.py).
-            # `run()` already accepts search_bqlds/fetch_bqlds as aliases (see doc_research.py);
+            # `run()` already accepts search_bqlds/fetch_bqlds as aliases (see sieve.py);
             # `self.tools` stays the class default here, matching 'docsnip's own
             # pattern of not overriding it for its search_s/fetch_s tool names either.
             return DocSearchFetch(self._units, executor=self._bql, ubyid=self._ubyid,
                                   snippets=True)
         if arm == "bqldonlysnip":
-            from agent_search.legacy.workspaces.doc_research import DocSearchFetchDonlySnip
+            from agent_search.legacy.workspaces.sieve import DocSearchFetchDonlySnip
             # BYTE-FOR-BYTE the 'bqldensesnip' construction above, EXCEPT (1) `self._bql` here is
             # a DenseOnlyStructuralExecutor (built by 'bqldonlysnip's own index() block — see
             # bql/dense_fuse.py's "dense-ONLY ordering" section) and (2) the workspace class is
@@ -948,12 +949,12 @@ class AgentRetriever(Retriever):
             return DocSearchFetchDonlySnip(self._units, executor=self._bql, ubyid=self._ubyid,
                                            snippets=True)
         if arm == "bqldensefetch":
-            from agent_search.legacy.workspaces.doc_research import DocSearchFetch
+            from agent_search.legacy.workspaces.sieve import DocSearchFetch
             # BYTE-FOR-BYTE the plain 'doc' construction (fallback at the bottom of this method)
             # EXCEPT `self._bql` is the DENSE-ATTACHED executor built in index() (BQL_DENSE — see
             # bql/dense_fuse.py). `snippets` stays the constructor default (False) — this is
             # research_bql_dense_snip's SAME search minus the excerpt. `run()` already accepts
-            # search_bqldf/fetch_bqldf as aliases (see doc_research.py); `self.tools` stays the
+            # search_bqldf/fetch_bqldf as aliases (see sieve.py); `self.tools` stays the
             # class default here, matching 'docsnip'/'bqldensesnip's own pattern.
             return DocSearchFetch(self._units, executor=self._bql, ubyid=self._ubyid)
         if arm == "indri":
@@ -973,7 +974,7 @@ class AgentRetriever(Retriever):
             # (False).
             return IndriFetchWorkspace(self._units, executor=self._indri, ubyid=self._ubyid,
                                        snippets=True)
-        from agent_search.legacy.workspaces.doc_research import DocSearchFetch
+        from agent_search.legacy.workspaces.sieve import DocSearchFetch
         return DocSearchFetch(self._units, executor=self._bql, ubyid=self._ubyid)
 
     def search(self, query: str, k: int) -> list:
@@ -999,7 +1000,7 @@ class AgentRetriever(Retriever):
             self._tl.traj = traj
             self._tl.meta = _trajectory_meta(traj, ws)
             return traj.located
-        from agent_search.models import backends
+        import agent_search.models as backends
         backends.reset_usage()
         policy = self._policy_factory()
         # a <fix>-terminal arm (code/grep) is gated by a grounding guard: the fix's file must
@@ -1053,7 +1054,7 @@ class AgentRetriever(Retriever):
         from datetime import date
         from agent_search.agent.sdk_driver import run_episode_sdk
         from agent_search.agent.loop import Trajectory, Step, resolve_locations
-        from agent_search.models.backends import DEFAULT_MODEL
+        from agent_search.models import DEFAULT_MODEL
         from agent_search.legacy.prompts import load_prompt_text
         # IDENTICAL prompt to the loop's AgentPolicy: same system (skill manual + task) and same first
         # user turn (`Current date: …\n\n{query}`). The ONLY difference between drivers is the
@@ -1304,7 +1305,7 @@ def _build_legacy_agent(cfg: RetrieverConfig, name: str):
         policy_factory = lambda: KeywordPolicy(toolset)  # noqa: E731
     else:
         from agent_search.agent.policies import AgentPolicy
-        from agent_search.models.backends import (DEFAULT_MODEL, is_gemini_model,
+        from agent_search.models import (DEFAULT_MODEL, is_gemini_model,
                                                   is_openai_model, make_generate)
         mdl = cfg.model or DEFAULT_MODEL
         gen = make_generate(model=mdl, backend=cfg.backend, api_base=cfg.api_base,

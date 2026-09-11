@@ -129,7 +129,7 @@ class ToolBox:
             return f"ERROR: unknown tool {name!r}. Available tools: {', '.join(self.tools)}."
         try:
             return tool.run(args or {})
-        except Exception as e:  # noqa: BLE001 — a tool error is an observation, never a crash
+        except Exception as e:  # noqa: BLE001: a tool error is an observation, never a crash
             return f"ERROR: {type(e).__name__}: {e}"
 
     def __getitem__(self, name: str) -> Tool:

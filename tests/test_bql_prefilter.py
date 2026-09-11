@@ -1,7 +1,7 @@
 """The BQL inverted-index prefilter (filter-then-verify) for large corpora.
 
 The prefilter narrows the live O(N) scan to a recall-safe candidate subset, then the
-exact `_eval` verifies — so results must be BYTE-IDENTICAL to the plain live scan,
+exact `_eval` verifies, so results must be byte-identical to the plain live scan,
 only faster. These tests pin that equivalence and that it actually narrows.
 """
 import random

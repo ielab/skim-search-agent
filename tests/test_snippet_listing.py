@@ -1,18 +1,19 @@
-"""`research_snip`: content SNIPPETS in the structured search listing (DocSearchFetch,
-`snippets=True`). Each search hit gets ONE appended one-line best-matching excerpt — the ~25
+"""`research_snip`: content snippets in the structured search listing (DocSearchFetch,
+`snippets=True`). Each search hit gets one appended one-line best-matching excerpt: the ~25
 token window of the doc body with the most overlap with the query's positive leaf tokens
 (earliest window wins ties; falls back to the doc opening when there are no leaf tokens).
 
 CPU-only, no network. `snippets=False` (the default) must reproduce `_render_hits`'s output
-byte-for-byte — the existing `research` condition/toolset must be completely unaffected.
+byte-for-byte; the existing `research` condition/toolset is unaffected.
 """
 from __future__ import annotations
 
 import os
 
-from agent_search.agent.tools.doc_research import DocSearchFetch, SNIPPET_TOKENS
+from agent_search.legacy.workspaces.sieve import DocSearchFetch
+from agent_search.legacy.workspaces.budgets import SNIPPET_TOKENS
 from agent_search.corpus.units import units_from_documents
-from agent_search.prompts import load_condition
+from agent_search.legacy.prompts import load_condition
 
 
 _PAD = "x"          # a 1-char filler token, so the default window comfortably fits the char
@@ -144,15 +145,18 @@ def test_width_argument_controls_window_length():
 
 
 def test_env_override_is_picked_up_on_import(monkeypatch):
-    import importlib, agent_search.agent.tools.doc_research as dr
+    import importlib
+    from agent_search.legacy.workspaces import budgets, common
     monkeypatch.setenv("SNIPPET_TOKENS", "128")
     try:
-        reloaded = importlib.reload(dr)
+        importlib.reload(budgets)                              # recomputes SNIPPET_TOKENS from env
+        reloaded = importlib.reload(common)                    # re-reads it from budgets
         assert reloaded.SNIPPET_TOKENS == 128
         assert reloaded.best_line.__defaults__[0] == 128       # the default really moved
     finally:
         monkeypatch.undo()
-        importlib.reload(dr)                                   # restore for later tests
+        importlib.reload(budgets)
+        importlib.reload(common)                                # restore for later tests
 
 
 def test_window_is_not_character_capped():

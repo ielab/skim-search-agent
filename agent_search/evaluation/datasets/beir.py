@@ -1,7 +1,7 @@
 """Shared-corpus deep-research benchmarks in the BEIR layout (corpus.jsonl + queries.jsonl +
 qrels): BrowseComp-Plus and the classic multi-hop QA sets (HotpotQA / 2WikiMultiHopQA /
 MuSiQue), plus their built corpus_build/ pairs (flat vs structured, and the browsecomp full
-variants). ONE fixed document collection per dataset; every query searches it.
+variants). One fixed document collection per dataset; every query searches it.
 """
 from __future__ import annotations
 
@@ -73,7 +73,7 @@ def _load_beir_style(root: str, name: str, limit: int | None = None,
 
 def load_browsecomp_plus(root: str | None = None, limit: int | None = None,
                          corpus_limit: int | None = None) -> list[Instance]:
-    """BrowseComp-Plus: a reproducible deep-research benchmark — 830 human-authored
+    """BrowseComp-Plus: a reproducible deep-research benchmark, 830 human-authored
     multi-step questions over a fixed ~100k-document corpus (chen et al.). Stage the
     BEIR-style files under data/browsecomp_plus/ (corpus.jsonl/queries.jsonl/qrels)."""
     return _load_beir_style(root or os.path.join(data_dir(), "browsecomp_plus"),
@@ -82,7 +82,7 @@ def load_browsecomp_plus(root: str | None = None, limit: int | None = None,
 
 def _multihop_loader(name: str):
     """The classic multi-hop QA benchmarks (HotpotQA / 2WikiMultiHopQA / MuSiQue) as a
-    shared paragraph corpus with supporting-paragraph qrels — the field-standard deep-
+    shared paragraph corpus with supporting-paragraph qrels: the field-standard deep-
     research retrieval sets (the FrugalRAG combo, alongside browsecomp_plus). Stage them
     with scripts/stage_multihop.py (raw release -> BEIR layout under data/<name>/)."""
     def load(root: str | None = None, limit: int | None = None,
@@ -99,9 +99,9 @@ load_musique = _multihop_loader("musique")
 
 def _built_corpus_loader(name: str, sub_dir: str):
     """Loader for a corpus_build/ output dir under data/<sub_dir>/ (BEIR layout). The wikipedia
-    builder emits a PAIR over the SAME docs/queries: `<base>_structured/` (title/section/infobox/
+    builder emits a pair over the same docs/queries: `<base>_structured/` (title/section/infobox/
     body fields) and `<base>_flat/` (the same content aggregated into title/body only). The pair
-    is the paired experiment — BQL's lift should grow as the corpus gains scopeable structure."""
+    is the paired experiment: BQL's lift should grow as the corpus gains scopeable structure."""
     def load(root: str | None = None, limit: int | None = None,
              corpus_limit: int | None = None) -> list[Instance]:
         rt = root or os.path.join(data_dir(), sub_dir)
@@ -119,8 +119,8 @@ register_dataset("browsecomp_plus", domain="general")(load_browsecomp_plus)
 register_dataset("hotpotqa", domain="general")(load_hotpotqa)
 register_dataset("2wiki", domain="general")(load_2wiki)
 register_dataset("musique", domain="general")(load_musique)
-# Wikipedia PAIRS (corpus_build/wikipedia emits <base>_flat + <base>_structured over the SAME
-# docs/queries — only the section/infobox FIELDS differ). The structured arm's field_profile picks
+# Wikipedia pairs (corpus_build/wikipedia emits <base>_flat + <base>_structured over the same
+# docs/queries; only the section/infobox fields differ). The structured arm's field_profile picks
 # the matching BQL manual (wiki = title/section/infobox/body); the flat arm has title/body only
 # (default general manual). Build them before running these. The pair is the headline experiment.
 for _base in ("hotpotqa", "2wiki", "musique"):
@@ -128,14 +128,14 @@ for _base in ("hotpotqa", "2wiki", "musique"):
         _built_corpus_loader(f"{_base}_structured", f"{_base}_structured"))
     register_dataset(f"{_base}_flat", domain="general")(
         _built_corpus_loader(f"{_base}_flat", f"{_base}_flat"))
-# browsecomp PAIR (corpus_build/browsecomp_plus emits both from the hub — same docs/queries,
+# browsecomp pair (corpus_build/browsecomp_plus emits both from the hub, same docs/queries,
 # only the author/date fields differ). flat = title/body; structured = +author/date (browsecomp manual).
 register_dataset("browsecomp_plus_structured", domain="general", field_profile="browsecomp")(
     _built_corpus_loader("browsecomp_plus_structured", "browsecomp_plus_structured"))
 register_dataset("browsecomp_plus_flat", domain="general")(
     _built_corpus_loader("browsecomp_plus_flat", "browsecomp_plus_flat"))
-# FULL-corpus browsecomp variants: same 830 queries/qrels as the pooled pair above, but over
-# the complete BrowseComp-Plus collection (100,195 docs — the pooled 67,707-doc corpora are
+# Full-corpus browsecomp variants: same 830 queries/qrels as the pooled pair above, but over
+# the complete BrowseComp-Plus collection (100,195 docs; the pooled 67,707-doc corpora are
 # row-subsets of this). Same BEIR layout under data/<name>_full/; answers ship inline in
 # queries.jsonl. Each variant gets its own dataset name so it has its own index/cache
 # namespace (corpus_id = dataset name), keeping the pooled artifact separate.

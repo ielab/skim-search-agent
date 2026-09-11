@@ -223,7 +223,7 @@ agent.search(question, k=10)
 | Search–Visit | `search_visit`, `search_visit_dense`, `search_visit_hybrid`, `search_visit_snippets` | read a result list, open whole documents |
 | Search–AutoRead | `autoread`, `autoread_dense`, `autoread_hybrid` | every search returns full text |
 | Direct corpus interaction | `dci`, `bounded_dci` | shell commands over exported files, optionally within a BM25 working set |
-| Search–Fetch | `search_fetch`, `search_fetch_dense`, `search_fetch_hybrid` | result cards with snippets, then named sections |
+| Search–Fetch | `search_fetch`, `search_fetch_dense`, `search_fetch_hybrid`, `search_fetch_bm25_plain`, `search_fetch_dense_plain` | result cards with snippets (or, for the plain arms, without), then named sections |
 | **Sieve** | `sieve`, `sieve_bm25`, `sieve_dense`, `sieve_nosnip`, `sieve_plain`, `sieve_v2`, `sieve_visit`, `sieve_visit_fused`, `sieve_visit_dense` | BQL candidate filtering, one ranking model, result cards, section fetch (or whole documents) |
 | Structured control | `indri`, `indri_plain`, `indri_visit` | Indri-QL retrieval with cards and section fetch (or whole documents) |
 | Code localization | `codefix`, `codefix_grep`, `codefix_patch` | search or grep a repository, read functions, propose a fix (`dataset=code_fixture`) |
@@ -271,7 +271,7 @@ comes from, with its backbones, released retrievers, datasets and the verified r
 
 ```bash
 python -m pip install -e ".[dev]"
-python -m pytest -q                            # about 1,300 tests; no GPU or API key needed (Java 21 only with the retrieval extra)
+python -m pytest -q                            # about 1,400 tests; no GPU or API key needed (Java 21 only with the retrieval extra)
 ```
 
 ## Demo

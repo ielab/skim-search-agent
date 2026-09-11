@@ -1,15 +1,16 @@
-"""Offline tests for scripts/compare_cells.py's per-cell INCREMENTAL metrics cache
+"""Offline tests for scripts/compare_cells.py's per-cell incremental metrics cache
 (analysis/.compare_cache/): a fully-idle cell (rows.jsonl byte size unchanged since the cached
-payload) must never re-read rows.jsonl's new content at all, a GROWN rows.jsonl must only have its
-NEW tail bytes parsed/regexed (not the whole file), a non-append change (prefix rewritten/shrunk)
-must fall back to a full re-read from byte 0, and --no-cache must bypass the cache path altogether
-(always reload, never read OR write analysis/.compare_cache/).
+payload) must never re-read rows.jsonl's new content at all; a grown rows.jsonl must only have
+its new tail bytes parsed and regexed, not the whole file; a non-append change (prefix
+rewritten or the file shrinks) must fall back to a full re-read from byte 0; and --no-cache
+must bypass the cache path altogether, always reloading and never reading or writing
+analysis/.compare_cache/.
 
-These tests exercise `_compute_cell` (the same primitive `main()` dispatches to, whether via the
-in-process "trusted unchanged" fast path or the ProcessPoolExecutor) directly, spying on
-`_read_tail_lines` (the only function that ever touches rows.jsonl's CONTENT for new rows) to
+These tests exercise `_compute_cell` (the same primitive `main()` dispatches to, whether via
+the in-process "trusted unchanged" fast path or the ProcessPoolExecutor) directly, spying on
+`_read_tail_lines` (the only function that ever touches rows.jsonl's content for new rows) to
 distinguish "no read", "incremental tail read starting mid-file", and "full read from byte 0".
-End-to-end correctness equivalence (incremental result == full recompute) is covered by
+End-to-end correctness equivalence (incremental result equals full recompute) is covered by
 tests/test_compare_cells_incremental.py; this file is about the mechanism.
 """
 import json

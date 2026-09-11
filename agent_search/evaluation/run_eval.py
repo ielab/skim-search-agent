@@ -213,7 +213,7 @@ def main() -> None:
 
     # domain = code (SWE-bench localization) vs general (deep-research over a document
     # corpus). Auto-detected from the dataset unless --domain overrides. The dense /
-    # semantic_search embedder default follows the domain: a CODE embedder over prose
+    # semantic_search embedder default follows the domain: a code embedder over prose
     # documents (or vice versa) is wrong, so general defaults to a text embedder.
     from agent_search.evaluation.datasets import dataset_domain
     domain = dataset_domain(args.dataset, args.domain)
@@ -249,10 +249,10 @@ def main() -> None:
             output=OutputArgs(runs_dir=args.runs_dir, results_dir=args.results_dir),
         )
 
-    # Agent runs are stochastic, so we pin a SINGLE fixed seed (--seeds default '42') for a
+    # Agent runs are stochastic, so we pin a single fixed seed (--seeds default '42') for a
     # reproducible run. --seeds can list several (e.g. '0,1,2') to opt into a seed-to-seed
-    # variance band (one SEPARATE run dir per seed); an explicit --seed forces one value.
-    # Deterministic floors run ONCE with no seed (seed=None -> no seed= dir segment).
+    # variance band (one separate run dir per seed); an explicit --seed forces one value.
+    # Deterministic floors run once with no seed (seed=None -> no seed= dir segment).
     def _seeds_for(retriever: str) -> list:
         if not retriever.startswith("agent"):
             return [None]                          # floors are deterministic: run once
@@ -274,7 +274,7 @@ def main() -> None:
     if "," in args.retriever and not args.check_complete:
         raise SystemExit("--retriever comma lists are only valid with --check-complete")
     if args.check_complete:
-        # --retriever may be a comma list: check ALL of them (x every seed) in this one
+        # --retriever may be a comma list: check all of them (x every seed) in this one
         # process, loading the dataset once instead of once per interpreter per retriever
         any_pending = False
         for name in args.retriever.split(","):
@@ -289,8 +289,8 @@ def main() -> None:
 
     def _maybe_judge(results_dir: str) -> None:
         """Auto-grade doc answers with the BrowseComp-Plus LLM judge when --judge-model is set.
-        The judge model AUTO-routes by name (gpt-* -> OpenAI API, else the served endpoint), so it
-        needs no per-backend flag — same principle as the agent's --model. Doc runs only; never
+        The judge model auto-routes by name (gpt-* -> OpenAI API, else the served endpoint), so it
+        needs no per-backend flag, the same principle as the agent's --model. Doc runs only; never
         fails the run (grading is a bonus on top of the deterministic exact-match/coverage metrics)."""
         if not args.judge_model or domain != "general":
             return
@@ -302,7 +302,7 @@ def main() -> None:
             print(f"  LLM judge ({args.judge_model}, BrowseComp-Plus protocol): "
                   f"{js['judge_accuracy'] * 100:.1f}%  ({js['n_correct']}/{js['n_judged']}"
                   f"; {js['n_newly_judged']} newly graded, {js['n_judge_errors']} judge errors)")
-        except Exception as e:                          # noqa: BLE001 — optional; never break the run
+        except Exception as e:                          # noqa: BLE001 - optional; never break the run
             print(f"  (LLM judge skipped: {type(e).__name__}: {e})")
 
     seeds = _seeds_for(args.retriever)
@@ -322,7 +322,7 @@ def main() -> None:
         _check_run_identity(results_dir, cfg, allow_drift=args.allow_config_drift)
         pending = _pending_instances(instances, results_dir)
         if not pending:
-            # finished setting: never rebuild backends or rescore — just re-report
+            # finished setting: never rebuild backends or rescore, just re-report
             rows, _ = _load_rows(os.path.join(results_dir, "rows.jsonl"))
             scored = [r for r in rows if "skipped" not in r]
             print(f"already complete ({len(scored)} scored, "
@@ -339,8 +339,8 @@ def main() -> None:
                            cache_dir=args.repo_cache, allow_clone=args.allow_clone,
                            # Reuse one indexed retriever across queries when it is safe (any
                            # retriever over a shared fixed corpus, plus the read-only BM25
-                           # floors) — corpus tokenized/embedded once, not per episode.
-                           # (AgentRetriever.last_trajectory is thread-local, so sharing
+                           # floors): corpus tokenized/embedded once, not per episode.
+                           # (ConditionAgent.last_trajectory is thread-local, so sharing
                            # under --workers cannot cross-contaminate rows.)
                            reuse_indexed_retriever=_should_reuse_index(args.retriever, instances))
         except SetupError as e:

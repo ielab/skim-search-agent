@@ -1,7 +1,7 @@
 """Derive localization ground truth from a SWE-bench gold patch.
 
-The corpus is the repo at the BASE commit (pre-patch), so we map the patch's
-*old-side* (a-side) line numbers onto base-commit code units. A unit is gold if
+The corpus is the repo at the base commit (pre-patch), so the patch's
+*old-side* (a-side) line numbers are mapped onto base-commit code units. A unit is gold if
 its line range overlaps any changed old-side range.
 """
 from __future__ import annotations
@@ -12,8 +12,8 @@ from typing import Mapping, Sequence
 from agent_search.corpus.units import CodeUnit
 
 # stop at tab/CR/newline so CRLF diffs or `--- a/path\ttimestamp` don't corrupt the path
-# matches BOTH `--- a/<path>` and `--- /dev/null` (new files): /dev/null sections
-# must terminate the previous file's block, or a patch that ADDS a file after a
+# matches both `--- a/<path>` and `--- /dev/null` (new files): /dev/null sections
+# must terminate the previous file's block, or a patch that adds a file after a
 # modified one leaks the new file's hunks into the previous file's gold ranges
 _OLD_PATH = re.compile(r"^--- (?:a/([^\t\r\n]+)|/dev/null)", re.MULTILINE)
 _HUNK = re.compile(r"^@@ -(\d+)(?:,(\d+))? \+\d+(?:,\d+)? @@", re.MULTILINE)
@@ -31,11 +31,11 @@ def _iter_file_blocks(diff: str):
 
 
 def changed_line_ranges(diff: str) -> dict[str, list[tuple[int, int]]]:
-    """Per file path, the inclusive old-side (base) line ranges the patch EDITS.
+    """Per file path, the inclusive old-side (base) line ranges the patch edits.
 
     Walks each hunk body and records only the actually-changed lines: '-' lines at
     their old-side line number; '+' insertions as a zero-width anchor at the line
-    before the insertion point. Context lines do NOT count — using the hunk-header
+    before the insertion point. Context lines do not count: using the hunk-header
     span would mark neighboring functions gold merely for appearing as diff
     context (the LocAgent/Agentless convention maps edited lines only).
     """
@@ -46,9 +46,9 @@ def changed_line_ranges(diff: str) -> dict[str, list[tuple[int, int]]]:
         for i, h in enumerate(hunks):
             old_start = int(h.group(1))
             old_len = int(h.group(2)) if h.group(2) is not None else 1
-            # for old_len == 0 git sets old_start to the line BEFORE the
-            # insertion, not the first line of a range — shift so `old_ln`
-            # uniformly means "next unconsumed old-side line"
+            # for old_len == 0 git sets old_start to the line before the
+            # insertion, not the first line of a range, so shift `old_ln`
+            # to uniformly mean "next unconsumed old-side line"
             old_ln = old_start if old_len > 0 else old_start + 1
             end = hunks[i + 1].start() if i + 1 < len(hunks) else len(block)
             body = block[h.end():end]

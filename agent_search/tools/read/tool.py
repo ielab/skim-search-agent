@@ -1,14 +1,14 @@
 """`read`: a line-range read, either over the DCI export directory or the raw repo files.
 
-`source="export"` (default) ports `agent_search.agent.tools.doc_dci`'s `_run_read`: a 1-indexed
-line-range of one file under the DCI directory (`state.scratch["dci_dir"]`, shared with `bash`
-and, for the bounded strategy, `bm25_search`); paths may not escape that directory. Every
-exported filename mentioned in the requested path is surfaced (added to `state.seen`).
+`source="export"` (default) is a 1-indexed line-range of one file under the DCI directory
+(`state.scratch["dci_dir"]`, shared with `bash` and, for the bounded strategy, `bm25_search`);
+paths may not escape that directory. Every exported filename mentioned in the requested path
+is surfaced (added to `state.seen`).
 
-`source="repo"` ports `agent_search.agent.tools.code_grep.GrepReadWorkspace.read`: a plain
-line-range slice of a raw repository file (`self.files`), capped at 80 lines, with a
-bare-basename fallback when the exact path isn't found. This mode does not touch `state.seen`
-— the code-fix baseline it replaces scored on a committed `<fix>`, not gold-doc coverage.
+`source="repo"` is a plain line-range slice of a raw repository file (`self.files`), capped
+at 80 lines, with a bare-basename fallback when the exact path isn't found. This mode does
+not touch `state.seen`: the `codefix_grep` strategy is scored on a committed `<fix>`, not on
+gold-document coverage.
 """
 from __future__ import annotations
 
@@ -95,8 +95,8 @@ class Read(Tool):
                                "description": "Doc DCI arm: maximum number of lines to read (default 2000)."}},
                   "required": ["path"]}
 
-    # "export": the DCI directory (state.scratch["dci_dir"]). "repo": the raw repository files
-    # (self.files), as GrepReadWorkspace.read does.
+    # "export": the DCI directory (state.scratch["dci_dir"]). "repo": the raw repository
+    # files (self.files), used by the codefix_grep strategy.
     source: str = "export"
 
     def __init__(self, name: Optional[str] = None, **options):

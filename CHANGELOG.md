@@ -41,12 +41,23 @@ pins all 24), every tool gives the same observations as the workspace it replace
   (`scripts/replay_check.py`): the old code and the new code give the same observation on all
   486 steps. Against the record, with the fp32 index the run used, every step reproduces except
   the forced final answer of the episodes that used all 40 steps (the model was called there).
-- Tongyi samples through the new runner, 20 questions each, judged by gpt-4o-mini: Sieve
-  (`sieve_bm25`) 25% and Search-Visit with Lucene BM25 25% on the BrowseComp-Plus chunk sample;
-  one-shot RAG (`rag_bm25`) 70% and ITER's loop (`dedup_dense`, released ITER-0.6B) 50% on the
-  InfoSeek-Eval sample. The ITER run scored 70% before the restructure; that run used an fp32
-  embedding index and this one a bfloat16 rebuild, and the replay above shows the tools
-  unchanged, so the gap is index precision and sampling on 20 questions, not the code.
+- The old code and the new code on the same setting (same dataset, same bfloat16 index, seed 42,
+  Tongyi via vLLM, 40 steps, judged by gpt-4o-mini, 20 questions each; the old code ran from a
+  checkout of commit 9dfa5b2 with `SKIMSEARCHAGENT_LEGACY_RUNNER=1`):
+
+  | dataset | strategy | old code | new code |
+  |---|---|---|---|
+  | InfoSeek-Eval sample | Sieve (`sieve_bm25`) | 15/20 | 15/20 |
+  | InfoSeek-Eval sample | Search-Visit, Lucene BM25 (`search_visit`) | 13/19 | 14/20 |
+  | InfoSeek-Eval sample | ITER's loop (`dedup_dense`, released ITER-0.6B) | 13/20 | 13/20 |
+  | InfoSeek-Eval sample | one-shot RAG (`rag_bm25`) | no old equivalent | 14/20 |
+  | BrowseComp-Plus chunk sample | Sieve (`sieve_bm25`) | 7/20 | 5/20 |
+  | BrowseComp-Plus chunk sample | Search-Visit, Lucene BM25 (`search_visit`) | 6/20 | 5/20 |
+
+  Question by question the differences are flips in both directions, and a second run of the new
+  code on the ITER setting scored 10/20 at the same seed: vLLM sampling at temperature 0.6 is not
+  bit-reproducible, so a 20-question sample moves by two or three questions between runs of the
+  same code. The replay above is the exact check; these runs show the whole pipeline working.
 - ITER, held out: 99 InfoSeek training trajectories to a bf16 checkpoint; on 20 unseen
   InfoSeek-Eval questions the trained retriever behind the agent scored 65% judged against 60%
   for its base (`docs/ITER.md`).

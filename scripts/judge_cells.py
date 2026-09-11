@@ -1,21 +1,21 @@
 #!/usr/bin/env python
 """LLM-judge gate for browsecomp cells. The canonical answer for a row comes from
 `force_answer_backfill.load_rows_with_recovery`'s overlay, and `rows.jsonl` must never be
-mutated in place, so this script never re-extracts or rewrites `final_answer` — it only
+mutated in place, so this script never re-extracts or rewrites `final_answer`, it only
 reads rows and records judge verdicts in a sibling cache file (see below).
 
 WHY a SIBLING CACHE instead of writing verdicts into rows.jsonl: rows.jsonl is the raw episode
 record and must stay reproducible against the exact loop.py/policies.py that produced it (same
 rule `force_answer_backfill.py` follows for `recovered_answers.jsonl`). Judging is also expensive
 (API calls) and answers can change out from under a condition dir (recovery backfill lands after
-the fact) — so `judge_cache.jsonl` is keyed on `(instance_id, sha1(final_answer.strip()))`, not
+the fact), so `judge_cache.jsonl` is keyed on `(instance_id, sha1(final_answer.strip()))`, not
 just `instance_id`: a changed answer is a cache MISS, not a stale HIT, and gets re-judged; an
 unchanged answer is a HIT and is never re-billed. This makes reruns of this script (after new rows
 land, or after a backfill pass changes some answers) idempotent and strictly incremental.
 
 WHY the EM short-circuit precedes the judge call: `agent_search.evaluation.metrics.answer_em` is the
 deterministic, free, canonical QA exact-match. Any row that already passes it needs no LLM opinion
-— recording it as `method="em_shortcircuit"` (distinct from `judge_answer_detail`'s OWN internal
+,  recording it as `method="em_shortcircuit"` (distinct from `judge_answer_detail`'s own internal
 normalized-exact short-circuit, see below) saves the call and keeps the ledger auditable by method.
 
     python scripts/judge_cells.py --dry-run                  # preview only, no API calls
@@ -57,7 +57,7 @@ JUDGE_MODEL = "gpt-4o-mini"
 
 def _cond_dir_for(subdir: str, dataset: str, cond: str) -> Path:
     """The condition dir for a REGISTRY row. Mirrors `compare_cells.cell_rows`' path construction
-    (that function returns loaded rows, not the path — this script also needs the directory, to
+    (that function returns loaded rows, not the path, this script also needs the directory, to
     find/write the sibling `judge_cache.jsonl`), so the two small branches are duplicated here."""
     p = Path("runs") / subdir / "agent" / dataset / MODEL_DIR / cond / "rows.jsonl"
     if subdir == "agent":
@@ -127,8 +127,8 @@ def append_cache(cond_dir: Path, record: dict, lock: threading.Lock) -> None:
 
 def _record(iid, sha1: str, gold: str, method: str, detail: dict) -> dict:
     """{instance_id, answer_sha1, gold_answer, judge_correct, judge_extracted, judge_reasoning,
-    method, judge_model} — `detail` is exactly `judge_answer_detail`'s return shape (real LLM calls
-    AND the two free synthetic verdicts below all produce this shape, so the cache is uniform)."""
+    method, judge_model}, `detail` is exactly `judge_answer_detail`'s return shape (real LLM calls
+    and the two free synthetic verdicts below all produce this shape, so the cache is uniform)."""
     rec = {"instance_id": iid, "answer_sha1": sha1, "gold_answer": gold}
     rec.update(detail)
     rec["method"] = method
@@ -141,7 +141,7 @@ def _record(iid, sha1: str, gold: str, method: str, detail: dict) -> dict:
 def classify_row(row: dict, cache: dict) -> Optional[dict]:
     """The verdict record for one row against the CURRENT cache, or None if it needs an actual
     `judge_answer_detail` call that has not happened yet ("llm_pending"). Never calls the judge and
-    never writes anything — a cached hit is returned as-is; the empty/EM-shortcircuit verdicts are
+    never writes anything, a cached hit is returned as-is; the empty/EM-shortcircuit verdicts are
     computed directly (free, deterministic) so counts are accurate even in --dry-run, which never
     persists them. Cache key is `(instance_id, sha1(final_answer.strip()))`, so a changed answer
     (recovery backfill landing after the fact) is a miss and gets (re-)classified here, not silently
@@ -165,7 +165,7 @@ def classify_row(row: dict, cache: dict) -> Optional[dict]:
 
 
 def summarize(rows: list, cache: dict) -> dict:
-    """Aggregate counts over `rows` against the CURRENT cache (a pure read via `classify_row` —
+    """Aggregate counts over `rows` against the CURRENT cache (a pure read via `classify_row` , 
     call this both before and after `do_live_work` to see what changed)."""
     counts = {"em_shortcircuit": 0, "llm": 0, "empty": 0}
     correct = judged = pending = 0
@@ -302,7 +302,7 @@ def main(argv: Optional[list] = None) -> int:
 
     results = []
     for label, ds, cond_dir, subdir, cond, loader in cells:
-        # wiki labels repeat across datasets ("SERP bm25 [BASELINE]" x3) — disambiguate them;
+        # wiki labels repeat across datasets ("SERP bm25 [BASELINE]" x3), disambiguate them;
         # browsecomp labels stay verbatim so the default output is unchanged.
         if not ds.startswith("browsecomp"):
             label = f"{label} ({ds})"

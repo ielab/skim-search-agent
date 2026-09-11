@@ -29,7 +29,7 @@ def _strip(meta: dict) -> dict:
 
 @pytest.mark.parametrize("name", _conditions())
 def test_episode_is_identical_old_and_new(name, tmp_path, monkeypatch):
-    from agent_search.agent.retriever import _build_legacy_agent
+    from agent_search.legacy.retriever import _build_legacy_agent
     from agent_search.evaluation.agent_runner import build_condition_agent
     from agent_search.evaluation.corpus_units import _corpus_key, _units_for_instance
     from agent_search.evaluation.datasets import load_dataset_by_name

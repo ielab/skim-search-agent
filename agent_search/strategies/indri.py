@@ -1,6 +1,6 @@
 """Indri: graded belief search, paired with either a structured fetch or a whole-doc visit.
 
-`indri` (isearch_s/fetch) is the registered paper condition — the same graded Indri ranking
+`indri` (isearch_s/fetch) is the registered paper condition: the same graded Indri ranking
 as `indri_plain`, with a listing excerpt, paired with the shared structured `fetch`
 (agent_search.tools.fetch). `indri_plain` (isearch/fetch) is the same pairing with the
 excerpt left off. `indri_visit` (isearch_v/visit_v) crosses the same graded search (excerpt

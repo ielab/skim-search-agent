@@ -4,19 +4,19 @@
 BrowseComp-Plus ships ~100K docs OBFUSCATED (XOR'd with a canary). Each doc's de-obfuscated
 text carries YAML FRONTMATTER (`title` / `author` / `date`) followed by the body. Those fields are
 already in the data, so we DON'T fetch anything: de-obfuscate, parse the frontmatter, emit. Gold is
-a label on the docid, so this never touches the qrels and the flat/structured arms see the SAME
+a label on the docid, so this never touches the qrels and the flat/structured arms see the same
 queries.
 
-SECTIONS (built with a model — there is NO prebuilt sectioned corpus on the hub). browsecomp's raw
+SECTIONS (built with a model, there is NO prebuilt sectioned corpus on the hub). browsecomp's raw
 web pages have no reliable section markup, so a cheap `gpt-5.4-nano` pass proposes section
 BOUNDARIES + headings and a DETERMINISTIC step splits the ORIGINAL body at those boundaries (the
-model only says WHERE sections start — it never rewrites text, so the corpus stays faithful and its
+model only says WHERE sections start, it never rewrites text, so the corpus stays faithful and its
 `text` still matches the flat twin byte-for-byte). It runs through the OpenAI *Batch* API (24h
 async, ~50% cheaper) with MANY docs per request, so the whole corpus is one cheap overnight job.
 Three resumable stages, then assemble:
 
   cd corpus_build/browsecomp_plus
-  python build.py sectionize-validate --sample 8                           # ALWAYS FIRST: cheap sync dry-run + cost
+  python build.py sectionize-validate --sample 8                           # always FIRST: cheap sync dry-run + cost
   python build.py sectionize-prepare                                       # hub -> batch_input_000.jsonl … + manifest
   python build.py sectionize-submit  --shards 'batch_input_*.jsonl' --save-id batch_ids.txt   # needs OPENAI_API_KEY
   python build.py sectionize-collect --batch-ids batch_ids.txt --manifest manifest.jsonl --out sections.jsonl
@@ -28,7 +28,7 @@ Three resumable stages, then assemble:
   browsecomp_plus_flat/        {_id, title,                       text}    ← same text, no fields
 where `sections` is a MATCHED, ordered [{heading, text}] list (each `##` section kept WITH its own
 body) so BQL's IN(section,·) + fetch-a-named-section work like the wikipedia arm. author/date (and
-the `## headings`) are ALSO folded into `text` so bm25/dense match them too — BQL gets PRECISE
+the `## headings`) are also folded into `text` so bm25/dense match them too, BQL gets PRECISE
 field/section access, not EXCLUSIVE access.
 
 DEPS (staging node): `datasets` (to read the hub), `openai` (submit/collect); optional `tqdm`.
@@ -45,7 +45,7 @@ import sys
 
 
 def _tqdm(it, **kw):
-    """tqdm if installed, else the bare iterable — never hard-fail on a progress bar."""
+    """tqdm if installed, else the bare iterable, never hard-fail on a progress bar."""
     try:
         from tqdm import tqdm
         return tqdm(it, **kw)
@@ -103,12 +103,11 @@ def iter_rows(limit=None):
     de-obfuscated. `docs` is the union of that query's evidence/gold/negative docs (each
     {docid,url,text}).
 
-    BUGFIX: this used to drop the hub row's own `answer` field entirely — the row carries
-    one (verified against the hub schema: query_id/query/answer/gold_docs/negative_docs/
-    evidence_docs), but nothing here read it, so every query written by `corpus` had no
-    gold answer. That silently disabled answer_em/grounded_em/grounded_f1/gold_doc_coverage
-    for ANY run built from this script (agent_search.evaluation.run_eval gates all doc-scoring on
-    `if inst.answer:`) — an arm-neutral scoring gap, not specific to BQL or bm25."""
+    The hub row carries its own `answer` field (verified against the hub schema:
+    query_id/query/answer/gold_docs/negative_docs/evidence_docs); reading it here matters
+    because `agent_search.evaluation.run_eval` gates all doc-scoring (answer_em, grounded_em,
+    grounded_f1, gold_doc_coverage) on `if inst.answer:`, so a query written without it scores
+    none of those metrics."""
     from datasets import load_dataset
     ds = load_dataset("Tevatron/browsecomp-plus", split="test")
     for i, row in enumerate(ds):
@@ -151,8 +150,8 @@ _AUTHOR_BOILERPLATE = re.compile(r"^(authority control|isni|viaf|gnd|worldcat)\b
 
 def clean_author(author: str) -> str:
     """Drop placeholder/boilerplate authors so IN(author,·) only matches REAL bylines.
-    A doc with no usable author keeps its title/body/date and stays fully retrievable — it's
-    just not author-scopeable (and no `By —` noise gets folded into its text)."""
+    A doc with no usable author keeps its title/body/date and stays fully retrievable, it's
+    just not author-scopeable (and no `By , ` noise gets folded into its text)."""
     a = (author or "").strip()
     if _AUTHOR_PLACEHOLDER.match(a) or _AUTHOR_BOILERPLATE.match(a):
         return ""
@@ -163,9 +162,9 @@ def to_record(d: dict) -> dict:
     """One de-obfuscated doc {docid,url,text} -> the loader's BEIR row.
 
     title/author/date come from the frontmatter; `text` is the body. author/date are emitted
-    BOTH as their own fields (units_from_documents carries them into metadata, so BQL's
-    IN(author,·)/IN(date,·) can scope them) AND folded into the searchable text, so bm25/dense
-    see them too — BQL gets PRECISE access, not EXCLUSIVE access (else the comparison is
+    both as their own fields (units_from_documents carries them into metadata, so BQL's
+    IN(author,·)/IN(date,·) can scope them) and folded into the searchable text, so bm25/dense
+    see them too, BQL gets PRECISE access, not EXCLUSIVE access (else the comparison is
     confounded)."""
     fm, body = parse_frontmatter(d.get("text") or "")
     title = fm.get("title", "")
@@ -183,12 +182,12 @@ def to_record(d: dict) -> dict:
 
 # ── LLM sectioning of browsecomp via the OpenAI BATCH API (cheap + async) ────
 # browsecomp's raw web pages have no reliable section markup, and there is NO prebuilt sectioned
-# corpus on the hub — so we make one. A cheap `gpt-5.4-nano` pass proposes section BOUNDARIES +
-# headings for each doc, and a DETERMINISTIC step splits the ORIGINAL body at those boundaries: the
-# model only says WHERE sections start, it never rewrites text, so the emitted corpus stays
+# corpus on the hub, so we make one. A cheap `gpt-5.4-nano` pass proposes section BOUNDARIES +
+# headings for each doc, and a deterministic step splits the ORIGINAL body at those boundaries: the
+# model only says where sections start, it never rewrites text, so the emitted corpus stays
 # faithful (and its `text` still matches the flat twin byte-for-byte). It runs through the OpenAI
-# *Batch* API (24h async, ~50% cheaper) with MANY docs per request — a "big chunk" each call, not
-# one-at-a-time and not the whole corpus at once — so ~100K docs is one cheap overnight job. Three
+# *Batch* API (24h async, ~50% cheaper) with MANY docs per request, a "big chunk" each call, not
+# one-at-a-time and not the whole corpus at once, so ~100K docs is one cheap overnight job. Three
 # resumable stages, each a subcommand:
 #   sectionize-prepare : hub docs      -> batch_input.jsonl + manifest.jsonl   (chunked; NO API call)
 #   sectionize-submit  : batch_input   -> a batch id                           (upload + create)
@@ -234,7 +233,7 @@ def _number_body(body: str) -> str:
 
 
 def render_chunk(chunk: list) -> str:
-    """chunk = [(docid, meta, body), ...] -> the user message. Each doc is shown as a WEB PAGE — its
+    """chunk = [(docid, meta, body), ...] -> the user message. Each doc is shown as a WEB PAGE, its
     title/author/date, then the line-numbered BODY (the thing to segment). `i` is the doc's POSITION
     in the chunk; the manifest maps i -> docid. Section line numbers refer to BODY lines only, so the
     metadata block never becomes a section."""
@@ -261,7 +260,7 @@ def chunk_request_body(chunk: list, model: str) -> dict:
 
 def _get_encoder():
     """The o200k_base tokenizer (gpt-4o/gpt-5 family) if tiktoken is installed, else None (we then
-    approximate ~4 chars/token — good enough to bound request size)."""
+    approximate ~4 chars/token, good enough to bound request size)."""
     try:
         import tiktoken
         return tiktoken.get_encoding("o200k_base")
@@ -270,8 +269,8 @@ def _get_encoder():
 
 
 # NB: encode with disallowed_special=() so that literal `<|endoftext|>` / `<|...|>` strings that
-# occur INSIDE real doc bodies are counted as ordinary text instead of raising ValueError. tiktoken
-# treats those as reserved special tokens and hard-errors by default — at least one browsecomp doc
+# occur inside real doc bodies are counted as ordinary text instead of raising ValueError. tiktoken
+# treats those as reserved special tokens and hard-errors by default, at least one browsecomp doc
 # contains the literal, which crashed the token-aware `prepare` mid-corpus. (The OpenAI API itself
 # takes the text verbatim; this only affects our local token counting/truncation.)
 def _tok_len(text: str, enc) -> int:
@@ -288,12 +287,12 @@ def _truncate_text_to_tokens(text: str, cap: int, enc) -> str:
 
 
 # per-doc rendering pad (the `=== DOC i (web page) ===` header + meta lines) on top of the numbered
-# body, so a packed chunk's REAL rendered size stays under budget.
+# body, so a packed chunk's real rendered size stays under budget.
 _DOC_HEADER_TOK = 60
 
 
 def _doc_render_tokens(body: str, enc) -> int:
-    """Tokens a doc contributes to a request: the NUMBERED body (what actually gets sent — the `N: `
+    """Tokens a doc contributes to a request: the NUMBERED body (what actually gets sent, the `N: `
     prefixes matter, they add ~15-20%) plus a small header pad. Counting the numbered form is why the
     earlier raw-body estimate under-budgeted and requests overflowed."""
     return _tok_len(_number_body(body), enc) + _DOC_HEADER_TOK
@@ -302,7 +301,7 @@ def _doc_render_tokens(body: str, enc) -> int:
 def _shrink_body_to_budget(body: str, budget: int, enc) -> str:
     """Drop trailing lines until the doc's RENDERED (numbered) size fits `budget`. If the very first
     line already busts budget (a page that is one giant line), hard-truncate WITHIN that line so the
-    result is guaranteed to fit — the bug that let a 900k-token single-line doc through before."""
+    result is guaranteed to fit, the bug that let a 900k-token single-line doc through before."""
     lines = (body or "").splitlines()
     kept, tot = [], _DOC_HEADER_TOK
     for i, ln in enumerate(lines, 1):
@@ -405,12 +404,12 @@ def _locate_boundary(lines: list, start_line: int, start_text: str, window: int 
 def apply_boundaries(body: str, boundaries: list) -> list:
     """Deterministically split the ORIGINAL body at the model's boundaries -> a MATCHED, ordered
     [{heading, text}] list. Content before the first boundary is '(intro)'. Each boundary's cut line
-    is resolved by its ANCHOR TEXT (`start_text`) via _locate_boundary — robust to the model
-    miscounting lines — then boundaries are sorted, clamped, and de-duplicated, so even a sloppy
+    is resolved by its ANCHOR TEXT (`start_text`) via _locate_boundary, robust to the model
+    miscounting lines, then boundaries are sorted, clamped, and de-duplicated, so even a sloppy
     reply yields a clean split of the UNTOUCHED text. An empty list -> a single '(intro)'."""
     lines = (body or "").splitlines()
     n = len(lines)
-    # resolve each boundary to a real cut line via its anchor, THEN sort (a miscounted number could
+    # resolve each boundary to a real cut line via its anchor, then sort (a miscounted number could
     # otherwise mis-order boundaries; the anchor gives the true position).
     resolved = [(_locate_boundary(lines, b["start_line"], b.get("start_text", "")),
                  str(b["heading"]).strip()) for b in boundaries]
@@ -434,7 +433,7 @@ def apply_boundaries(body: str, boundaries: list) -> list:
 
 
 def body_from_sections(sections: list) -> str:
-    """Rebuild the body with `## Heading` lines from a matched sections list — this is the emitted
+    """Rebuild the body with `## Heading` lines from a matched sections list, this is the emitted
     `text`, so bm25/dense see the headings and the flat/structured twins stay byte-identical.
     '(intro)' contributes its text with no heading line."""
     parts = []
@@ -521,7 +520,7 @@ def _sample_docs(a, n):
 
 def cmd_sectionize_validate(a):
     """Dry-run the sectioning on a SMALL real sample SYNCHRONOUSLY (NOT the batch), so you can eyeball
-    quality — and confirm the model exists / the prompt is good — BEFORE committing a big paid batch.
+    quality, and confirm the model exists / the prompt is good, BEFORE committing a big paid batch.
     Prints each doc's proposed sections + token usage, and projects the full-corpus cost. The sample
     is packed into token-safe chunks (same as prepare), so a few real calls may run. Costs a few cents."""
     from openai import OpenAI
@@ -566,7 +565,7 @@ def cmd_sectionize_validate(a):
     return 0
 
 
-# gpt-5.4-nano list price (per 1M tokens). ASSUMED — override with --price-in/--price-out once you
+# gpt-5.4-nano list price (per 1M tokens). assumed, override with --price-in/--price-out once you
 # confirm the rate on the OpenAI pricing page; the Batch API is ~50% off list, applied below.
 _PRICE_IN_PER_M = 0.05
 _PRICE_OUT_PER_M = 0.40
@@ -576,8 +575,8 @@ def _project_cost(per_in, per_out, a, n_docs=None):
     price_in = getattr(a, "price_in", None) or _PRICE_IN_PER_M
     price_out = getattr(a, "price_out", None) or _PRICE_OUT_PER_M
     n_docs = n_docs or getattr(a, "corpus_docs", None) or 67_707   # BrowseComp-Plus unique-doc count
-    # WARNING: the sample's per-doc INPUT is noisy — the corpus has a heavy tail of huge articles, so
-    # a small sample under/over-counts. Prefer the exact 556.8M-token figure measured from the FULL
+    # WARNING: the sample's per-doc input is noisy, the corpus has a heavy tail of huge articles, so
+    # a small sample under/over-counts. Prefer the exact 556.8M-token figure measured from the full
     # prepared shards for input; use this only for output (which the sample estimates well).
     in_tok = per_in * n_docs
     out_tok = per_out * n_docs
@@ -592,7 +591,7 @@ def cmd_sectionize_prepare(a):
     """Stage 1: hub (or --input) docs -> SHARDED Batch API input files + one manifest. Each request
     is a CHUNK of docs; shards roll over at the API's per-file caps (--max-shard-mb, --max-requests)
     so every file is submittable. Writes <out-prefix>_000.jsonl, _001.jsonl, … + <manifest>. No API
-    call — run it offline on a staging node. `--limit` caps queries when reading the hub (debug)."""
+    call, run it offline on a staging node. `--limit` caps queries when reading the hub (debug)."""
     import glob
     for old in glob.glob(f"{a.out_prefix}_*.jsonl"):     # clear stale shards from a prior run
         os.remove(old)
@@ -676,7 +675,7 @@ def cmd_sectionize_prepare(a):
 
 
 def cmd_sectionize_submit(a):
-    """Stage 2: upload EACH shard + create a batch per shard. Saves the ids that LAND to --save-id
+    """Stage 2: upload each shard + create a batch per shard. Saves the ids that LAND to --save-id
     (one per line) as it goes, and skips shards already submitted (recorded in --save-id), so it is
     RESUMABLE: if the org's batch enqueued-token limit defers some shards, just re-run this later and
     it picks up the rest. `--shards` is a glob of the prepared shard files (or one --input). Needs
@@ -712,7 +711,7 @@ def cmd_sectionize_submit(a):
                 ledger.flush()
             n_new += 1
             print(f"submitted {key}  ->  batch {b.id}  (status={b.status})")
-        except Exception as e:  # noqa: BLE001 — token-limit / transient: keep the landed ids, stop.
+        except Exception as e:  # noqa: BLE001, token-limit / transient: keep the landed ids, stop.
             n_fail += 1
             print(f"DEFERRED {key}: {type(e).__name__}: {str(e)[:160]}")
             print("  (org batch limit likely reached — re-run this SAME command later to submit the rest)")
@@ -782,7 +781,7 @@ def cmd_sectionize_collect(a):
 
 
 def cmd_diagnose(a):
-    """Report FRONTMATTER COVERAGE — how many docs actually carry title/author/date. This is the
+    """Report FRONTMATTER COVERAGE, how many docs actually carry title/author/date. This is the
     deciding number for the structured arm: author/date are BQL's extra fields, so if they're
     sparse the structured corpus adds little over the flat one."""
     total = 0
@@ -793,7 +792,7 @@ def cmd_diagnose(a):
         fm, _ = parse_frontmatter(d.get("text") or "")
         if fm:
             have["frontmatter"] += 1
-        # report the field as present only if it's USABLE: author is cleaned of placeholder/
+        # report the field as present only if it's usable: author is cleaned of placeholder/
         # boilerplate so the coverage number reflects real bylines (what IN(author,·) can match).
         vals = {"title": fm.get("title", ""), "author": clean_author(fm.get("author", "")),
                 "date": fm.get("date", "")}
@@ -829,15 +828,15 @@ def cmd_corpus(a):
       data/browsecomp_plus_structured/  {_id, title, author, date, text}   ← scopeable fields
       data/browsecomp_plus_flat/        {_id, title,              text}    ← same text, no fields
     plus `queries.jsonl` + `qrels/test.tsv` generated from the dataset's own `gold_docs`. Same
-    docs/text/queries in both arms — only the author/date fields differ (mirrors wikipedia)."""
+    docs/text/queries in both arms, only the author/date fields differ (mirrors wikipedia)."""
     out_s = os.path.join(a.out_dir, "browsecomp_plus_structured")
     out_f = os.path.join(a.out_dir, "browsecomp_plus_flat")
     for od in (out_s, out_f):
         os.makedirs(os.path.join(od, "qrels"), exist_ok=True)
-    # STRUCTURED sections: if `--sections FILE` (the output of sectionize-collect) is given, load
-    # the {docid -> matched sections} map ONCE and build each covered doc with its sections. Docs
+    # structured sections: if `--sections FILE` (the output of sectionize-collect) is given, load
+    # the {docid -> matched sections} map once and build each covered doc with its sections. Docs
     # the batch never covered fall back to the frontmatter-only record (still emitted, just
-    # section-less) — nothing is lost.
+    # section-less), nothing is lost.
     sections_by_id: dict = {}
     if getattr(a, "sections", None):
         for row in _read_jsonl(a.sections):
@@ -848,7 +847,7 @@ def cmd_corpus(a):
     for qid, question, gold, dlist, answer in _tqdm(iter_rows(a.limit), desc="read hub", unit="query"):
         if question:
             q = {"_id": qid, "text": question}
-            if answer:                        # BUGFIX: carry the gold answer (see iter_rows)
+            if answer:                        # carry the gold answer (see iter_rows)
                 q["answer"] = answer
             queries.append(q)
         qrels.extend((qid, did) for did in gold)
@@ -934,7 +933,7 @@ def _self_test():
     assert secs[0]["text"] == "An album by John Coltrane.\nReleased in 1957."   # ORIGINAL text, unrewritten
     assert secs[1]["text"] == "Recorded at Van Gelder Studio.\nEngineered by Rudy."
     assert secs[2]["text"] == "Widely praised as a landmark."
-    # ANCHOR ROBUSTNESS: a WRONG line number but a correct start_text snaps to the real line (here
+    # ANCHOR ROBUSTNESS: a wrong line number but a correct start_text snaps to the real line (here
     # the model miscounts "line 99" but its anchor "Widely praised" pins the true boundary at line 5).
     miscounted = apply_boundaries(body, [{"start_line": 99, "start_text": "Widely praised",
                                           "heading": "Reception"}])

@@ -1,36 +1,36 @@
 """Tests for the `BM25_BACKEND` knob (agent_search.retrievers.lexical.build_bm25_engine) that
 selects the doc arm's bm25 engine: `local` (BM25Local, the dependency-free approximation) or
-`pyserini` (BM25Pyserini, canonical Lucene BM25 — Porter stemming + stopwords, k1=0.9/b=0.4,
-the SAME engine SWE-bench's own BM25 baseline uses).
+`pyserini` (BM25Pyserini, canonical Lucene BM25, Porter stemming plus stopwords, k1=0.9/b=0.4,
+the same engine SWE-bench's own BM25 baseline uses).
 
 Covers the four things "make pyserini a selectable bm25 engine" needs pinned:
 
-  1. agreement     — BM25Local and BM25Pyserini rank documents MATERIALLY differently for the
-                      same query/corpus — the reason BM25_BACKEND=pyserini exists at all.
-                      Measured empirically on the REAL browsecomp_plus_structured corpus
-                      (67,707 docs, this project's data/browsecomp_plus_structured/): mean
-                      top-5 Jaccard between the two engines' rankings is ~0.546 (well below
-                      1.0 — BM25Local's tokenizer is not a faithful stand-in for canonical
-                      Lucene BM25 on prose). This test reproduces the SAME mechanism (verb
-                      tense/plural variants BM25Local never stems but Lucene's analyzer does)
-                      on a small, deterministic, IN-FILE corpus — fast and hermetic, no
-                      dependency on staged data/ files — and pins the resulting divergence with
-                      a wide tolerance band, so a future change that accidentally makes the two
-                      engines agree (byte-identical rankings — the whole point of having two
-                      engines would be silently lost) or disagree completely (something broke)
-                      is caught.
-  2. selection      — env BM25_BACKEND resolves to the right engine CLASS, both at the shared
-                      `build_bm25_engine` helper and through `agent_search.agent.retriever`'s
-                      real per-episode construction path.
-  3. offline safety — BM25Pyserini.search() makes no network call (a local Lucene index read
-                      only) — verified by blocking socket creation during a real search, and by
-                      importing the module in a subprocess with NO `OPENAI_API_KEY` set (the
-                      transitive-import landmine pyserini.py's module docstring documents).
-  4. listing parity — Bm25Visit's rendered search listing has the IDENTICAL shape regardless of
-                      which engine answered the query (a workspace only ever consumes the
-                      returned doc_id list; rendering is engine-agnostic).
+  1. agreement       BM25Local and BM25Pyserini rank documents materially differently for the
+                     same query/corpus, which is the reason BM25_BACKEND=pyserini exists at all.
+                     Measured empirically on the real browsecomp_plus_structured corpus
+                     (67,707 docs, this project's data/browsecomp_plus_structured/): mean
+                     top-5 Jaccard between the two engines' rankings is ~0.546, well below
+                     1.0, because BM25Local's tokenizer is not a faithful stand-in for canonical
+                     Lucene BM25 on prose. This test reproduces the same mechanism (verb
+                     tense/plural variants BM25Local never stems but Lucene's analyzer does)
+                     on a small, deterministic, in-file corpus, fast and hermetic, with no
+                     dependency on staged data/ files, and pins the resulting divergence with
+                     a wide tolerance band, so a future change that accidentally makes the two
+                     engines agree (byte-identical rankings, which would silently defeat the
+                     point of having two engines) or disagree completely (something broke)
+                     is caught.
+  2. selection       env BM25_BACKEND resolves to the right engine class, both at the shared
+                     `build_bm25_engine` helper and through `agent_search.legacy.retriever`'s
+                     real per-episode construction path.
+  3. offline safety  BM25Pyserini.search() makes no network call (a local Lucene index read
+                     only), verified by blocking socket creation during a real search, and by
+                     importing the module in a subprocess with no `OPENAI_API_KEY` set (the
+                     transitive-import landmine pyserini.py's module docstring documents).
+  4. listing parity  Bm25Visit's rendered search listing has the identical shape regardless of
+                     which engine answered the query (a workspace only ever consumes the
+                     returned doc_id list; rendering is engine-agnostic).
 
-Needs a real JVM (Java 11+) + `pyserini` importable — both are provisioned in this project's
+Needs a real JVM (Java 11+) and `pyserini` importable, both provisioned in this project's
 `envs/` (see agent_search/retrievers/lexical/pyserini.py's module docstring). If unavailable,
 the whole module is skipped rather than hard-failing an environment that never opted into the
 pyserini backend.
@@ -67,8 +67,8 @@ def _jvm_available() -> bool:
 if not _jvm_available():
     pytest.skip("no working JVM — BM25_BACKEND=pyserini needs Java 11+", allow_module_level=True)
 
-from agent_search.agent.retriever import AgentRetriever
-from agent_search.agent.tools.doc_research import Bm25Visit
+from agent_search.legacy.retriever import AgentRetriever
+from agent_search.legacy.workspaces.search_visit import Bm25Visit
 from agent_search.corpus.units import units_from_documents
 from agent_search.retrievers.lexical import build_bm25_engine
 from agent_search.retrievers.lexical.bm25 import BM25Local
@@ -248,7 +248,7 @@ def test_build_bm25_engine_unknown_backend_raises(monkeypatch):
     ("bm25_search_snip", "fetch"),     # bm25fetchsnip arm
 ])
 def test_agent_retriever_bm25_family_arms_respect_backend_local(toolset):
-    """The real per-episode construction site (agent_search.agent.retriever) — every
+    """The real per-episode construction site (agent_search.legacy.retriever) — every
     bm25-family arm's `self._bm25` is BM25Local when BM25_BACKEND is unset/local, whatever the
     specific arm (bm25/bm25fetch/bm25q/bm25fetchsnip all funnel through the SAME
     `_build_bm25_engine` call in AgentRetriever.index())."""
@@ -423,7 +423,7 @@ def test_is_built_rejects_stale_doc_count_and_rebuilds(tmp_path):
     added/removed) was silently reused -- serving BM25 hits for the wrong document set with
     no error anywhere. Now `index()` writes a `meta.json` doc-count sentinel and cross-checks
     it on every subsequent `index()` call for the same key; a mismatch is a loud, logged
-    rebuild (mirrors the dense-cache congruence check in retrievers/dense/dense.py and the
+    rebuild (mirrors the dense-cache congruence check in retrievers/dense/base.py and the
     lucene_structured `is_built` doc-count check in index_builder.py)."""
     index_root = str(tmp_path)
     key = "congruence_test_corpus"

@@ -1,22 +1,23 @@
-"""The two NEW, additive-only baselines:
+"""Two baselines:
 
-  research_dense  : the DENSE retrieve-then-visit baseline (agent_search.agent.tools.doc_research
-                     .DenseVisit) — a byte-identical clone of Bm25Visit (search renders rank/
-                     doc_id/title/snippet, visit returns the whole capped doc) with a dense
+  research_dense  : the dense retrieve-then-visit baseline (agent_search.legacy.workspaces.doc_research
+                     .DenseVisit), a byte-identical clone of Bm25Visit (search renders rank,
+                     doc_id, title, snippet; visit returns the whole capped doc) with a dense
                      embedding engine (a DenseBelief) swapped in for BM25. CPU-only here via a
-                     STUB engine injected the same way test_doc_bm25_fetch_tools.py injects a
-                     stub BM25 engine for Bm25Visit — no torch/sentence-transformers import.
+                     stub engine injected the same way test_doc_bm25_fetch_tools.py injects a
+                     stub BM25 engine for Bm25Visit; no torch/sentence-transformers import.
 
   oneshot_rag     : scripts/oneshot_rag.py, the no-agent-loop one-shot RAG baseline (retrieve
-                     top-k, stuff into ONE prompt, ONE model call, parse <answer>). Tested here
-                     via its prompt-builder + answer-parser + `run_instance` with a FAKE
+                     top-k, stuff into one prompt, one model call, parse <answer>). Tested here
+                     via its prompt-builder, answer-parser and `run_instance` with a fake
                      generate() (no API call).
 """
 from __future__ import annotations
 
 import pytest
 
-from agent_search.agent.tools.doc_research import Bm25Visit, DenseVisit, SNIPPET_TOKENS
+from agent_search.legacy.workspaces.search_visit import Bm25Visit, DenseVisit
+from agent_search.legacy.workspaces.budgets import SNIPPET_TOKENS
 from agent_search.corpus.units import units_from_documents
 
 # the SAME fixture doc set test_doc_research_tools.py / test_doc_bm25_fetch_tools.py use, so
@@ -136,7 +137,7 @@ def test_engine_receives_the_raw_query_and_the_knob_depth():
     dense_search schema exposes ONLY `query`, so a hallucinated `k` in the tool-call args is
     ignored; the env knob alone sets the SERP listing depth (see doc_research.DENSE_VISIT_TOPK
     and test_doc_research_tools.py's SERP-listing-depth section)."""
-    import agent_search.agent.tools.doc_research as m
+    import agent_search.legacy.workspaces.budgets as m
     engine = _StubDenseEngine(("d_harbor",))
     ws = DenseVisit(_units(), engine=engine)
     ws.run("dense_search", {"query": "harbor festival", "k": 3})
@@ -186,7 +187,7 @@ def test_run_unknown_tool_errors():
 # --- condition wiring: research_dense loads + resolves via the retriever registry ----------
 
 def test_research_dense_condition_loads_uncoached():
-    from agent_search.prompts import load_condition, render_manuals
+    from agent_search.legacy.prompts import load_condition, render_manuals
 
     p = load_condition("research_dense")
     assert p.toolset == "dense_visit"
@@ -229,7 +230,8 @@ def test_densevisit_index_raises_clear_error_when_cache_missing(tmp_path):
 # research_snip established a content-bearing listing is the fair default once any arm shows one.
 # =============================================================================================
 
-from agent_search.agent.tools.doc_research import DenseFetchWorkspace, DocSearchFetch  # noqa: E402
+from agent_search.legacy.workspaces.search_fetch import DenseFetchWorkspace
+from agent_search.legacy.workspaces.sieve import DocSearchFetch  # noqa: E402
 
 _PAD = "x"          # same padding trick as tests/test_snippet_listing.py — isolates "did the
                     # MID-BODY window win" from "is the char/token cap doing something weird".
@@ -376,7 +378,7 @@ def test_fetchws_run_unknown_tool_errors():
 # --- condition wiring: research_dense_fetch loads + resolves via the retriever registry --------
 
 def test_research_dense_fetch_condition_loads_uncoached():
-    from agent_search.prompts import load_condition, render_manuals
+    from agent_search.legacy.prompts import load_condition, render_manuals
 
     p = load_condition("research_dense_fetch")
     assert p.toolset == "dense_fetch"

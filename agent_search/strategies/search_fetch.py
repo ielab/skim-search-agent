@@ -1,7 +1,7 @@
 """Search-Fetch: a live search that lists structure, then fetching a named section.
 
 Three query engines (bm25, dense, hybrid) pair their retrieval with the shared structured
-`fetch` (agent_search.tools.fetch) instead of a whole-doc `visit` — the listing shows each
+`fetch` (agent_search.tools.fetch) instead of a whole-doc `visit`. The listing shows each
 hit's section names and infobox keys (plus, for the *_snip arms, a best-matching excerpt),
 and `fetch` pulls one named section. `search_fetch_bm25_plain`/`search_fetch_dense_plain`
 are the excerpt-free siblings for the two arms that have one; hybrid has no plain sibling in

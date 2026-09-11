@@ -1,17 +1,17 @@
-"""Code-FIX task scoring — the code arm's end-to-end metric.
+"""Codefix task scoring: the code domain's end-to-end metric.
 
 The code agent ends an episode by proposing a concrete fix (a <fix> block; see
-agent_search/tasks/codefix/prompt.md). We score it LOCALLY, no test execution:
+agent_search/tasks/codefix/prompt.md). The score is computed locally, with no test execution:
 
   fix-file-ok : did the `file:` line name a file the gold patch edits (suffix-lenient)?
 
-plus the efficiency axis the agent loop already records (llm_calls / steps / tokens). This
-mirrors the retrieval floors' file-level Acc@1 but on the fix the agent actually committed to,
-so the code and deep-research arms stay comparable in shape (a single success bit + cost),
-while deep-research keeps its @k / answer-EM metrics unchanged.
+The row also carries the efficiency axis the agent loop already records (llm_calls / steps /
+tokens). This score matches the retrieval floors' file-level Acc@1 in shape, but is computed
+on the fix the agent actually committed to, so the code and document domains stay comparable
+(a single success bit plus cost) while the document domain keeps its own @k / answer-EM metrics.
 
-Reuses agent_search.evaluation.ground_truth.gold_files (the same base-side patch parser the retrieval
-metrics use), so gold is defined identically across arms.
+Reuses agent_search.evaluation.ground_truth.gold_files (the same base-side patch parser the
+retrieval metrics use), so gold is defined identically across domains.
 """
 from __future__ import annotations
 

@@ -1,9 +1,9 @@
-"""Qwen/Qwen3-Embedding-0.6B as a selectable dense embedder (additive to bge-base-en-v1.5,
-the existing general-domain default) — the env knob `DENSE_MODEL`, its cache-namespace
-isolation, faithful model-card usage (last-token pooling is handled entirely by
-sentence-transformers' bundled `modules.json`/`1_Pooling` config — nothing to test at this
-layer; the query INSTRUCT prefix is this repo's own responsibility, tested below), and
-dim-agnostic vector_index round-trip at Qwen3-Embedding's 1024-dim output.
+"""Qwen/Qwen3-Embedding-0.6B as a selectable dense embedder, alongside bge-base-en-v1.5 (the
+existing general-domain default): the env knob `DENSE_MODEL`, its cache-namespace isolation,
+faithful model-card usage (last-token pooling is handled entirely by sentence-transformers'
+bundled `modules.json`/`1_Pooling` config, so there is nothing to test at this layer; the
+query instruct prefix is this repo's own responsibility, tested below), and dim-agnostic
+vector_index round-trip at Qwen3-Embedding's 1024-dim output.
 
 No torch/sentence-transformers import in these tests (CPU/CI-safe) except the opt-in
 integration check at the bottom, gated exactly like test_indri_dense.py's
@@ -21,7 +21,7 @@ import pytest
 
 from agent_search.corpus.units import CodeUnit
 from agent_search.retrievers.dense import vector_index as vi
-from agent_search.retrievers.dense.dense import DenseRetriever, _QUERY_PREFIX
+from agent_search.retrievers.dense import DenseRetriever
 from agent_search.evaluation.datasets import default_dense_model
 
 
@@ -45,11 +45,11 @@ def test_default_dense_model_env_overrides_general_domain_only(monkeypatch):
 
 
 def test_dense_belief_default_model_env_knob_in_a_fresh_process():
-    """DenseBelief.DEFAULT_MODEL is resolved at import time (same pattern as
-    AGENT_DEFAULT_CONDITION / oneshot_rag.DEFAULT_MAX_TOKENS) — verified in a subprocess so
+    """`dense.belief.default_model()` resolves the general-domain default the same way
+    AGENT_DEFAULT_CONDITION / oneshot_rag.DEFAULT_MAX_TOKENS do — verified in a subprocess so
     this test doesn't reload the already-imported module in-process."""
-    code = ("from agent_search.retrievers.indri.dense_belief import DEFAULT_MODEL; "
-            "print(DEFAULT_MODEL)")
+    code = ("from agent_search.retrievers.dense.belief import default_model; "
+            "print(default_model())")
 
     env_unset = {k: v for k, v in os.environ.items() if k != "DENSE_MODEL"}
     out = subprocess.run([sys.executable, "-c", code], cwd=REPO, env=env_unset,
@@ -86,7 +86,7 @@ def test_qwen3_embedding_query_prefix_matches_model_card():
                 "the query\nQuery:")
     for model_id in ("Qwen/Qwen3-Embedding-0.6B", "Qwen/Qwen3-Embedding-4B",
                       "Qwen/Qwen3-Embedding-8B"):
-        assert _QUERY_PREFIX[model_id] == expected
+        assert DenseRetriever(model_id, encoder=object()).query_prefix_for() == expected
 
 
 class _CapturingEncoder:

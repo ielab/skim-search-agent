@@ -1,8 +1,8 @@
 """Indri backend index: postings / doc lengths / collection frequencies, per field.
 
-Persisted structure only (no `CodeUnit` objects, no per-doc token positions — see
-`model.py`'s module docstring for the persistence rationale, same as the BQL
-executor's slim-pickle pattern). Positions used by proximity operators (`#odN`,
+Persisted structure only (no `CodeUnit` objects, no per-doc token positions): see
+`model.py`'s module docstring for the persistence rationale, the same slim-pickle pattern
+the BQL executor uses. Positions used by proximity operators (`#odN`,
 `#uwN`) are derived lazily, per candidate, from the attached live units at query
 time and are never stored here.
 

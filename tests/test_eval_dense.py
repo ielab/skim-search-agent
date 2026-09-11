@@ -1,6 +1,6 @@
 import numpy as np
 
-from agent_search.retrievers.dense.dense import DenseRetriever
+from agent_search.retrievers.dense import DenseRetriever
 from agent_search.corpus.units import CodeUnit
 
 

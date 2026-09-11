@@ -1,15 +1,15 @@
-"""Lucene-backed structured retrieval -- the Indri-QL/BQL query languages compiled
+"""Lucene-backed structured retrieval: the Indri-QL/BQL query languages compiled
 to real Lucene `Query` objects and run over a persisted, fielded Lucene index, via
-raw pyjnius JNI (NOT pyserini's high-level `LuceneSearcher`, which only supports
+raw pyjnius JNI (not pyserini's high-level `LuceneSearcher`, which only supports
 plain-text `{id, contents}` indexing and cannot express fielded documents, span
 queries, or `LMDirichletSimilarity`).
 
-This package is strictly ADDITIVE: a SIBLING of `indri/` and
-`bql/` (the pure-Python reference engines, which remain the semantics
-source of truth -- see `agent_search/tools/search_indri/indri_doc.md` and `docs/bql_spec.md`), not a
-replacement. It reuses both engines' existing PARSERS (`indri.parser.parse`,
-`bql.parser.parse`) rather than re-parsing the query languages, and it never
-imports from or modifies `agent_search/retrievers/lexical/pyserini.py`.
+This package sits alongside `indri/` and `bql/`, the pure-Python reference engines
+that remain the semantics source of truth (see `agent_search/tools/search_indri/indri_doc.md`
+and `docs/bql_spec.md`); it is an alternate engine, not a replacement. It reuses
+both engines' existing parsers (`indri.parser.parse`, `bql.parser.parse`) rather
+than re-parsing the query languages, and it never imports from or modifies
+`agent_search/retrievers/lexical/pyserini.py`.
 
 Modules:
     schema.py          - field-schema decision (one Lucene Document per CodeUnit;

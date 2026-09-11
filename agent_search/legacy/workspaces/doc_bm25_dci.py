@@ -1,41 +1,44 @@
-"""The bm25 -> DCI ACI: `bm25_search` is a LIVE, per-call BM25 retrieval (identical in
-shape to `Bm25Visit.search`), and `bash`/`read` (the DCI shell) are rooted at a staging dir
-that GROWS INCREMENTALLY as new docs are surfaced by search.
+"""The pre-0.3 bm25-then-DCI tool surface: `bm25_search` is a live, per-call BM25 retrieval
+(identical in shape to `Bm25Visit.search`), and `bash`/`read` (the DCI shell) are rooted at a
+staging dir that grows incrementally as new docs are surfaced by search.
 
-This is the missing controlled comparison between the doc arm's three baselines:
+Kept so the parity tests can compare against it. The current equivalent is the `bounded_dci`
+strategy in `agent_search/strategies/dci.py`, adding `bm25_search` to the `bash`/`read` tools.
 
-  research       : structured search  -> fetch a named SECTION      (the method)
-  research_bm25  : BM25 top-k search  -> visit the WHOLE doc          (retrieve-then-visit)
-  research_dci   : NO retriever, bash/read over the WHOLE corpus       (brute-force, chen2026dci)
-  research_bm25_dci (this file) : BM25 search (SAME engine/query semantics as `research_bm25`)
-                    -> bash/read (SAME shell as research_dci), but bounded to whatever bm25 has
-                    surfaced SO FAR this episode.
+This is the controlled comparison between the doc arm's three other baselines:
+
+  research       : structured search  -> fetch a named section      (the method)
+  research_bm25  : BM25 top-k search  -> visit the whole doc         (retrieve-then-visit)
+  research_dci   : no retriever, bash/read over the whole corpus     (brute-force, chen2026dci)
+  research_bm25_dci (this file) : BM25 search (same engine/query semantics as `research_bm25`)
+                    -> bash/read (same shell as research_dci), but bounded to whatever bm25 has
+                    surfaced so far this episode.
 
 Holding retrieval identical to `research_bm25` (same `BM25Local`, same live per-query search)
-and swapping only the READ strategy (shell-grep vs whole-doc-visit) isolates "given the same
-retrieval, how do you read?" — the other three baselines each change BOTH retrieval and read
-together. This requires retrieval to be genuinely LIVE per call, exactly like `Bm25Visit.search`,
-not a fixed ranking computed once and replayed — otherwise the agent's own queries would never
+and swapping only the read strategy (shell-grep vs whole-doc-visit) isolates "given the same
+retrieval, how do you read?" The other three baselines each change both retrieval and read
+together. This requires retrieval to be genuinely live per call, exactly like `Bm25Visit.search`,
+not a fixed ranking computed once and replayed. Otherwise the agent's own queries would never
 affect retrieval and this arm would starve for documents a live searcher would find:
 
-  1. `__init__` runs ONE bm25 call up front — `self.bm.search(query, k=topk)` on the
-     episode's question text — to seed a starting pool (some episodes' first bash/read call
-     assumes a non-empty corpus_dir at t=0). This is not special-cased: it is implemented by
-     calling `self.search(query)`, the SAME method a later tool call uses.
-  2. Every `bm25_search` call (including that seed one) runs `self.bm.search(query, k)` LIVE
-     against the agent's actual query text — the SAME `BM25Local` engine `Bm25Visit` uses, so
+  1. `__init__` runs one bm25 call up front, `self.bm.search(query, k=topk)` on the episode's
+     question text, to seed a starting pool (some episodes' first bash/read call assumes a
+     non-empty corpus_dir at t=0). This is not special-cased: it is implemented by calling
+     `self.search(query)`, the same method a later tool call uses.
+  2. Every `bm25_search` call (including that seed one) runs `self.bm.search(query, k)` live
+     against the agent's actual query text, the same `BM25Local` engine `Bm25Visit` uses, so
      retrieval matches `research_bm25` for the same query/engine/k.
-  3. Any hit not already staged gets written into the SAME staging dir immediately, via
+  3. Any hit not already staged gets written into the same staging dir immediately, via
      `flat_export.stage_units_into` (the exact `<safe_doc_id>.txt` / `title\\n\\nbody` writer
-     `export_flat_corpus` uses — factored out so there is ONE write path, not two). A doc that
+     `export_flat_corpus` uses, factored out so there is one write path, not two). A doc that
      drops out of a later ranking stays staged: once surfaced, always readable, same as `seen`.
-  4. `bash`/`read` (imported from `doc_dci` — no duplicated subprocess/truncation logic) operate
-     with cwd/root = the staging dir. What's on disk only ever GROWS across the episode; nothing
+  4. `bash`/`read` (imported from `doc_dci`, no duplicated subprocess/truncation logic) operate
+     with cwd/root = the staging dir. What's on disk only ever grows across the episode; nothing
      is ever unstaged.
 
-doc_id -> filename: identical to `doc_dci`/`flat_export` (`_safe_filename`), so no new mapping
-scheme — `stage_units_into`'s returned `{doc_id: relpath}` is merged into `_rel_to_doc` directly,
-exactly like `DciWorkspace._rel_to_doc`.
+doc_id -> filename mapping is identical to `doc_dci`/`flat_export` (`_safe_filename`), so no new
+mapping scheme: `stage_units_into`'s returned `{doc_id: relpath}` is merged into `_rel_to_doc`
+directly, the same as `DciWorkspace._rel_to_doc`.
 """
 from __future__ import annotations
 
@@ -51,7 +54,7 @@ from agent_search.legacy.workspaces.doc_dci import (
     _HARD_TIMEOUT_S, _run_bash, _run_read)
 from agent_search.core.seen import OrderedSeen
 from agent_search.corpus.flat_export import stage_units_into
-from agent_search.legacy.workspaces.doc_research import _SeenMixin, opening_line
+from agent_search.legacy.workspaces.common import _SeenMixin, opening_line
 from agent_search.corpus.units import CodeUnit
 
 # The retrieval-stage cutoff: how many bm25 hits a `bm25_search` call surfaces/stages by
@@ -86,7 +89,7 @@ class Bm25DciWorkspace(_SeenMixin):
         self.ubyid = ubyid if ubyid is not None else {u.doc_id: u for u in self.units}
         if engine is None:
             # env BM25_BACKEND-selectable (default 'local', unchanged) — SAME fallback
-            # Bm25Visit/Bm25FetchWorkspace use (doc_research.py); see
+            # Bm25Visit/Bm25FetchWorkspace use (search_visit.py/search_fetch.py); see
             # agent_search.retrievers.lexical.build_bm25_engine. Production callers
             # (agent_search.legacy.retriever) always pass `engine` explicitly.
             from agent_search.retrievers.lexical import build_bm25_engine

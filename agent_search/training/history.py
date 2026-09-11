@@ -1,9 +1,10 @@
 """The agent's search history at inference, so a trained retriever sees the same query it was
 trained on.
 
-`agent_search.agent.retriever.AgentRetriever` opens a `QueryContext` for every episode and feeds
-it each step as it happens (what was searched, what was read, what the model said afterwards).
-`agent_search.retrievers.indri.dense_belief.DenseBelief` asks `current_query_for` how
+`agent_search.evaluation.agent_runner.ConditionAgent` opens a `QueryContext` for every episode and
+feeds it each step as it happens (what was searched, what was read, what the model said
+afterwards); `agent_search.legacy.retriever.AgentRetriever` does the same for its own runs.
+`agent_search.retrievers.dense.belief.DenseBelief` asks `current_query_for` how
 to write the retriever query for the sub-query it is about to encode. When the dense query style
 is ``plain`` (the default) nothing changes; with any other style the query is rendered by
 `queries.render_query` with the history so far, byte-identical to how `triples.py` rendered it
@@ -58,7 +59,7 @@ class QueryContext:
 
     def observe(self, step: Any, last_hits: list[str]) -> None:
         """Record one finished step. `step` is a loop `Step` (name/args/raw_output); `last_hits`
-        the workspace's listing after the step."""
+        the toolbox's listing after the step."""
         raw = getattr(step, "raw_output", "") or ""
         # the model's generation at this step is the reasoning AFTER the previous step's reads;
         # `note()` normally handled it before the tool ran, this covers callers without the hook

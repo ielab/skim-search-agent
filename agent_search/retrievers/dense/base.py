@@ -50,7 +50,7 @@ def family_for(model_id: str):
         try:
             if cls.matches(model_id):
                 return cls
-        except Exception:  # noqa: BLE001 — a family's probe must never break resolution
+        except Exception:  # noqa: BLE001: a family's probe must never break resolution
             continue
     return DenseRetriever
 
@@ -287,7 +287,7 @@ class DenseRetriever(Retriever):
                         self._index = idx
                         self._doc_ids = idx.doc_ids
                         return self
-            except Exception:  # noqa: BLE001 — a truncated cache (killed writer) is rebuilt
+            except Exception:  # noqa: BLE001: a truncated cache (killed writer) is rebuilt
                 pass
 
         self._doc_ids = [u.doc_id for u in units]
@@ -312,7 +312,7 @@ class DenseRetriever(Retriever):
         try:
             save_index(self._index, cache_dir, extra_meta={"corpus_fingerprint": fp, "dense_model": self.model_id,
                                                            "dense_dtype": self.dtype})
-        except Exception:  # noqa: BLE001 — best-effort persistence; the in-memory index still serves
+        except Exception:  # noqa: BLE001: best-effort persistence; the in-memory index still serves
             pass
         return self
 

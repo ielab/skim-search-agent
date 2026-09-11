@@ -1,15 +1,14 @@
-"""Indri retrieval-model backend — a SIBLING of the Boolean `bql/` engine.
+"""Indri retrieval-model backend: a sibling of the Boolean `bql/` engine.
 
 Faithful (documented-deviations) reimplementation of Indri Query Language semantics:
 parsing (`parser.py`), index building (`index.py`) and Dirichlet-smoothed scoring
 (`model.py`). See `agent_search/tools/search_indri/indri_doc.md` for the source-of-truth operator
 syntax and belief-combination math this package implements.
 
-This package is strictly ADDITIVE: it imports from `agent_search.corpus.units`
-(`CodeUnit`, `code_tokenize`) but does not modify anything under
-`agent_search/retrievers/bql/` or any other existing module.
+This package only imports from `agent_search.corpus.units` (`CodeUnit`, `code_tokenize`); it
+does not depend on `agent_search/retrievers/bql/` or any other retriever family.
 
-Public API (stable — the agent tool layer builds against this):
+Public API the `search_indri` tool (`agent_search/tools/search_indri/tool.py`) builds against:
     IndriExecutor(units, mu=None)
     IndriExecutor.search(query, k=5) -> IndriResult(hits, error, diagnostics)
     IndriExecutor.save(path) / IndriExecutor.load(path) [staticmethod]

@@ -1,24 +1,26 @@
-"""The code-fix ACI: the search -> fetch instrument over a code corpus.
+"""The pre-0.3 code-fix tool surface: the search-then-fetch instrument over a code corpus.
 
-This is THE code agent's tool surface (the field-tagged Boolean search->fetch design). Index-free &
-unchunked, exactly like the retrieval engines: a "document" is a FILE; its "parts"
-(functions/methods/classes) are the AST units the corpus already carries (CodeUnit), so
-nothing is persisted beyond the in-session executor/units.
+Kept so the parity tests can compare against it. The current equivalent is the `codefix`
+strategy in `agent_search/strategies/codefix.py`, built from the atomic tools in
+`agent_search/tools/`.
+
+The tool surface is index-free and unchunked, like the retrieval engines: a "document" is a
+file; its "parts" (functions, methods, classes) are the AST units the corpus already carries
+(CodeUnit), so nothing is persisted beyond the in-session executor and units.
 
 Two moves:
   search(query, k) : field-tagged surface -> BQL (surface.to_bql, unmodified) ->
-                            execute against the units -> matching UNITS, GROUPED BY FILE.
+                            execute against the units -> matching units, grouped by file.
                             Returns a file-level candidate table: each file's matched function
-                            names (its "structure"), NO bodies. Numbered for `fetch` reference.
-  fetch(specs)            : specs is a LIST of (rank, part) pairs referencing the last search's
-                            numbered files — grep-like: part is a function/class qualname
-                            ("Command.handle") or a line range ("L810-840") IN THAT FILE. Never
+                            names (its "structure"), no bodies. Numbered for `fetch` reference.
+  fetch(specs)            : specs is a list of (rank, part) pairs referencing the last search's
+                            numbered files, grep-like: part is a function/class qualname
+                            ("Command.handle") or a line range ("L810-840") in that file, never
                             the whole file. Returns those parts' source, aggregated across specs,
-                            capped ~40 lines/part.
+                            capped at about 40 lines per part.
 
 The agent then commits to a concrete fix (a <fix> block; see prompts/tasks/taskfix.md), scored
-by agent_search/evaluation/fix_scoring.py. The retrieval engines / localization ACI are GONE for code — this
-module is the code arm. (The deep-research arm keeps its own tools, in doc_research.py/doc_indri.py/doc_bm25_dci.py/doc_dci.py.)
+by agent_search/evaluation/fix_scoring.py.
 """
 from __future__ import annotations
 

@@ -1,21 +1,21 @@
 """Prompt conditions = task template x toolset (loader composition).
 
-THE method, both arms: the BQL field-tagged Boolean surface + search -> fetch.
+The method, both arms: the BQL field-tagged Boolean surface + search -> fetch.
   code  : task=taskfix,  toolset=search_fetch      (files -> functions, <fix>)
   docs  : task=research, toolset=research           (articles -> sections, <answer>)
           task=research, toolset=research_bm25      (retrieve-then-visit baseline)
 Per-tool teaching lives in a tool's manual (skills/*.md) and renders only when the tool is in
-the toolset; the field-tagged surface lowers to the SAME executor AST via
+the toolset; the field-tagged surface lowers to the same executor AST via
 retrievers/bql/surface.to_bql, so the parser/typechecker/executor are reused.
 """
 import re
 
 import pytest
 
-from agent_search.prompts import (DOMAINS, get_prompt_spec, load_condition,
+from agent_search.legacy.prompts import (DOMAINS, get_prompt_spec, load_condition,
                                    load_prompt_profile, load_prompt_text,
                                    render_manuals)
-from agent_search.prompts.loader import load_task
+from agent_search.legacy.prompts.loader import load_task
 from agent_search.retrievers.bql.parser import parse
 from agent_search.retrievers.bql.surface import to_bql
 from agent_search.retrievers.bql.types import check
@@ -142,7 +142,7 @@ def test_only_search_family_tools_have_a_manual():
     ranking underneath differs, see agent_search/retrievers/bql/dense_fuse.py).
     `fetch`/`fetch_s`/`fetch_bqld{f,os,s}` carry none — they're plain reads, no new coaching.
     The code arm's `search` carries the code BQL manual (skills/bql_code.md)."""
-    from agent_search.prompts.loader import _registry
+    from agent_search.legacy.prompts.loader import _registry
     tools = _registry()["tools"]
     with_manual = sorted(n for n, s in tools.items() if s.get("manual"))
     assert with_manual == ["isearch_s", "search", "search_bqldf", "search_bqldos", "search_bqlds",

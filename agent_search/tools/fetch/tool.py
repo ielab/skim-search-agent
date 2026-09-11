@@ -1,15 +1,15 @@
 """`fetch`: a named section (or the infobox) of a document a previous search ranked.
 
-Ported from `agent_search.agent.tools.sieve.DocSearchFetch.fetch`, logic unchanged. `specs`
-is a list of `[doc, section]` pairs; `doc` is a rank from the last `search` listing (an
-`agent_search.tools.search_bql.SearchBql` instance sharing the same episode state), or a
-document id; `section` is a heading name, `""`/omitted for the lead/opening content, or
-`"infobox"` for the infobox facts. A read is capped at `MAX_SECTION_TOKENS` tokens.
+`specs` is a list of `[doc, section]` pairs. `doc` is a rank from the last search listing
+(for example an `agent_search.tools.search_bql.SearchBql` instance sharing the same episode
+state), or a document id. `section` is a heading name, `""`/omitted for the lead/opening
+content, or `"infobox"` for the infobox facts. A read is capped at `MAX_SECTION_TOKENS`
+tokens.
 
 Section text is derived from the same `##`-marker split (or the corpus's explicit matched
-sections) the search listing used, cached per document id in `state.listing` -- the same
-cache a paired `search` tool populates, so a doc fetched right after being surfaced does not
-redo the split.
+sections) the search listing used, cached per document id in `state.listing`. This is the
+same cache a paired search tool populates, so a doc fetched right after being surfaced does
+not redo the split.
 """
 from __future__ import annotations
 
@@ -68,8 +68,8 @@ class Fetch(Tool):
             rank = int(ref)
             if 1 <= rank <= len(last):
                 return self.ubyid[last[rank - 1]], None
-            # A digit that is NOT a valid rank may be a real doc_id (numeric doc_ids do
-            # occur) -- resolve it as one before erroring.
+            # A digit that is not a valid rank may be a real doc_id (numeric doc_ids do
+            # occur), so resolve it as one before erroring.
             if str(ref).strip() in self.ubyid:
                 return self.ubyid[str(ref).strip()], None
             if not last:
@@ -109,7 +109,7 @@ class Fetch(Tool):
         if not s:                            # no section named -> the lead/opening content
             match = [_INTRO] if _INTRO in named else [names[0]] if names else []
         elif len(names) == 1:
-            # A FLAT doc (no '##' markers) has exactly one section, always named '(intro)'.
+            # A flat doc (no '##' markers) has exactly one section, always named '(intro)'.
             # Any part name on a single-section doc means "the body", so honor it instead of
             # erroring "no section 'body'".
             match = names

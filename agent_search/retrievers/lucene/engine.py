@@ -1,28 +1,27 @@
 """The searcher class the tool layer talks to: opens a prebuilt fielded Lucene index
-(`index_builder.py`) and exposes a small, stable, THREAD-SAFE query API for both
+(`index_builder.py`) and exposes a small, stable, thread-safe query API for both
 compiled query languages (`indri_compiler.py`, `bql_compiler.py`).
 
 Thread safety: a single `IndexSearcher`/`DirectoryReader` pair is safe to share
-across concurrent callers -- this is standard Lucene practice (both classes are
-documented thread-safe for reads) and matches the empirical finding already
-recorded for `BM25Pyserini` (`agent_search.retrievers.lexical.pyserini`'s module
-docstring: "500-doc index, 8 threads x 20 concurrent .search() calls ... zero
-exceptions"). One `LuceneStructuredEngine` instance is built once per corpus and
+across concurrent callers. This is standard Lucene practice (both classes are
+documented thread-safe for reads) and matches the same result already recorded for
+`BM25Pyserini` (`agent_search.retrievers.lexical.pyserini`'s module docstring: a
+500-doc index under 8 threads times 20 concurrent `.search()` calls raised zero
+exceptions). One `LuceneStructuredEngine` instance is built once per corpus and
 reused across the agent's worker threads (default 8).
 
-Offline safety: every path here is a LOCAL directory (`MMapDirectory(Paths.get(...))`)
--- never a network fetch, mirroring `pyserini.py`'s own "Offline safety" contract.
+Offline safety: every path here is a local directory (`MMapDirectory(Paths.get(...))`),
+never a network fetch, matching `pyserini.py`'s own offline contract.
 
-Memory-mapped, explicitly: opened via `MMapDirectory` (not the platform-dependent
+Memory-mapped explicitly: opened via `MMapDirectory` (not the platform-dependent
 `FSDirectory.open` default) on both the write side (`index_builder.py`) and here on
-the read side, per the coordinator's efficiency requirement -- the OS page cache
-then serves hot index pages across all 8 worker threads without a second copy into
-the JVM heap.
+the read side, so the OS page cache serves hot index pages across all worker threads
+without a second copy into the JVM heap.
 
 Env knobs:
-    LUCENE_MU        - LMDirichletSimilarity mu (default: INDRI_MU if set, else 2500 --
-                        same default the Python `indri` reference uses, so a
-                        side-by-side comparison starts from the SAME smoothing prior).
+    LUCENE_MU        - LMDirichletSimilarity mu (default: INDRI_MU if set, else 2500,
+                        the same default the Python `indri` reference uses, so a
+                        side-by-side comparison starts from the same smoothing prior).
 """
 from __future__ import annotations
 
@@ -45,10 +44,10 @@ def default_mu() -> float:
 
 @dataclass
 class LuceneHit:
-    """`title`/`date`/`author` are deliberately NOT here: the index is lean (only
-    `id` is stored -- see `schema.py`'s "Storage: lean by design" note), and the
-    tool layer already holds a `doc_id -> CodeUnit` corpus mapping to enrich a hit
-    from, so this engine doesn't pay to store (and re-serve) a second copy."""
+    """`title`/`date`/`author` are deliberately not here: the index is lean (only
+    `id` is stored, see `schema.py`'s "Storage" note), and the tool layer already
+    holds a `doc_id -> CodeUnit` corpus mapping to enrich a hit from, so this engine
+    does not store (and re-serve) a second copy."""
     doc_id: str
     score: float
     matched_fields: tuple = ()
@@ -58,13 +57,13 @@ class LuceneHit:
 class LuceneResult:
     hits: list = dc_field(default_factory=list)     # list[LuceneHit], best-first
     error: Optional[str] = None
-    # LOW finding (adversarial verification): see `indri.model.IndriResult.warning`'s
-    # docstring -- an unrecognized `.field` name silently resolves to Lucene's
-    # filter-only "no scoring field" path (`indri_compiler._resolve_fields`) and
-    # just returns 0/fewer hits with no error, indistinguishable from a genuinely
-    # zero-hit query. Populated by `search_indri` via the SAME
-    # `indri.model.unknown_query_fields` walk the python engine uses (both compile
-    # the identical parsed AST), so the two engines warn identically.
+    # See `indri.model.IndriResult.warning`'s docstring: an unrecognized `.field`
+    # name silently resolves to Lucene's filter-only "no scoring field" path
+    # (`indri_compiler._resolve_fields`) and just returns zero or fewer hits with no
+    # error, indistinguishable from a genuinely zero-hit query. Populated by
+    # `search_indri` via the same `indri.model.unknown_query_fields` walk the Python
+    # engine uses (both compile the identical parsed AST), so the two engines warn
+    # identically.
     warning: Optional[str] = None
 
 
@@ -74,9 +73,9 @@ _FIELD_RE = re.compile(
 
 class LuceneStructuredEngine:
     """Open (lazily, once) the fielded Lucene index for one dataset/index dir, and
-    answer Indri-QL / BQL queries against it. Not a `Retriever` subclass (the
-    existing `Retriever.search(query, k) -> list[str]` interface is too narrow to
-    carry scores/matched-field info the tool layer's listings need) -- see
+    answer Indri-QL / BQL queries against it. Not a `Retriever` subclass: the
+    `Retriever.search(query, k) -> list[str]` interface is too narrow to carry the
+    scores and matched-field info the tool layer's listings need. See
     `search_indri`/`search_bql` below for the actual shape callers get."""
 
     def __init__(self, index_root: str = "indexes", dataset: Optional[str] = None,
@@ -94,16 +93,15 @@ class LuceneStructuredEngine:
         self._fsdir = None
 
     # --- lifecycle -----------------------------------------------------------
-    # TWO IndexSearcher instances share ONE DirectoryReader (a Searcher's
+    # Two IndexSearcher instances share one DirectoryReader (a Searcher's
     # constructor is a cheap wrapper, no I/O) rather than one searcher whose
-    # Similarity gets swapped per query kind: `IndexSearcher.setSimilarity` mutates
-    # shared state, and this engine is explicitly meant to be shared across worker
-    # threads (module docstring) -- concurrent indri/bql calls flipping the SAME
-    # searcher's similarity mid-search would be a real race (one thread's LMD
-    # search silently rescored under the other thread's BM25 params, or vice
-    # versa). Each searcher's Similarity is set ONCE at construction and never
-    # touched again, so both are independently thread-safe for concurrent
-    # `.search()` calls (the property this whole design exists to preserve).
+    # Similarity gets swapped per query kind. `IndexSearcher.setSimilarity` mutates
+    # shared state, and this engine is meant to be shared across worker threads
+    # (module docstring), so concurrent indri/bql calls flipping the same searcher's
+    # similarity mid-search would be a real race: one thread's LMD search could get
+    # rescored under the other thread's BM25 params, or vice versa. Each searcher's
+    # Similarity is set once at construction and never touched again, so both are
+    # independently thread-safe for concurrent `.search()` calls.
 
     def _ensure_open(self) -> None:
         if self._searcher_indri is not None:
@@ -182,12 +180,12 @@ class LuceneStructuredEngine:
         return self.search_bql_expr(r.expr, k)
 
     def search_bql_expr(self, expr, k: int = 100) -> LuceneResult:
-        """Like `search_bql`, but takes an ALREADY parsed+typechecked BQL `Expr` -- skips
-        the string round-trip. Used by `agent_search.retrievers.lucene.adapters.
+        """Like `search_bql`, but takes an already parsed and typechecked BQL `Expr`,
+        skipping the string round-trip. Used by `agent_search.retrievers.lucene.adapters.
         LuceneBqlAdapter` (the STRUCTURED_BACKEND=lucene BQL surface): its caller
-        (`execute_bql`, bql/executor.py) already parsed+typechecked the query string itself
-        before calling the executor, so re-parsing here would be redundant work on every
-        `search` tool call."""
+        (`execute_bql`, bql/executor.py) already parsed and typechecked the query
+        string before calling the executor, so re-parsing here would be redundant
+        work on every `search` tool call."""
         try:
             self._ensure_open()
             q = bql_compiler.compile_bql(expr)
@@ -198,11 +196,11 @@ class LuceneStructuredEngine:
             return LuceneResult(hits=[], error=f"execution error: {e}")
 
     def count_bql_expr(self, expr) -> int:
-        """EXACT total-match count for an already-compiled BQL `Expr` (`IndexSearcher.count`
-        -- evaluates the query without collecting/scoring a top-k), so the
-        STRUCTURED_BACKEND=lucene BQL adapter's search listing can show the SAME accurate
-        "(N matches, top K)" header the python engine's `run_with_count` provides, instead of
-        a truncated `len(hits)`."""
+        """Exact total-match count for an already-compiled BQL `Expr`
+        (`IndexSearcher.count` evaluates the query without collecting or scoring a
+        top-k), so the STRUCTURED_BACKEND=lucene BQL adapter's search listing can
+        show the same accurate "(N matches, top K)" header the Python engine's
+        `run_with_count` provides, instead of a truncated `len(hits)`."""
         self._ensure_open()
         q = bql_compiler.compile_bql(expr)
         return int(self._searcher_bql.count(q))
@@ -222,9 +220,10 @@ class LuceneStructuredEngine:
 
     def _matched_fields(self, searcher, query, doc: int) -> tuple:
         """Best-effort matched-field extraction for listings: run `explain()` for
-        this one hit and regex-scan its description text for our known field names.
-        NOT authoritative (an Explanation's text format is a Lucene implementation
-        detail, not a stable API) -- a display hint, never used for ranking/logic."""
+        this one hit and regex-scan its description text for the known field names.
+        Not authoritative, since an Explanation's text format is a Lucene
+        implementation detail rather than a stable API; a display hint only, never
+        used for ranking or logic."""
         try:
             expl = searcher.explain(query, doc)
             text = expl.toString()
@@ -240,7 +239,7 @@ _ENGINES_LOCK = threading.Lock()
 
 def get_engine(index_root: str = "indexes", dataset: Optional[str] = None,
                mu: Optional[float] = None) -> LuceneStructuredEngine:
-    """Process-wide cached engine per (index_root, dataset) -- so N worker threads
+    """Process-wide cached engine per (index_root, dataset), so worker threads
     share one open `IndexSearcher` (see module docstring's thread-safety note)
     instead of each reopening the index."""
     key = (index_root, dataset, mu)

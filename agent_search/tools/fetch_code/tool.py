@@ -1,25 +1,24 @@
-"""The code-fix ACI: BQL search over code units, plus fetch of functions.
+"""The codefix ACI: BQL search over code units, plus fetch of functions.
 
-Ported from `agent_search.agent.tools.code_fix.CodeFixWorkspace`, logic unchanged. A
-"document" is a FILE; its "parts" (functions/methods/classes) are the AST units the corpus
-already carries (CodeUnit).
+A "document" is a file; its "parts" (functions/methods/classes) are the AST units the
+corpus already carries (CodeUnit).
 
 Two tools:
-  `SearchCode` (name "search")  -- field-tagged surface -> BQL (surface.to_bql, domain=
-                            "code") -> execute against the units -> matching UNITS, GROUPED
-                            BY FILE. Returns a file-level candidate table: each file's
-                            matched function names (its "structure"), NO bodies. Numbered
-                            for `FetchCode` reference (`state.last_hits` holds file PATHS,
-                            not doc_ids).
-  `FetchCode` (name "fetch")    -- `specs` is a LIST of (rank, part) pairs referencing the
+  `SearchCode` (name "search")  -- a field-tagged surface compiles to BQL (`surface.to_bql`,
+                            domain="code"), executes against the units, and groups the
+                            matching units by file. Returns a file-level candidate table:
+                            each file's matched function names (its "structure"), no
+                            bodies. Numbered for `FetchCode` reference (`state.last_hits`
+                            holds file paths, not doc_ids).
+  `FetchCode` (name "fetch")    -- `specs` is a list of (rank, part) pairs referencing the
                             last search's numbered files: `part` is a function/class
-                            qualname ("Command.handle") or a line range ("L810-840") IN THAT
-                            FILE. Never the whole file. Returns those parts' source,
-                            aggregated across specs, capped ~40 lines/part.
+                            qualname ("Command.handle") or a line range ("L810-840") in
+                            that file. Never the whole file. Returns those parts' source,
+                            aggregated across specs, capped at about 40 lines per part.
 
-Neither tool tracks `state.seen`: the old workspace never did either (the code arm's
-episodes are scored by fix correctness, not by a retrieval ranking metric), so porting it
-byte for byte means `state.seen`/`surfaced` stay untouched here.
+Neither tool tracks `state.seen`: the `codefix` and `codefix_grep` strategies are scored by
+fix correctness, not by a retrieval ranking metric, so `state.seen`/`surfaced` stay
+untouched here.
 """
 from __future__ import annotations
 
@@ -43,8 +42,8 @@ _NOISE_KEYWORD = re.compile(r"(?<![\w.])(class|def|function|method)\s+(?=\S)", r
 
 class SearchCode(Tool):
     """search(query) -> BQL over the code units, hits grouped by file, numbered for
-    `FetchCode`. `state.last_hits` holds the ranked file PATHS (the code arm's "doc_id" is a
-    file, not a unit)."""
+    `FetchCode`. `state.last_hits` holds the ranked file paths: in code tasks a "doc_id" is
+    a file, not a unit."""
 
     name = "search"
     # the exact text the paper's code prompts showed for `search`; the manual teaches the syntax
@@ -84,8 +83,8 @@ class SearchCode(Tool):
                 hint = "\n  valid fields: def, call, string, comment, sig, file"
             return f"search: {query!r} -> {bql}\n  {obs.error}{hint}"
         if not obs.hits:
-            # instrument-side recovery instead of a dead end: several UNSCOPED bare words
-            # parse as one exact adjacent phrase, which real code almost never satisfies --
+            # instrument-side recovery instead of a dead end: several unscoped bare words
+            # parse as one exact adjacent phrase, which real code almost never satisfies, so
             # silently rerun as an OR of the words and show real hits instead of a guess.
             words = [w for w in re.findall(r"[A-Za-z_]\w{2,}", query)
                      if w.upper() not in ("AND", "OR", "NOT")]
@@ -101,7 +100,7 @@ class SearchCode(Tool):
                 hint = self.engine["bql_plain"].suggest(bql) or ""
             except Exception:  # noqa: BLE001 -- advisory only
                 pass
-            # keep the PRIOR non-empty file ranking fetchable: a 0-hit loosen must not wipe
+            # keep the prior non-empty file ranking fetchable: a 0-hit loosen must not wipe
             # the last good hits from under a fetch.
             prior = "  (previous results still fetchable)" if self.state.last_hits else ""
             return (f"search: {query!r} -> {bql}  (0 hits){prior} — loosen: drop a clause, "
@@ -163,8 +162,8 @@ class FetchCode(Tool):
             return "ERROR: fetch needs at least one (rank, part) spec from the last search."
         if not self.state.last_hits:
             return "ERROR: no search results yet — search() first, then fetch() a ranked file."
-        # a model commonly sends ONE flat pair [1, "Command.handle"] instead of a LIST of
-        # pairs [[1, "Command.handle"]] when it wants one part.
+        # a model commonly sends a single flat pair [1, "Command.handle"] instead of a list
+        # of pairs [[1, "Command.handle"]] when it wants one part.
         if (isinstance(specs, (list, tuple)) and len(specs) == 2
                 and not isinstance(specs[0], (list, tuple))
                 and not isinstance(specs[1], (list, tuple))):

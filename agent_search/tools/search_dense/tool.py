@@ -27,9 +27,8 @@ class SearchDense(Tool):
     parameters = {"type": "object", "properties": {"query": {"type": "string", "description": "A natural-language query describing what you are looking for, for example: treaty that ended the Mexican-American War."}}, "required": ["query"]}
     engines = ("dense",)
 
-    # the tools.yaml text for the structure listing (`structure=True`) — dense_search_f's
-    # text, used for BOTH dense_search_f and dense_search_fp (the latter is not in tools.yaml;
-    # it gets dense_search_f's declaration, per that toolset's own comment).
+    # the structure-listing text (`structure=True`): dense_search_f's text, shared by both
+    # dense_search_f and dense_search_fp, which uses the same declaration.
     STRUCTURE_DESCRIPTION = ("Semantic similarity search over the document corpus (dense "
                             "embeddings, cosine similarity); returns ranked docs plus their "
                             "section names + infobox keys + a best-matching excerpt for your "

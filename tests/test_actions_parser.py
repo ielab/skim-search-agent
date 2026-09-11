@@ -1,11 +1,11 @@
 """Lenient tool-call parsing: the model frequently truncates a call (generation
-cut off, or a dropped brace) so the JSON is near-valid but not quite. Measurement
-on real trajectories: ~20% of ALL agent steps were being dropped as action "none"
-because a strict json.loads / balanced-object scan can't recover a call with e.g.
-one missing closing brace. ``_repair_load`` (string-literal-aware: closes brackets
-left open, terminates an unclosed string, strips a dangling trailing comma, then
-re-validates with json.loads) is the fallback that recovers these without ever
-fabricating a call out of plain prose.
+cut off, or a dropped brace) so the JSON is near-valid but not quite. On real
+trajectories, about 20% of agent steps were being dropped as action "none"
+because a strict json.loads / balanced-object scan can't recover a call with,
+say, one missing closing brace. ``_repair_load`` (string-literal-aware: closes
+brackets left open, terminates an unclosed string, strips a dangling trailing
+comma, then re-validates with json.loads) is the fallback that recovers these
+without ever fabricating a call out of plain prose.
 """
 from agent_search.agent.actions import _repair_load, parse_tool_call
 

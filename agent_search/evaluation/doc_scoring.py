@@ -1,20 +1,20 @@
-"""Deep-research (doc-QA) scoring — the doc arm's end-to-end metric.
+"""Deep-research (doc-QA) scoring: the document domain's end-to-end metric.
 
-The research agent ends with an <answer>. We score it GROUNDED: the answer counts only when
+The research agent ends with an <answer>. The score is grounded: the answer counts only when
 it also appears verbatim (case/punctuation-insensitive) in the actual tool evidence the agent
-saw — so a right answer pulled from the model's memory, not the corpus, does not score. On top
-of the grounding gate, the metrics emitted are each dataset's PUBLISHED protocol:
+saw, so a right answer pulled from the model's memory, not the corpus, does not score. On top
+of the grounding gate, the metrics emitted are each dataset's published protocol:
 
   answer_em / answer_f1 : HotpotQA / 2WikiMultihopQA / MuSiQue canonical QA metrics
                            (SQuAD-style EM + token-F1; agent_search.evaluation.metrics), reused.
-  support_f1            : MuSiQue's paired SUPPORT F1 — set-F1 between the surfaced doc ids
+  support_f1            : MuSiQue's paired support F1, set-F1 between the surfaced doc ids
                            and the gold supporting-doc ids (agent_search.evaluation.metrics.support_f1).
   gold_doc_coverage      : did the episode surface the gold document(s)? (retrieval-quality axis,
                            recall-only; kept for diagnosis alongside support_f1's precision+recall)
 
-BrowseComp-Plus is graded separately by the LLM judge (agent_search/evaluation/llm_judge.py) as a post-hoc
-pass over rows.jsonl — not here, since a judge call is not free/deterministic like the metrics
-above.
+BrowseComp-Plus is graded separately by the LLM judge (agent_search/evaluation/llm_judge.py) as a
+post-hoc pass over rows.jsonl, not here, since a judge call is not free or deterministic like the
+metrics above.
 
 There is no "cover-EM" / substring-containment metric here: no published protocol for any of
 these datasets grades containment, so it is not computed. Instead, `score_answer` extracts the
@@ -22,10 +22,10 @@ these datasets grades containment, so it is not computed. Instead, `score_answer
 final answer before scoring, so a correctly-tagged short answer is scored fairly against the
 strict published EM/F1 without inventing a laxer metric.
 
-plus the efficiency axis the loop records (llm_calls / steps / tokens). Deep-research keeps its
-QA shape (this is not localization); only the SURFACE + TOOLS changed (field-tagged search->fetch).
-
-The grounding token logic is ported from an internal prototype, not part of this release.
+The row also carries the efficiency axis the loop records (llm_calls / steps / tokens).
+Deep-research keeps a QA shape rather than a localization one; what varies across strategies
+is the surface and tools a condition exposes (for example a field-tagged search followed by
+fetch).
 """
 from __future__ import annotations
 
@@ -39,13 +39,14 @@ _ANSWER_TAG_RE = re.compile(r"<answer>(.*?)</answer>", re.DOTALL | re.IGNORECASE
 
 
 def extract_answer_span(text: str) -> str:
-    """Return the content of the LAST-OPENED `<answer>` tag in `text` if present; otherwise return
-    `text` unchanged (stripped). Anchors on the LAST `<answer>` (via rfind), NOT a `(.*?)` findall:
-    models routinely name the tag in prose first ('...the short answer span inside <answer> tags...
-    Thus: <answer>Galați</answer>'), and a non-greedy findall then pairs the PROSE `<answer>` with
-    the REAL closing tag, capturing the junk in between (this is exactly the ~37%-mis-extracted bug).
-    Robust to a raw answer that still carries tags (rescoring old rows.jsonl) AND to a mis-extracted
-    final_answer that still ends in a nested `<answer>span` (the true span is recovered)."""
+    """Return the content of the last-opened `<answer>` tag in `text` if present; otherwise return
+    `text` unchanged (stripped). Anchors on the last `<answer>` (via rfind), not a `(.*?)` findall:
+    models routinely name the tag in prose before using it (for example '...the short answer span
+    inside <answer> tags... Thus: <answer>Galați</answer>'), and a non-greedy findall would then
+    pair the prose `<answer>` with the real closing tag, capturing everything in between as the
+    answer. This stays robust to a raw answer that still carries tags (when rescoring old
+    rows.jsonl) and to a mis-extracted final_answer that still ends in a nested `<answer>span`
+    (the true span is recovered)."""
     if not text:
         return text or ""
     idx = text.rfind("<answer>")
@@ -104,8 +105,8 @@ def score_answer(answer: str, gold_answer: str, observations: Sequence[str], *,
     the ungrounded EM/F1 for diagnosis, and (when `gold_doc_ids` is given) MuSiQue's SUPPORT F1.
     `observations` is every tool response the agent saw this episode.
 
-    `answer` is first passed through `extract_answer_span` — if it carries an `<answer>...</answer>`
-    tag, ONLY the tagged span is scored (the short span the agent was instructed to emit); a raw
+    `answer` is first passed through `extract_answer_span`: if it carries an `<answer>...</answer>`
+    tag, only the tagged span is scored (the short span the agent was instructed to emit); a raw
     answer with no tag is scored as-is."""
     pred = extract_answer_span(answer)
     grounded = answer_in_evidence(pred, observations) if pred else False

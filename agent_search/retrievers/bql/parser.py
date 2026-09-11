@@ -146,11 +146,11 @@ class _Parser:
     def _bare_run(self, first: Term) -> Expr:
         """Forgiveness: a run of consecutive bare operands (bare words and/or
         quoted strings) with no operator between them is read as an implicit
-        PHRASE — the model's natural instinct is to type a phrase, and BQL used
-        to hard-error on that. The run STOPS at an infix boolean (AND/OR), at a
-        keyword in call position (NOT(/IN(/...), and at any structural token
-        (comma/paren/near). A single operand is returned unchanged, so every
-        currently-valid query parses identically."""
+        phrase, since typing a bare phrase is the model's natural instinct. The
+        run stops at an infix boolean (AND/OR), at a keyword in call position
+        (NOT(/IN(/...), and at any structural token (comma/paren/near). A single
+        operand is returned unchanged, so every valid query still parses the
+        same way."""
         parts: list[Term] = [first]
         while True:
             k, v = self._peek()
@@ -189,7 +189,7 @@ class _Parser:
         if kind == "ident":
             self._next()  # consume the identifier / operator keyword
             # operator keywords are case-insensitive, but only with a call form
-            # following — so a bare `and` / `In` can still be a search term
+            # following, so a bare `and` / `In` can still be a search term
             if val.upper() in _KEYWORDS and self._peek()[0] == "lparen":
                 return self._call(val.upper())
             # bare term, greedily merging a run of bare words into a phrase
@@ -275,7 +275,7 @@ class _Parser:
         except Exception:
             raise _ParseError(f"unknown NEAR granularity {spec!r}")
         if len(args) == 1:
-            # lenient: keep the granularity lift instead of silently dropping it —
+            # lenient: keep the granularity lift instead of silently dropping it.
             # NEAR/file(x) means "x, viewed at file scope", not bare Term(x)
             return Near(args[0], args[0], gran, spec)
         if len(args) != 2:

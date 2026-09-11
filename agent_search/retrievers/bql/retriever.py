@@ -1,9 +1,12 @@
 """Direct BQL retriever.
 
-This is the non-agent condition for already-formulated BQL strings. It uses the
-same parser, type checker, and structural executor the agent's `search` tool lowers
-to; the only difference is that there is no LLM loop translating a natural-language
-task into the field-tagged surface. For that, use `agent_codefix` / `agent_research`.
+This is the loop-free retriever for already-formulated BQL strings (the `bql` entry in
+`agent_search/strategies/retrieval_only.py`). It uses the same parser, type checker, and
+structural executor the `search_bql` tool (`agent_search/tools/search_bql/`) lowers to;
+the only difference is that there is no model loop translating a natural-language task
+into the field-tagged surface. For that, run a condition whose strategy carries
+`search_bql`: `agent_codefix` for code, `agent_research_snip` (the `sieve_bm25`
+strategy) for documents.
 """
 from __future__ import annotations
 

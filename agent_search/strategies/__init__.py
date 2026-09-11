@@ -1,8 +1,8 @@
 """Strategies: named combinations of tools (Sieve, Search-Visit, DCI, ...), one file each.
 
 `base.py` holds the contract and the registry; `conditions.py` pairs strategies with tasks
-and keeps the paper's condition names. The friendly-name table the launcher used before this
-package existed lives in `agent_search.strategies.names` until the switch-over is complete.
+and keeps the paper's condition names. The friendly-name table that the CLI and experiment
+files resolve strategy names through lives in `agent_search.strategies.names`.
 """
 from agent_search.strategies.base import STRATEGIES, Strategy, register_strategy
 from agent_search.strategies.names import (DEFAULT_STRATEGY, DENSE_STRATEGIES, condition_of,  # noqa: F401

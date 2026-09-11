@@ -1,7 +1,7 @@
 """Compile the code-fix agent's <fix> SEARCH/REPLACE edits into a git-applyable
 unified diff (`model_patch`) for the real SWE-bench harness.
 
-The patch-mode agent (task `taskfix_patch`) never sees whole files — it works through the
+The patch-mode agent (task `codefix_patch`) never sees whole files: it works through the
 same lean search->fetch ACI as `codefix` and ends with anchored edits:
 
     <fix>
@@ -13,12 +13,13 @@ same lean search->fetch ACI as `codefix` and ends with anchored edits:
     >>>>>>> REPLACE
     </fix>
 
-We hold the TRUE source at base_commit (AgentRetriever._files), so we locate each SEARCH
-block in the real file and splice the REPLACE — line numbers come from the real file, not
-from the model, which is why the resulting diff applies. Matching is tolerant of the
-`<n>: ` line-number prefixes the tools render and of trailing-whitespace noise; if an edit
-cannot be anchored, it is dropped (its instance simply gets no/partial patch -> scored
-unresolved, which is honest). Output is a standard multi-file unified diff.
+We hold the real source at base_commit (`ConditionAgent._files`, set from
+`agent_search/evaluation/agent_runner.py`), so we locate each SEARCH block in the real file
+and splice the REPLACE. Line numbers come from the real file, not from the model, which is
+why the resulting diff applies. Matching is tolerant of the `<n>: ` line-number prefixes the
+tools render and of trailing-whitespace noise; if an edit cannot be anchored, it is dropped
+(its instance simply gets no/partial patch -> scored unresolved, which is honest). Output is
+a standard multi-file unified diff.
 """
 from __future__ import annotations
 
@@ -97,7 +98,7 @@ def parse_fix_edits(fix_text: str) -> list[Edit]:
 def _locate_lines(src_lines: list[str], q_lines: list[str]) -> tuple[int, int] | None:
     """Find the contiguous window of `src_lines` (as split, no keepends) matching q_lines.
     Tier 1: exact. Tier 2: trailing-whitespace tolerant. Returns (start, end) or None if
-    not found OR ambiguous (matches >1 place -> refuse rather than edit the wrong span)."""
+    not found or ambiguous (matches >1 place -> refuse rather than edit the wrong span)."""
     m = len(q_lines)
     if m == 0:
         return None
@@ -115,7 +116,7 @@ def _locate_lines(src_lines: list[str], q_lines: list[str]) -> tuple[int, int] |
         if len(hits) == 1:
             return hits[0], hits[0] + m
         if len(hits) > 1:
-            return None            # ambiguous under this tier — do not guess
+            return None            # ambiguous under this tier: do not guess
     return None
 
 
@@ -148,10 +149,10 @@ def _apply_edit(source: str, edit: Edit) -> str | None:
         return None
     s, e = span
     repl = edit.replace.splitlines()
-    # RE-BASE indentation: when SEARCH matched the real source under a leading-whitespace-
-    # tolerant tier, the model's REPLACE often carries the SAME wrong indent (it copied its own
+    # Re-base indentation: when SEARCH matched the real source under a leading-whitespace-
+    # tolerant tier, the model's REPLACE often carries the same wrong indent (it copied its own
     # mis-indented SEARCH). Shift REPLACE by the delta between the real matched line and the
-    # model's SEARCH line, so the spliced code keeps the file's ACTUAL indentation — otherwise
+    # model's SEARCH line, so the spliced code keeps the file's actual indentation. Otherwise
     # the patch applies cleanly but is a Python IndentationError (silent wrong, worse than a miss).
     if q_lines:
         delta = _leading_ws(src_lines[s]) - _leading_ws(q_lines[0])

@@ -1,10 +1,12 @@
-"""YAML-backed prompt composition: condition = task template x toolset.
+"""Pre-0.3 YAML-backed prompt composition: condition = task template x toolset. Kept so the
+parity tests can compare against it; `agent_search.tasks.render` and each tool's `manual.md`
+replace this.
 
 A condition (conditions.yaml) binds a tool-agnostic task template (tasks/*.md,
 front-matter + body with {{tools}} and {{tool_manuals}} placeholders) to a
 toolset (tools.yaml). This loader renders the concrete ``<tools>`` block from the
 shared tool registry and concatenates the per-tool manuals (skills/*.md) of any
-toolset tools that declare one — so a tool's "manual" loads only when the tool is
+toolset tools that declare one, so a tool's "manual" loads only when the tool is
 in the set and the tool declares one (standard tools need none). Plain .md files
 are still accepted for local prompt experiments, but conditions are canonical.
 """

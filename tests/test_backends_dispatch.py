@@ -1,10 +1,10 @@
 """Provider dispatch in backends.make_generate: OpenAI models route to the OpenAI API with
 the right param split (chat vs reasoning); Gemini models route to Gemini's OpenAI-compatible
-endpoint; the trained backbone keeps its vLLM path. This is the "test anytime" path —
-`--model gpt-4o-mini` (or `gemini-*`) + a key runs the whole pipeline, no cluster."""
+endpoint; the trained backbone keeps its vLLM path. This is the "test anytime" path:
+`--model gpt-4o-mini` (or `gemini-*`) plus a key runs the whole pipeline, no cluster."""
 from types import SimpleNamespace
 
-from agent_search.models import backends as B
+import agent_search.models as B
 
 
 def _fake_client(sink):

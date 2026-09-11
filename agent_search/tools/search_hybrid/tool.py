@@ -25,7 +25,7 @@ class SearchHybrid(Tool):
     parameters = {"type": "object", "properties": {"query": {"type": "string", "description": "A keyword or natural-language query, for example: treaty that ended the Mexican-American War."}, "k": {"type": "integer", "description": "Max fused candidates to return (default 5)."}}, "required": ["query"]}
     engines = ("bm25", "dense")
 
-    # the tools.yaml text for the structure listing (`structure=True`).
+    # the structure-listing text (`structure=True`).
     STRUCTURE_DESCRIPTION = ("Hybrid keyword+semantic search over the document corpus "
                             "(Reciprocal Rank Fusion, RRF k=60, over a top-100 canonical BM25 "
                             "pool and a top-100 dense-embedding pool). Returns ranked docs "

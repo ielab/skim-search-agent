@@ -9,11 +9,11 @@
                       strategy="sieve_bm25", model="gpt-4o-mini")
     result.answer, result.ranking, result.steps, result.usage
 
-The command line goes through the same objects used here: a strategy resolves to a prompt
-*condition* (task template x toolset), the condition's toolset selects a *workspace* (the tool
-surface), and ``run_episode`` drives a *policy* over it. Pass a model as any ``messages -> text``
+The command line goes through the same objects used here: a strategy resolves to a
+*condition* (a task paired with a strategy of tools), and ``run_episode`` drives a *policy*
+over the strategy's tools. Pass a model as any ``messages -> text``
 callable (``generate=``), or name one (``model=``) and let
-``agent_search.models.backends.make_generate`` route it.
+``agent_search.models.make_generate`` route it.
 """
 from __future__ import annotations
 
@@ -49,14 +49,14 @@ def build_agent(strategy: str = DEFAULT_STRATEGY, *,
                 max_steps: int = 50, index_root: str = "indexes", rebuild: bool = False,
                 field_profile: Optional[str] = None, driver: Optional[str] = None,
                 dense_model: Optional[str] = None):
-    """An un-indexed ``AgentRetriever`` for ``strategy`` (a friendly name or ``agent_<condition>``).
+    """An un-indexed retriever agent for ``strategy`` (a friendly name or ``agent_<condition>``).
 
-    * ``generate`` — your own ``messages -> text`` callable (the ``Model`` contract). Wins
+    * ``generate``: your own ``messages -> text`` callable (the ``Model`` contract). Wins
       over ``model``. Runs the text-parsed loop driver.
-    * ``model`` — a model id routed by ``make_generate`` (OpenAI ``gpt-*``, Gemini
+    * ``model``: a model id routed by ``make_generate`` (OpenAI ``gpt-*``, Gemini
       ``gemini-*``, a served OpenAI-compatible endpoint with ``backend="api"``, or in-process
       vLLM with ``backend="vllm"``).
-    * neither — the dependency-free ``KeywordPolicy`` (a scripted smoke policy).
+    * neither: the dependency-free ``KeywordPolicy`` (a scripted smoke policy).
 
     Call ``.index(units, key=...)`` then ``.search(question, k)``; the episode record is on
     ``.last_trajectory_meta``. :func:`research` wraps exactly that."""
@@ -67,7 +67,8 @@ def build_agent(strategy: str = DEFAULT_STRATEGY, *,
     cond_name = condition_of(retriever_name) or (strategy if strategy in CONDITIONS else None)
     cond = CONDITIONS.get(cond_name) if cond_name else None
     if cond is None and cond_name is not None:
-        # a condition declared through the YAML prompt registry (the pre-0.3 plugin path)
+        # a condition known only to the legacy YAML prompt registry (agent_search.legacy.prompts),
+        # not to agent_search.strategies.conditions
         return _build_legacy_agent(cond_name, retriever_name, generate=generate, model=model, backend=backend,
                                    api_base=api_base, tp=tp, temperature=temperature, seed=seed,
                                    max_steps=max_steps, dense_model=dense_model, index_root=index_root,
@@ -81,7 +82,7 @@ def build_agent(strategy: str = DEFAULT_STRATEGY, *,
     dense = dense_model or default_dense_model(domain)
 
     if generate is None and model is not None:
-        from agent_search.models.backends import make_generate
+        from agent_search.models import make_generate
         generate = make_generate(model=model, backend=backend, api_base=api_base, tp=tp,
                                  temperature=temperature, seed=seed)
 
@@ -105,8 +106,9 @@ def build_agent(strategy: str = DEFAULT_STRATEGY, *,
 
 def _build_legacy_agent(cond, retriever_name, *, generate, model, backend, api_base, tp, temperature, seed,
                         max_steps, dense_model, index_root, rebuild, field_profile, driver):
-    """The workspace-based agent for a condition that only the YAML prompt registry knows.
-    Kept for one release; new conditions are declared in `agent_search.strategies`."""
+    """The legacy ``AgentRetriever`` for a condition declared only in the YAML prompt registry
+    (`agent_search.legacy.prompts`); current conditions are declared in
+    `agent_search.strategies.conditions`."""
     from agent_search.legacy.retriever import AgentRetriever
     from agent_search.legacy.prompts import get_prompt_spec, load_prompt_profile
 
@@ -122,7 +124,7 @@ def _build_legacy_agent(cond, retriever_name, *, generate, model, backend, api_b
     else:
         from agent_search.agent.policies import AgentPolicy
         if generate is None:
-            from agent_search.models.backends import make_generate
+            from agent_search.models import make_generate
             generate = make_generate(model=model, backend=backend, api_base=api_base, tp=tp,
                                      temperature=temperature, seed=seed)
         gen = generate

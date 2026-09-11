@@ -1,45 +1,42 @@
-"""Compiles the EXISTING BQL AST (`agent_search.retrievers.bql.ast`,
-parsed by `bql.parser.parse` -- reused, not re-parsed) into a Lucene `Query`:
+"""Compiles the existing BQL AST (`agent_search.retrievers.bql.ast`,
+parsed by `bql.parser.parse`, reused rather than re-parsed) into a Lucene `Query`:
 `Occur.FILTER`/`Occur.MUST_NOT` clauses reproduce the reference's exact boolean
-match SET, plus `Occur.SHOULD` clauses give a BM25-style ranking signal, run under
-`BM25Similarity(0.9, 0.4)` (matching `bm25_pyserini`'s defaults -- see `engine.py`).
+match set, plus `Occur.SHOULD` clauses give a BM25-style ranking signal, run under
+`BM25Similarity(0.9, 0.4)` (matching `bm25_pyserini`'s defaults, see `engine.py`).
 
-## Scope / status (read this before trusting a result)
+## Scope
 
-This is a FUNCTIONAL, TESTED compiler for the document-corpus regions this
-package's Lucene schema actually covers (`TITLE`/`BODY`/`SECTION`/`AUTHOR`/`DATE`/
-`DOC`) and for `And`/`Or`/`Not`/`Near`/`In` composition over `Term`/`Phrase`/
-`Prefix`/`Expand` leaves. It does NOT implement the CODE-AST regions
-(`DEF`/`CALL`/`SIG`/`COMMENT`/`STRING`), `Region.INFOBOX`, or `Region.FILE` --
-those need either a real AST-role index (code regions) or a cross-document join
-(FILE, siblings-of-one-path) that this backend's one-Lucene-doc-per-corpus-doc
-schema (`schema.py`) doesn't carry. Each raises a clear `LuceneCompileError`
-rather than silently returning wrong results. **Per the task's priority
-instructions, this module was written after the Indri path (1+2+4+5) and given
-less validation time; treat `indri_compiler.py` as the higher-confidence half of
-this backend, and this module's document-region subset as "functional, lightly
-validated" -- a good base for a follow-up agent to extend (code regions, coverage-
-ranking parity) rather than a finished, exhaustively-tested compiler.**
+This compiler covers the document-corpus regions this package's Lucene schema
+actually indexes (`TITLE`/`BODY`/`SECTION`/`AUTHOR`/`DATE`/`DOC`) and `And`/`Or`/
+`Not`/`Near`/`In` composition over `Term`/`Phrase`/`Prefix`/`Expand` leaves. It
+does not implement the code-AST regions (`DEF`/`CALL`/`SIG`/`COMMENT`/`STRING`),
+`Region.INFOBOX`, or `Region.FILE`: those need either a real AST-role index (code
+regions) or a cross-document join (FILE, siblings of one path) that this
+backend's one-Lucene-doc-per-corpus-doc schema (`schema.py`) doesn't carry. Each
+raises a clear `LuceneCompileError` rather than silently returning wrong results.
+This module has less test coverage than `indri_compiler.py`; treat the document-
+region subset covered here as functional but more lightly validated, and the
+code regions and coverage-ranking parity below as open extension points.
 
 ## Ranking delta vs the Python reference's `coverage_topk`
 
 `StructuralExecutor.coverage_topk` (see `bql/executor.py`) ranks a 0-hit AND's
-corpus by `(# children matched DESC, BM25(positive terms) DESC)` -- a genuinely
-different SORT KEY (integer coverage first, tie-broken by score) from anything a
-single Lucene `Query` scores in one pass. This compiler does NOT reproduce
-`coverage_topk` -- `compile_bql` always compiles the QUERY's exact boolean
-semantics (a hit means EVERY constraint held, same as `run_with_count`), and its
-ranking signal is the reference's ORDINARY hit-ranking path (BM25 over positive
-leaf terms), not the diagnostic near-miss coverage ranking. A follow-up wanting
-`coverage_topk` parity would need N separate boolean sub-queries (one per AND
-child) plus a manual `(sum of matched, score)` combination client-side --
-out of scope here.
+corpus by `(# children matched DESC, BM25(positive terms) DESC)`, a genuinely
+different sort key (integer coverage first, tie-broken by score) from anything a
+single Lucene `Query` scores in one pass. This compiler does not reproduce
+`coverage_topk`: `compile_bql` always compiles the query's exact boolean
+semantics (a hit means every constraint held, same as `run_with_count`), and its
+ranking signal is the reference's ordinary hit-ranking path (BM25 over positive
+leaf terms), not the diagnostic near-miss coverage ranking. Reproducing
+`coverage_topk` here would need N separate boolean sub-queries (one per AND
+child) plus a manual `(sum of matched, score)` combination client-side, which is
+out of scope for this compiler.
 
 ## Field mapping (BQL `Region` -> Lucene field; see `schema.py`)
 
 | Region                    | Exact/boolean field                  | notes |
 |----------------------------|---------------------------------------|-------|
-| (unscoped leaf) / `DOC`    | `body_exact` OR `title_exact`          | mirrors the reference's unscoped/DOC match, which checks the unit's own text -- title (`qualname`) and body (`code`) are SEPARATE fields on the Python side too (see `units.py`'s `units_from_documents`) |
+| (unscoped leaf) / `DOC`    | `body_exact` or `title_exact`          | mirrors the reference's unscoped/DOC match, which checks the unit's own text: title (`qualname`) and body (`code`) are separate fields on the Python side too (see `units.py`'s `units_from_documents`) |
 | `BODY`                     | `body_exact`                           | |
 | `TITLE`                    | `title_exact`                          | |
 | `SECTION`                  | `section_exact`                        | |
@@ -48,11 +45,11 @@ out of scope here.
 | `DATE` (`__daterange__LO__HI` encoded term, from `surface.py`'s `date[RANGE]`) | `TermRangeQuery` on the ISO `date` StringField | exact |
 | `INFOBOX`/`COMMENT`/`STRING`/`DEF`/`CALL`/`SIG`/`FILE` | -- | unsupported, `LuceneCompileError` |
 
-Ranking (`_score_leaves`) ALWAYS scores against `body`+`title` (stemmed, SHOULD-
-unioned) regardless of any enclosing `IN(region, ...)` -- this matches the Python
+Ranking (`_score_leaves`) always scores against `body`+`title` (stemmed, SHOULD-
+unioned) regardless of any enclosing `IN(region, ...)`. This matches the Python
 reference exactly: `_rank_leaves` (bql/executor.py) walks straight through `In`
 nodes ignoring `.region`, because the underlying `_corpus_bm` is built once over
-each unit's `qualname` (title) + `code` (body, NOT section -- see `units.py`'s
+each unit's `qualname` (title) plus `code` (body, not section, see `units.py`'s
 fairness comment) and reused for every query regardless of which region the
 boolean match targeted.
 """
@@ -74,13 +71,13 @@ from agent_search.retrievers.lucene.schema import (
 _DATE_RANGE_TERM_RE = re.compile(
     r"^__daterange__(open|\d{4}-\d{2}-\d{2})__(open|\d{4}-\d{2}-\d{2})$")
 
-# NEAR specs meaning "co-occur anywhere in scope" rather than a token window --
-# mirrors bql/executor.py's `_COOCCUR_SPECS`. In this one-Lucene-doc-per-unit
-# schema (no separate section/paragraph/sentence index -- schema.py's field-schema
-# decision), func/file/block/para/sent ALL collapse to "co-occur in the same
-# Lucene document" (documented approximation: the reference's func/block/para/sent
-# granularities are distinguishable in code corpora via AST/paragraph boundaries
-# this backend doesn't index for prose documents).
+# NEAR specs meaning "co-occur anywhere in scope" rather than a token window,
+# the same set bql/executor.py's `_COOCCUR_SPECS` uses. In this one-Lucene-doc-
+# per-unit schema (no separate section/paragraph/sentence index, see schema.py's
+# field-schema decision), func/file/block/para/sent all collapse to "co-occur in
+# the same Lucene document". This is a documented approximation: the reference's
+# func/block/para/sent granularities are distinguishable in code corpora via
+# AST/paragraph boundaries this backend doesn't index for prose documents.
 _COOCCUR_SPECS = ("func", "file", "block", "para", "sent")
 
 # Region -> the field used for EXACT boolean matching. `None` for the two regions
@@ -193,7 +190,7 @@ def compile_exact(expr: Expr, region: Optional[Region] = None):
     if isinstance(expr, Prefix):
         return _leaf_query(region, lambda field: _prefix_query(field, expr.stem))
     if isinstance(expr, Expand):
-        # reference `_eval`: `t == stem or t.startswith(stem)` -- a PrefixQuery
+        # reference `_eval`: `t == stem or t.startswith(stem)`; a PrefixQuery
         # already covers both (a term trivially starts with itself).
         return _leaf_query(region, lambda field: _prefix_query(field, expr.term.text.lower()))
     if isinstance(expr, And):
@@ -278,9 +275,9 @@ def _compile_near(expr: Near, region: Optional[Region]):
         right_span = _span_of(expr.right, field)
     except LuceneCompileError:
         # Not span-compilable (And/Not/In/Near operand, or a `Near`-of-`Or`-
-        # containing-a-Prefix): degrade to co-occurrence, mirroring
-        # bql/executor.py's `_near_window` "complex operands -> co-occurrence"
-        # fallback (module Deviations note above).
+        # containing-a-Prefix): degrade to co-occurrence, the same "complex
+        # operands fall back to co-occurrence" behavior bql/executor.py's
+        # `_near_window` uses (module Deviations note above).
         b = _bool_builder()
         ql = compile_exact(expr.left, region)
         b.add(ql, _occur("MUST"))
@@ -340,9 +337,9 @@ def _int_suffix(spec: str, default: int = 5) -> int:
 
 
 # --- SCORED compile: BM25-style ranking over positive leaf terms -----------------
-# Mirrors `bql/executor.py`'s `_rank_leaves` EXACTLY: walks straight through `In`
+# Matches `bql/executor.py`'s `_rank_leaves` exactly: walks straight through `In`
 # (ignoring region), skips `Not` subtrees, and collects Term/Prefix/Expand/Phrase
-# leaves -- always scored against body+title (see module docstring).
+# leaves, always scored against body+title (see module docstring).
 
 def _score_leaves(expr: Expr, out: list) -> None:
     if isinstance(expr, Term):

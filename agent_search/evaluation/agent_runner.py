@@ -4,8 +4,6 @@
 the strategy's tools, and per question binds fresh tools to an episode state and runs one
 episode through the agent loop (or the Agents-SDK driver). It returns the surfaced documents
 in first-seen order as the ranking, and keeps the trajectory and its metadata for the record.
-This replaces `agent_search.agent.retriever.AgentRetriever`, which resolved a workspace from
-tool names; here the condition says what runs.
 """
 from __future__ import annotations
 
@@ -101,7 +99,7 @@ class ConditionAgent(Retriever):
             return traj.located
         from agent_search.agent.loop import Task as LoopTask, run_episode
         from agent_search.tasks.codefix.guards import fix_guard_for
-        from agent_search.models import backends
+        import agent_search.models as backends
         from agent_search.training.history import CURRENT, QueryContext, dense_query_style
         from agent_search.training.triples import is_read_action, is_search_action, read_ids
         backends.reset_usage()
@@ -135,7 +133,7 @@ class ConditionAgent(Retriever):
         from datetime import date
         from agent_search.agent.loop import Step, Trajectory, resolve_locations
         from agent_search.agent.sdk_driver import run_episode_sdk
-        from agent_search.models.backends import DEFAULT_MODEL
+        from agent_search.models import DEFAULT_MODEL
         system = _re.sub(r"\n{3,}", "\n\n", self.system_prompt()).strip()
         system = system.replace("{{step_budget}}", str(self.max_steps))
         user_input = f"Current date: {date.today().isoformat()}\n\n{query}"
@@ -208,7 +206,7 @@ class ProcedureAgent(Retriever):
 
     def search(self, query: str, k: int) -> list:
         from agent_search.agent.loop import Step, Trajectory, _extract_answer
-        from agent_search.models import backends
+        import agent_search.models as backends
         backends.reset_usage()
         engine_map = {e: self.engines.get(e) for e in self.strategy.engines}
         doc_ids, msgs, raw = self.strategy.procedure.run(query, engine_map, self._ubyid, self._generate)
@@ -231,12 +229,12 @@ class ProcedureAgent(Retriever):
 def trajectory_meta(traj, ws=None) -> dict:
     """Serialize an episode into the rows.jsonl shape the analysis tools expect.
 
-    `ws` (the episode's workspace) supplies the arm-specific surfaced-doc set for the
-    doc arm's gold-doc coverage; the code arm carries its <fix> text for fix-scoring."""
+    `ws` (the episode's toolbox) supplies the surfaced-doc set used for gold-doc coverage
+    on the document domain; the code domain carries its <fix> text for fix-scoring."""
     import re
     steps = []
     for s in traj.steps:
-        # the count from a search-shaped observation header — "(N units in M files ...)"
+        # the count from a search-shaped observation header: "(N units in M files ...)"
         # (code search->fetch), "(N matches ...)" (doc), or "N units matched /pat/" (code
         # grep baseline); 0 otherwise (dci's bash/read have no such header). Advisory only.
         m = (re.search(r"\((\d+)\s+(?:units|matches)\b", s.observation)
@@ -259,7 +257,7 @@ def trajectory_meta(traj, ws=None) -> dict:
         # provenance of a non-empty final_answer on a force-answer-gated episode: None (the
         # episode never reached the reserved final turn), "nudge" (model complied with the
         # inline budget nudge directly), "prefill_inline" (the shared forced-answer-elicitation call
-        # filled it in — agent_search/agent/forced_answer.py), "prefill_failed" (that call fired but
+        # filled it in, agent_search/agent/forced_answer.py), "prefill_failed" (that call fired but
         # produced nothing usable). SDK-driven episodes carry the analogous "ask_retry_inline"/
         # "ask_retry_failed" (see agent_search/agent/sdk_driver.py). See loop.py::Trajectory.
         "elicitation": getattr(traj, "elicitation", None),
@@ -284,8 +282,8 @@ def build_condition_agent(cfg, condition_name: str):
     """A factory for the harness: `agent_<condition>` from a RetrieverConfig."""
     cond = get_condition(condition_name)
     if os.environ.get("SKIMSEARCHAGENT_LEGACY_RUNNER") == "1":
-        # the pre-0.3 workspace agent, for a like-for-like comparison of the two codes on one
-        # setting; removed with agent_search.legacy
+        # the pre-0.3 agent implementation in agent_search.legacy, for a like-for-like
+        # comparison against the current code on one setting.
         from agent_search.legacy.retriever import _build_legacy_agent
         return _build_legacy_agent(cfg, f"agent_{condition_name}")
     if cfg.prompt_override:
@@ -302,7 +300,7 @@ def build_condition_agent(cfg, condition_name: str):
         policy_factory = lambda: KeywordPolicy(cond.tool_names)  # noqa: E731
     else:
         from agent_search.agent.policies import AgentPolicy
-        from agent_search.models.backends import DEFAULT_MODEL, is_gemini_model, is_openai_model, make_generate
+        from agent_search.models import DEFAULT_MODEL, is_gemini_model, is_openai_model, make_generate
         mdl = cfg.model or DEFAULT_MODEL
         gen = make_generate(model=mdl, backend=cfg.backend, api_base=cfg.api_base, tp=cfg.tp,
                             temperature=cfg.temperature, seed=cfg.seed)
@@ -352,7 +350,7 @@ def _build_loop_free(cfg, cond: Condition, dense_model: str):
         return build_factory(strat.retriever, cfg)
     gen = None
     if cfg.policy != "stub":
-        from agent_search.models.backends import DEFAULT_MODEL, make_generate
+        from agent_search.models import DEFAULT_MODEL, make_generate
         gen = make_generate(model=cfg.model or DEFAULT_MODEL, backend=cfg.backend, api_base=cfg.api_base,
                             tp=cfg.tp, temperature=cfg.temperature, seed=cfg.seed)
     return lambda: ProcedureAgent(cond, gen, dense_model=dense_model, index_root=cfg.index_root, rebuild=cfg.rebuild)

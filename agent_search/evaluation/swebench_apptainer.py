@@ -1,14 +1,14 @@
 #!/usr/bin/env python
-"""Self-hosted SWE-bench resolve-rate harness via APPTAINER (no Docker).
+"""Self-hosted SWE-bench resolve-rate harness via apptainer (no Docker).
 
-Grades a `preds.jsonl` ({instance_id, model_patch}) locally on the cluster — unlimited runs,
-both lite AND verified — by reusing SWE-bench's prebuilt per-instance images through apptainer
-instead of Docker. Mirrors the official harness: in the instance container (repo @ base_commit,
+Grades a `preds.jsonl` ({instance_id, model_patch}) locally on the cluster, unlimited runs,
+both lite and verified, by reusing SWE-bench's prebuilt per-instance images through apptainer
+instead of Docker. Follows the official harness: in the instance container (repo @ base_commit,
 conda `testbed` env), apply the model patch, run the test_spec eval script (resets test files,
 applies the gold test_patch, runs FAIL_TO_PASS + PASS_TO_PASS), then grade the log with
-`swebench.harness.grading` -> resolved iff all F2P pass AND all P2P still pass.
+`swebench.harness.grading` -> resolved iff all F2P pass and all P2P still pass.
 
-RUN WITH THE ISOLATED VENV (has the `swebench` package):
+Run with the isolated venv (has the `swebench` package):
   module load apptainer
   .venv_swebench/bin/python -m agent_search.evaluation.swebench_apptainer preds.jsonl --subset lite -o report.json
   # first run pulls each image to .cache/swebench_sif (cached); --limit N for a smoke.
@@ -42,7 +42,7 @@ def image_url(instance_id: str, namespace: str = "swebench") -> str:
 
 def ensure_sif(instance_id: str, sif_dir: str, cache_dir: str, pull: bool = True) -> str | None:
     """Return the cached .sif, pulling it if missing. `pull=False` (offline compute nodes)
-    only checks for an already-warmed SIF and returns None if absent — never hits the network."""
+    only checks for an already-warmed SIF and returns None if absent, never hits the network."""
     os.makedirs(sif_dir, exist_ok=True)
     sif = os.path.join(sif_dir, f"{instance_id}.sif")
     if os.path.exists(sif) and os.path.getsize(sif) > 0:
@@ -50,10 +50,11 @@ def ensure_sif(instance_id: str, sif_dir: str, cache_dir: str, pull: bool = True
     if not pull:
         return None
     # apptainer builds each SIF in a TMPDIR. Two traps: (1) the default is the harness's
-    # SESSION-namespaced /tmp/<user>.<session>, which is wiped when the terminal closes -> every
-    # later pull fails ("failed to create build parent dir"); (2) Lustre scratch survives but is
-    # SLOW for the many-small-file SIF build. Fix: a FIXED-name dir on local /tmp (fast NVMe,
-    # not session-scoped so it survives session close). Override via SWEBENCH_APPT_TMPDIR.
+    # session-namespaced /tmp/<user>.<session>, which is wiped when the terminal closes, so
+    # every later pull fails ("failed to create build parent dir"); (2) Lustre scratch survives
+    # but is slow for the many-small-file SIF build. Use a fixed-name dir on local /tmp instead
+    # (fast NVMe, not session-scoped so it survives session close). Override via
+    # SWEBENCH_APPT_TMPDIR.
     import getpass
     tmp = os.environ.get("SWEBENCH_APPT_TMPDIR") or f"/tmp/{getpass.getuser()}-apptainer-build"
     os.makedirs(tmp, exist_ok=True)
@@ -96,7 +97,7 @@ def run_one(instance: dict, model_patch: str, sif_dir: str, cache_dir: str,
         with open(os.path.join(work, "eval.sh"), "w") as f:
             f.write(ts.eval_script)
         log_path = os.path.join(work, "test_output.log")
-        # apply the MODEL patch (git apply, then a lenient `patch` fallback), then run the
+        # apply the model patch (git apply, then a lenient `patch` fallback), then run the
         # test_spec eval script (it resets test files, applies the gold test_patch, runs tests).
         inner = (
             "cd /testbed && "
@@ -128,7 +129,7 @@ def run_one(instance: dict, model_patch: str, sif_dir: str, cache_dir: str,
         out["fail_to_pass"] = ts_status.get("FAIL_TO_PASS", {})
         out["pass_to_pass"] = ts_status.get("PASS_TO_PASS", {})
         return out
-    except Exception as e:  # noqa: BLE001 — one instance's failure must not sink the batch
+    except Exception as e:  # noqa: BLE001 - one instance's failure must not sink the batch
         out["error"] = f"{type(e).__name__}: {e}"
         return out
     finally:
@@ -136,7 +137,7 @@ def run_one(instance: dict, model_patch: str, sif_dir: str, cache_dir: str,
 
 
 def load_preds(path: str) -> dict:
-    """Accept EITHER a preds.jsonl OR a run dir. From a run dir, read the compiled
+    """Accept either a preds.jsonl or a run dir. From a run dir, read the compiled
     `model_patch` straight out of rows.jsonl (preferring preds.jsonl if already extracted).
     This is what makes it a one-command pipeline: point it at a result set, get graded."""
     if os.path.isdir(path):

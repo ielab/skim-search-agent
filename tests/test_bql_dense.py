@@ -1,28 +1,23 @@
-"""NEW, ADDITIVE-only BQL_DENSE dense-fused ranking (the answer to "why not BQL with dense
-instead of Indri with dense?" — see agent_search/retrievers/bql/dense_fuse.py's
-module docstring for the full mechanism spec).
+"""BQL_DENSE dense-fused ranking: why not run BQL with dense instead of Indri with dense. See
+agent_search/retrievers/bql/dense_fuse.py's module docstring for the full mechanism spec.
 
-Mechanism under test:
-  1. Fusion math: `rrf_fuse`/`fuse_ranked`/`fuse_coverage_tiers` on hand-computed fixtures.
-  2. Filter semantics: BQL's boolean/field/date FILTER selects candidates exactly as before —
-     a non-matching doc must NEVER appear, even with an engineered-maximal dense similarity.
-  3. Restriction: dense scoring is called ONLY with the filter-passing candidate ids (never a
-     global dense search) — asserted directly against the stub's recorded call args.
-  4. Knob off (no `attach_dense` call / `self.dense is None`) = byte-identical: the dense side
-     is never even CONSULTED, so nothing downstream of it can differ.
-  5. Conditions `research_bql_dense_visit`/`research_bql_dense_snip` load/resolve to the
-     'bqldensevisit'/'bqldensesnip' arms via the registry, mirroring `research_bql_visit`/
-     `research_snip` tool-for-tool except the tool NAMES.
-  6. Offline e2e smoke: BqlVisitWorkspace/DocSearchFetch driven end-to-end over a dense-attached
-     executor (deterministic hash-based stub encoder — no model download, no network), plus the
-     full `AgentRetriever.index()` wiring (missing-cache fail-loud, and a stubbed-encoder
-     success path).
-  8. Dense-ONLY ordering never DROPS a candidate absent from the dense side: `dense_belief.
-     DenseBelief.score` gives a missing id the pool-minimum score (never fabricated) instead
-     of omitting it, and `fuse_ranked_dense_only`/`fuse_coverage_tiers_dense_only` append any
-     still-missing candidates after the dense-ranked ones, in their incoming order.
+Covers the fusion math (`rrf_fuse`/`fuse_ranked`/`fuse_coverage_tiers` on hand-computed
+fixtures); that BQL's boolean/field/date filter still selects candidates exactly as before, so
+a non-matching doc never appears even with an engineered-maximal dense similarity; that dense
+scoring is called only with the filter-passing candidate ids, never a global dense search
+(asserted against the stub's recorded call args); that with the knob off (no `attach_dense`
+call, `self.dense is None`) results are byte-identical because the dense side is never
+consulted; that the `research_bql_dense_snip` condition loads and resolves to the
+'bqldensesnip' arm via the registry; an offline end-to-end smoke test driving
+BqlVisitWorkspace/DocSearchFetch over a dense-attached executor (deterministic hash-based stub
+encoder, no model download, no network) through the full `AgentRetriever.index()` wiring
+(missing-cache failure and a stubbed-encoder success path); and that dense-only ordering never
+drops a candidate absent from the dense side: `dense_belief.DenseBelief.score` gives a missing
+id the pool-minimum score instead of omitting it, and `fuse_ranked_dense_only`/
+`fuse_coverage_tiers_dense_only` append any still-missing candidates after the dense-ranked
+ones, in their incoming order.
 
-CPU-only; a small synthetic corpus mirroring tests/test_bql_visit.py's fixture shape.
+CPU-only; a small synthetic corpus.
 """
 from __future__ import annotations
 
@@ -37,7 +32,7 @@ from agent_search.retrievers.bql.dense_fuse import (
     RRF_K, bql_dense_enabled, dense_rank_for_candidates, fuse_coverage_tiers,
     fuse_coverage_tiers_dense_only, fuse_ranked, fuse_ranked_dense_only, rrf_fuse)
 from agent_search.retrievers.bql.executor import StructuralExecutor
-from agent_search.retrievers.indri.dense_belief import DenseBelief
+from agent_search.retrievers.dense.belief import DenseBelief
 
 # --- stub encoder (mirrors tests/test_indri_dense.py's StubEncoder exactly: deterministic
 # hash-based bag-of-tokens vectors, no model download, with an engineerable synonym table) ----
@@ -435,7 +430,7 @@ def test_load_or_build_default_dense_none_and_attach_works(units, tmp_path, dens
 # =============================================================================================
 
 def test_research_bql_dense_snip_condition_loads_and_mirrors_snip():
-    from agent_search.prompts import load_condition
+    from agent_search.legacy.prompts import load_condition
 
     p = load_condition("research_bql_dense_snip")
     assert p.toolset == "bql_dense_snip"
@@ -468,7 +463,7 @@ def test_bqldensesnip_index_raises_clear_error_when_cache_missing(tmp_path):
 # =============================================================================================
 
 def test_agentretriever_bqldensesnip_end_to_end_offline_smoke(tmp_path, monkeypatch):
-    from agent_search.retrievers.dense import dense as dense_mod
+    from agent_search.retrievers import dense as dense_mod
     from agent_search.retrievers.registry import RetrieverConfig, build_factory
 
     stub_model = "stub/bqldensesnip-model"
@@ -498,7 +493,7 @@ def test_agentretriever_bqldensesnip_end_to_end_offline_smoke(tmp_path, monkeypa
 # =============================================================================================
 
 def test_research_snip_condition_unaffected():
-    from agent_search.prompts import load_condition
+    from agent_search.legacy.prompts import load_condition
 
     snip = load_condition("research_snip")
     assert snip.toolset == "search_fetch_s"
@@ -506,7 +501,7 @@ def test_research_snip_condition_unaffected():
 
 
 def test_bqlvisit_workspace_default_tool_names_unaffected_by_new_param():
-    from agent_search.agent.tools.doc_research import BqlVisitWorkspace
+    from agent_search.legacy.workspaces.sieve import BqlVisitWorkspace
 
     assert BqlVisitWorkspace.tools == ("search_bv", "visit_bv")
     ws = BqlVisitWorkspace(_corpus())
@@ -522,8 +517,8 @@ def test_bqlvisit_workspace_default_tool_names_unaffected_by_new_param():
 # =============================================================================================
 
 def test_research_bql_dense_fetch_condition_loads_and_mirrors_plain_doc():
-    from agent_search.prompts import load_condition
-    from agent_search.prompts.loader import render_manuals
+    from agent_search.legacy.prompts import load_condition
+    from agent_search.legacy.prompts.loader import render_manuals
 
     p = load_condition("research_bql_dense_fetch")
     assert p.toolset == "bql_dense_fetch"
@@ -561,7 +556,7 @@ def test_agentretriever_bqldensefetch_end_to_end_offline_smoke(tmp_path, monkeyp
     """Same offline-smoke shape as test_agentretriever_bqldensesnip_end_to_end_offline_smoke,
     but asserts the listing is PLAIN (no `»` excerpt) — the one behavioral difference from
     'bqldensesnip', proving the listing/read recombination is genuinely composable here."""
-    from agent_search.retrievers.dense import dense as dense_mod
+    from agent_search.retrievers import dense as dense_mod
     from agent_search.retrievers.registry import RetrieverConfig, build_factory
 
     stub_model = "stub/bqldensefetch-model"
@@ -594,7 +589,7 @@ def test_bqldensefetch_search_bqldf_and_bqldensesnip_search_bqlds_differ_only_by
     """Direct side-by-side: SAME dense-fused ranking (same corpus, same query, same stub model/
     cache), the ONLY rendering difference between 'bqldensefetch' and 'bqldensesnip' is the `»`
     excerpt line — confirming the listing/read recombination changed nothing about retrieval."""
-    from agent_search.retrievers.dense import dense as dense_mod
+    from agent_search.retrievers import dense as dense_mod
     from agent_search.retrievers.registry import RetrieverConfig, build_factory
 
     stub_model = "stub/bqldensecompare-model"
@@ -625,7 +620,7 @@ def test_bqldensefetch_workspace_hallucinated_tool_name_errors(tmp_path, monkeyp
     """A model that hallucinates a tool name outside this condition's own toolset (e.g. the
     visit-family's `visit_bqld`, or a bare `visit`) must get a clear 'unknown tool' error, not a
     silent success — this condition has NO visit/whole-doc read at all, only search->fetch."""
-    from agent_search.retrievers.dense import dense as dense_mod
+    from agent_search.retrievers import dense as dense_mod
     from agent_search.retrievers.registry import RetrieverConfig, build_factory
 
     stub_model = "stub/bqldensefetch-halluc-model"
@@ -648,7 +643,7 @@ def test_bqldensefetch_workspace_hallucinated_tool_name_errors(tmp_path, monkeyp
 
 def test_research_bql_dense_snip_and_visit_conditions_unaffected_by_new_fetch_cell():
     """Adding 'bqldensefetch' must not touch the pre-existing dense-BQL snip condition."""
-    from agent_search.prompts import load_condition
+    from agent_search.legacy.prompts import load_condition
 
     snip = load_condition("research_bql_dense_snip")
     assert snip.toolset == "bql_dense_snip"

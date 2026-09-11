@@ -1,19 +1,16 @@
 """`bash`: run a shell command over the exported flat corpus directory.
 
-Ported from the DCI baseline's shell tool (`agent_search.agent.tools.doc_dci.DciWorkspace.bash`)
-and its bounded variant (`agent_search.agent.tools.doc_bm25_dci.Bm25DciWorkspace.bash`). With
-`bounded=False` the command runs over a flat export of the WHOLE corpus (one file per doc,
-`agent_search.corpus.flat_export`), cached by `corpus_key` and never removed here — matching
-the old `DciWorkspace`, which relied on that cache and never cleaned it up. With `bounded=True`
-the command runs over a per-episode staging directory that starts EMPTY and is filled
-incrementally by the `bm25_search` tool (`agent_search.tools.search_bm25_dci`) as it stages new
-hits; that directory is removed when the episode state is garbage-collected, matching
-`Bm25DciWorkspace`'s `weakref.finalize`.
+With `bounded=False` the command runs over a flat export of the whole corpus (one file per
+doc, `agent_search.corpus.flat_export`), cached by `corpus_key` and never removed here. With
+`bounded=True` the command runs over a per-episode staging directory that starts empty and is
+filled incrementally by the `bm25_search` tool (`agent_search.tools.search_bm25_dci`) as it
+stages new hits; that directory is removed once the episode state is garbage-collected.
 
-Output combines stdout+stderr, TAIL-truncated to ~2000 lines / `BASH_MAX_TOKENS` whitespace
-tokens (never a byte/character cap — see `agent_search.core.tokens`). Every exported filename
-mentioned in the command or its output is surfaced (added to `state.seen`) — the gold-doc-
-coverage signal the DCI arms report.
+Output combines stdout and stderr, tail-truncated to ~2000 lines or `BASH_MAX_TOKENS`
+whitespace tokens, never a byte or character cap (see `agent_search.core.tokens`). Every
+exported filename mentioned in the command or its output is surfaced (added to
+`state.seen`), the gold-document coverage signal the `dci` and `bounded_dci` strategies
+report.
 """
 from __future__ import annotations
 
@@ -30,8 +27,8 @@ from agent_search.core.tokens import count_ws_tokens
 from agent_search.corpus.flat_export import export_flat_corpus
 from agent_search.tools.base import Tool
 
-# RISE tools.py defaults (PI_BASH_DEFAULT_MAX_LINES / PI_BASH_DEFAULT_MAX_BYTES), kept identical
-# in SPIRIT (a line cap plus a size cap) but the size cap is WHITESPACE TOKENS, not bytes.
+# Defaults modeled on RISE's tools.py (PI_BASH_DEFAULT_MAX_LINES / PI_BASH_DEFAULT_MAX_BYTES):
+# a line cap plus a size cap, except the size cap here counts whitespace tokens, not bytes.
 BASH_MAX_LINES = 2000
 BASH_MAX_TOKENS = int(os.environ.get("BASH_MAX_TOKENS", "12000"))
 _HARD_TIMEOUT_S = 60.0     # per-subprocess safety ceiling (catastrophic-regex guard)
@@ -39,7 +36,7 @@ _HARD_TIMEOUT_S = 60.0     # per-subprocess safety ceiling (catastrophic-regex g
 
 def _tail_truncate(content: str, *, max_lines: int = BASH_MAX_LINES,
                    max_tokens: int = BASH_MAX_TOKENS) -> str:
-    """Keep the LAST N lines or M whitespace tokens (whichever limit hits first); append a
+    """Keep the last N lines or M whitespace tokens, whichever limit hits first; append a
     one-line `[Truncated: showing X of Y lines]` marker when truncation fires."""
     total_tokens = count_ws_tokens(content)
     lines = content.split("\n")
@@ -59,7 +56,7 @@ def _tail_truncate(content: str, *, max_lines: int = BASH_MAX_LINES,
         if out_tokens + line_tokens > max_tokens:
             truncated_by = "tokens"
             if not out_lines:
-                # keep the TAIL `max_tokens` whitespace tokens of this single oversized line.
+                # keep the last `max_tokens` whitespace tokens of this single oversized line.
                 toks = line.split()
                 kept = toks[-max_tokens:] if max_tokens > 0 else []
                 out_lines.insert(0, " ".join(kept))
@@ -134,11 +131,10 @@ def get_dci_dir(state, units, corpus_key: Optional[str], bounded: bool):
     order.
 
     Unbounded: the whole corpus, exported once and cached by `corpus_key`
-    (`agent_search.corpus.flat_export.export_flat_corpus`) — never removed here, matching
-    `DciWorkspace`, which relied on that cache and did no cleanup of its own. Bounded: a fresh,
-    EMPTY per-episode tempdir that `bm25_search` fills incrementally; a `weakref.finalize` on
-    the episode `state` removes it once the episode is garbage-collected, matching
-    `Bm25DciWorkspace`'s own finalizer.
+    (`agent_search.corpus.flat_export.export_flat_corpus`), never removed here. Bounded: a
+    fresh, empty per-episode tempdir that `bm25_search` fills incrementally; a
+    `weakref.finalize` on the episode `state` removes it once the episode is
+    garbage-collected.
     """
     if "dci_dir" in state.scratch:
         return state.scratch["dci_dir"], state.scratch["dci_rel_to_doc"]
@@ -174,8 +170,8 @@ class Bash(Tool):
                                             "description": "Timeout in seconds (optional, default 60)."}},
                   "required": ["command"]}
 
-    # False: the whole corpus export (DciWorkspace). True: a staging dir grown by bm25_search
-    # (Bm25DciWorkspace) that holds only what has been retrieved so far this episode.
+    # False: bash runs over the whole corpus export. True: bash runs over a staging dir
+    # grown by bm25_search that holds only what has been retrieved so far this episode.
     bounded: bool = False
 
     def on_bind(self) -> None:

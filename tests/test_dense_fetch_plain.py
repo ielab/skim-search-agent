@@ -1,31 +1,30 @@
-"""NEW, additive-only PLAIN dense fetch cell: `research_dense_fetch_plain`
-(agent_search.agent.tools.doc_research.DenseFetchPlainWorkspace).
-
-Context: dense was the ONLY query engine among bm25/bql/indri/dense lacking a plain (no-excerpt)
-fetch cell — `DenseFetchWorkspace` (research_dense_fetch, "dense+snip fetch") has no `snippets`
-flag at all; its `search()` appends a `» excerpt` line unconditionally. This condition supplies
-the missing plain sibling, mirroring how `research_bql_dense_fetch` supplies
+"""The plain dense fetch cell `research_dense_fetch_plain`
+(agent_search.legacy.workspaces.search_fetch.DenseFetchPlainWorkspace): dense was the only
+query engine among bm25/bql/indri/dense lacking a plain (no-excerpt) fetch cell.
+`DenseFetchWorkspace` (research_dense_fetch, "dense+snip fetch") has no `snippets` flag at
+all; its `search()` appends a `» excerpt` line unconditionally. This condition supplies the
+missing plain sibling, the same way `research_bql_dense_fetch` supplies
 `research_bql_dense_snip`'s missing plain sibling for the dense-fused BQL executor (see
 tests/test_bql_dense.py's section 10 for that pattern, mirrored here tool-for-tool).
 
-  1. DenseFetchPlainWorkspace: tools/dispatch, plain listing (no `»`), fetch delegation, run()
-     aliases, hallucinated-tool errors — CPU-only via a stub dense engine (no torch import),
-     exactly like test_dense_baseline.py's DenseFetchWorkspace section.
-  2. Side-by-side: SAME stub engine/query -> `research_dense_fetch_plain`'s listing and
-     `research_dense_fetch`'s listing differ ONLY by the `»` excerpt line.
-  3. Condition loads/resolves via the retriever registry as the 'densefetchplain' arm.
-  4. index() raises a clear RuntimeError when the dense doc-embedding cache is missing (SAME
-     fail-loud contract as 'densevisit'/'densefetch').
-  5. Full AgentRetriever offline smoke (fake dense stack, no torch/network — mirrors
-     tests/test_hybrid.py's `fake_dense_stack` fixture) confirming `_workspace()` wiring works.
-  6. Parity spot-check: `research_dense_fetch`/`DenseFetchWorkspace` are completely untouched.
+Covers: DenseFetchPlainWorkspace's tools/dispatch, plain listing (no `»`), fetch delegation,
+run() aliases and hallucinated-tool errors, CPU-only via a stub dense engine (no torch
+import), exactly like test_dense_baseline.py's DenseFetchWorkspace section; a side-by-side
+check that the same stub engine/query makes `research_dense_fetch_plain`'s listing and
+`research_dense_fetch`'s listing differ only by the `»` excerpt line; that the condition
+loads and resolves via the retriever registry as the 'densefetchplain' arm; that index()
+raises a clear RuntimeError when the dense doc-embedding cache is missing, the same
+fail-loud contract as 'densevisit'/'densefetch'; a full AgentRetriever offline smoke test
+(fake dense stack, no torch/network, mirroring tests/test_hybrid.py's `fake_dense_stack`
+fixture) confirming `_workspace()` wiring works; and a parity spot-check that
+`research_dense_fetch`/`DenseFetchWorkspace` are untouched.
 """
 from __future__ import annotations
 
 import pytest
 
-from agent_search.agent.tools.doc_research import (
-    DenseFetchPlainWorkspace, DenseFetchWorkspace, DocSearchFetch)
+from agent_search.legacy.workspaces.search_fetch import DenseFetchPlainWorkspace, DenseFetchWorkspace
+from agent_search.legacy.workspaces.sieve import DocSearchFetch
 from agent_search.corpus.units import units_from_documents
 
 _PAD = "x"          # same padding trick as test_dense_baseline.py — isolates "did the MID-BODY
@@ -207,8 +206,8 @@ def test_dense_search_fp_and_dense_search_f_differ_only_by_the_excerpt_line():
 
 @pytest.fixture
 def fake_dense_stack(monkeypatch):
-    from agent_search.retrievers.dense.dense import DenseRetriever
-    from agent_search.retrievers.indri import dense_belief as dense_belief_mod
+    from agent_search.retrievers.dense import DenseRetriever
+    from agent_search.retrievers.dense import belief as dense_belief_mod
 
     class _FakeBelief:
         def __init__(self, ranking=()):
@@ -232,7 +231,7 @@ def fake_dense_stack(monkeypatch):
 # =============================================================================================
 
 def test_research_dense_fetch_condition_unaffected_by_the_new_plain_cell():
-    from agent_search.prompts import load_condition
+    from agent_search.legacy.prompts import load_condition
 
     p = load_condition("research_dense_fetch")
     assert p.toolset == "dense_fetch"

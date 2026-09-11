@@ -3,14 +3,14 @@
 SkimSearchAgent measures and caps text in **tokens, never characters**. Two rulers exist,
 each with one job:
 
-* **Whitespace tokens** (``ws_tokens`` / ``cap_tokens``) — the budget ruler. Every read cap
+* **Whitespace tokens** (``ws_tokens`` / ``cap_tokens``): the budget ruler. Every read cap
   the agent experiences (``SNIPPET_TOKENS``, ``MAX_VISIT_TOKENS``, ``MAX_SECTION_TOKENS``,
   bash/read output caps, the context-history budget) is expressed in whitespace tokens.
   This is the ruler the paper's experiments used, it is tokenizer-independent, and it is
   cheap enough to apply on every tool call.
-* **Model tokens** (``count_tokens`` / ``truncate_tokens``) — the measurement ruler.
+* **Model tokens** (``count_tokens`` / ``truncate_tokens``): the measurement ruler.
   Cost and context accounting use tiktoken's ``o200k_base`` when it is installed so that
-  every arm is measured on one fixed scale; when tiktoken is unavailable the whitespace
+  every condition is measured on one fixed scale; when tiktoken is unavailable the whitespace
   ruler is used instead (never a characters-divided-by-four proxy).
 
 There is deliberately no character-based helper in this module, and none should be added
@@ -59,7 +59,7 @@ def _encoding():
         try:
             import tiktoken
             _ENC = tiktoken.get_encoding("o200k_base")
-        except Exception:  # noqa: BLE001 — optional dependency; whitespace ruler is the fallback
+        except Exception:  # noqa: BLE001 - optional dependency; whitespace ruler is the fallback
             _ENC = None
     return _ENC
 
@@ -91,7 +91,7 @@ def truncate_tokens(text: Optional[str], n: int, tail: str = TRUNCATED) -> str:
 
 
 def ruler_name() -> str:
-    """Which measurement ruler is active — recorded in run provenance."""
+    """Which measurement ruler is active: recorded in run provenance."""
     return "tiktoken:o200k_base" if _encoding() is not None else "whitespace"
 
 

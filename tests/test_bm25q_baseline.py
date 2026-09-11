@@ -1,22 +1,26 @@
-"""`research_bm25q`: the HARDENED bm25 baseline (Bm25Visit, `query_biased=True`) — a fairness
-fix, not a new capability. `research_bm25`'s search listing shows each hit's fixed doc OPENING
-snippet; our method cells (research_snip/research_indri_snip) show a QUERY-BIASED
-best-matching excerpt per hit via `doc_research.py`'s `_best_line`. Real search engines show
-query-biased snippets, so the hardened bm25 baseline must too, or the listing axis is unfair
-in our favor.
+"""The `query_biased` fairness mechanism on `Bm25Visit`, once exposed as the hardened bm25
+baseline `research_bm25q`, now pruned from conditions.yaml. `research_bm25`'s search listing
+shows each hit's fixed doc opening snippet, while the method cells (research_snip,
+research_indri_snip) show a query-biased best-matching excerpt per hit via `doc_research.py`'s
+`_best_line`. Real search engines show query-biased snippets, so a fair bm25 baseline needs to
+as well; that fairness fix is what `query_biased=True` provides, tested directly here since the
+condition itself is gone.
 
-`research_bm25q` is `research_bm25`'s SAME bm25 retrieval + whole-doc `visit` read
-(`bm25q_search`/`visit_q`, aliasing `Bm25Visit`'s `search`/`visit`), with ONLY the listing's
+`query_biased=True` keeps `research_bm25`'s bm25 retrieval and whole-doc `visit` read
+(`bm25q_search`/`visit_q`, aliasing `Bm25Visit`'s `search`/`visit`), with only the listing's
 snippet swapped to the module-level `best_line` window-scoring the method cells use.
-`query_biased=False` (the default) must reproduce the OLD `Bm25Visit.search` rendering
-byte-for-byte — the existing `research_bm25` condition/toolset is completely unaffected.
+`query_biased=False` (the default) reproduces the plain `Bm25Visit.search` rendering
+byte-for-byte; the existing `research_bm25` condition/toolset is unaffected.
 
-CPU-only, no network — a stub BM25 engine, the same pattern test_doc_research_tools.py /
+CPU-only, no network: a stub BM25 engine, the same pattern test_doc_research_tools.py /
 test_dense_baseline.py use for their stub retrieval engines.
 """
 from __future__ import annotations
 
-from agent_search.agent.tools.doc_research import Bm25Visit, DocSearchFetch, best_line, SNIPPET_TOKENS
+from agent_search.legacy.workspaces.search_visit import Bm25Visit
+from agent_search.legacy.workspaces.sieve import DocSearchFetch
+from agent_search.legacy.workspaces.common import best_line
+from agent_search.legacy.workspaces.budgets import SNIPPET_TOKENS
 from agent_search.corpus.units import units_from_documents
 
 _PAD = "x"          # a 1-char filler token; pad_before is chosen large enough that the doc's
@@ -139,7 +143,7 @@ def test_engine_receives_the_raw_query_and_the_knob_depth():
     bm25q_search schema exposes ONLY `query`, so a hallucinated `k` in the tool-call args is
     ignored; the env knob alone sets the SERP listing depth (see doc_research.BM25_VISIT_TOPK
     and test_doc_research_tools.py's SERP-listing-depth section)."""
-    import agent_search.agent.tools.doc_research as m
+    import agent_search.legacy.workspaces.budgets as m
     engine = _StubBm25(("d_mid",))
     ws = Bm25Visit(_units(), engine=engine, query_biased=True)
     ws.run("bm25q_search", {"query": "zephyrquokka marker", "k": 3})
@@ -152,7 +156,7 @@ def test_engine_receives_the_raw_query_and_the_knob_depth():
 
 
 def test_existing_research_bm25_condition_is_unaffected():
-    from agent_search.prompts import load_condition
+    from agent_search.legacy.prompts import load_condition
 
     p = load_condition("research_bm25")
     assert p.toolset == "research_bm25"

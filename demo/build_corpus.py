@@ -24,9 +24,9 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent))
 
-# Doc pools are pulled for ALL of these queries (gold + negatives + evidence become the
+# Doc pools are pulled for all of these queries (gold + negatives + evidence become the
 # collection). 798/792 were the original curated pair; their pools stay as distractors and
-# 798's gold feeds the warm-up. The five 2026-08-07 additions are REAL wins picked from the
+# 798's gold feeds the warm-up. The five 2026-08-07 additions are real wins picked from the
 # author's own pairwise gain/loss analysis on browsecomp_plus_structured_full: on the full
 # corpus, sieve_bm25 answered all five correctly while the Search-Visit baseline missed all
 # five at 5-18x the tokens (see PAPER_RESULTS below).
@@ -35,9 +35,9 @@ QUERY_IDS = ("798", "792", "78", "159", "579", "401", "1148")
 # they made a discouraging first click; their docs remain in the collection).
 DEMO_QUESTION_IDS = ("78", "159", "579", "401", "1148")
 GOLD_DOCIDS = ("37133", "39666", "41817", "51481")
-# Collection sizing: gold and evidence docs are always kept for EVERY pooled query (they
-# make the questions answerable, including intermediate hops); NEGATIVES are capped per
-# query at the HARDEST 30 — ranked by BM25 score against the query itself (the repo's own
+# Collection sizing: gold and evidence docs are always kept for every pooled query (they
+# make the questions answerable, including intermediate hops); negatives are capped per
+# query at the HARDEST 30, ranked by BM25 score against the query itself (the repo's own
 # BM25Local over the row's decrypted doc texts), not taken in dataset order. Hard negatives
 # are the distractors that actually compete with the gold docs in a search, so the demo's
 # difficulty survives the downsampling. ~30/query keeps the 7-query union around 250-300
@@ -63,7 +63,7 @@ STRUCTURED_URL = ("https://huggingface.co/datasets/wshuai190/browsecomp-plus-str
                   "/resolve/main/structured/corpus.jsonl")
 OUT = HERE / "corpus_data.json"
 
-# Outlier cap: purely demo-UX/cost motivated (repo size does NOT require it — the whole
+# Outlier cap: purely demo-UX/cost motivated (repo size does not require it, the whole
 # subsample is ~3.5MB). The 40K floor keeps every known gold section intact (largest:
 # 37,225 chars in doc 51481).
 CAP_CHARS = 80_000
@@ -74,9 +74,9 @@ CAP_MARK = "…(truncated for demo)"
 # below are recorded here (rather than hand-edited into the JSON) so the build stays reproducible.
 #
 # 1. Titles the published corpus ships EMPTY. Without a title a document renders as its bare
-#    docid in the result cards, so the agent cannot recognise it — fatal for 51481, which is
+#    docid in the result cards, so the agent cannot recognise it, fatal for 51481, which is
 #    the gold document for the creatine question. Each title below is copied from that
-#    document's OWN body text, not invented (51481 cites itself: "Oral creatine
+#    document's own body text, not invented (51481 cites itself: "Oral creatine
 #    supplementation: A potential adjunct therapy for rheumatoid arthritis patients. World J
 #    Rheumatol 2014"). Verify with: grep -o 'Oral creatine[^.]*' on the doc's body.
 TITLE_FIXUPS = {
@@ -88,7 +88,7 @@ TITLE_FIXUPS = {
     "8844": "AvidPlay FAQ: Terminologies and Definitions",
     "9170": "Hacı Ömer Sabancı Holding A.Ş. Annual Report 2016",
 }
-# 2. Documents whose crawl FAILED upstream — the whole body is a scraper error page, so they
+# 2. Documents whose crawl failed upstream, the whole body is a scraper error page, so they
 #    are noise rather than distractors. 30615's entire text is "Request unsuccessful. Incapsula
 #    incident ID: ...".
 DROP_DOCIDS = {"30615"}
@@ -100,7 +100,7 @@ DROP_DOCIDS = {"30615"}
 WARMUP = {"query_id": "demo-warmup", "label": "warm-up · answerable in a few steps",
           "question": "Which women's college in Delhi was established in 1956, and what is it "
                       "called today?",
-          # gold is the SHORT form: both strategies answer at least this much, and the
+          # gold is the short form: both strategies answer at least this much, and the
           # page's check is a substring test, so the longer official name still matches.
           "answer": "Lady Shri Ram College", "gold_docids": [], "paper": None}
 
@@ -130,8 +130,8 @@ def cap_sections(sections: list, cap: int = CAP_CHARS) -> list:
 
 
 def record_to_doc(rec: dict) -> dict:
-    """A structured/corpus.jsonl record -> the JSON doc shape corpus.py loads. ONLY the
-    sections are stored — the loader derives the `## heading` body from them, so the
+    """A structured/corpus.jsonl record -> the JSON doc shape corpus.py loads. only the
+    sections are stored, the loader derives the `## heading` body from them, so the
     collection is not written to disk twice (body + sections doubled the old file)."""
     doc_id = str(rec["_id"])
     sections = cap_sections([[s.get("heading") or "(untitled)", s.get("text") or ""]
@@ -142,7 +142,7 @@ def record_to_doc(rec: dict) -> dict:
 
 
 def hardest_negatives(query: str, negatives: list, cap: int = NEG_CAP) -> list:
-    """The `cap` negatives that BM25 ranks HIGHEST against the query — the distractors that
+    """The `cap` negatives that BM25 ranks HIGHEST against the query, the distractors that
     genuinely compete with the gold docs in a lexical search. `negatives` are the row's
     decrypted {docid,url,text} entries; scoring uses the repo's own BM25Local so "hard"
     here means hard for the demo's actual search engine, not for some other ranker."""
@@ -165,7 +165,7 @@ def pull_queries() -> tuple[list[dict], set[str], dict]:
     docids, per-query {gold, evidence} pools for the answerability assertions)."""
     from datasets import load_dataset
     from corpus_build.browsecomp_plus.build import transform_decrypt
-    # NOT streaming: `hf download Tevatron/browsecomp-plus` puts the shards in the local HF
+    # not streaming: `hf download Tevatron/browsecomp-plus` puts the shards in the local HF
     # cache, and a plain load reads them from disk. Streaming mode re-fetches from the CDN
     # every run regardless of the cache, which is what made rebuilds hang on a flaky VPN.
     ds = load_dataset("Tevatron/browsecomp-plus", split="test")
@@ -195,7 +195,7 @@ def pull_queries() -> tuple[list[dict], set[str], dict]:
 
 def local_corpus_path() -> Path | None:
     """The full structured corpus, if `hf download wshuai190/browsecomp-plus-structured-full`
-    has been run (resumable, one-time, ~6.1GB) — then every rebuild is a local scan measured
+    has been run (resumable, one-time, ~6.1GB), then every rebuild is a local scan measured
     in seconds instead of an hour of re-streaming."""
     try:
         from huggingface_hub import hf_hub_download
@@ -208,7 +208,7 @@ def local_corpus_path() -> Path | None:
 
 def pull_structured(targets: set[str], cache: Path | None) -> list[dict]:
     """The structured records for `targets`: cache dump first, then the locally downloaded
-    full corpus (see `local_corpus_path`), then — last resort — stream-filtering the 6.1GB
+    full corpus (see `local_corpus_path`), then, last resort, stream-filtering the 6.1GB
     remote file (early-stop once every target is found)."""
     found = {}
     if cache and cache.exists():
@@ -281,7 +281,7 @@ def main() -> None:
     have = {d["_id"] for d in docs}
     for gold in GOLD_DOCIDS:
         assert gold in have, f"gold doc {gold} missing"
-    # EVERY pooled query (the five examples AND 798/792) must remain fully answerable:
+    # every pooled query (the five examples and 798/792) must remain fully answerable:
     # all gold and all evidence docs present, minus documents dropped as broken crawls.
     for qid, pool in pools.items():
         for kind in ("gold", "evidence"):

@@ -1,25 +1,25 @@
-"""NEW, ADDITIVE-only condition: `research_bm25_fetch_snip` — the FAIR-LISTING sibling of
-`research_bm25_fetch`. The factorial cell "bm25 search x structure->fetch" (research_bm25_fetch,
-`Bm25FetchWorkspace`) has a CONTENT-BLIND search listing (structure only — title + section names
-+ infobox keys, no excerpt), while every OTHER method fetch cell (research_snip,
-research_indri_snip, research_dense_fetch) shows each hit's best-matching excerpt via the shared
-module-level `best_line` (doc_research.py:145) — an inconsistency across the search x read
+"""`research_bm25_fetch_snip`: the content-bearing-listing sibling of `research_bm25_fetch`.
+The factorial cell "bm25 search x structure->fetch" (research_bm25_fetch, `Bm25FetchWorkspace`)
+has a content-blind search listing (structure only: title, section names, infobox keys, no
+excerpt), while every other method fetch cell (research_snip, research_indri_snip,
+research_dense_fetch) shows each hit's best-matching excerpt via the shared module-level
+`best_line` (common.py). This condition removes that inconsistency across the search x read
 factorial grid.
 
-`Bm25FetchSnipWorkspace` (agent_search/agent/tools/doc_research.py) fixes exactly that: the SAME
-bm25 retrieval and SAME structured section-fetch tools as `Bm25FetchWorkspace` (inherited
-unchanged — construction, `fetch`, `topk`/`engine`/`query`), with ONLY the search listing's
-rendering changed to append a one-line query-biased best-matching excerpt per hit (the SAME move
-`DenseFetchWorkspace` makes over `Bm25FetchWorkspace`'s own bare table).
+`Bm25FetchSnipWorkspace` (agent_search/legacy/workspaces/search_fetch.py) uses the same bm25
+retrieval and the same structured section-fetch tools as `Bm25FetchWorkspace` (construction,
+`fetch`, `topk`/`engine`/`query` are inherited unchanged), with only the search listing's
+rendering changed to append a one-line query-biased best-matching excerpt per hit, the same
+move `DenseFetchWorkspace` makes over `Bm25FetchWorkspace`'s own bare table.
 
 CPU-only; reuses test_doc_bm25_fetch_tools.py's small synthetic corpus (a structured doc, a flat
 doc, an off-topic doc) so the ranking-parity assertion is a direct, apples-to-apples comparison
 against the existing Bm25FetchWorkspace tests."""
 from __future__ import annotations
 
-from agent_search.agent.tools.doc_research import Bm25FetchSnipWorkspace, Bm25FetchWorkspace
+from agent_search.legacy.workspaces.search_fetch import Bm25FetchSnipWorkspace, Bm25FetchWorkspace
 from agent_search.corpus.units import units_from_documents
-from agent_search.prompts import load_condition
+from agent_search.legacy.prompts import load_condition
 from agent_search.retrievers.lexical.bm25 import BM25Local
 from agent_search.retrievers.registry import RetrieverConfig, build_factory
 
@@ -183,7 +183,7 @@ def test_research_bm25_fetch_snip_workspace_builds(tmp_path):
 
 
 def test_research_bm25_fetch_snip_workspace_answers_via_stub(tmp_path):
-    from agent_search.agent.retriever import AgentRetriever
+    from agent_search.legacy.retriever import AgentRetriever
 
     cfg = RetrieverConfig(policy="stub", index_root=str(tmp_path))
     r = build_factory("agent_research_bm25_fetch_snip", cfg)()

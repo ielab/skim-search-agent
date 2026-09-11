@@ -1,7 +1,7 @@
-"""Regression: models often emit the tool call as bare JSON WITHOUT the
-<tool_call> wrapper. parse_tool_call must still recognize it (otherwise the JSON
-is fed to a tool parser -> garbage), and a <think> that quotes a call must not
-preempt the real (last) one."""
+"""Models often emit the tool call as bare JSON without the <tool_call> wrapper.
+parse_tool_call must still recognize it (otherwise the JSON is fed to a tool
+parser and produces garbage), and a <think> block that quotes a call must not
+preempt the real, last one."""
 from agent_search.agent.actions import parse_tool_call
 
 

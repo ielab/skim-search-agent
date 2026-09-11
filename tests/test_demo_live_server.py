@@ -1,6 +1,6 @@
 """The live-demo SSE server (demo/server.py): /api/run streams step -> done events per
-strategy (fake generate injected — NO real API calls), errors surface as error events (never a
-hang), the api_key reaches make_generate and is never echoed back."""
+strategy (fake generate injected, no real API calls), errors surface as error events instead
+of a hang, and the api_key reaches make_generate and is never echoed back."""
 import json
 import sys
 from pathlib import Path

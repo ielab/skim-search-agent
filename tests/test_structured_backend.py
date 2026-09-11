@@ -1,25 +1,25 @@
-"""Tests for `STRUCTURED_BACKEND` (python|lucene) — the env knob that swaps the pure-Python
+"""Tests for `STRUCTURED_BACKEND` (python|lucene): the env knob that swaps the pure-Python
 Indri/BQL reference engines for `LuceneStructuredEngine` (`agent_search/retrievers/
-lucene/`) underneath the SAME doc-arm workspaces (`IndriFetchWorkspace`/`IndriVisitWorkspace`,
+lucene/`) underneath the same doc-arm workspaces (`IndriFetchWorkspace`/`IndriVisitWorkspace`,
 `DocSearchFetch`/`BqlVisitWorkspace`), unchanged. See `structural/backend.py`'s module
 docstring (the resolver) and `lucene/adapters.py`'s module docstring (the two
-adapters + documented deviations, incl. dense-belief score-normalization) for the design.
+adapters and documented deviations, including dense-belief score-normalization) for the design.
 
 1. Backend-selection: `structured_backend()`'s env resolution, `build_indri_engine`/
    `build_bql_engine`'s dispatch (python -> the real Python executor class; lucene -> the
    adapter class, requires a real `key`), and the workspaces' own `executor=None` fallback
-   respecting the knob (mirrors `build_bm25_engine`'s fallback pattern).
-2. Interface parity: the SAME tool calls (`search_bv`/`visit_bv`, `isearch_v`/`visit_v`)
-   against a python-backed vs lucene-backed workspace over the IDENTICAL fixture corpus —
-   listings render, ranks resolve, the 0-hit coverage-fallback (delegated to a lazy in-memory
-   `StructuralExecutor` under the lucene backend — see adapters.py) still works.
+   respecting the knob (same pattern as `build_bm25_engine`'s fallback).
+2. Interface parity: the same tool calls (`search_bv`/`visit_bv`, `isearch_v`/`visit_v`)
+   against a python-backed vs lucene-backed workspace over the identical fixture corpus:
+   listings render, ranks resolve, and the 0-hit coverage-fallback (delegated to a lazy
+   in-memory `StructuralExecutor` under the lucene backend, see adapters.py) still works.
 3. Dense fusion with the lucene backend (`LuceneIndriAdapter`'s score-normalization design):
    a stub dense source reranks Lucene's own returned pool at high `INDRI_DENSE_W`, is a no-op
    at `w=0` (original Lucene order/scores preserved), still emits a `#dense` diagnostics entry
-   at `w=0` (visible without affecting ranking, mirroring `indri/model.py`), and a raising
-   dense source degrades silently to lexical-only (never crashes the search call).
+   at `w=0` (visible without affecting ranking, same pattern as `indri/model.py`), and a
+   raising dense source degrades silently to lexical-only, never crashing the search call.
 
-Requires a real JVM (pyserini/pyjnius) — same module-scoped skip-if-unavailable guard as
+Requires a real JVM (pyserini/pyjnius), the same module-scoped skip-if-unavailable guard as
 `tests/test_lucene_structured.py` (see that file's docstring for the JVM-boot landmine this
 sidesteps: `_jni._boot()` directly, never a bare `pytest.importorskip("jnius", ...)`).
 """
@@ -27,8 +27,8 @@ from __future__ import annotations
 
 import pytest
 
-from agent_search.agent.tools.doc_indri import IndriFetchWorkspace, IndriVisitWorkspace
-from agent_search.agent.tools.doc_research import BqlVisitWorkspace, DocSearchFetch
+from agent_search.legacy.workspaces.doc_indri import IndriFetchWorkspace, IndriVisitWorkspace
+from agent_search.legacy.workspaces.sieve import BqlVisitWorkspace, DocSearchFetch
 from agent_search.corpus.units import CodeUnit
 from agent_search.retrievers.bql.executor import StructuralExecutor
 from agent_search.retrievers.indri.model import IndriExecutor

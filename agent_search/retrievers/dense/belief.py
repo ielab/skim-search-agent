@@ -1,8 +1,9 @@
-"""DenseBelief: the dense engine every agent arm shares.
+"""DenseBelief: the dense engine shared by every strategy that blends in dense scoring.
 
 One `DenseRetriever` (the run's `dense_model`, any family) wrapped for two uses: `top_k_doc_ids`
-for nearest-neighbour candidates (the dense search arms, Sieve's dense fusion and its fallback,
-the hybrid baselines) and `score` for a cosine similarity per document (Indri's dense belief).
+for nearest-neighbour candidates (the dense search strategies, Sieve's dense fusion and its
+fallback, the hybrid baselines) and `score` for a cosine similarity per document (Indri's dense
+belief).
 The query goes through the episode's history context first (`agent_search.training.history.current_query_for`),
 so a history-conditioned retriever sees the query it was trained on. The embeddings come from
 the same persisted cache the `dense` retriever builds; nothing is encoded during a run.

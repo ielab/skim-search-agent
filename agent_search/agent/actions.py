@@ -1,13 +1,13 @@
 """Tool-call parsing for the agent loop.
 
-Each turn the agent emits a Tongyi-style tool call —
-``<tool_call>{"name": ..., "arguments": {...}}</tool_call>`` — or a bare JSON object
-(common with non-Tongyi models). ``parse_tool_call`` extracts the LAST one as
-(name, arguments); the loop dispatches it to the workspace, and ``submit`` / an
+Each turn the agent emits a Tongyi-style tool call,
+``<tool_call>{"name": ..., "arguments": {...}}</tool_call>``, or a bare JSON object
+(common with non-Tongyi models). ``parse_tool_call`` extracts the last one as
+(name, arguments); the loop dispatches it to the tool box, and ``submit`` or an
 ``<answer>`` ends the episode.
 
 The model frequently truncates a call (generation cut off, or a dropped brace)
-so the JSON is near-valid but not quite — most commonly a single missing closing
+so the JSON is near-valid but not quite: most commonly a single missing closing
 ``}``. ``_repair_load`` recovers these: it closes brackets/strings left open and
 strips dangling trailing commas, then re-validates with ``json.loads`` so garbage
 (e.g. a `<think>` block that just narrates a call in prose) is never accepted.
@@ -22,9 +22,9 @@ _CALL_START = re.compile(r'\{\s*"name"\s*:', re.IGNORECASE)
 
 
 def _last_json_object(s: str) -> str | None:
-    """The LAST balanced {...} object in s, string-literal-aware (braces inside a
+    """The last balanced {...} object in s, string-literal-aware (braces inside a
     JSON string value are not structural). Scans forward, keeping the last top-level
-    object — so a <think>-quoted call doesn't win over the real trailing call, and a
+    object, so a <think>-quoted call does not win over the real trailing call, and a
     value like {"query": "calls(x) }"} parses correctly."""
     best = None
     i, n = 0, len(s)
@@ -125,10 +125,10 @@ def _repair_candidate(text: str) -> str | None:
 
 
 def parse_tool_call(text: str | None) -> tuple[str, dict] | None:
-    """Extract the LAST tool call from a generation as (name, arguments). Prefers
+    """Extract the last tool call from a generation as (name, arguments). Prefers
     <tool_call> blocks (official Tongyi shape); falls back to the last balanced JSON
     object (a bare call without the wrapper). Returns None when there is no
-    parseable call — a <think> block that merely quotes a call does not count,
+    parseable call: a <think> block that merely quotes a call does not count,
     because the real call is always the last balanced object."""
     if not text:
         return None
@@ -136,7 +136,7 @@ def parse_tool_call(text: str | None) -> tuple[str, dict] | None:
     raw = blocks[-1] if blocks else (_last_json_object(text) if '"name"' in text else None)
     if not raw:
         # Nothing balanced anywhere (e.g. generation was cut off before a closing
-        # brace AND before a closing </tool_call>) -> last-resort repair on the
+        # brace and before a closing </tool_call>) -> last-resort repair on the
         # trailing, unbalanced call-shaped span.
         raw = _repair_candidate(text)
         data = _repair_load(raw) if raw else None

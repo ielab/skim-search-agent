@@ -1,26 +1,29 @@
-"""The deep-research DCI baseline ACI: `bash` (grep/rg/ls/etc) + `read` (a file line-range).
+"""The pre-0.3 deep-research DCI baseline: `bash` (grep/rg/ls/etc) plus `read` (a file line-range).
 
-DCI — Direct Corpus Interaction (`chen2026dci`; RISE's brute-force reference arm, ported from
-an internal prototype, not part of this release) gives the agent
-NO retriever at all: a flat file tree (`agent_search.corpus.flat_export`) and two shell-shaped
-tools. The agent must grep for candidate files itself, then read line-ranges, then `<answer>` —
-this is the "accurate but token-EXPENSIVE" reference the structured (`research`) and
-retrieve-then-visit (`research_bm25`) arms are read against on cost, not just accuracy (RISE's
-own headline: comparable accuracy to a trained structured agent at a fraction of its cost).
+Kept so the parity tests can compare against it. The current equivalent is the `dci` strategy
+in `agent_search/strategies/dci.py`, using the `bash` and `read` tools.
 
-Two tools, uncoached (no manual — a shell needs no teaching):
+DCI, Direct Corpus Interaction (`chen2026dci`, RISE's brute-force reference arm), gives the
+agent no retriever at all: a flat file tree (`agent_search.corpus.flat_export`) and two
+shell-shaped tools. The agent must grep for candidate files itself, then read line-ranges,
+then `<answer>`. This is the accurate but token-expensive reference the structured
+(`research`) and retrieve-then-visit (`research_bm25`) arms are read against on cost, not just
+accuracy (RISE's own headline: comparable accuracy to a trained structured agent at a
+fraction of its cost).
+
+Two tools, uncoached (no manual: a shell needs no teaching):
   bash(command)             : run a bash command (grep/rg/ls/find/wc/...) with cwd = the
                               export dir; output combines stdout+stderr, TAIL-truncated to
                               ~2000 lines / ~12000 whitespace tokens (RISE's `truncateTail`
                               default, adapted to SkimSearchAgent's one-token-ruler-for-every-cap
-                              convention — see agent_search.core.tokens).
+                              convention; see agent_search.core.tokens).
   read(path, offset, limit) : read a 1-indexed line-range of one exported file (default
                               limit 2000 lines); paths are resolved relative to the export
                               dir and may not escape it.
 
-`seen` accumulates every doc_id the episode surfaced — a file `read` directly, or any
+`seen` accumulates every doc_id the episode surfaced: a file `read` directly, or any
 ``<doc_id>.txt`` filename that appears in a bash command or its output (a `grep -l` /
-`rg -l` hit) — for the same gold-doc-coverage metric the other doc arms report.
+`rg -l` hit), for the same gold-doc-coverage metric the other doc arms report.
 """
 from __future__ import annotations
 
@@ -30,7 +33,7 @@ import subprocess
 from pathlib import Path
 from typing import Optional, Sequence
 
-from agent_search.legacy.workspaces.doc_research import _SeenMixin
+from agent_search.legacy.workspaces.common import _SeenMixin
 from agent_search.core.seen import OrderedSeen
 from agent_search.core.tokens import cap_tokens, count_ws_tokens
 from agent_search.corpus.flat_export import export_flat_corpus

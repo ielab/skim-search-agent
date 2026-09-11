@@ -1,12 +1,12 @@
-"""Seed + temperature threading and multi-seed runs (offline, stub policy — no GPU).
+"""Seed and temperature threading and multi-seed runs (offline, stub policy, no GPU).
 
 (a) seed/temperature are first-class on RetrieverConfig + AgentArgs and reach the
     retriever-registry builder (the factory) untouched.
-(b) a multi-seed run writes a SEPARATE seed=<N> run dir (each with results.json),
-    while a deterministic floor runs ONCE with no seed segment.
+(b) a multi-seed run writes a separate seed=<N> run dir (each with results.json),
+    while a deterministic floor runs once with no seed segment.
 
-The stub (KeywordPolicy) ignores the sampling params — that's fine: we only assert
-they THREAD THROUGH (the params matter once a real LLM backend is wired in).
+The stub (KeywordPolicy) ignores the sampling params; that's fine, since these tests only
+assert the params thread through (they matter once a real LLM backend is wired in).
 """
 import json
 import os

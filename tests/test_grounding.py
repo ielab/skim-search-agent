@@ -1,5 +1,5 @@
 """The corpus-grounding helper that turns a silent empty search into a 'did you mean'."""
-from agent_search.agent.tools.grounding import format_did_you_mean, nearest_tokens
+from agent_search.corpus.grounding import format_did_you_mean, nearest_tokens
 
 
 def test_nearest_tokens_prefix_and_typo():

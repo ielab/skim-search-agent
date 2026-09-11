@@ -164,14 +164,15 @@ class RunConfig:
 
 
 def results_dir_for(config: RunConfig) -> str:
-    """NESTED run-directory convention: <runs_dir>/<kind>/<dataset>/<model>/<retriever>.
-    Everything else (level, k, max_steps, seed, corpus_limit, git rev, …) is recorded in
-    that dir's config.json — NOT flattened into a long folder name. `summarize_runs` reads
-    those from config.json, so the path stays short and browsable.
+    """The run-directory convention: <runs_dir>/<kind>/<dataset>/<model>/<retriever>.
+    Everything else (level, k, max_steps, seed, corpus_limit, git rev, ...) is recorded in
+    that directory's config.json instead of being flattened into a long folder name.
+    `summarize_runs` reads those from config.json, so the path stays short and browsable.
 
-    NOTE: since steps/seed no longer live in the path, a MAX_STEPS or multi-seed *ablation*
-    would land in the SAME dir as the main run — run those into a separate `runs_dir=` so
-    they don't overwrite (the main sweep uses one fixed steps/seed, so this is a non-issue)."""
+    Note: since steps and seed do not appear in the path, a max_steps or multi-seed ablation
+    lands in the same directory as the main run. Point those at a separate `runs_dir=` so
+    they do not overwrite it (the main sweep uses one fixed steps/seed value, so this rarely
+    comes up)."""
     config = config.resolved()
     if config.output.results_dir:
         return config.output.results_dir

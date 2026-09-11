@@ -3,7 +3,7 @@
 `evaluate` is the core loop (sequential or thread-pooled), resumable via
 rows.jsonl. `_aggregate` turns scored rows into mean metrics. `run_config`
 is the structured-config entry point that resolves a `RunConfig`, checks run
-identity, and calls `evaluate` — the programmatic equivalent of the CLI.
+identity, and calls `evaluate`, the programmatic equivalent of the CLI.
 """
 from __future__ import annotations
 
@@ -54,15 +54,15 @@ _META_KEYS = ("instance_id", "n_gold", "n_retrieved", "skipped",
 
 
 # Index-reuse is a perf hint: build a corpus's index once and reuse it across queries.
-# Worthwhile for (a) ANY retriever over a SHARED corpus (one corpus, many queries) and
+# Worthwhile for (a) any retriever over a shared corpus (one corpus, many queries) and
 # (b) persistent-index code retrievers that may hit the same repo@commit. (a) is
 # general (no name check); (b) is a small declared allowlist a new persistent retriever
-# can join — not a correctness gate, just a speedup, so a new method still works without it.
+# can join, not a correctness gate, just a speedup, so a new method still works without it.
 _REUSABLE_INDEX_RETRIEVERS = {"bm25_local", "bm25_pyserini"}
 
 
 def _should_reuse_index(retriever_name: str, instances: Sequence) -> bool:
-    # Reuse one indexed retriever across queries when EITHER reason holds:
+    # Reuse one indexed retriever across queries when either reason holds:
     shared_corpus = bool(instances) and instances[0].docs is not None   # (a) one corpus, many queries
     persistent_floor = retriever_name in _REUSABLE_INDEX_RETRIEVERS      # (b) a repo@commit-keyed floor
     return shared_corpus or persistent_floor
@@ -72,11 +72,12 @@ def _aggregate(scored: list) -> dict:
     if not scored:
         return {}
     n = len(scored)
-    # UNION of numeric metric keys across ALL rows (not just scored[0], and not requiring a key be
-    # in EVERY row). This is load-bearing for fix_file_ok, which exists only on rows that COMMITTED a
-    # fix — the old all-rows filter silently dropped it, so code runs reported no accuracy. Each key
-    # is averaged over the rows that HAVE it: for all-rows metrics that's unchanged; for fix_file_ok
-    # it's the conditional (when-committed) accuracy. Pair it with `timeout_rate` to read the overall.
+    # Union of numeric metric keys across all rows (not just scored[0], and not requiring a key
+    # be in every row). This matters for fix_file_ok, which exists only on rows that committed
+    # a fix: requiring the key in every row would drop it and make code runs report no accuracy.
+    # Each key is averaged over the rows that have it: for all-rows metrics that's unchanged;
+    # for fix_file_ok it's the conditional (when-committed) accuracy. Pair it with `timeout_rate`
+    # to read the overall.
     keys: set = set()
     for r in scored:
         keys.update(k for k, v in r.items()
@@ -87,7 +88,7 @@ def _aggregate(scored: list) -> dict:
         if vals:
             agg[k] = sum(vals) / len(vals)
     # non-termination rate: the fraction whose episode was ended by a budget rather than by the
-    # agent — the loop driver's step cap ("max_steps") or proactive context stop ("ctx_budget"),
+    # agent: the loop driver's step cap ("max_steps") or proactive context stop ("ctx_budget"),
     # or the SDK driver's turn cap ("max_turns"). How to read a budget-diluted EM/fix_ok.
     agg["timeout_rate"] = sum(1 for r in scored if r.get("stopped") in _BUDGET_STOPS) / n
     return agg
@@ -117,8 +118,8 @@ def _load_rows(rows_path: str) -> tuple[list, set]:
 
 
 def _pending_instances(instances: Sequence[Instance], results_dir: str | None) -> list:
-    """Instances NOT yet recorded in results_dir/rows.jsonl (scored or skipped).
-    Used to short-circuit finished runs BEFORE building backends / starting servers."""
+    """Instances not yet recorded in results_dir/rows.jsonl (scored or skipped).
+    Used to short-circuit finished runs before building backends / starting servers."""
     if not results_dir:
         return list(instances)
     _, done = _load_rows(os.path.join(results_dir, "rows.jsonl"))
@@ -133,9 +134,9 @@ def evaluate(instances: Sequence[Instance], retriever_factory: RetrieverFactory,
     """Run retrieval + metrics over instances. Incremental + resumable when
     `results_dir` is set: each finished instance is appended to rows.jsonl and
     skipped on re-runs; deterministic skips (no_units/no_gold) are cached, transient
-    errors are NOT (so they retry next run). Aggregate is written to results.json.
+    errors are not (so they retry next run). Aggregate is written to results.json.
 
-    `workers > 1` scores instances concurrently (thread pool) — the efficient pattern
+    `workers > 1` scores instances concurrently (thread pool), the efficient pattern
     for the LLM agent against a vLLM server (`--backend api`): concurrent episodes let
     vLLM continuous-batch the per-turn requests. For bm25_pyserini, pre-build indexes
     first (`build_indexes`) so threads don't race on the same index dir.
@@ -190,7 +191,7 @@ def evaluate(instances: Sequence[Instance], retriever_factory: RetrieverFactory,
                                          reuse_indexed_retriever), None
         except SetupError:
             raise                                  # a missing index/cache: abort the whole run
-        except Exception as e:  # noqa: BLE001 — long runs must survive one bad instance
+        except Exception as e:  # noqa: BLE001 - long runs must survive one bad instance
             return inst, None, e
 
     try:
@@ -221,9 +222,9 @@ def evaluate(instances: Sequence[Instance], retriever_factory: RetrieverFactory,
         "rows": rows,
     }
     if results_dir:
-        # results.json is the SUMMARY only. The per-instance rows live in rows.jsonl (the
-        # durable, resumable record); embedding a second copy here made results.json as large
-        # as the multi-GB rows file for whole-document conditions.
+        # results.json is the summary only. The per-instance rows live in rows.jsonl (the
+        # durable, resumable record); embedding a second copy here would make results.json as
+        # large as the multi-GB rows file for whole-document conditions.
         summary = {k: v for k, v in result.items() if k != "rows"}
         summary["rows_file"] = "rows.jsonl"
         tmp = os.path.join(results_dir, f"results.json.tmp.{os.getpid()}")
@@ -240,11 +241,11 @@ def make_factory_from_config(config: RunConfig) -> RetrieverFactory:
 
 
 def run_config(config: RunConfig, progress: bool = False) -> dict:
-    """Run evaluation from a structured config object — the minimal programmatic
+    """Run evaluation from a structured config object, the minimal programmatic
     entry point. It resolves the config, builds the factory, and calls ``evaluate``.
-    The CLI ``main()`` below shares that same ``evaluate`` core but ADDS the run-dir
-    layout, ``--check-complete`` short-circuit, the "already complete" re-report, and
-    pending-instance skipping; this function deliberately has none of that.
+    ``agent_search.evaluation.run_eval.main()`` shares that same ``evaluate`` core but adds
+    the run-dir layout, ``--check-complete`` short-circuit, the "already complete" re-report,
+    and pending-instance skipping; this function deliberately has none of that.
 
     This is the public Python equivalent of ``python -m agent_search.evaluation.run_eval``.
     """

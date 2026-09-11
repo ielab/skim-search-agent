@@ -2,7 +2,7 @@
 
 There is no character cap anywhere in the prompt assembly: whole (assistant, observation)
 pairs are kept newest-first while their token cost fits the budget, older pairs are dropped,
-and only a single observation that alone overflows the whole budget is cut — by tokens.
+and only a single observation that alone overflows the whole budget is cut, by tokens.
 Budgets in these tests are derived from the library's own ruler (`count_tokens`) so they hold
 whether tiktoken is installed (o200k_base) or the whitespace fallback is in use."""
 import pytest
@@ -10,7 +10,7 @@ import pytest
 from agent_search.agent.loop import Step, Task
 from agent_search.agent.policies import AgentPolicy, default_ctx_tokens
 from agent_search.core.tokens import count_tokens
-from agent_search.prompts import get_prompt_spec
+from agent_search.legacy.prompts import get_prompt_spec
 
 PROMPT_PATH = get_prompt_spec("research_snip").path
 

@@ -13,7 +13,7 @@ scripted policy runs. Every other ``key=value`` is forwarded to
 
 Environment knobs (``snippet_tokens=64``, ``max_visit_tokens=12000``, ``structured_backend=lucene``,
 ...; the full list is ``ENV_KNOBS`` / docs/CONFIGURATION.md) are exported as environment
-variables BEFORE the harness is imported, so a sweep is written like any other argument and every
+variables before the harness is imported, so a sweep is written like any other argument and every
 knob lands in the run's ``config.json``.
 """
 from __future__ import annotations
@@ -27,7 +27,7 @@ from agent_search.strategies.names import DEFAULT_STRATEGY, STRATEGIES, resolve_
 # time, so they cannot be run_eval flags; they are exported here before the harness loads and
 # recorded by run_eval in config.json (`env_knobs`).
 ENV_KNOBS = (
-    # length budgets — TOKENS only
+    # length budgets, tokens only
     "snippet_tokens", "max_visit_tokens", "max_section_tokens",
     "bash_max_tokens", "read_max_line_tokens", "grep_line_tokens",
     "agent_ctx_tokens", "agent_ctx_window", "agent_ctx_stop_frac",
@@ -133,7 +133,7 @@ def build_run_eval_argv(kv: dict[str, str]) -> tuple[list[str], dict[str, str]]:
 
 
 def _run_invocation(args: list[str], env: dict[str, str]) -> int:
-    # export env knobs BEFORE the harness is imported: several tool modules resolve them at
+    # export env knobs before the harness is imported: several tool modules resolve them at
     # import, so setting them afterwards would silently have no effect.
     for k, v in env.items():
         os.environ[k] = v

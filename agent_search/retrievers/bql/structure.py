@@ -3,7 +3,7 @@
 `IN(region, x)` is the operator that distinguishes SkimSearchAgent from plain grep: it
 restricts a match to a *structural region* (a definition, a call site, a comment, a
 string literal, a signature). This module extracts, per unit, the identifier tokens
-that occur in each region — so `IN(call, foo)` matches only where `foo` is CALLED,
+that occur in each region, so `IN(call, foo)` matches only where `foo` is called,
 not merely mentioned. Pure stdlib (`ast` + `tokenize`); the ast-grep backend is the
 faster cross-language equivalent.
 """
@@ -68,7 +68,7 @@ def region_token_bags(code: str) -> dict:
         tree = ast.parse(dedented)
     except SyntaxError:
         # dedent fails when the unit contains a multiline string with column-0
-        # content (common: docstrings/templates) — the def stays indented and
+        # content (common: docstrings/templates): the def stays indented and
         # ast.parse raises. Re-parse inside a synthetic class wrapper, which
         # accepts any consistent leading indent; skip the wrapper in the walk.
         wrapped = "class _BoolagentWrap_:\n" + (
@@ -79,10 +79,10 @@ def region_token_bags(code: str) -> dict:
             tree = None
 
     if tree is not None:
-        # Pre-collect nodes that live INSIDE an f-string so the generic branches
+        # Pre-collect nodes that live inside an f-string so the generic branches
         # below don't double-count them: _joinedstr_text already harvests an
-        # f-string's nested Constants AND its nested (format-spec) JoinedStr text,
-        # so only the OUTERMOST JoinedStr should be processed by the main walk.
+        # f-string's nested Constants and its nested (format-spec) JoinedStr text,
+        # so only the outermost JoinedStr should be processed by the main walk.
         fstring_const_ids: set = set()
         nested_joinedstr_ids: set = set()
         for n in ast.walk(tree):

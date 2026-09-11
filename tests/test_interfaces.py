@@ -21,7 +21,7 @@ def test_a_plain_callable_is_a_model():
 
 
 def test_builtin_backends_satisfy_model():
-    from agent_search.models.backends import openai_compat_generate
+    from agent_search.models import openai_compat_generate
 
     class _Client:
         class chat:

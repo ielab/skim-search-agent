@@ -1,10 +1,9 @@
-"""`grep`: real regex over the repository files (matching LINES), the code-fix GREP baseline.
+"""`grep`: real regex over the repository files, matching lines, used by the `codefix_grep` strategy.
 
-Ported from `agent_search.agent.tools.code_grep.RegexGrep` / `GrepReadWorkspace.grep`. The
-pattern is a real regular expression (alternation, classes, anchors, word boundaries;
+The pattern is a real regular expression (alternation, classes, anchors, word boundaries;
 case-insensitive like `rg -i`); an invalid regex degrades to a literal substring search
-(`grep -F`). Match order is per-unit match count, then corpus order (real grep enumerates). Pair
-with `agent_search.tools.read.tool.Read(source="repo")` to read the interesting file.
+(`grep -F`). Match order is per-unit match count, then corpus order (real grep enumerates).
+Paired with `agent_search.tools.read.tool.Read(source="repo")` to read the interesting file.
 """
 from __future__ import annotations
 
@@ -16,7 +15,7 @@ from agent_search.core.tokens import cap_tokens
 from agent_search.corpus.units import CodeUnit
 from agent_search.tools.base import Tool
 
-# per-line cap on a grep hit's shown text, in whitespace tokens (agent_search.core.tokens) —
+# per-line cap on a grep hit's shown text, in whitespace tokens (agent_search.core.tokens).
 # SkimSearchAgent caps text in tokens everywhere, never characters.
 GREP_LINE_TOKENS = int(os.environ.get("GREP_LINE_TOKENS", "24"))
 

@@ -131,7 +131,7 @@ AnalysisText:
 def make_llm_judge(generate: Callable[[list], str]) -> Labeller:
     """ITER's protocol: an LLM reads the agent's post-read reasoning and says RELEVANT or
     NOT_RELEVANT. ``generate`` is any `messages -> text` callable (see
-    `agent_search.models.backends.make_generate`)."""
+    `agent_search.models.make_generate`)."""
     def label(doc_id: str, reasoning: str, row: Mapping[str, Any]) -> bool:
         if not (reasoning or "").strip():
             return False

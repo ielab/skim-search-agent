@@ -1,32 +1,34 @@
-"""NEW, ADDITIVE-only BM25+DENSE HYBRID baseline: `research_hybrid` / `research_hybrid_fetch_snip`
-— the control that isolates the BQL method's contribution from the mere "sparse+dense fusion"
-effect. Neither `research_bm25` nor `research_dense` alone is the right control once a QL method
+"""The BM25+dense hybrid baseline: `research_hybrid` / `research_hybrid_fetch_snip`, the control
+that isolates the BQL method's contribution from the mere "sparse+dense fusion" effect. Neither
+`research_bm25` nor `research_dense` alone is the right control once a query-language method
 could just be reproducing textbook hybrid search: a real deployment would fuse a keyword ranking
-and a semantic ranking, so the honest baseline to beat is THAT fusion.
+and a semantic ranking, so the honest baseline to beat is that fusion.
 
-Retrieval is Reciprocal Rank Fusion (RRF, k=60 — the standard constant) over two independent
+Retrieval is Reciprocal Rank Fusion (RRF, k=60, the standard constant) over two independent
 top-`HYBRID_POOL` (100) pools: the pyserini/Lucene canonical BM25 ranking and the FAISS/dense
-ranking (SAME BAAI/bge-base-en-v1.5 embedder + persisted cache research_dense/research_dense_fetch
-use). `HybridVisit` (agent_search/agent/tools/doc_research.py) mirrors `Bm25Visit`'s
-retrieve-then-visit listing format byte-for-byte (only the ranking differs — `visit`/`_resolve`
-are INHERITED unchanged); `HybridFetchSnipWorkspace` is its fetch-mode twin, mirroring
-`Bm25FetchSnipWorkspace`'s structure-table-plus-excerpt listing, paired with the SAME structured
+ranking (same BAAI/bge-base-en-v1.5 embedder and persisted cache research_dense/research_dense_fetch
+use). `HybridVisit` (agent_search/legacy/workspaces/search_visit.py) mirrors `Bm25Visit`'s
+retrieve-then-visit listing format byte-for-byte (only the ranking differs; `visit`/`_resolve`
+are inherited unchanged); `HybridFetchSnipWorkspace` is its fetch-mode twin, mirroring
+`Bm25FetchSnipWorkspace`'s structure-table-plus-excerpt listing, paired with the same structured
 section-`fetch` read every method/fetch cell uses.
 
 CPU-only throughout: BM25 is a real (but tiny, in-memory) `BM25Local`; dense is a stub exposing
-ONLY `top_k_doc_ids(query, k)` (the same stub pattern test_dense_baseline.py uses for DenseVisit/
-DenseFetchWorkspace) — no torch/sentence-transformers import anywhere in this file."""
+only `top_k_doc_ids(query, k)` (the same stub pattern test_dense_baseline.py uses for DenseVisit/
+DenseFetchWorkspace); no torch/sentence-transformers import anywhere in this file."""
 from __future__ import annotations
 
 import math
 
 import pytest
 
-from agent_search.agent.tools.doc_research import (
-    Bm25FetchSnipWorkspace, Bm25FetchWorkspace, Bm25Visit, DocSearchFetch,
-    HybridFetchSnipWorkspace, HybridVisit, RRF_K, rrf_fuse)
+from agent_search.legacy.workspaces.search_fetch import Bm25FetchSnipWorkspace, Bm25FetchWorkspace, HybridFetchSnipWorkspace
+from agent_search.legacy.workspaces.search_visit import Bm25Visit, HybridVisit
+from agent_search.legacy.workspaces.sieve import DocSearchFetch
+from agent_search.legacy.workspaces.budgets import RRF_K
+from agent_search.legacy.workspaces.common import rrf_fuse
 from agent_search.corpus.units import units_from_documents
-from agent_search.prompts import load_condition, render_manuals
+from agent_search.legacy.prompts import load_condition, render_manuals
 from agent_search.retrievers.lexical.bm25 import BM25Local
 from agent_search.retrievers.registry import RetrieverConfig, build_factory
 
@@ -447,7 +449,7 @@ def test_existing_sibling_conditions_are_unaffected():
 
 
 # =============================================================================================
-# 5. Arm resolution via the retriever registry (agent_search.agent.retriever.AgentRetriever)
+# 5. Arm resolution via the retriever registry (agent_search.legacy.retriever.AgentRetriever)
 # =============================================================================================
 
 def test_research_hybrid_resolves_via_registry():

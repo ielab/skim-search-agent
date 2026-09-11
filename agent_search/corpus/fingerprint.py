@@ -2,15 +2,15 @@
 BQL structural index, pyserini's Lucene BM25 index, the lucene_structured fielded index).
 
 Every one of those caches already guards against a corpus-identity mismatch by comparing
-doc_id lists/counts (see e.g. `retrievers/dense/dense.py`'s `DenseRetriever.index` /
-`bql/executor.py`'s `attach_units` / `lexical/pyserini.py`'s `_is_built`) — but a doc_id
-count/order match says nothing about whether the underlying TEXT changed: editing a
+doc_id lists/counts (see e.g. `retrievers/dense/base.py`'s `DenseRetriever.index`,
+`bql/executor.py`'s `attach_units`, `lexical/pyserini.py`'s `_is_built`). A doc_id
+count/order match says nothing about whether the underlying text changed, though: editing a
 function's body, a document's title, or its section headings in place (same doc_id, same
-count, same order) would silently keep serving a stale cache with WRONG content. This
-module's `corpus_fingerprint` closes that gap: a single hex digest over exactly the fields
-each cache actually indexes, so "the corpus's content changed" becomes a cheap, deterministic
-check the same shape as the existing doc-id check, not a second O(N) re-derivation of what
-each backend already computes for its own artifact.
+count, same order) would silently keep serving a stale cache with different content.
+`corpus_fingerprint` closes that gap with a single hex digest over exactly the fields each
+cache actually indexes, so "the corpus's content changed" is a cheap, deterministic check the
+same shape as the existing doc-id check, not a second O(N) re-derivation of what each backend
+already computes for its own artifact.
 
 Deterministic and O(total text): one SHA-1 hasher fed incrementally, in unit order, so the
 whole corpus is never held as a single concatenated string in memory.
@@ -34,7 +34,7 @@ def corpus_fingerprint(units: Iterable) -> str:
     in the given order. Same corpus (same units, same order, same content) -> same
     fingerprint; anything else (a unit's text edited in place, units reordered, a unit
     added/removed/renamed) -> a different one. Callers compare this against a value
-    persisted at build time — a mismatch means "stale cache," exactly like the existing
+    persisted at build time: a mismatch means "stale cache," exactly like the existing
     doc-id/count checks each backend already performs."""
     h = hashlib.sha1()
     for u in units:

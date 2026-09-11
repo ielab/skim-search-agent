@@ -1,6 +1,6 @@
-"""The retriever registry + prompt auto-discovery — the extension points.
+"""The retriever registry and prompt auto-discovery: the extension points.
 
-These pin the contract that adding a method/condition needs NO harness edit: a
+These pin the contract that adding a method/condition needs no harness edit: a
 builder registered with @register becomes selectable, and a YAML prompt profile
 dropped on disk becomes resolvable, without touching evaluation/ or this registry.
 """
@@ -37,7 +37,7 @@ def test_build_baseline_factory_no_model():
 
 
 def test_build_dense_factory_does_not_load_encoder():
-    from agent_search.retrievers.dense.dense import DenseRetriever
+    from agent_search.retrievers.dense import DenseRetriever
     r = build_factory("dense")()
     assert isinstance(r, DenseRetriever) and r.name == "dense"
     assert r._model is None
@@ -159,7 +159,7 @@ def test_plugin_env_var_unknown_module_warns_but_does_not_crash_discovery(monkey
 # --- prompt auto-discovery ---------------------------------------------------
 
 def test_prompt_profiles_discovered_from_disk():
-    from agent_search.prompts import DOMAINS, get_prompt_spec
+    from agent_search.legacy.prompts import DOMAINS, get_prompt_spec
     assert {"general"} <= set(DOMAINS)
     for name in ("research_snip", "research_bm25", "research_dci"):
         spec = get_prompt_spec(name)
@@ -168,8 +168,8 @@ def test_prompt_profiles_discovered_from_disk():
 
 
 def test_every_discovered_profile_loads_and_renders():
-    from agent_search.prompts import load_prompt_profile
-    from agent_search.prompts.registry import PROMPTS
+    from agent_search.legacy.prompts import load_prompt_profile
+    from agent_search.legacy.prompts.registry import PROMPTS
     for domain_specs in PROMPTS.values():           # every domain, not just "code"
         for spec in domain_specs.values():
             prof = load_prompt_profile(spec.path)
@@ -177,6 +177,6 @@ def test_every_discovered_profile_loads_and_renders():
 
 
 def test_unknown_prompt_profile_raises():
-    from agent_search.prompts import get_prompt_spec
+    from agent_search.legacy.prompts import get_prompt_spec
     with pytest.raises(ValueError):
         get_prompt_spec("__nope__")

@@ -1,139 +1,124 @@
 """Offline forced-terminal-elicitation backfill for empty-`final_answer` browsecomp rows.
 
-WHY: `agent_search/agent/loop.py`'s
-`run_episode` reserves its LAST allowed turn to inject a "STEP BUDGET REACHED" nudge —
-a ONE-shot instruction to stop searching and commit an `<answer>` NOW. On long-episode
-browsecomp cells Tongyi ignores that nudge 60-78% of the time and keeps emitting tool
-calls instead; the episode then exhausts at `n_steps == max_steps+1` /
-`stopped == "max_steps"` with `final_answer == ""` (26-42% of rows in the affected
-cells). We are NOT allowed to touch the episode loop (mixed-provenance rule: the rows
-already collected must stay reproducible against the exact loop.py/policies.py that
-produced them). This script is instead a UNIFORM OFFLINE RECOVERY PASS, run entirely
-after the fact: for every already-terminated empty-answer row it replays the episode's
-terminal context to the model ONE more time and FORCES an answer out of it. Results
-land in a SIBLING file, `<condition_dir>/recovered_answers.jsonl` — `rows.jsonl` is
-only ever read, never written or mutated.
+Why: `agent_search/agent/loop.py`'s `run_episode` reserves its last allowed turn to inject a
+"STEP BUDGET REACHED" nudge, a one-shot instruction to stop searching and commit an `<answer>`
+now. On long-episode browsecomp cells Tongyi ignores that nudge 60-78% of the time and keeps
+emitting tool calls instead; the episode then exhausts at `n_steps == max_steps+1` /
+`stopped == "max_steps"` with `final_answer == ""` (26-42% of rows in the affected cells). The
+episode loop cannot be touched here: rows already collected must stay reproducible against the
+exact loop.py/policies.py that produced them. This script is instead a uniform offline recovery
+pass, run entirely after the fact: for every already-terminated empty-answer row it replays the
+episode's terminal context to the model one more time and forces an answer out of it. Results
+land in a sibling file, `<condition_dir>/recovered_answers.jsonl`; `rows.jsonl` is only ever
+read, never written or mutated.
 
-FORCING MECHANISM — ASSISTANT PREFILL, not ask-and-retry (design supersedes an
-earlier ask-and-retry draft of this module): asking the model to emit `<answer>` tags
-and retrying on refusal is exactly the failure mode we are recovering FROM (the model
-already ignored one such instruction inline, 60-78% of the time). Instead the PRIMARY
-mechanism is deterministic, single-call FORCED DECODING: after the reconstructed
-conversation + the "STEP BUDGET REACHED / tools disabled" instruction, we append an
-`assistant`-role message whose content is already the open tag `"<answer>"`, and ask
-vLLM's OpenAI-compatible `/v1/chat/completions` to CONTINUE that message rather than
-start a new turn. vLLM's `ChatCompletionRequest` (part of
-vLLM's OpenAI-compatible server, this repo's vLLM 0.22.1) exposes exactly this as two request fields —
-`continue_final_message: bool` ("the chat will be formatted so that the final message
-... is open-ended ... allows you to 'prefill' part of the model's response") and
-`add_generation_prompt: bool`, which the same protocol's validator requires be `False`
-whenever `continue_final_message` is `True` (the two are mutually exclusive). Neither
-field is part of the OpenAI SDK's typed `chat.completions.create` signature, so they
-are passed via `extra_body={"add_generation_prompt": False, "continue_final_message":
-True}`, which the `openai` Python client merges verbatim into the JSON payload — this
-is the chat-completions route (not `/v1/completions` with a manually-applied chat
-template — the chat route is simpler here and vLLM's own field support makes the
-manual-template route unnecessary). Generation is capped at a small `max_tokens`
-(the model only needs to emit the short answer span) and stopped at `"</answer>"` (a
-normal `stop` sequence, excluded from the returned text by vLLM's default
-`include_stop_str_in_output=False`) — so the raw continuation IS the answer span,
-already tag-free, by construction; there is no tag to fail to emit. This is
-deterministic and single-call: the model cannot "ignore" the instruction and keep
-tool-calling, because there is no token position left at which a tool call could
-start — it is mid-way through an already-open `<answer>` string.
+Forcing mechanism: assistant prefill, not ask-and-retry. Asking the model to emit `<answer>`
+tags and retrying on refusal is exactly the failure mode being recovered from (the model already
+ignored one such instruction inline, 60-78% of the time). Instead the primary mechanism is
+deterministic, single-call forced decoding: after the reconstructed conversation plus the "STEP
+BUDGET REACHED / tools disabled" instruction, an `assistant`-role message is appended whose
+content is already the open tag `"<answer>"`, and vLLM's OpenAI-compatible
+`/v1/chat/completions` is asked to continue that message rather than start a new turn. vLLM's
+`ChatCompletionRequest` (this repo's vLLM 0.22.1) exposes exactly this as two request fields:
+`continue_final_message: bool` ("the chat will be formatted so that the final message ... is
+open-ended ... allows you to 'prefill' part of the model's response") and
+`add_generation_prompt: bool`, which the same protocol's validator requires be `False` whenever
+`continue_final_message` is `True` (the two are mutually exclusive). Neither field is part of
+the OpenAI SDK's typed `chat.completions.create` signature, so they are passed via
+`extra_body={"add_generation_prompt": False, "continue_final_message": True}`, which the
+`openai` Python client merges verbatim into the JSON payload. This uses the chat-completions
+route rather than `/v1/completions` with a manually applied chat template, since the chat route
+is simpler here and vLLM's own field support makes the manual-template route unnecessary.
+Generation is capped at a small `max_tokens` (the model only needs to emit the short answer
+span) and stopped at `"</answer>"` (a normal `stop` sequence, excluded from the returned text by
+vLLM's default `include_stop_str_in_output=False`), so the raw continuation is the answer span,
+already tag-free, by construction; there is no tag to fail to emit. This is deterministic and
+single-call: the model cannot ignore the instruction and keep tool-calling, because there is no
+token position left at which a tool call could start; it is mid-way through an already-open
+`<answer>` string.
 
-FALLBACK (kept minimal, per the design brief): if the forced continuation still comes
-back empty/whitespace (a genuinely blank completion, which forced decoding cannot
-prevent), we make exactly ONE plain (non-prefilled) follow-up call over the same
-reconstructed conversation, asking the model to emit its own `<answer>...</answer>`,
-extracted with the rfind-last extractor (see EXTRACTION below). No further retries.
+Fallback, kept minimal: if the forced continuation still comes back empty or whitespace (a
+genuinely blank completion, which forced decoding cannot prevent), the script makes exactly one
+plain, non-prefilled follow-up call over the same reconstructed conversation, asking the model
+to emit its own `<answer>...</answer>`, extracted with the rfind-last extractor described under
+Extraction below. No further retries.
 
-PROMPT RECONSTRUCTION — design choice (task spec allows the "acceptable
-simplification": system + question + a compacted transcript, documented here):
+Prompt reconstruction (the task spec's "acceptable simplification": system + question + a
+compacted transcript, documented here):
 
-  `rows.jsonl`'s `trajectory[i]["observation"]` was DISPLAY-CAPPED to 600 chars (rows written before 2026-09) by
-  `agent_search/agent/retriever.py::_trajectory_meta` — never usable for a faithful
-  replay. The FULL, uncapped observation for step `i` lives in the row's top-level
-  `observations[i]` (same order, same length; see `_trajectory_meta`), which is what
-  we use instead. `trajectory[i]["raw_output"]` is already the FULL raw model
+  `rows.jsonl`'s `trajectory[i]["observation"]` was display-capped to 600 chars for rows written
+  before 2026-09 by `agent_search/legacy/retriever.py::_trajectory_meta`, so it is not usable
+  for a faithful replay. The full, uncapped observation for step `i` lives in the row's
+  top-level `observations[i]` (same order, same length; see `_trajectory_meta`), and that is
+  what this script uses instead. `trajectory[i]["raw_output"]` is already the full raw model
   generation for that step (not capped).
 
-  Rather than hand-rolling the history-window/truncation logic, we import and reuse
-  `agent_search.agent.policies.AgentPolicy.build_messages` directly: we rebuild the
-  row's `trajectory`/`observations` into real `agent_search.agent.loop.Step` objects
-  and a real `Task(query=row["question"])`, construct an `AgentPolicy` with the SAME
-  `prompt_path` (`row["prompt_profile_path"]`, the condition name, e.g.
-  `"research_indri"` — carried verbatim in every row) and the SAME `field_profile`
-  (derived from the dataset name found in the condition-dir path via
-  `agent_search.evaluation.datasets.dataset_field_profile`, since the row itself does not carry
-  the profile — see `_infer_field_profile`), then call `.build_messages(task, steps)`.
-  This is the EXACT code path that built the system prompt + newest-first,
-  whole-(assistant,tool_response)-pair, char-budget-windowed history the model
-  actually saw during the live episode — so the replayed prompt matches the real
-  loop/policies wiring by construction, not by a parallel reimplementation that could
+  Rather than hand-rolling the history-window/truncation logic, this script imports and reuses
+  `agent_search.agent.policies.AgentPolicy.build_messages` directly: it rebuilds the row's
+  `trajectory`/`observations` into real `agent_search.agent.loop.Step` objects and a real
+  `Task(query=row["question"])`, constructs an `AgentPolicy` with the same `prompt_path`
+  (`row["prompt_profile_path"]`, the condition name, e.g. `"research_indri"`, carried verbatim
+  in every row) and the same `field_profile` (derived from the dataset name found in the
+  condition-dir path via `agent_search.evaluation.datasets.dataset_field_profile`, since the row
+  itself does not carry the profile; see `_infer_field_profile`), then calls
+  `.build_messages(task, steps)`. This is the exact code path that built the system prompt plus
+  the newest-first, whole-(assistant,tool_response)-pair, token-budget-windowed history the
+  model actually saw during the live episode, so the replayed prompt matches the real
+  loop/policies wiring by construction rather than by a parallel reimplementation that could
   drift from it.
 
-  CONTEXT CAP: `AgentPolicy`'s own default `ctx_tokens=450_000` (~128k tokens by its
-  own token ruler, see `policies.py`) is already close to the ~120k-token
-  cap this task asks for. We pass a slightly tighter `ctx_tokens=110_000`
-  (110_000 model tokens on the SAME ruler `AgentPolicy` uses, applied explicitly
-  here so the cap is visible and tunable via `--ctx-tokens` rather than silently
-  inherited) — same whole-pair-drop-oldest-first algorithm, just a dedicated budget
-  for recovery reconstruction. We do NOT attempt to recover the byte-exact window the
-  live episode held at an EARLIER step; we want the window as of the point the episode
-  actually ended, which this walk (over the row's FULL stored trajectory) reconstructs
-  correctly by definition.
+  Context cap: `AgentPolicy`'s own default `ctx_tokens=450_000` (about 128k tokens by its own
+  token ruler; see `policies.py`) is already close to the ~120k-token cap this task asks for.
+  This script passes a slightly tighter `ctx_tokens=110_000` (110,000 model tokens on the same
+  ruler `AgentPolicy` uses, applied explicitly here so the cap is visible and tunable via
+  `--ctx-tokens` rather than silently inherited), with the same whole-pair-drop-oldest-first
+  algorithm, as a dedicated budget for recovery reconstruction. This does not try to recover the
+  byte-exact window the live episode held at an earlier step; it wants the window as of the
+  point the episode actually ended, which this walk (over the row's full stored trajectory)
+  reconstructs correctly by definition.
 
-  We do not reconstruct/replay the mid-episode "budget" nudge specially — it is
-  already one of the trajectory's real steps (`action == "budget"`, an empty
-  `raw_output` paired with the injected nudge observation, exactly as the live loop
-  produced it) and is carried through like any other step. What we APPEND after the
-  full reconstructed transcript is a NEW user turn (the "STEP BUDGET REACHED / tools
-  DISABLED" instruction, mirroring the semantics of that inline nudge) followed by the
-  forced-prefill assistant turn described above.
+  The mid-episode "budget" nudge is not reconstructed or replayed specially: it is already one
+  of the trajectory's real steps (`action == "budget"`, an empty `raw_output` paired with the
+  injected nudge observation, exactly as the live loop produced it) and is carried through like
+  any other step. What is appended after the full reconstructed transcript is a new user turn
+  (the "STEP BUDGET REACHED / tools disabled" instruction, mirroring the semantics of that
+  inline nudge) followed by the forced-prefill assistant turn described above.
 
-EXTRACTION: the prefill continuation IS the answer span by construction (see above);
-for the (rare) plain-ask fallback we reuse `agent_search.agent.loop._extract_answer`
-(rfind-LAST `<answer>` open tag, so a model that names the tag in prose before the
-real one still extracts correctly — see that function's own docstring for the
-~37%-mis-extraction bug it fixes). We do not reimplement this.
+Extraction: the prefill continuation is the answer span by construction (see above); for the
+rare plain-ask fallback the script reuses `agent_search.agent.loop._extract_answer` (rfind-last
+`<answer>` open tag, so a model that names the tag in prose before the real one still extracts
+correctly; see that function's own docstring for the ~37% mis-extraction case it fixes). This
+logic is not reimplemented here.
 
-OUTPUT: `<condition_dir>/recovered_answers.jsonl`, one record per recovered row:
-`{instance_id, recovered_answer, n_attempts, raw_continuation, recovered_at_iso,
-method}`, `method == "forced_terminal_prefill_v1"`, `n_attempts` 1 (prefill
-succeeded) or 2 (prefill was empty, fallback plain-ask used), `raw_continuation` the
-raw text of whichever call produced `recovered_answer` (for audit). Idempotent (skips
-instance_ids already GENUINELY recovered in that file — an entry whose
-`recovered_answer` is itself empty/placeholder is kept for audit but does not count
-as coverage, so the row is re-attempted next pass and never overlaid downstream) and
-append-only (one record flushed per row, so a killed job loses at most the in-flight
-row). `rows.jsonl` parsing tolerates
-a live-appended file (unparsable trailing line -> skipped, mirrors
-`agent_search.evaluation.run_eval._load_rows`).
+Output: `<condition_dir>/recovered_answers.jsonl`, one record per recovered row:
+`{instance_id, recovered_answer, n_attempts, raw_continuation, recovered_at_iso, method}`, with
+`method == "forced_terminal_prefill_v1"` and `n_attempts` 1 (prefill succeeded) or 2 (prefill
+was empty, fallback plain-ask used); `raw_continuation` is the raw text of whichever call
+produced `recovered_answer`, for audit. This is idempotent: it skips instance_ids already
+genuinely recovered in that file, and an entry whose `recovered_answer` is itself empty or a
+placeholder is kept for audit but does not count as coverage, so the row is re-attempted next
+pass and never overlaid downstream. It is append-only, one record flushed per row, so a killed
+job loses at most the in-flight row. `rows.jsonl` parsing tolerates a live-appended file (an
+unparsable trailing line is skipped, matching `agent_search.evaluation.run_eval._load_rows`).
 
-PER-ROW RESILIENCE (added after job 28673993 crashed): a "maximum context length"
-error (the measurement ruler can overshoot the serving model's true tokenizer on
-token-dense rows) retries THAT ROW with the reconstructed window shrunk 15% at a
-time, up to 3 shrinks — the same loop `AgentPolicy.propose()` uses live
-(`agent_search/agent/policies.py`); a row that still overflows is SKIPPED with a log
-line (no sidecar record, so a later pass with a bigger window can retry it). Any
-other per-row exception is logged + counted and the pass CONTINUES; the exit code is
-nonzero only when >20% of processed rows failed (systemic breakage), never for
-isolated rows.
+Per-row resilience: a "maximum context length" error (the measurement ruler can overshoot the
+serving model's true tokenizer on token-dense rows) retries that row with the reconstructed
+window shrunk 15% at a time, up to 3 shrinks, the same logic `AgentPolicy.propose()` uses live
+(`agent_search/agent/policies.py`); a row that still overflows is skipped with a log line (no
+sidecar record, so a later pass with a bigger window can retry it). Any other per-row exception
+is logged, counted, and the pass continues; the exit code is nonzero only when more than 20% of
+processed rows failed, never for isolated rows.
 
-INTEGRATION: `load_rows_with_recovery(cond_dir)` overlays `recovered_answers.jsonl`
-onto `rows.jsonl` for downstream scoring — `scripts/compare_cells.py` applies this
-overlay by default via `cell_rows`; it never mutates `rows.jsonl` on disk.
+Integration: `load_rows_with_recovery(cond_dir)` overlays `recovered_answers.jsonl` onto
+`rows.jsonl` for downstream scoring; `scripts/compare_cells.py` applies this overlay by default
+via `cell_rows`. It never mutates `rows.jsonl` on disk.
 
-WHAT COUNTS AS "NEEDS RECOVERY" (`needs_recovery`, single source of truth): a truly
-empty/whitespace-only `final_answer`, OR one of the placeholder strings the model
-sometimes emits when it gives up instead of a genuine answer (`"..."`, `"."`, `".."`).
-Row SELECTION (`empty_answer_rows`), the overlay's coverage check
-(`load_rows_with_recovery`), and `scripts/compare_cells.py`'s `empty` metric all import
-this ONE function so selection and reporting can never disagree. (Fixed bug: this
-script used to select on empty-only while `compare_cells.py` counted placeholders as
-empty too, so placeholder rows in some cells — up to ~9% in indri+dense visit — were
-silently never backfilled while the baseline's true-empty rows were recovered.)
+What counts as needing recovery (`needs_recovery`, the single source of truth): a truly empty or
+whitespace-only `final_answer`, or one of the placeholder strings the model sometimes emits when
+it gives up instead of a genuine answer (`"..."`, `"."`, `".."`). Row selection
+(`empty_answer_rows`), the overlay's coverage check (`load_rows_with_recovery`), and
+`scripts/compare_cells.py`'s `empty` metric all import this one function, so selection and
+reporting can never disagree.
 """
 from __future__ import annotations
 
@@ -155,7 +140,7 @@ from agent_search.core.tokens import count_tokens
 # shared with the LIVE inline elicitation in agent_search/agent/loop.py's terminal branch (see that
 # module's docstring for the "why a shared module" rationale + the loop/SDK-driver asymmetry). This
 # script re-exports the names below so existing imports (incl. this file's own tests) keep working
-# unchanged — no behavior change here, only the mechanism's HOME module moved.
+# unchanged, no behavior change here, only the mechanism's HOME module moved.
 from agent_search.agent.forced_answer import (
     DEFAULT_FALLBACK_MAX_TOKENS,
     DEFAULT_PREFILL_MAX_TOKENS,
@@ -196,7 +181,7 @@ def load_rows_tolerant(rows_path: str) -> list:
 
 def load_recovered_ids(cond_dir: str) -> set:
     """instance_ids GENUINELY covered by `<cond_dir>/recovered_answers.jsonl` (idempotency).
-    An entry whose `recovered_answer` is itself a placeholder/empty (`needs_recovery` true —
+    An entry whose `recovered_answer` is itself a placeholder/empty (`needs_recovery` true , 
     the model prefilled "..." even under forced decoding; real case: dci
     browsecomp_plus_structured__844) does NOT count as coverage: the row stays a recovery
     target on the next pass instead of being suppressed by a fake answer. Sidecar entries are
@@ -246,7 +231,7 @@ def resolve_condition_dirs(patterns: Sequence[str]) -> list:
 
 def infer_dataset_name(cond_dir: str) -> Optional[str]:
     """The registered dataset name found in the condition-dir path (e.g.
-    `browsecomp_plus_structured`), by membership rather than a fixed path position — robust to the
+    `browsecomp_plus_structured`), by membership rather than a fixed path position, robust to the
     `<root>/agent/<dataset>/<model>/agent_<cond>` layout varying which `<root>` it sits under."""
     from agent_search.evaluation.datasets import available_datasets
     names = available_datasets()
@@ -284,7 +269,7 @@ def reconstruct_messages(row: dict, field_profile: Optional[str],
         raise KeyError(f"row {row.get('instance_id')!r} has neither prompt_profile_path nor tool_condition")
     task = Task(task_id=row.get("instance_id") or "q", query=row.get("question") or "")
     steps = _row_to_steps(row)
-    # generate is never called through this policy object — only .build_messages is used, so a
+    # generate is never called through this policy object, only .build_messages is used, so a
     # stub is fine (and keeps this function import-cheap / offline-safe for --dry-run).
     policy = AgentPolicy(generate=lambda _msgs: "", prompt_path=prompt_path,
                          field_profile=field_profile, ctx_tokens=ctx_tokens)
@@ -296,7 +281,7 @@ def reconstruct_messages(row: dict, field_profile: Optional[str],
 def _row_to_steps(row: dict) -> list:
     """Real `agent_search.agent.loop.Step` objects from `row['trajectory']`, with each step's
     observation swapped for the FULL, uncapped text in `row['observations']` (same index, same
-    order — see `agent_search/agent/retriever.py::_trajectory_meta`). Falls back to the capped
+    order, see `agent_search/legacy/retriever.py::_trajectory_meta`). Falls back to the capped
     `trajectory[i]['observation']` only if `observations` is shorter (defensive; should not happen
     on a well-formed row)."""
     traj = row.get("trajectory") or []
@@ -322,10 +307,10 @@ PLACEHOLDER_ANSWERS = ("", "...", ".", "..")
 def needs_recovery(final_answer: Optional[str]) -> bool:
     """True if `final_answer` needs offline recovery: truly empty/whitespace-only, OR one of the
     placeholder strings the model sometimes emits when it gives up (`"..."`, `"."`, `".."`) instead
-    of a genuine answer. This is the ONE place that definition lives — used by row SELECTION here
+    of a genuine answer. This is the one place that definition lives, used by row SELECTION here
     (`empty_answer_rows`, and therefore `process_condition_dir`'s `pending` set), by the overlay's
     idempotency/coverage check (`load_rows_with_recovery`), and imported by
-    `scripts/compare_cells.py`'s `empty` metric — so a row that gets backfilled and a row that gets
+    `scripts/compare_cells.py`'s `empty` metric, so a row that gets backfilled and a row that gets
     counted as empty can never disagree (see module docstring: the original bug here was
     `force_answer_backfill.py` selecting on empty-only while `compare_cells.py` counted placeholders
     as empty too, so placeholder rows in some cells were silently never recovered)."""
@@ -336,8 +321,8 @@ def needs_recovery(final_answer: Optional[str]) -> bool:
 
 def build_client(api_base: str, api_key: Optional[str] = None):
     """A plain OpenAI-compatible client against `api_base` (a served vLLM, or a real OpenAI-
-    compatible endpoint). Deliberately NOT `agent_search.models.backends.openai_compat_generate`
-    — that helper's stop-sequence/tag-repair post-processing is tool-call-LOOP-specific, and (more
+    compatible endpoint). Deliberately NOT `agent_search.models.openai_compat_generate`
+   , that helper's stop-sequence/tag-repair post-processing is tool-call-LOOP-specific, and (more
     importantly here) it has no way to pass vLLM's `continue_final_message`/`add_generation_prompt`
     prefill fields through `extra_body`. Mirrors `scripts/oneshot_rag.py::make_generate`'s plain-
     client construction."""
@@ -351,7 +336,7 @@ def elicit_answer(messages: list, client, model: str, *,
                   temperature: float = DEFAULT_TEMPERATURE, seed: Optional[int] = DEFAULT_SEED) -> tuple:
     """Thin wrapper over the shared `agent_search.agent.forced_answer.elicit_final_answer` that
     keeps THIS script's original 3-tuple shape (`recovered_answer, n_attempts, raw_continuation`)
-    — `n_attempts` is 1 when the primary prefill call worked, 2 when the plain-ask fallback was
+   , `n_attempts` is 1 when the primary prefill call worked, 2 when the plain-ask fallback was
     needed (matching the pre-extraction `elicit_answer`'s own contract, so every downstream caller
     and this file's own tests are unaffected by the mechanism's move to `forced_answer.py`)."""
     answer, method_tag, raw = elicit_final_answer(
@@ -367,11 +352,11 @@ def elicit_answer(messages: list, client, model: str, *,
 def load_rows_with_recovery(cond_dir: str) -> list:
     """`rows.jsonl` rows from `cond_dir`, overlaid with `recovered_answers.jsonl` (if present):
     any row whose `final_answer` `needs_recovery` (empty/whitespace-only OR a placeholder like
-    `"..."`) AND has a GENUINE recovered entry (whose `recovered_answer` does not itself
+    `"..."`) and has a GENUINE recovered entry (whose `recovered_answer` does not itself
     `needs_recovery`) gets `final_answer` replaced with the recovered span and `recovered=True`;
-    every other row gets `recovered=False`. A placeholder recovery never overlays — the row stays
+    every other row gets `recovered=False`. A placeholder recovery never overlays, the row stays
     empty-ish (still shows in empty%, still a future recovery target) rather than becoming a fake
-    non-empty answer. Never touches `rows.jsonl` on disk — this is a read-only, in-memory merge
+    non-empty answer. Never touches `rows.jsonl` on disk, this is a read-only, in-memory merge
     used by `scripts/compare_cells.py` for scoring."""
     rows = load_rows_tolerant(os.path.join(cond_dir, "rows.jsonl"))
     for r in rows:
@@ -384,7 +369,7 @@ def load_rows_with_recovery(cond_dir: str) -> list:
         iid = rec.get("instance_id")
         # Only GENUINE recoveries are overlay candidates: a sidecar entry whose
         # recovered_answer is itself a placeholder/empty ("...", ".", "..", "") must never
-        # become a non-empty final_answer downstream (it would be scored as a real — wrong —
+        # become a non-empty final_answer downstream (it would be scored as a real, wrong
         # answer and vanish from empty%). Such rows stay as-is: still empty-ish, still a
         # future recovery target. Keeping only genuine entries here also makes duplicate
         # sidecar entries per id harmless (a later genuine retry wins over an earlier
@@ -435,13 +420,13 @@ def process_condition_dir(cond_dir: str, *, model: Optional[str], api_base: Opti
     n_placeholder = 0
 
     def _work(row: dict) -> tuple:
-        """Recover ONE row. Returns `(iid, status, payload)`: status `"ok"` with payload
+        """Recover one row. Returns `(iid, status, payload)`: status `"ok"` with payload
         `(answer, n_attempts, raw)`, or `"overflow"` with payload the FINAL (smallest)
         `ctx_tokens` tried. Mirrors `AgentPolicy.propose()`'s overflow handling
         (`agent_search/agent/policies.py`): the token budget can overshoot the serving model's
         true token window on token-dense content, so on a "maximum context length" error
         shrink the reconstructed window 15% and retry, up to 3 shrinks (4 attempts total);
-        a row that STILL overflows is skipped — no sidecar record, just a log line — so one
+        a row that still overflows is skipped, no sidecar record, just a log line, so one
         pathological row can never kill the whole pass again (job 28673993 crashed exactly
         this way: one vLLM 400 propagated uncaught through the ThreadPoolExecutor). Any
         OTHER exception propagates to `_consume`, which logs it and counts it as a per-row
@@ -469,7 +454,7 @@ def process_condition_dir(cond_dir: str, *, model: Optional[str], api_base: Opti
         }, lock=lock)
 
     def _consume(row: dict, result_fn: Callable[[], tuple]) -> None:
-        """Fold one row's outcome into the counters. NEVER raises: overflow skips and any
+        """Fold one row's outcome into the counters. never raises: overflow skips and any
         other per-row exception are logged + counted so the pass always continues."""
         nonlocal n_recovered, n_skipped_overflow, n_failed, n_placeholder
         try:
@@ -484,7 +469,7 @@ def process_condition_dir(cond_dir: str, *, model: Optional[str], api_base: Opti
             log(f"   [{cond_dir}] SKIPPED context-overflow-after-3-shrinks "
                 f"instance_id={iid!r} final_ctx_tokens={payload}")
             return
-        _record(iid, *payload)   # always appended — audit trail of the attempt
+        _record(iid, *payload)   # always appended, audit trail of the attempt
         answer = payload[0]
         if needs_recovery(answer):
             # The model prefilled a placeholder/empty even under forced decoding (real case:
@@ -592,9 +577,9 @@ def main(argv: Optional[list] = None) -> int:
             f"{n_skipped_overflow} skipped (context overflow), {n_failed} failed"),
          file=sys.stderr)
     # Per-row resilience contract: overflow skips, placeholder recoveries, and isolated
-    # failures are logged + counted but do NOT fail the job (they resume cleanly on a rerun —
+    # failures are logged + counted but do NOT fail the job (they resume cleanly on a rerun;
     # genuinely-recovered ids are skipped). Only a SYSTEMIC failure rate (>20% of processed
-    # rows raising non-overflow errors — e.g. the server is down or a code bug) makes the
+    # rows raising non-overflow errors, e.g. the server is down or a code bug) makes the
     # exit code nonzero.
     n_processed = n_recovered + n_skipped_overflow + n_failed + n_placeholder
     if not args.dry_run and n_processed and n_failed > 0.2 * n_processed:

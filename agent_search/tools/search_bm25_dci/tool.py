@@ -1,19 +1,17 @@
 """`bm25_search`: the bounded bm25->DCI search-and-stage tool.
 
-Ported from `agent_search.agent.tools.doc_bm25_dci.Bm25DciWorkspace`. Retrieval is LIVE on every
-call — the SAME `BM25Local`-shaped engine and query semantics as
-`agent_search.tools.search_bm25.tool.SearchBm25` — but every hit that isn't already staged is
+Retrieval runs on every call, over the same BM25 engine and query semantics as
+`agent_search.tools.search_bm25.tool.SearchBm25`. Every hit that is not already staged is
 written into the DCI staging directory (`agent_search.tools.bash.tool.get_dci_dir`,
 `bounded=True`) immediately, via `agent_search.corpus.flat_export.stage_units_into`, so
-`bash`/`read` (rooted at that same directory) can grep/read it. A doc that drops out of a later
-ranking stays staged: once surfaced, always readable.
+`bash`/`read` (rooted at that same directory) can grep or read it. A doc that drops out of a
+later ranking stays staged: once surfaced, it stays readable.
 
-This is NOT the same rendering as `SearchBm25`'s 0-match case (no "previous results still
-available" suffix — see `Bm25DciWorkspace.search`), so it is its own tool rather than an option
-on `SearchBm25`.
+Its 0-match rendering differs from `SearchBm25`'s (no "previous results still available"
+suffix), so it is its own tool rather than an option on `SearchBm25`.
 
-`on_bind` seeds the staging dir with one live search on the episode's question — mirroring
-`Bm25DciWorkspace.__init__`, whose first bash/read call must not assume an empty corpus_dir.
+`on_bind` seeds the staging directory with one live search on the episode's question, so the
+first `bash`/`read` call never sees an empty corpus directory.
 """
 from __future__ import annotations
 
@@ -25,9 +23,8 @@ from agent_search.tools.bash.tool import get_dci_dir
 from agent_search.tools.base import Tool
 from agent_search.tools.common import opening_line
 
-# The retrieval-stage cutoff: how many bm25 hits a `bm25_search` call surfaces/stages by
-# default. A FIXED constant (not the episode's location-ranking --k) — mirrors the sandbox
-# prototype's `BOTH_TOPK`.
+# The retrieval-stage cutoff: how many bm25 hits a `bm25_search` call surfaces and stages by
+# default. This is a fixed constant, not a per-call k.
 BM25_DCI_TOPK = int(os.environ.get("BM25_DCI_TOPK", "10"))
 
 
@@ -82,9 +79,9 @@ class SearchBm25Dci(Tool):
             snip = opening_line(u)
             lines.append(f"  {rank}  {doc_id}  {(u.title or u.qualname or '')!r}  {snip}…")
 
-        # INCREMENTAL staging: only docs not already on disk get written, via the SAME writer
-        # `export_flat_corpus` uses (`stage_units_into`) — a doc surfaced by an earlier call
-        # stays staged (never rewritten, never removed), so bash/read's view only ever grows.
+        # Only docs not already on disk get written, using the same writer `export_flat_corpus`
+        # uses (`stage_units_into`). A doc surfaced by an earlier call stays staged (never
+        # rewritten, never removed), so bash/read's view only ever grows.
         if new_units:
             corpus_dir = state.scratch["dci_dir"]
             rel_to_doc = state.scratch["dci_rel_to_doc"]

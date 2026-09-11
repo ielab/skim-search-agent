@@ -3,16 +3,16 @@
     pip install -e ".[demo-live]"
     python demo/server.py            # -> http://localhost:8008/
 
-Serves the built demo page and exposes POST /api/run — a Server-Sent-Events stream that drives
+Serves the built demo page and exposes POST /api/run, a Server-Sent-Events stream that drives
 one REAL `run_episode` (agent_search/agent/loop.py) per requested strategy, each in its own
 worker thread, relaying every Step the moment the loop records it (the `on_step` hook) plus a
 cumulative token/cost meter. The request's `api_key` is used to build that run's generate
 callable and nothing else: never logged, never stored, never echoed back in the stream.
 
 Per-strategy token accounting works BECAUSE of the thread-per-strategy design:
-`agent_search.models.backends`'s usage ledger is thread-local, so `reset_usage()` at worker
+`agent_search.models`'s usage ledger is thread-local, so `reset_usage()` at worker
 start + `usage_totals()` inside on_step reads exactly this episode's cumulative usage (the
-loop only attaches per-step tokens AFTER an episode ends, so streaming reads the ledger live)."""
+loop only attaches per-step tokens after an episode ends, so streaming reads the ledger live)."""
 from __future__ import annotations
 
 import asyncio
@@ -28,14 +28,14 @@ from typing import Literal
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent))
 
-DEFAULT_SNIPPET_TOKENS = 32   # mirrors agent_search.agent.tools.doc_research.SNIPPET_TOKENS
+DEFAULT_SNIPPET_TOKENS = 32   # mirrors agent_search.legacy.workspaces.budgets.SNIPPET_TOKENS
 
 # THE PAPER'S READ BUDGET. Both caps are read at IMPORT time by
-# agent_search/agent/tools/doc_research.py, so they must be set BEFORE that import below.
+# agent_search/legacy/workspaces/budgets.py, so they must be set BEFORE that import below.
 # The library default is 1200 tokens; the paper runs 12,000. That difference is not cosmetic
 # for this demo: it is the baseline's whole-document `visit` budget, so leaving it at 1200
-# silently truncated Search-Visit's reads ~10x and made the expensive-baseline contrast — the
-# whole point of the comparison — invisible (Sieve appeared to cost MORE per run).
+# silently truncated Search-Visit's reads ~10x and made the expensive-baseline contrast, the
+# whole point of the comparison, invisible (Sieve appeared to cost more per run).
 os.environ.setdefault("MAX_VISIT_TOKENS", "12000")     # whole-doc read ceiling (Search-Visit)
 os.environ.setdefault("MAX_SECTION_TOKENS", "12000")   # per-section read ceiling (Sieve)
 # Query-biased snippet window. Left at the library default so the demo shows the same listing
@@ -50,15 +50,16 @@ from pydantic import BaseModel, Field                          # noqa: E402
 
 from agent_search.agent.loop import Task, run_episode          # noqa: E402
 from agent_search.agent.policies import AgentPolicy            # noqa: E402
-from agent_search.agent.tools.doc_research import Bm25Visit, DocSearchFetch  # noqa: E402
+from agent_search.legacy.workspaces.search_visit import Bm25Visit
+from agent_search.legacy.workspaces.sieve import DocSearchFetch  # noqa: E402
 from agent_search.core.tokens import count_tokens               # noqa: E402
-from agent_search.models import backends                       # noqa: E402
-from agent_search.prompts import get_prompt_spec               # noqa: E402
+import agent_search.models as backends                       # noqa: E402
+from agent_search.legacy.prompts import get_prompt_spec               # noqa: E402
 from demo.corpus import CORPUS, QUESTIONS                      # noqa: E402
 from demo.parse import (parse_bm25_search, parse_fetch,        # noqa: E402
                         parse_search, parse_visit)
 
-# Indirection so tests inject a scripted generate (monkeypatch server._make_generate) — the
+# Indirection so tests inject a scripted generate (monkeypatch server._make_generate), the
 # ONLY seam between this server and a real API call.
 _make_generate = backends.make_generate
 
@@ -67,16 +68,16 @@ MAX_STEPS = 20                       # bounds every live run's cost and latency.
                                      # search->read hops, and the fixed cost of an episode
                                      # (the manual, re-sent each turn) only amortises over a
                                      # run long enough to actually do the hops.
-# $ per 1M tokens (OpenAI published rates): (uncached input, CACHED input, output). The
+# $ per 1M tokens (OpenAI published rates): (uncached input, cached input, output). The
 # frontend's model choice is restricted to these keys so the meter never guesses.
 # Cached input matters here and is not a rounding error: OpenAI caches any prompt over 1024
-# tokens automatically, and an agent episode re-sends a growing conversation with a STABLE
+# tokens automatically, and an agent episode re-sends a growing conversation with a stable
 # prefix (system manual + question) every turn, so most input tokens after turn 1 are cache
-# hits billed at half price. Ignoring that overstates cost — and overstates it unevenly,
+# hits billed at half price. Ignoring that overstates cost, and overstates it unevenly,
 # since the two strategies carry very different fixed prefixes (Sieve's BQL manual is ~2K
 # tokens larger than the BM25 baseline's, and it is exactly the part that caches).
-# OpenAI's published per-1M rates, Standard tier. SOURCE (the official guideline the meter
-# implements): https://developers.openai.com/api/docs/pricing — every entry below verified
+# OpenAI's published per-1M rates, Standard tier. source (the official guideline the meter
+# implements): https://developers.openai.com/api/docs/pricing, every entry below verified
 # against that page on 2026-08-08. The billed-cost formula is OpenAI's own:
 #
 #   cost = (input_tokens - cached_input_tokens)/1e6 * input_rate
@@ -84,7 +85,7 @@ MAX_STEPS = 20                       # bounds every live run's cost and latency.
 #        +  output_tokens/1e6                    * output_rate
 #
 # where cached_input_tokens is what the API itself reports in
-# usage.prompt_tokens_details.cached_tokens (see backends._cached_tokens) — the meter reads
+# usage.prompt_tokens_details.cached_tokens (see backends._cached_tokens), the meter reads
 # the provider's numbers, it does not estimate them. Rates drift: an entry here only feeds
 # the meter, and a stale one is still closer than the "n/a" an unlisted model shows.
 # Reasoning-family names (gpt-5*, o3, o4-mini) route through the library's reasoning path.
@@ -136,8 +137,8 @@ sentence.
 """
 
 STRATEGIES = {
-    # name -> (workspace builder, prompt condition). The condition fixes the tool NAMES the
-    # model calls (search_s/fetch_s vs bm25_search/visit) — see conditions.yaml.
+    # name -> (workspace builder, prompt condition). The condition fixes the tool names the
+    # model calls (search_s/fetch_s vs bm25_search/visit), see conditions.yaml.
     "sieve": (lambda: DocSearchFetch(CORPUS, snippets=True), "research_snip"),
     "search_visit": (lambda: Bm25Visit(CORPUS), "research_bm25"),
 }
@@ -146,17 +147,17 @@ STRATEGIES = {
 class RunRequest(BaseModel):
     question: str = Field(min_length=1, max_length=2000)
     api_key: str = Field(min_length=1)
-    # Free text: users bring their own model (it runs on THEIR key). Safety property kept a
+    # Free text: users bring their own model (it runs on their key). Safety property kept a
     # different way: the server pins api_base to OpenAI's endpoint when building the generate
     # callable, so an arbitrary model name can never route the key to make_generate's
     # localhost backend="api" fallback. Cost display degrades to tokens-only for models the
-    # PRICES table doesn't know.
+    # prices table doesn't know.
     model: str = Field(min_length=1, max_length=100, pattern=r"^[\w][\w\.\:/-]*$")
     strategies: list[Literal["sieve", "search_visit"]] = Field(min_length=1, max_length=2)
 
 
 app = FastAPI(title="SkimSearchAgent live demo")
-# The server now serves its own page (GET /), so the browser's origin is always this server's —
+# The server now serves its own page (GET /), so the browser's origin is always this server's,
 # no more file://-opened page reaching across origins. Pin to the two localhost spellings a
 # browser may use to reach this same server, not "*" (which would let ANY page on the web POST a
 # visitor's typed-in API key to this endpoint via a background fetch).
@@ -206,10 +207,9 @@ def _step_payload(step) -> dict:
                 **parse_bm25_search(obs)}
     if name == "visit":
         return {"type": "visit", **parse_visit(obs)}
-    # submit/answer/stop/budget/none/... -> the frontend's generic fallback renderer. Full
-    # observation, uncapped: this used to be character-clipped to 2000, which silently hid the
-    # tail of a long generic-step observation from the page for no budget reason (the real read
-    # caps live in agent_search/agent/tools/doc_research.py's token budgets, not here).
+    # submit/answer/stop/budget/none/... -> the frontend's generic fallback renderer. The full
+    # observation is sent uncapped: the real read caps live in
+    # agent_search/legacy/workspaces/budgets.py's token budgets, not here.
     return {"type": "generic", "name": name, "observation": obs}
 
 
@@ -221,13 +221,13 @@ def _run_strategy(strategy: str, req: RunRequest, out: queue.Queue) -> None:
         build_ws, condition = STRATEGIES[strategy]
         workspace = build_ws()
         # api_base pinned: even a model name make_generate doesn't recognise (custom
-        # fine-tunes, new releases) goes to OpenAI's endpoint with the user's key — never
+        # fine-tunes, new releases) goes to OpenAI's endpoint with the user's key, never
         # to the localhost fallback that api_base would otherwise default to.
         generate = _make_generate(req.model.strip(), backend="api",
                                   api_base=backends._OPENAI_BASE_URL, api_key=req.api_key)
-        # "wiki", NOT "browsecomp", despite this being a BrowseComp-Plus corpus. The profile
-        # names a MANUAL VARIANT (an interface shape), not a dataset: the `browsecomp` manual
-        # describes the FLAT build — it states "there are no named sections", tells the agent
+        # "wiki", not "browsecomp", despite this being a BrowseComp-Plus corpus. The profile
+        # names a manual variant (an interface shape), not a dataset: the `browsecomp` manual
+        # describes the flat build, it states "there are no named sections", tells the agent
         # `[section]` always 0-hits, and demonstrates fetch as `[[1, "body"]]`. Our corpus is
         # the SECTIONED build (doc 51481 has 37 named sections), so that manual made every
         # fetch fail with "no section 'body'". `wiki` (skills/bql_doc.md) is the named-section
@@ -236,13 +236,13 @@ def _run_strategy(strategy: str, req: RunRequest, out: queue.Queue) -> None:
                              field_profile="wiki")
         policy.system += CORPUS_NOTE
         steps_seen = {"n": 0}
-        # Document text pulled into context — the axis the two strategies actually differ on (a
+        # Document text pulled into context, the axis the two strategies actually differ on (a
         # named section vs a whole document). Token/cost totals alone are confounded when one
-        # strategy gives up early and the other keeps hopping. `read_chars` is a CHARACTER count;
+        # strategy gives up early and the other keeps hopping. `read_chars` is a character count;
         # kept (never mixed with the token ruler) because the compiled React bundle
         # (demo/app/dist/index.html, which this change cannot rebuild here) reads this exact
         # field name. `read_tokens` is the token-ruler companion (agent_search.core.tokens.
-        # count_tokens — tiktoken o200k when available) for anything reading the live event
+        # count_tokens, tiktoken o200k when available) for anything reading the live event
         # stream directly rather than through the prebuilt page.
         read_chars = {"n": 0}
         read_tokens = {"n": 0}
@@ -265,8 +265,8 @@ def _run_strategy(strategy: str, req: RunRequest, out: queue.Queue) -> None:
                  "answer": traj.final_answer, "stopped": traj.stopped_reason,
                  "usage": {**_usage_snapshot(req.model), "steps": steps_seen["n"],
                            "read_chars": read_chars["n"], "read_tokens": read_tokens["n"]}})
-    except Exception as e:  # noqa: BLE001 — any failure becomes an error event, never a hang
-        # provider auth errors quote a (masked) copy of the offending key — redact any
+    except Exception as e:  # noqa: BLE001, any failure becomes an error event, never a hang
+        # provider auth errors quote a (masked) copy of the offending key, redact any
         # key-shaped token so the "never echoed back" invariant holds on error paths too.
         message = re.sub(r"sk-[\w*-]+", "sk-***", f"{type(e).__name__}: {e}")[:300]
         out.put({"event": "error", "strategy": strategy, "message": message})

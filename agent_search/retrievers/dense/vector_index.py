@@ -1,31 +1,31 @@
-"""Pluggable vector index — the storage + nearest-neighbour layer under the dense
+"""Pluggable vector index: the storage and nearest-neighbour layer under the dense
 retriever, separated from the text encoder so it scales independently of the model.
 
-Embeddings of a FIXED corpus are a one-time, immutable artifact: build once, persist,
+Embeddings of a fixed corpus are a one-time, immutable artifact: build once, persist,
 reuse forever. This module owns that artifact's storage format and search. Three
 backends, one interface, chosen by corpus size and whether FAISS is installed:
 
-  flat   numpy, float16, brute-force cosine — DEFAULT, no dependency. Exact. At 100k
+  flat   numpy, float16, brute-force cosine. The default, no dependency. Exact. At 100k
          docs this is ~0.15 GB and a few-ms matmul; nothing faster is needed.
-  hnsw   FAISS IndexHNSWFlat — graph ANN, sub-millisecond search. Engages for large
+  hnsw   FAISS IndexHNSWFlat: graph ANN, sub-millisecond search. Engages for large
          corpora (~1M+) when faiss is available.
-  ivfpq  FAISS IndexIVFPQ — product-quantized, COMPRESSED storage for huge/memory-
-         bound corpora (10M+): 30 GB of float32 → hundreds of MB.
+  ivfpq  FAISS IndexIVFPQ: product-quantized, compressed storage for huge/memory-
+         bound corpora (10M+), turning 30 GB of float32 into hundreds of MB.
 
 Selection is automatic (`choose_backend`) but overridable with AGENT_SEARCH_ANN
 (flat|hnsw|ivfpq|auto). The default thresholds keep small/medium corpora on `flat`
 with no FAISS dependency, so adding a much larger corpus later is a config flip, not
-a rewrite — and a missing/broken faiss degrades to `flat`, never a crash.
+a rewrite, and a missing/broken faiss degrades to `flat`, never a crash.
 
 flat / faiss-flat: `flat`'s numpy `emb(float16) @ qv(float32)` has no BLAS kernel for
 float16, so numpy falls back to a slow elementwise path (measured ~178ms/query at
-67.7k docs). AGENT_SEARCH_FLAT_FAISS=1 (default OFF) opts a `FlatIndex` into an
-in-memory `faiss.IndexFlatIP` built once (lazily, on first search, from the SAME
-stored embeddings cast fp16->fp32) instead of the numpy matmul — still EXACT brute-
+67.7k docs). AGENT_SEARCH_FLAT_FAISS=1 (default off) opts a `FlatIndex` into an
+in-memory `faiss.IndexFlatIP` built once (lazily, on first search, from the same
+stored embeddings cast fp16->fp32) instead of the numpy matmul: still exact brute-
 force search (not ANN), just SIMD+threaded (measured ~2-5ms/query on the same
 corpus). This changes nothing about the on-disk cache: no new required artifact, no
-identity/name change, and it is fully opt-in — with the env var unset, `FlatIndex`
-behaves byte-identically to before this existed. Missing faiss with the flag set
+identity/name change, and it is fully opt-in. With the env var unset, `FlatIndex`
+behaves exactly like the plain numpy path. Missing faiss with the flag set
 degrades to the numpy path, never crashes.
 """
 from __future__ import annotations
@@ -48,7 +48,7 @@ def _faiss():
 
 
 def _flat_faiss_enabled() -> bool:
-    """AGENT_SEARCH_FLAT_FAISS opt-in (default OFF) for the exact faiss.IndexFlatIP
+    """AGENT_SEARCH_FLAT_FAISS opt-in (default off) for the exact faiss.IndexFlatIP
     fast path inside `FlatIndex`. Unset/empty/"0"/"false" -> disabled (current numpy
     behavior, untouched)."""
     return os.environ.get("AGENT_SEARCH_FLAT_FAISS", "").strip().lower() in (
@@ -141,7 +141,7 @@ class FlatIndex(VectorIndex):
 
     def _faiss_flat_index(self):
         """Lazily build (once) and cache an exact faiss.IndexFlatIP over `self.emb`
-        cast fp16->fp32 — the SAME stored embeddings, no new on-disk artifact. Built
+        cast fp16->fp32: the same stored embeddings, no new on-disk artifact. Built
         on first use (not eagerly at construction, since a FlatIndex built/saved by
         an offline indexing job may never be searched in-process) and cached for the
         object's lifetime, so the fp16->fp32 cast and index build cost is paid once,
@@ -176,7 +176,7 @@ class FlatIndex(VectorIndex):
             # faiss requested but unavailable -> fall through to the numpy path below
         qv = np.asarray(qv, dtype=np.float32)         # f16 @ f32 -> f32 (precise enough)
         scores = self.emb @ qv
-        # Top-k with a FULLY DETERMINISTIC tie-break by doc_id (matches the BM25
+        # Top-k with a fully deterministic tie-break by doc_id (matches the BM25
         # ranker's (-score, doc_id) rule), so results are reproducible even when many
         # units share an identical cosine (common with duplicate/trivial embeddings).
         # argpartition gives a cheap O(n) cutoff; we then resolve the boundary exactly:
@@ -235,7 +235,7 @@ class _FaissIndex(VectorIndex):
 
 
 class HnswIndex(_FaissIndex):
-    """Graph ANN — sub-ms search at million-doc scale, exact float32 storage."""
+    """Graph ANN: sub-ms search at million-doc scale, exact float32 storage."""
     backend = "hnsw"
 
     @classmethod
@@ -258,7 +258,7 @@ def _pq_subquantizers(d: int) -> int:
 
 
 class IvfpqIndex(_FaissIndex):
-    """Product-quantized IVF — COMPRESSED storage for huge/memory-bound corpora."""
+    """Product-quantized IVF: compressed storage for huge/memory-bound corpora."""
     backend = "ivfpq"
 
     @classmethod
@@ -311,12 +311,12 @@ def save_index(index: VectorIndex, cache_dir: str, extra_meta: Optional[dict] = 
     index._save_payload(cache_dir)
     meta = {"backend": index.backend, "n": len(index.doc_ids), "format": 2}
     meta.update(extra_meta or {})
-    # meta LAST: a reader that sees meta.json is guaranteed the rest is complete.
+    # meta.json last: a reader that sees it is guaranteed the rest is complete.
     _atomic_json(os.path.join(cache_dir, "meta.json"), meta)
 
 
 def load_index(cache_dir: str) -> Optional[VectorIndex]:
-    """Load a persisted index; the FULL meta.json dict (backend/n/format plus any
+    """Load a persisted index; the full meta.json dict (backend/n/format plus any
     caller-supplied `extra_meta` from `save_index`, e.g. `corpus_fingerprint`) is exposed
     on the returned index as `.meta`, so a caller can re-validate cache freshness without
     re-reading the file itself."""
@@ -394,9 +394,9 @@ def load_external_index(path: str) -> VectorIndex:
 
 
 def index_exists(cache_dir: str) -> bool:
-    """True iff a COMPLETE persisted index is present — without loading its payload.
+    """True iff a complete persisted index is present, without loading its payload.
 
-    Mirrors ``load_index``'s success condition so a caller can SKIP rebuilding an
+    Mirrors ``load_index``'s success condition so a caller can skip rebuilding an
     already-indexed corpus (the unit parse + encode) cheaply: meta.json is written last
     (see save_index), so its presence guarantees doc_ids + payload are complete. Returns
     False for an ANN index when faiss is unavailable, exactly as load_index would (it

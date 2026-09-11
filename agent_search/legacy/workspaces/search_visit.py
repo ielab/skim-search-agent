@@ -1,9 +1,14 @@
-"""Retrieve-then-visit and retrieve-and-read workspaces: search a flat doc index, then read.
+"""The pre-0.3 retrieve-then-visit and retrieve-and-read workspaces: search a flat doc index, then read.
+
+Kept so the parity tests can compare against them. The current equivalents are the
+`search_visit`/`search_visit_dense`/`search_visit_hybrid` strategies and the
+`autoread`/`autoread_dense`/`autoread_hybrid` strategies, in `agent_search/strategies/
+search_visit.py` and `agent_search/strategies/autoread.py`.
 
 `Bm25Visit`/`DenseVisit`/`HybridVisit` show a title + opening-snippet listing (bm25, dense
 cosine, and RRF-fused bm25+dense retrieval respectively) and read a whole document via
 `visit`. `Bm25AutoRead`/`DenseAutoRead`/`HybridAutoRead` use the same three retrieval
-rankings but render the top hits' full text directly from `search` — there is no separate
+rankings but render the top hits' full text directly from `search`, with no separate
 visit tool in those three. All six are uncoached baselines with no BQL structure.
 """
 from __future__ import annotations
@@ -27,12 +32,12 @@ class Bm25Visit(_SeenMixin):
 
     `query_biased` (DEFAULT OFF, set True by the bm25q arm): the search listing's per-hit
     snippet becomes a QUERY-BIASED best-matching excerpt (the SAME `best_line` window-scoring
-    the method cells' snippets use — see doc_research.py's module-level `best_line`) instead of
+    the method cells' snippets use — see common.py's module-level `best_line`) instead of
     the doc's fixed OPENING slice. Motivated by fairness: real search engines show query-biased
     snippets in their result listing, and our method cells (research_snip/research_indri_snip)
     already do via `_best_line` — the bm25 baseline's opening-snippet listing would otherwise be
     a listing-axis advantage for OUR method that a hardened baseline must not concede. Callers
-    other than the bm25q arm (agent/retriever.py) leave this off, keeping the plain
+    other than the bm25q arm (legacy/retriever.py) leave this off, keeping the plain
     opening-snippet listing."""
 
     # tools.yaml's toolset (and therefore the rendered <tools> block the agent sees) names
@@ -226,7 +231,7 @@ class DenseVisit(Bm25Visit):
     `Bm25Visit` (same rendering: rank, doc_id, title, opening snippet; same `visit`/`_resolve`,
     inherited unchanged). Uncoached (no skill), like the bm25 baseline.
 
-    `engine` is a `DenseBelief` (agent_search.retrievers.indri.dense_belief) already
+    `engine` is a `DenseBelief` (agent_search.retrievers.dense.belief) already
     `build_or_load`ed over this corpus — reused, not reimplemented: `top_k_doc_ids(query, k)`
     is DenseBelief's memoized query-encode + cosine-top-k over its cached embedding matrix (the
     SAME persisted `indexes/dense/<model>-sl<len>/<corpus_key>/` cache the `dense` retriever
@@ -247,7 +252,7 @@ class DenseVisit(Bm25Visit):
         self.units = units if getattr(units, "lazy", False) else list(units)
         self.ubyid = ubyid if ubyid is not None else {u.doc_id: u for u in self.units}
         if engine is None:
-            from agent_search.retrievers.indri.dense_belief import DenseBelief
+            from agent_search.retrievers.dense.belief import DenseBelief
             engine = DenseBelief().build_or_load(self.units, key=corpus_key)
         self.engine = engine
         self.seen = OrderedSeen()
@@ -379,7 +384,7 @@ class HybridVisit(Bm25Visit):
     bm25/dense baselines it's built from.
 
     `bm25_engine` falls back to `build_bm25_engine` (env `BM25_BACKEND`-selectable, same
-    fallback every bm25-consuming workspace uses — production callers, agent/retriever.py,
+    fallback every bm25-consuming workspace uses — production callers, legacy/retriever.py,
     always pass a real engine). `dense_engine` falls back to a fresh `DenseBelief.build_or_load`
     (same persisted `indexes/dense/<model>-sl<len>/<key>/` cache DenseVisit/DenseFetchWorkspace
     use; production callers pass the SAME prebuilt-and-validated belief those arms use)."""
@@ -399,7 +404,7 @@ class HybridVisit(Bm25Visit):
             bm25_engine = build_bm25_engine(self.units)
         self.bm = bm25_engine
         if dense_engine is None:
-            from agent_search.retrievers.indri.dense_belief import DenseBelief
+            from agent_search.retrievers.dense.belief import DenseBelief
             dense_engine = DenseBelief().build_or_load(self.units, key=corpus_key)
         self.dense_engine = dense_engine
         self.pool = pool

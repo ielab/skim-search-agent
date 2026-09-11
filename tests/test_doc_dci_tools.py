@@ -2,10 +2,10 @@
 
 bash(command) runs a real shell command (grep/rg/ls/...) with cwd = the flat export dir;
 output is tail-truncated. read(path, offset, limit) returns a 1-indexed line-range of one
-exported file. NO retriever — the agent must grep for candidate files itself. `.seen`
+exported file. There is no retriever; the agent must grep for candidate files itself. `.seen`
 accumulates every doc_id surfaced (a direct read, or a filename mentioned in a bash command
 or its output), for gold-doc coverage."""
-from agent_search.agent.tools.doc_dci import DciWorkspace, _run_read, _tail_truncate
+from agent_search.legacy.workspaces.doc_dci import DciWorkspace, _run_read, _tail_truncate
 from agent_search.corpus.units import units_from_documents
 
 DOCS = [

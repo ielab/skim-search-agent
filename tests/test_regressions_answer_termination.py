@@ -6,7 +6,7 @@ import tempfile
 
 from agent_search.agent.actions import parse_tool_call
 from agent_search.agent.loop import Step, Trajectory, _final_locations
-from agent_search.agent.retriever import _trajectory_meta
+from agent_search.legacy.retriever import _trajectory_meta
 
 
 def test_answer_quoted_in_think_does_not_end_episode():

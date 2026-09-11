@@ -1,4 +1,4 @@
-"""The contracts of the library — what you implement to extend it, in one place.
+"""The contracts of the library: what you implement to extend it, in one place.
 
 SkimSearchAgent answers an information need by letting an agent **search a corpus** over
 several steps. The parts that vary between experiments are the *dials*; each is one
@@ -9,19 +9,19 @@ user-provided one (nothing in the harness special-cases the built-ins):
 dial                contract
 ==================  ====================================================================
 corpus              a sequence of ``Unit`` (``agent_search.corpus.units.CodeUnit``): the
-                    retrievable atom — ``doc_id``, ``title``, ``body``, optional named
+                    retrievable atom: ``doc_id``, ``title``, ``body``, optional named
                     ``sections`` and ``metadata``. Build one from plain dicts with
                     ``units_from_documents``; register a loader with
                     ``agent_search.evaluation.datasets.register_dataset``.
-retriever           ``Retriever`` — index a corpus, rank it for a query. Register with
+retriever           ``Retriever``: index a corpus, rank it for a query. Register with
                     ``agent_search.retrievers.registry.register``.
-model               ``Model`` — ``generate(messages) -> text``: any callable taking an
+model               ``Model``: ``generate(messages) -> text``, any callable taking an
                     OpenAI-style chat message list and returning the raw generation.
-                    ``agent_search.models.backends.make_generate`` builds the built-ins.
-policy              ``Policy`` — decides the next raw generation from the task and the
+                    ``agent_search.models.make_generate`` builds the built-ins.
+policy              ``Policy``: decides the next raw generation from the task and the
                     step history. ``AgentPolicy`` (prompted model), ``KeywordPolicy``
                     (no model) and ``ScriptPolicy`` (replay) are the built-ins.
-workspace / tools   ``Workspace`` — the tool surface an episode drives: dispatch one tool
+workspace / tools   ``Workspace``: the tool surface an episode drives, dispatch one tool
                     call by name and return the text observation; remember what was
                     surfaced. ``agent_search.tools.base.ToolBox`` is the built-in: the
                     bound ``Tool`` instances of a strategy (``agent_search/strategies``)
@@ -33,9 +33,10 @@ evaluator           functions over the run record: ``agent_search.evaluation.met
 
 Every interface here is either an ABC the built-ins subclass or a ``runtime_checkable``
 Protocol the harness reads through ``getattr``; there are no decorative contracts. The
-episode loop (``agent_search.agent.loop.run_episode``) consumes exactly ``Policy`` and
-``Workspace``; the harness (``agent_search.evaluation.run_eval``) consumes exactly
-``Retriever`` plus the optional capability flags documented on it.
+episode loop (``agent_search.agent.loop.run_episode``) consumes a ``Policy`` and a
+workspace shaped like the one described here (its own ``WorkspaceLike`` protocol
+mirrors ``Workspace``); the harness (``agent_search.evaluation.run_eval``) consumes
+exactly ``Retriever`` plus the optional capability flags documented on it.
 """
 from __future__ import annotations
 
@@ -54,11 +55,11 @@ class Retriever(ABC):
     Built once per corpus identity (``key``) and reused across queries. Optional
     capabilities the harness reads with ``getattr``:
 
-    * ``returns_full_set = True`` — ``search`` returns the retriever's own complete ranking
+    * ``returns_full_set = True``: ``search`` returns the retriever's own complete ranking
       (an agent's surfaced set), so the harness must not pad it to the set-metric pool.
-    * ``is_cached(key) -> bool`` — a persistent index for ``key`` already exists on disk
+    * ``is_cached(key) -> bool``: a persistent index for ``key`` already exists on disk
       (lets ``build_indexes`` skip parsing the corpus).
-    * ``search_with_scores(query, k) -> list[tuple[str, float]]`` — scored ranking, when
+    * ``search_with_scores(query, k) -> list[tuple[str, float]]``: scored ranking, when
       the engine has scores to show.
     """
 
@@ -105,8 +106,8 @@ class Model(Protocol):
 
     ``messages`` is an OpenAI-style chat list (``[{"role": ..., "content": ...}, ...]``); the
     return value is the raw generation. Tool calls live in that text (``<tool_call>...``), so
-    any provider plugs in as one callable — a served vLLM, the OpenAI or Gemini APIs, or a
-    lambda in a test. ``agent_search.models.backends.make_generate`` returns one of these.
+    any provider plugs in as one callable: a served vLLM, the OpenAI or Gemini APIs, or a
+    lambda in a test. ``agent_search.models.make_generate`` returns one of these.
 
     Optional attributes the loop reads with ``getattr`` (never required): ``client`` and
     ``model`` (an OpenAI-compatible client + model id) enable the forced-answer elicitation
@@ -132,7 +133,7 @@ class Workspace(Protocol):
     """The tool surface an episode drives.
 
     ``run`` dispatches one tool call by name and returns the text observation fed back to
-    the policy — a tool error is itself a returned observation, never a raised exception.
+    the policy. A tool error is itself a returned observation, never a raised exception.
     ``tools`` lists the tool names this workspace answers to (the condition's toolset).
     ``surfaced`` is the doc ids the episode has surfaced so far in first-seen order: the
     agent's retrieval ranking for rank metrics (built-ins keep an

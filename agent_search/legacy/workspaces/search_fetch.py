@@ -1,5 +1,10 @@
-"""Retrieve-then-fetch workspaces: a live search pool (bm25, dense, or hybrid) paired with
-DocSearchFetch's named-section fetch.
+"""The pre-0.3 retrieve-then-fetch workspaces: a live search pool (bm25, dense, or hybrid)
+paired with DocSearchFetch's named-section fetch.
+
+Kept so the parity tests can compare against them. The current equivalents are the
+`search_fetch`/`search_fetch_dense`/`search_fetch_hybrid` strategies (plus the
+`search_fetch_bm25_plain`/`search_fetch_dense_plain` no-excerpt siblings) in
+`agent_search/strategies/search_fetch.py`.
 
 `Bm25FetchWorkspace`/`DenseFetchWorkspace`/`HybridFetchSnipWorkspace` re-run their retrieval
 live on every search call and render a structure table (section names + infobox keys, no
@@ -260,7 +265,7 @@ class DenseFetchWorkspace(DocSearchFetch):
         self.date_nudge = False
         self._date_nudge_emitted = 0
         if engine is None:
-            from agent_search.retrievers.indri.dense_belief import DenseBelief
+            from agent_search.retrievers.dense.belief import DenseBelief
             engine = DenseBelief().build_or_load(self.units, key=corpus_key)
         self.engine = engine
         self.topk = topk
@@ -334,7 +339,7 @@ class DenseFetchPlainWorkspace(DenseFetchWorkspace):
     `» excerpt` line unconditionally — so dense was the one query engine (bm25/bql/indri/dense)
     lacking a plain fetch cell. This workspace supplies exactly that missing sibling, the same
     way `research_bql_dense_fetch` supplies `research_bql_dense_snip`'s missing plain sibling for
-    the dense-fused BQL executor (see that condition's doc_research.py/conditions.yaml comments).
+    the dense-fused BQL executor (see that condition's search_fetch.py/conditions.yaml comments).
 
     Retrieval, construction, and the section-`fetch` read are ALL inherited from
     `DenseFetchWorkspace` UNCHANGED (same live-per-call `engine.top_k_doc_ids`, same
@@ -440,7 +445,7 @@ class HybridFetchSnipWorkspace(DocSearchFetch):
             bm25_engine = build_bm25_engine(self.units)
         self.bm = bm25_engine
         if dense_engine is None:
-            from agent_search.retrievers.indri.dense_belief import DenseBelief
+            from agent_search.retrievers.dense.belief import DenseBelief
             dense_engine = DenseBelief().build_or_load(self.units, key=corpus_key)
         self.dense_engine = dense_engine
         self.topk = topk

@@ -14,27 +14,27 @@ else.
 WHAT IT DOES
   (a) Backs up the CURRENT file to `<rows.jsonl>.pre_prune_<stamp>` in the
       same directory (stamp = UTC `YYYYMMDDTHHMMSSffffff`, collision-safe).
-  (b) Rewrites rows.jsonl ATOMICALLY (temp file in the SAME directory,
+  (b) Rewrites rows.jsonl ATOMICALLY (temp file in the same directory,
       `os.replace()`), excluding rows whose `instance_id` is in the removal
       set.
   (c) Prints removed/kept counts (and a malformed-line count, see below).
 
 Both the backup and the rewritten file are derived from a SINGLE read of
-rows.jsonl taken at the start of the run — not backup-then-reread — so the
+rows.jsonl taken at the start of the run, not backup-then-reread, so the
 two are always mutually consistent with each other.
 
-SAFETY — rows.jsonl may be LIVE (a running SLURM job's eval loop appends to
+SAFETY, rows.jsonl may be LIVE (a running SLURM job's eval loop appends to
 it after every completed instance). This script CANNOT reliably detect "is a
 job currently writing this directory" from inside a plain script (no lock
 file, no PID registry) -- so it does not try. Instead:
 
-  * You MUST pass --live-ok. This is not a correctness check; it is a
+  * You must pass --live-ok. This is not a correctness check; it is a
     forcing function: the caller is asserting they have confirmed (e.g. via
     `squeue`/`sacct`, or by knowing the job finished/was cancelled) that no
     job is actively appending to this exact rows.jsonl right now.
   * Even with --live-ok, the read -> filter -> os.replace sequence is NOT
     transactional against a concurrent appender. Worst case: a writer
-    appends a new row AFTER this script's read but BEFORE its os.replace.
+    appends a new row after this script's read but BEFORE its os.replace.
     That row is invisible to this run (it wasn't in the snapshot we read)
     and is silently overwritten/lost when os.replace() lands, because
     os.replace() swaps the whole file, not just the lines we changed. This
@@ -106,7 +106,7 @@ def prune_rows(rows_path: str, remove_ids: set[str], live_ok: bool) -> dict:
     if not remove_ids:
         raise SystemExit("no instance_ids given (positional args and/or --ids-file)")
 
-    # Single read: this snapshot is the source of truth for BOTH the backup
+    # Single read: this snapshot is the source of truth for both the backup
     # and the rewrite, so the two are always consistent with each other.
     with open(rows_path, "r") as fh:
         raw_lines = fh.readlines()
@@ -129,9 +129,9 @@ def prune_rows(rows_path: str, remove_ids: set[str], live_ok: bool) -> dict:
                 kept_lines.append(line if line.endswith("\n") else line + "\n")
                 malformed_kept += 1
                 continue
-            # A malformed line that is NOT the tail is unexpected corruption,
+            # A malformed line that is not the tail is unexpected corruption,
             # not a live-append artifact -- surface it loudly rather than
-            # guessing, but still PRESERVE it (same no-silent-data-loss policy).
+            # guessing, but still preserve it (same no-silent-data-loss policy).
             print(
                 f"WARNING: {rows_path}:{i + 1} is malformed JSON and is NOT the "
                 "last line (not explainable by a live tail-append); preserving "

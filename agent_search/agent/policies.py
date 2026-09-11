@@ -1,10 +1,10 @@
-"""Query-formulation policies — the only place that decides what tool call to emit.
+"""Query-formulation policies: the only place that decides what tool call to emit.
 
 All policies return a raw generation string (a `<tool_call>...`/`<answer>...` text);
 the loop parses it. Three flavours:
   - AgentPolicy   : prompt-profile-driven LLM (the paper experiments).
   - ScriptPolicy  : replays a fixed list of (name, args) calls (deterministic tests).
-  - KeywordPolicy : no model — one cheap search over the toolset, then submit (if the
+  - KeywordPolicy : no model, one cheap search over the toolset, then submit (if the
                     toolset has submit) or end (so a search-only toolset accumulates).
 """
 from __future__ import annotations
@@ -18,7 +18,7 @@ from typing import Callable, List, Sequence
 from agent_search.core.tokens import count_tokens, truncate_tokens
 from agent_search.corpus.units import code_tokenize
 
-# History budget (model tokens) for AgentPolicy — see `default_ctx_tokens`.
+# History budget (model tokens) for AgentPolicy: see `default_ctx_tokens`.
 DEFAULT_CTX_TOKENS = 115_000
 
 _STOP_WORDS = {
@@ -55,8 +55,8 @@ def default_ctx_tokens() -> int:
 class AgentPolicy:
     """Prompt-profile-driven policy. `generate(messages) -> raw text`.
 
-    Length is governed in TOKENS only. ``ctx_tokens`` is the total token budget for the
-    (assistant, observation) history pairs kept in the prompt — never a per-observation
+    Length is governed in tokens only. ``ctx_tokens`` is the total token budget for the
+    (assistant, observation) history pairs kept in the prompt, never a per-observation
     cap and never a character count. Tokens are counted on the library's measurement ruler
     (``agent_search.core.tokens.count_tokens``: tiktoken ``o200k_base`` when installed,
     whitespace tokens otherwise)."""
@@ -67,9 +67,10 @@ class AgentPolicy:
         self.generate = generate
         self.prompt_path = prompt_path
         # field_profile selects the per-dataset field-tagged manual variant (e.g. structured
-        # "wiki"/"browsecomp" vs flat "general"); None -> the task's own domain.
-        # `system`: a prerendered system prompt (a condition's render); else the prompt path is loaded
-        if system is None:                                   # the pre-0.3 path: a YAML prompt profile
+        # "wiki"/"browsecomp" vs flat "general"); None means the task's own domain.
+        # `system`: a prerendered system prompt (a condition's render). When it is not given,
+        # the prompt is instead loaded from the legacy YAML prompt registry below.
+        if system is None:
             from agent_search.legacy.prompts import load_prompt_text
             system = load_prompt_text(prompt_path, field_profile)
         self.system = system
@@ -86,8 +87,8 @@ class AgentPolicy:
         ]
         # Walk history newest -> oldest, keeping whole (assistant, observation) pairs while
         # the running token total stays under the budget; older steps are dropped once the
-        # budget is hit. Only a SINGLE observation that alone exceeds the entire remaining
-        # budget gets truncated (rare: e.g. a ~930k-token document) — everything else is
+        # budget is hit. Only a single observation that alone exceeds the entire remaining
+        # budget gets truncated (rare: e.g. a ~930k-token document). Everything else is
         # kept in full, chronologically ordered, in the final message list.
         kept: list[tuple[str, str]] = []   # (raw_output, observation) chronological once reversed
         budget = int(ctx_tokens) if ctx_tokens is not None else self.ctx_tokens
@@ -101,9 +102,9 @@ class AgentPolicy:
                 kept.append((raw, obs))
                 budget -= pair_len
             elif not kept and obs_len > budget:
-                # this is the newest step, and its observation ALONE overflows the whole
-                # budget: truncate just it (by tokens), rather than dropping it outright
-                # (the model needs SOME view of its most recent tool call), then stop —
+                # this is the newest step, and its observation alone overflows the whole
+                # budget: truncate just it (by tokens), rather than dropping it outright,
+                # since the model needs some view of its most recent tool call. Then stop:
                 # no room remains for any older step.
                 room = max(budget - raw_len, 0)
                 obs = truncate_tokens(obs, room, "\n...(truncated)")
@@ -155,12 +156,12 @@ class ScriptPolicy:
 
 
 class KeywordPolicy:
-    """No model: drive ANY toolset with cheap keyword queries so a dependency-light run
-    (check_conditions / stub tests) exercises the whole arm without a model. It walks the
-    arm's script by TOOLSET, never a hardcoded condition name — search->fetch (the method),
-    bm25_search->visit (retrieve-then-visit), grep->read (the code baseline), or
-    bash->read (the DCI baseline) — then the arm's terminal (<fix> for code, <answer> for
-    docs). No API, no embedder."""
+    """No model: drive any toolset with cheap keyword queries so a dependency-light run
+    (the stub policy, `cfg.policy == "stub"`) exercises a whole condition without a model.
+    It walks a script keyed by toolset, never a hardcoded condition name: search->fetch (the
+    method), bm25_search->visit (retrieve-then-visit), grep->read (the code baseline), or
+    bash->read (the DCI baseline), then the condition's terminal (<fix> for code, <answer>
+    for docs). No API, no embedder."""
 
     def __init__(self, toolset: Sequence[str], max_keywords: int = 6):
         self.toolset = tuple(toolset)
@@ -171,14 +172,14 @@ class KeywordPolicy:
         ts = set(self.toolset)
         kws = salient_keywords(task.query, self.max_keywords)
         step = len(history)
-        if step == 0:                                    # first move: the arm's own opener
+        if step == 0:                                    # first move: the condition's own opener
             q = kws[0] if kws else "the"
             if "grep" in ts and "search" not in ts:
                 self.last_raw = _tool_call("grep", pattern=q)
             elif "bash" in ts and "search" not in ts:
-                # a broad recursive CASE-INSENSITIVE grep for the first keyword (-i: the
-                # source doc likely capitalizes it, e.g. a title); DciWorkspace surfaces any
-                # matched filename from the command/output for gold-doc-coverage bookkeeping.
+                # a broad recursive case-insensitive grep for the first keyword (-i, since the
+                # source doc likely capitalizes it, e.g. a title). The Bash tool surfaces any
+                # matched filename from the command or its output for gold-doc-coverage bookkeeping.
                 self.last_raw = _tool_call("bash", command=f"grep -ril {q!r} .")
             elif "bm25_search" in ts:
                 self.last_raw = _tool_call("bm25_search", query=q)
@@ -186,8 +187,8 @@ class KeywordPolicy:
                 self.last_raw = _tool_call("search", query=q)
             return self.last_raw
         # second move: open the first candidate (fetch a part / visit the doc / read a hit).
-        # Every arm names its read tool differently (visit, visit_d, visit_h, fetch, fetch_s,
-        # fetch_bqld*): pick whichever this toolset has, so the smoke run exercises a read.
+        # Every condition names its read tool differently (visit, visit_d, visit_h, fetch,
+        # fetch_s, fetch_bqld*): pick whichever this toolset has, so the smoke run exercises a read.
         visit_tool = next((t for t in self.toolset if t.startswith("visit")), None)
         fetch_tool = next((t for t in self.toolset if t.startswith("fetch")), None)
         if step == 1:
@@ -208,7 +209,7 @@ class KeywordPolicy:
             else:
                 self.last_raw = "<answer></answer>"
             return self.last_raw
-        # terminal: the arm's answer shape
+        # terminal: the condition's answer shape
         code_arm_via_fetch = (self.toolset[:1] == ("search",) and "fetch" in ts
                               and "visit" not in ts and _is_code_arm(history))
         code_arm_via_grep = "grep" in ts and "read" in ts
@@ -228,9 +229,9 @@ class KeywordPolicy:
 
 import re as _re
 
-# a code fetch renders "[1] path/to/file.py :: Qual.name" — pull the first part/path.
+# a code fetch renders "[1] path/to/file.py :: Qual.name": pull the first part/path.
 _FETCH_HEAD = _re.compile(r"^\[\d+\]\s+(\S+)\s+::\s*(.*)$", _re.MULTILINE)
-# a code search lists "  1  path   defs:[A . B]" — first def name in the top file.
+# a code search lists "  1  path   defs:[A . B]": first def name in the top file.
 _SEARCH_DEFS = _re.compile(r"defs:\[([^\].]+)")
 
 
@@ -241,7 +242,8 @@ def _first_fetch_part(search_obs: str) -> str:
 
 
 def _is_code_arm(history) -> bool:
-    """True if a prior fetch produced a code '[n] path :: part' block (code arm shape)."""
+    """True if a prior fetch produced a code '[n] path :: part' block (the code condition's
+    observation shape)."""
     return any(_FETCH_HEAD.search(s.observation or "") for s in history)
 
 
@@ -253,7 +255,7 @@ def _first_fetch_path(history) -> str:
     return ""
 
 
-# the code GREP baseline: `grep()` renders "  path:line: text" per hit line.
+# the code grep baseline: `grep()` renders "  path:line: text" per hit line.
 _GREP_HIT = _re.compile(r"^\s*(\S+):\d+:", _re.MULTILINE)
 # `read()` echoes "path lines s-e of N:" as its first line.
 _READ_HEAD = _re.compile(r"^(\S+)\s+lines\s+\d+-\d+\s+of\s+\d+:", _re.MULTILINE)

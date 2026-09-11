@@ -1,4 +1,4 @@
-"""agent_search.corpus.flat_export — materializing units to a flat file tree (the DCI arm's
+"""agent_search.corpus.flat_export: materializing units to a flat file tree (the DCI arm's
 corpus shape). One .txt per doc_id; a shared corpus (given a `key`) is exported once per
 process and reused; an un-keyed export always gets a fresh directory."""
 from agent_search.corpus.flat_export import export_flat_corpus

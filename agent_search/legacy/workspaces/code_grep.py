@@ -1,13 +1,15 @@
-"""The code-fix GREP baseline ACI: real regex `grep` (matching LINES) + `read` (line range).
+"""The pre-0.3 code-fix grep baseline: real regex `grep` (matching lines) plus `read` (a line range).
 
-This is the honest, uncoached full-power baseline for the code arm (RISE-style: give the agent
-`grep`/`rg` as it naturally uses them). It mirrors `CodeFixWorkspace`'s `<fix>` contract exactly
-— same episode, same fix-file-ok scoring, same grounding guard — but the search primitive is a
-real regular expression over live source (not the field-tagged Boolean surface), and the read is
-a plain line-range slice (not a structural part fetch). No skill/manual: models already know
-regex; the fair baseline is grep-as-used.
+Kept so the parity tests can compare against it. The current equivalent is the `codefix_grep`
+strategy in `agent_search/strategies/codefix.py`, using the `grep` and `read` tools in
+`agent_search/tools/`.
 
-Ported from an internal prototype (RegexGrep + GrepWorkspace), not part of this release.
+This is an uncoached full-power baseline for the code arm (RISE-style: give the agent
+`grep`/`rg` as it naturally uses them). It shares `CodeFixWorkspace`'s `<fix>` contract: same
+episode, same fix-file-ok scoring, same grounding guard. The search primitive is a real
+regular expression over live source, not the field-tagged Boolean surface, and the read is a
+plain line-range slice, not a structural part fetch. No skill or manual: models already know
+regex, so the fair baseline is grep as normally used.
 """
 from __future__ import annotations
 

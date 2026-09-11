@@ -1,47 +1,45 @@
 """Shared JNI/pyjnius plumbing for the `lucene` backend package.
 
-Every module under `agent_search/retrievers/lucene/` needs the SAME
-handful of raw Lucene classes (`Document`, `IndexWriter`, `SpanNearQuery`, ...) via
-pyjnius `autoclass` — pyserini's high-level `LuceneSearcher`/`LuceneIndexer` API
-(used by `agent_search.retrievers.lexical.pyserini.BM25Pyserini`, which another
-agent is concurrently hardening) only exposes plain-text indexing and a fixed set of
-similarities; it has no fielded-document API and no span queries. This module is the
-ONE place that imports pyjnius and constructs the JVM class handles, so
-`index_builder.py` / `indri_compiler.py` / `bql_compiler.py` / `engine.py` all share
-one lazily-initialized, cached set of class refs instead of five copies of the same
-`autoclass(...)` calls (and five chances to typo a class path).
+Every module under `agent_search/retrievers/lucene/` needs the same handful of raw
+Lucene classes (`Document`, `IndexWriter`, `SpanNearQuery`, ...) via pyjnius
+`autoclass`. Pyserini's high-level `LuceneSearcher`/`LuceneIndexer` API (used by
+`agent_search.retrievers.lexical.pyserini.BM25Pyserini`) only exposes plain-text
+indexing and a fixed set of similarities; it has no fielded-document API and no span
+queries. This module is the one place that imports pyjnius and constructs the JVM
+class handles, so `index_builder.py`, `indri_compiler.py`, `bql_compiler.py` and
+`engine.py` share one lazily initialized, cached set of class refs instead of
+separate `autoclass(...)` calls with separate chances to typo a class path.
 
-Deliberately does NOT touch `agent_search/retrievers/lexical/pyserini.py` (per task
-scope: that module is being hardened concurrently by another agent) — this package
-is purely ADDITIVE and only ever calls into pyserini for `pyserini.pyclass.autoclass`
-(the same import path pyserini itself uses internally to reach pyjnius) and to start
-the shared JVM (pyserini's autoclass call has the side effect of booting the JVM;
-pyjnius allows exactly ONE JVM per process, so any module in this codebase that needs
-raw Lucene classes MUST go through this same boot path rather than starting a second,
-incompatible one).
+This module never imports `agent_search/retrievers/lexical/pyserini.py` directly; it
+only calls into pyserini for `pyserini.pyclass.autoclass` (the same import path
+pyserini itself uses internally to reach pyjnius) and to start the shared JVM.
+Pyserini's autoclass call has the side effect of booting the JVM, and pyjnius
+allows exactly one JVM per process, so any module in this codebase that needs raw
+Lucene classes must go through this same boot path rather than starting a second,
+incompatible one.
 
-**JVM-boot landmine** (found while validating this package under pytest): a bare
-`import jnius` -- ANYWHERE in the process, before `pyserini.pyclass` gets a chance
-to run its classpath configuration -- starts the JVM with NO classpath in this
-environment (pyjnius auto-starts on module import here, it does not wait for the
-first `autoclass()` call). Every subsequent `autoclass('org.apache.lucene...')`
-then fails with `NoClassDefFoundError`, even though `java.lang.String`-style JDK
-classes still resolve fine (confirmed by reproducing it outside pytest: see
-`tests/test_lucene_structured.py`'s JVM-boot guard, which calls `_boot()` directly
-rather than `pytest.importorskip("jnius", ...)` for exactly this reason). This
-module's `_boot()` is classpath-safe (it goes through `pyserini.pyclass`, which
-configures the classpath to pyserini's bundled fat jar); the risk is only a
-DIFFERENT module bare-importing `jnius` first. No other module in this codebase
-does that today (grep for `import jnius` before adding one) -- if a future one
-needs to, it should call `agent_search.retrievers.lucene.jni_utils._boot()`
-(or import this module) BEFORE its own `import jnius`.
+JVM boot order matters: a bare `import jnius` anywhere in the process, before
+`pyserini.pyclass` gets a chance to run its classpath configuration, starts the JVM
+with no classpath in this environment (pyjnius auto-starts on module import here, it
+does not wait for the first `autoclass()` call). Every subsequent
+`autoclass('org.apache.lucene...')` then fails with `NoClassDefFoundError`, even
+though `java.lang.String`-style JDK classes still resolve fine
+(`tests/test_lucene_structured.py`'s JVM-boot guard calls `_boot()` directly rather
+than `pytest.importorskip("jnius", ...)` for this reason). This module's `_boot()`
+is classpath-safe: it goes through `pyserini.pyclass`, which configures the
+classpath to pyserini's bundled fat jar. The risk is only a different module
+bare-importing `jnius` first; grep for `import jnius` before adding one. A future
+module that needs raw Lucene classes should call
+`agent_search.retrievers.lucene.jni_utils._boot()` (or import this module) before
+its own `import jnius`.
 
-Lucene version note (see task prereqs): this environment ships Lucene 9, where the
-span-query classes moved package from `org.apache.lucene.search.spans` (Lucene <9) to
-`org.apache.lucene.queries.spans` (Lucene 9+) — get this wrong and every span class
-404s with a ClassNotFoundException that looks like a missing dependency, not a wrong
-import path. Nested static classes (`Field.Store`, `SpanNearQuery.Builder`, ...) need
-the JVM's `$`-separated inner-class name (`Field$Store`), not the Python dotted form.
+Lucene version note: this environment ships Lucene 9, where the span-query classes
+moved package from `org.apache.lucene.search.spans` (Lucene <9) to
+`org.apache.lucene.queries.spans` (Lucene 9+); getting this wrong makes every span
+class 404 with a `ClassNotFoundException` that looks like a missing dependency, not
+a wrong import path. Nested static classes (`Field.Store`, `SpanNearQuery.Builder`,
+...) need the JVM's `$`-separated inner-class name (`Field$Store`), not the Python
+dotted form.
 """
 from __future__ import annotations
 
@@ -59,9 +57,9 @@ _booted = False
 def silence_fd(fd: int = 2):
     """Temporarily redirect a file descriptor (default stderr) to /dev/null.
 
-    Copied convention from `agent_search.retrievers.lexical.pyserini._silence_fd`
-    (not imported — see module docstring: no dependency on that module) — used only
-    around JVM boot to swallow the benign one-time 'WARNING: Using incubator modules:
+    Same convention as `agent_search.retrievers.lexical.pyserini._silence_fd`, defined
+    separately here since this module has no dependency on that one. Used only around
+    JVM boot to swallow the benign one-time 'WARNING: Using incubator modules:
     jdk.incubator.vector' the JVM prints. A real init failure still raises a Python
     exception (jnius surfaces it as an exception, not stderr noise), so nothing that
     matters is hidden."""
@@ -85,15 +83,15 @@ def _boot() -> None:
     with _lock:
         if _booted:
             return
-        # See module docstring's "Offline safety" caveat carried over from
-        # pyserini.py: pyserini.search.lucene transitively imports an OpenAI client
-        # constructor at IMPORT time. We only import pyserini.pyclass here (not
-        # pyserini.search.lucene), so that landmine doesn't apply to this module —
-        # but set-and-restore the placeholder anyway in case a caller imports both in
-        # one process. Only set if absent, and removed again in `finally` (same
-        # set-and-restore contract as `pyserini.py`'s `_openai_placeholder_env` — a
-        # JVM boot must never leave a fake key sitting in the host process's
-        # environment after the one import that needed it returns).
+        # pyserini.search.lucene transitively imports an OpenAI client constructor
+        # at import time; this module only imports pyserini.pyclass (not
+        # pyserini.search.lucene), so that import-time dependency does not apply
+        # here, but the placeholder is set and restored anyway in case a caller
+        # imports both in one process. Only set if absent, and removed again in
+        # `finally`, the same set-and-restore contract as `pyserini.py`'s
+        # `_openai_placeholder_env`: a JVM boot must never leave a fake key sitting
+        # in the host process's environment after the one import that needed it
+        # returns.
         had_key = "OPENAI_API_KEY" in os.environ
         if not had_key:
             os.environ["OPENAI_API_KEY"] = "agent-search-unused-placeholder"
@@ -194,9 +192,10 @@ def jcast(iface_name: str, obj):
 def analyze(analyzer, field: str, text: str) -> list:
     """Tokenize `text` through a live Lucene `Analyzer` instance for `field`,
     returning the resulting term strings in order. Used identically at index time
-    (implicitly, by IndexWriter) and at QUERY compile time (explicitly, here) so a
-    query's term forms always match what got indexed for that field -- the single
-    most common source of Lucene "0 hits, both trivially correct in isolation" bugs.
+    (implicitly, by IndexWriter) and at query compile time (explicitly, here) so a
+    query's term forms always match what got indexed for that field. A mismatch here
+    is the most common source of Lucene "0 hits, both trivially correct in isolation"
+    bugs.
     """
     _boot()
     CharTermAttribute = J("CharTermAttribute")
@@ -214,18 +213,17 @@ def analyze(analyzer, field: str, text: str) -> list:
 
 
 # --- shared analyzer instances (stateless, safe to reuse across threads) ---------
-# EnglishAnalyzer: Porter stemming + English stopwords -- the SAME analyzer family
+# EnglishAnalyzer: Porter stemming plus English stopwords, the same analyzer family
 # `bm25_pyserini` indexes with (see agent_search/retrievers/lexical/pyserini.py's
-# module docstring: "same analyzer (Porter stemming...)"). Used for `body`/`title`/
-# `section` (the scored fields).
+# module docstring). Used for `body`/`title`/`section` (the scored fields).
 #
-# SimpleAnalyzer: LetterTokenizer + LowerCaseFilter -- lowercases and splits on any
-# non-letter run, NO stemming, NO stopword removal. Used for the `*_exact` fields
-# (span/window ops + exact boolean "matches" tests) as the closest built-in Lucene
-# analyzer to the Python reference's `code_tokenize` (word-splitting, unstemmed) --
-# it does NOT split camelCase/snake_case identifiers the way `code_tokenize` does
-# (a documented deviation; low-impact for this prose document corpus, see
-# `indri_compiler.py`'s module docstring).
+# SimpleAnalyzer: LetterTokenizer plus LowerCaseFilter, lowercases and splits on any
+# non-letter run, no stemming, no stopword removal. Used for the `*_exact` fields
+# (span/window ops and exact boolean "matches" tests) as the closest built-in Lucene
+# analyzer to the Python reference's `code_tokenize` (word-splitting, unstemmed). It
+# does not split camelCase/snake_case identifiers the way `code_tokenize` does; this
+# deviation has low impact for this prose document corpus (see `indri_compiler.py`'s
+# module docstring).
 _analyzers: dict = {}
 
 

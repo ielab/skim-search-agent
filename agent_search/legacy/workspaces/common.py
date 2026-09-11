@@ -1,4 +1,6 @@
-"""Shared helpers used by more than one doc-research tool family.
+"""Pre-0.3 shared helpers used by more than one doc-research tool family.
+
+Kept so the parity tests can compare against it. `agent_search/tools/common.py` replaces it.
 
 `_SeenMixin` gives every doc workspace its `surfaced` ranking view. `sections_from_body`/
 `_infobox` parse a document's `##` sections and infobox facts. `best_line`/`opening_line`

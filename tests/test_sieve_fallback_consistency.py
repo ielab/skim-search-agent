@@ -1,12 +1,12 @@
 """Sieve's ranking invariant: Boolean is for filtering only; ranking is the arm's model, and the
-0-hit fallback must rank with the SAME model over the SAME index as the exact path.
+0-hit fallback must rank with the same model over the same index as the exact path.
 
 * no dense belief attached  -> exact path and fallback both order by the persisted corpus BM25;
 * dense belief attached (sieve) -> both order by RRF(BM25, dense) from the persisted embeddings;
 * dense-only executor (sieve_dense) -> both order purely by dense similarity.
 
 The dense side is a stub that only exposes what `DenseBelief` exposes to the executor
-(`is_ready`, `top_k_doc_ids`, `score`) and counts encoder calls — nothing is encoded online for
+(`is_ready`, `top_k_doc_ids`, `score`) and counts encoder calls: nothing is encoded online for
 documents, and one search pass encodes the query once.
 """
 from agent_search.corpus.units import units_from_documents

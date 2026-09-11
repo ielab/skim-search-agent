@@ -2,7 +2,7 @@
 
 Source of truth: `agent_search/tools/search_indri/indri_doc.md` (belief-combination math, Dirichlet
 formula, operator semantics). See `parser.py` for the AST and its own Deviations
-section (parsing-only divergences). This module implements the SCORER: leaf beliefs
+section (parsing-only divergences). This module implements the scorer: leaf beliefs
 via Dirichlet-smoothed query likelihood, belief operators combining child log-beliefs
 per the reference's formulas, field-scoped counting/smoothing, filters (`#filreq`/
 `#filrej`/date operators) as per-document hard gates, and a bounded candidate-pool
@@ -10,14 +10,14 @@ ranking pass.
 
 ## Deviations (from agent_search/tools/search_indri/indri_doc.md)
 - **Unseen-term smoothing epsilon**: official Indri discounts collection probability
-  for OOV terms via its own scheme; we use `P(t|C) = max(cf, 0.5) / total` — i.e. an
-  unseen term (`cf == 0`) is treated as if it occurred exactly 0.5 times in the
+  for OOV terms via its own scheme. This backend uses `P(t|C) = max(cf, 0.5) / total`:
+  an unseen term (`cf == 0`) is treated as if it occurred exactly 0.5 times in the
   collection. This keeps `log(...)` finite (never `-inf` from smoothing alone) without
   needing a real OOV model, at the cost of an arbitrary constant (0.5 is the standard
   "half occurrence" Laplace-style choice).
 - **Window/synonym pseudo-term collection stats**: `#odN`/`#uwN` don't have a natural
   single `cf` (they're not a vocabulary term). We approximate
-  `cf(window) = min(cf(member) for member in children)` — a window can occur at most
+  `cf(window) = min(cf(member) for member in children)`: a window can occur at most
   as often as its rarest constituent, so this is a defensible (if loose) upper bound
   used purely for the smoothing denominator. `#syn`/`#wsyn` use `cf = sum` (resp.
   weighted sum) of member `cf`s, matching their "occurrences of a OR b" semantics
@@ -30,8 +30,8 @@ ranking pass.
 - **Field restriction vs. field-context evaluation collapse for compound
   expressions**: `expr.field` (count-restriction) and `expr.(field)` (context/
   smoothing-only) are both implemented as (counting_fields, smoothing_fields)
-  overrides threaded down through the WHOLE subtree they wrap (including belief
-  operators, not just leaves) — so `#combine(a b).title` restricts BOTH `a` and `b`
+  overrides threaded down through the whole subtree they wrap (including belief
+  operators, not just leaves), so `#combine(a b).title` restricts both `a` and `b`
   to the title field. Official Indri's field restriction is closer to an
   extent-retrieval operation typically applied to a single term/proximity
   expression; broadening it to arbitrary subtrees is a pragmatic simplification for
@@ -42,101 +42,101 @@ ranking pass.
   field scope; for a compound sub-expression (rare as a filter argument) it means
   "belief did not hard-fail" (`!= -inf`). Filters and `#band` failures are
   represented as `-inf` log-belief, which propagates through `#combine`/`#weight`
-  (mean/weighted-mean of `-inf` stays `-inf` — the whole subtree is excluded) but is
+  (mean/weighted-mean of `-inf` stays `-inf`: the whole subtree is excluded) but is
   correctly treated as probability-0 (not "unscoreable") by `#or`/`#not`, matching
   the official probability-space definition of those two operators.
-- **Candidate pool + cap**: only a candidate POOL is scored, not the whole corpus:
+- **Candidate pool + cap**: only a candidate pool is scored, not the whole corpus:
   the union of postings-doc-sets for every positive leaf term/wildcard found
-  anywhere in the tree (including inside `#not`, `#filreq`'s `A`, etc. — deliberately
-  over-inclusive/recall-safe, never used to EXCLUDE), plus the exact matching doc set
+  anywhere in the tree (including inside `#not`, `#filreq`'s `A`, etc., deliberately
+  over-inclusive/recall-safe, never used to exclude), plus the exact matching doc set
   of every `#filreq`/date-filter node (so a pure-filter query, e.g. a bare
   `#date:between(...)`, still gets real candidates). If this pool exceeds
   `INDRI_POOL_CAP` (default 5000), it's trimmed to the top-N by a cheap heuristic
-  (sum of body-field term frequencies for the query's terms) before the FULL
-  Dirichlet/belief scoring pass runs — an approximation of "the docs most likely to
+  (sum of body-field term frequencies for the query's terms) before the full
+  Dirichlet/belief scoring pass runs: an approximation of "the docs most likely to
   matter," not an exact top-k. If the pool is empty (no leaf term appears anywhere
-  and no filter matched), it falls back to the WHOLE corpus rather than returning a
-  hard zero — this is the graded-semantics point of the backend: a multi-term
+  and no filter matched), it falls back to the whole corpus rather than returning a
+  hard zero. This is the graded-semantics point of the backend: a multi-term
   `#combine` where no single document has every term should still rank *something*.
-- **Dense-embedding belief (OFF by default)**: `IndriExecutor(..., dense=None)` — pass a
+- **Dense-embedding belief (off by default)**: `IndriExecutor(..., dense=None)`: pass a
   `dense_belief.DenseBelief` instance to turn this on; with `dense=None` (the default)
   every code path below is skipped entirely and behavior is byte-identical to the
   pre-dense engine (no new pool members, no diagnostics entry, no combination). When
-  attached, TWO independent things happen, both keyed off the RAW query surface text
+  attached, two independent things happen, both keyed off the raw query surface text
   (`_plain_terms`-stripped of `#operator`/`.field` syntax before it reaches the encoder,
-  mirroring `doc_indri._indri_query_terms`):
+  mirroring `agent_search.tools.search_indri`'s `_indri_query_terms`):
   (1) **Pool expansion (recall)**: the dense retriever's top-`INDRI_DENSE_EXPAND_K`
-  (default 50) doc_ids are unioned into the candidate pool AFTER the lexical
-  `POOL_CAP` heuristic runs — so a paraphrased/obfuscated document with zero query-term
+  (default 50) doc_ids are unioned into the candidate pool after the lexical
+  `POOL_CAP` heuristic runs, so a paraphrased/obfuscated document with zero query-term
   overlap (which the lexical `_collect_term_pool` would never surface, and which a
   lexical-tf `_cap_pool` heuristic would rank last if it somehow got in) is still
   scored. Such a doc still gets a real (if low) Dirichlet belief from pure collection
-  smoothing (`_dirichlet` never returns `-inf` for a `Combine`/`Term` query — see the
+  smoothing (`_dirichlet` never returns `-inf` for a `Combine`/`Term` query, see the
   unseen-term-smoothing bullet above), so pool membership alone doesn't fabricate a
   false hard-fail.
-  (2) **Belief combination (precision/reranking)**: for every pooled doc with BOTH a
+  (2) **Belief combination (precision/reranking)**: for every pooled doc with both a
   finite lexical log-belief and a dense cosine similarity, `final_log_belief =
   (1-w)*lex_log_belief + w*log(dense_norm)`, where `w` = `INDRI_DENSE_W` (env, default
-  0.35, read live — same pattern as `_rescore_m`) and `dense_norm` is the doc's raw
+  0.35, read live, same pattern as `_rescore_m`) and `dense_norm` is the doc's raw
   cosine similarity min-max normalized *within the scored pool* (not the whole corpus)
   to `[DENSE_NORM_EPS, 1.0]`. This is a **deviation from the rest of the engine's true
   log-probability semantics**: Dirichlet log-beliefs are calibrated log-probabilities,
   but `log(dense_norm)` is a pool-relative, arbitrarily-rescaled score with no
-  probabilistic meaning outside this one ranking call — the combination is a pragmatic
+  probabilistic meaning outside this one ranking call. The combination is a pragmatic
   linear score-fusion (in log space, consistent with `#combine`'s additive-in-log-space
-  shape) not a joint probability. A degenerate pool (every doc's similarity identical,
+  shape), not a joint probability. A degenerate pool (every doc's similarity identical,
   `range <= 0`) maps every doc to `dense_norm = 1.0` (`log(1.0) = 0`), a no-op additive
   shift that preserves the pure-lexical relative ranking rather than dividing by zero
   or crashing. Any dense-side exception (model/index missing, offline, corrupt cache)
-  degrades silently to lexical-only pool/scoring for that call — consistent with this
+  degrades silently to lexical-only pool/scoring for that call, consistent with this
   module's "never hard-fail the agent loop" philosophy elsewhere. Diagnostics gain one
   extra `("#dense", log(dense_norm))` entry for the top hit whenever a dense similarity
   was computed for it (even at `INDRI_DENSE_W=0`, so the contribution is visible without
-  necessarily affecting ranking). `dense` is NOT persisted (excluded from `_PERSIST`,
+  necessarily affecting ranking). `dense` is not persisted (excluded from `_PERSIST`,
   same rationale as `units`): a pickle-loaded executor has `dense=None` until
   `attach_dense(...)` is called, exactly mirroring `attach_units`.
 - **Proximity window matching is a bounded reimplementation, not Indri's internal
   algorithm**: `#odN` counts one match per distinct start position of the first
   child that can be greedily extended in order within the gap bound (not an
-  exhaustive/optimal combinatorial count); `#uwN` counts one match per window START
+  exhaustive/optimal combinatorial count); `#uwN` counts one match per window start
   offset `s` such that `[s, s+N-1]` contains at least one occurrence of every child
   (an `O(doc_len * N)` sliding check). Both are correct up to potential double
   counting of overlapping windows; `#od`/`#uw` with no window number is "unlimited"
-  (whole-field span) and IS implemented (the reference marks it optional).
+  (whole-field span) and is implemented (the reference marks it optional).
 - **Filter pool exactness**: `#filreq(A Q)`'s candidate-pool contribution scans all
   documents to test `A` exactly (this index has no separate structural/boolean
-  postings the way `bql` does); `#filrej(A Q)` conservatively adds the WHOLE corpus
+  postings the way `bql` does); `#filrej(A Q)` conservatively adds the whole corpus
   to the pool rather than paying the same scan (the exclusion is enforced correctly
-  during scoring via the `-inf` gate regardless — this only affects the SIZE of the
+  during scoring via the `-inf` gate regardless: this only affects the size of the
   candidate pool, never correctness).
 - **Date literals/comparisons**: only ISO `YYYY[-MM[-DD]]` is accepted (see
   `parser.py`); a partial bound widens to the full covered span
   (`date_bounds`: year -> Jan 1..Dec 31, etc.). A document with a missing or
-  malformed `metadata['date']` never satisfies ANY date filter (excluded, not
+  malformed `metadata['date']` never satisfies any date filter (excluded, not
   "unknown").
 - **Two-stage max-score-style rescoring for large pools**: window/proximity
   operators (`#odN`/`#uwN`) and multi-token `Term` phrases need per-doc token
-  POSITIONS, which are only derivable by tokenizing the doc's field text — too
+  positions, which are only derivable by tokenizing the doc's field text: too
   expensive to do for the whole (up to `INDRI_POOL_CAP`-sized) candidate pool.
   Instead, when `len(pool) > INDRI_RESCORE_M` (env, default 300) scoring runs in
-  two stages, the standard top-k/max-score optimization pattern: STAGE 1 scores
-  every pooled doc with a POSITION-FREE approximation — window/phrase operators
+  two stages, the standard top-k/max-score optimization pattern: stage 1 scores
+  every pooled doc with a position-free approximation. Window/phrase operators
   use `min(member unigram tf)` as their pseudo-tf (the same "rarest constituent"
   reasoning already used for their `cf` approximation above; since a window's
   true match count can never exceed its rarest member's raw frequency, this is a
-  safe upper bound, so STAGE 1 never under-ranks a doc relative to its true
-  score), everything else (single-token terms, wildcards, Dirichlet smoothing,
-  belief combinators, filters, date gates) is EXACT already (no positions
-  needed). STAGE 2 exactly re-scores (real position/window matching) only the
-  top `INDRI_RESCORE_M` STAGE-1 docs, plus any doc a `#filreq`/date-filter node
-  HARD REQUIRES if there are fewer than `INDRI_RESCORE_M` of those (so a tight
-  filter's docs always get exact treatment even if STAGE 1 under-ranked them
-  for an unrelated reason). Final ranking uses STAGE 2's exact score for
-  rescored docs and STAGE 1's approximate score for the rest — so `k` larger
+  safe upper bound, so stage 1 never under-ranks a doc relative to its true
+  score); everything else (single-token terms, wildcards, Dirichlet smoothing,
+  belief combinators, filters, date gates) is exact already (no positions
+  needed). Stage 2 exactly re-scores (real position/window matching) only the
+  top `INDRI_RESCORE_M` stage-1 docs, plus any doc a `#filreq`/date-filter node
+  hard-requires if there are fewer than `INDRI_RESCORE_M` of those (so a tight
+  filter's docs always get exact treatment even if stage 1 under-ranked them
+  for an unrelated reason). Final ranking uses stage 2's exact score for
+  rescored docs and stage 1's approximate score for the rest, so `k` larger
   than the rescore set still returns `k` results, just with approximate scores
   below the exact top-`INDRI_RESCORE_M`. If `len(pool) <= INDRI_RESCORE_M`,
-  STAGE 1 is skipped entirely (exact-only, byte-identical to pre-optimization
-  behavior — this is why the small hand-computable tests stay exact). As a
+  stage 1 is skipped entirely (exact-only, identical to the pre-optimization
+  behavior; this is why the small hand-computable tests stay exact). As a
   second, orthogonal bound, `_match_positions` (and window position matching)
   caps counted matches at `MATCH_POSITIONS_CAP` (50) per doc per operator and
   early-exits once reached; Dirichlet-smoothed tf saturates in its effect on
@@ -170,7 +170,7 @@ DEFAULT_MU = float(os.environ.get("INDRI_MU", "2500"))
 POOL_CAP = int(os.environ.get("INDRI_POOL_CAP", "5000"))
 NEG_INF = float("-inf")
 
-# --- dense-embedding belief source (OFF by default; see module Deviations) ---
+# --- dense-embedding belief source (off by default; see module Deviations) ---
 DENSE_NORM_EPS = 1e-6
 
 # Per-doc, per-operator cap on counted position matches (`_match_positions` and
@@ -180,7 +180,7 @@ MATCH_POSITIONS_CAP = 50
 
 
 def _rescore_m() -> int:
-    """STAGE 2 rescore-set size (see Deviations: two-stage max-score rescoring).
+    """Stage 2 rescore-set size (see Deviations: two-stage max-score rescoring).
     Read live (not a module-level constant) so `INDRI_RESCORE_M` can be
     overridden per-test via `monkeypatch.setenv`/`os.environ` without a module
     reload, matching how tests need to force small values."""
@@ -191,7 +191,7 @@ def _dense_weight() -> float:
     """`INDRI_DENSE_W`: the dense belief's blend weight when a `DenseBelief` is
     attached (see module Deviations). Read live (not cached), same pattern as
     `_rescore_m`, so tests can override via `monkeypatch.setenv` without a reload.
-    Irrelevant (never read) when `self.dense is None` — dense is off by default."""
+    Irrelevant (never read) when `self.dense is None`: dense is off by default."""
     return float(os.environ.get("INDRI_DENSE_W", "0.35"))
 
 
@@ -218,14 +218,14 @@ class IndriResult:
     hits: list                                  # [(doc_id, score), ...] best-first
     error: Optional[str] = None
     diagnostics: list = dc_field(default_factory=list)   # [(child_repr, log_belief), ...]
-    # LOW finding (adversarial verification): an unrecognized `.field` name (e.g.
-    # `.foo` where `foo` isn't body/title/section/author/date) is NOT a parse/type
-    # error in Indri QL -- it's a syntactically valid restriction to a field with
-    # zero postings, so BOTH engines "search anyway" and just return fewer/zero
-    # hits, with nothing distinguishing that from a genuinely zero-hit query on a
-    # KNOWN field. `warning` surfaces that distinction to the agent (see
-    # `unknown_query_fields` below and doc_indri.py's `_search_impl`, which appends
-    # it to the rendered result text) without changing the hits/ranking themselves.
+    # An unrecognized `.field` name (e.g. `.foo` where `foo` isn't
+    # body/title/section/author/date) is not a parse/type error in Indri QL: it's a
+    # syntactically valid restriction to a field with zero postings, so both engines
+    # "search anyway" and just return fewer/zero hits, with nothing distinguishing that
+    # from a genuinely zero-hit query on a known field. `warning` surfaces that
+    # distinction to the agent (see `unknown_query_fields` below and
+    # `agent_search/tools/search_indri/tool.py`, which appends it to the rendered
+    # result text) without changing the hits/ranking themselves.
     warning: Optional[str] = None
 
 
@@ -234,13 +234,13 @@ _KNOWN_FIELDS = frozenset(f.lower() for f in FIELDS)
 
 def unknown_query_fields(expr) -> list:
     """Every field name referenced by a `.field` / `.field.(context)` restriction
-    anywhere in `expr` that ISN'T one of `index.FIELDS` (body/title/section/author/
+    anywhere in `expr` that isn't one of `index.FIELDS` (body/title/section/author/
     date), in first-seen order, deduped. Shared by `IndriExecutor.search` (below)
-    and `LuceneStructuredEngine.search_indri` (lucene/engine.py) -- both compile
-    the SAME parsed AST (`indri.parser.parse`), so this one walk is the single
+    and `LuceneStructuredEngine.search_indri` (lucene/engine.py): both compile
+    the same parsed AST (`indri.parser.parse`), so this one walk is the single
     source of truth for "did this query name a field neither engine knows about."
-    Purely diagnostic: an unknown field name is a VALID query (Indri QL has no
-    field-name validity restriction -- see `_resolve_fields`'s "unknown -> filter-
+    Purely diagnostic: an unknown field name is a valid query (Indri QL has no
+    field-name validity restriction, see `_resolve_fields`'s "unknown -> filter-
     only, no scoring" comment in `lucene/indri_compiler.py`), so this never raises
     or changes what a query matches, only whether a warning gets attached."""
     seen: list = []
@@ -306,7 +306,7 @@ def _safe_log(x: float) -> float:
 
 
 class IndriExecutor:
-    """Public API — see the package `__init__.py` docstring."""
+    """Public API: see the package `__init__.py` docstring."""
 
     def __init__(self, units: Sequence[CodeUnit], mu: Optional[float] = None,
                  dense: Optional["DenseBelief"] = None):
@@ -318,21 +318,21 @@ class IndriExecutor:
         self.index = IndriIndex.build(self.units)
         self._doc_id_order = [u.doc_id for u in self.units]
         # lazy per-(doc, field-tuple) tokenized field cache, for proximity positions.
-        # NOT persisted — rebuilt on demand from the live (attached) units.
+        # Not persisted: rebuilt on demand from the live (attached) units.
         self._doctok_cache: dict = {}
-        # lazy sorted (date, unit_idx) index for date-filter POOLING. NOT persisted.
+        # lazy sorted (date, unit_idx) index for date-filter pooling. Not persisted.
         self._date_keys: Optional[list] = None
         self._date_units: Optional[list] = None
-        # OFF by default (see module Deviations: "Dense-embedding belief"). NOT
-        # persisted — mirrors `units` (see `_PERSIST`/`attach_units`/`attach_dense`).
+        # Off by default (see module Deviations: "Dense-embedding belief"). Not
+        # persisted: mirrors `units` (see `_PERSIST`/`attach_units`/`attach_dense`).
         self.dense: Optional["DenseBelief"] = dense
         # lazy doc_id -> unit-index map, for dense pool-expansion doc_id lookups.
-        # NOT persisted (derivable from `_doc_id_order`, which IS persisted).
+        # Not persisted (derivable from `_doc_id_order`, which is persisted).
         self._doc_id_to_idx: Optional[dict] = None
 
     # --- persistence -----------------------------------------------------------
     # Slim pickle: only the postings index + mu + doc-id order. Units and the
-    # per-doc token/date caches are NOT persisted (same rationale as the BQL
+    # per-doc token/date caches are not persisted (same rationale as the BQL
     # executor's slim pickle: they rebuild cheaply from the live corpus and would
     # otherwise dominate the pickle size).
     _PERSIST = ("index", "mu", "_doc_id_order")
@@ -347,15 +347,15 @@ class IndriExecutor:
         self._doctok_cache = {}
         self._date_keys = None
         self._date_units = None
-        self.dense = None                  # not persisted — see `attach_dense`
+        self.dense = None                  # not persisted, see `attach_dense`
         self._doc_id_to_idx = None
 
     def attach_units(self, units: Sequence[CodeUnit]) -> "IndriExecutor":
         from agent_search.corpus.docstore import refuse_lazy
         refuse_lazy(units, "the Indri engine", "a strategy with prebuilt-index support")
         """Rebuild units + per-doc caches from the corpus after a slim-pkl load.
-        The persisted postings reference unit INDICES, so `units` must be in the
-        SAME order as at build time — validated against the stored doc-id order."""
+        The persisted postings reference unit indices, so `units` must be in the
+        same order as at build time: validated against the stored doc-id order."""
         units = list(units)
         order = getattr(self, "_doc_id_order", None)
         if order is not None and [u.doc_id for u in units] != order:
@@ -368,10 +368,10 @@ class IndriExecutor:
         return self
 
     def attach_dense(self, dense: Optional["DenseBelief"]) -> "IndriExecutor":
-        """Attach (or detach, via `dense=None`) a `DenseBelief` post-construction —
+        """Attach (or detach, via `dense=None`) a `DenseBelief` post-construction:
         mirrors `attach_units`'s "reattach after a slim-pkl load" pattern, since
         `dense` is likewise excluded from `_PERSIST`. Purely a setter (no pool/
-        scoring logic here); OFF by default, so a caller that never calls this
+        scoring logic here); off by default, so a caller that never calls this
         gets byte-identical pre-dense behavior (see module Deviations)."""
         self.dense = dense
         return self
@@ -386,7 +386,7 @@ class IndriExecutor:
 
     @staticmethod
     def load(path: str) -> "IndriExecutor":
-        """GC disabled across the unpickle — same rationale as
+        """GC disabled across the unpickle, same rationale as
         `StructuralExecutor.load`: a big object graph unpickled while the caller
         already holds a large corpus in memory degrades to O(n^2) GC otherwise."""
         import gc
@@ -424,8 +424,8 @@ class IndriExecutor:
         if len(pool) > POOL_CAP:
             pool = self._cap_pool(pool, root)
 
-        # Dense pool expansion (OFF unless `self.dense` is attached): unioned in
-        # AFTER the lexical POOL_CAP heuristic so a lexical-tf cap never evicts a
+        # Dense pool expansion (off unless `self.dense` is attached): unioned in
+        # after the lexical POOL_CAP heuristic so a lexical-tf cap never evicts a
         # dense-only recall candidate. See module Deviations.
         if self.dense is not None and query_text:
             pool = pool | self._dense_expand(query_text)
@@ -433,12 +433,12 @@ class IndriExecutor:
         m = _rescore_m()
         if len(pool) <= m:
             # Pool already small enough: exact-only, identical to pre-optimization
-            # behavior (STAGE 1 approximation is skipped entirely). See Deviations.
+            # behavior (stage 1 approximation is skipped entirely). See Deviations.
             scored = self._score_pool(root, pool, approx=False)
         else:
             scored = self._two_stage_score(root, pool, m)
 
-        # Dense belief combination (OFF unless `self.dense` is attached): rescales
+        # Dense belief combination (off unless `self.dense` is attached): rescales
         # `scored`'s log-beliefs in place per doc; see module Deviations.
         dense_log_by_idx: dict = {}
         if self.dense is not None and query_text and scored:
@@ -458,7 +458,7 @@ class IndriExecutor:
                 diagnostics.append(("#dense", dense_log))
         return IndriResult(hits=hits, error=None, diagnostics=diagnostics)
 
-    # --- dense-embedding belief source (OFF unless `self.dense` is attached) ------
+    # --- dense-embedding belief source (off unless `self.dense` is attached) ------
 
     def _idx_of_doc_id(self, doc_id: str) -> Optional[int]:
         if self._doc_id_to_idx is None:
@@ -467,7 +467,7 @@ class IndriExecutor:
 
     def _dense_expand(self, query_text: str) -> set:
         """Dense top-`INDRI_DENSE_EXPAND_K` doc_ids for `query_text`, mapped to unit
-        indices — the RECALL half of the dense belief source (see module
+        indices: the recall half of the dense belief source (see module
         Deviations). Any dense-side failure degrades to no expansion (never breaks
         the lexical search)."""
         try:
@@ -482,11 +482,11 @@ class IndriExecutor:
         return out
 
     def _combine_dense(self, scored: list, query_text: str) -> tuple:
-        """PRECISION half of the dense belief source (see module Deviations):
+        """Precision half of the dense belief source (see module Deviations):
         one batched dense similarity call for every doc in `scored`, min-max
         normalized to `[DENSE_NORM_EPS, 1.0]` *within this pool*, log-combined
         with each doc's lexical log-belief via `INDRI_DENSE_W`. Returns
-        `(new_scored, dense_log_by_idx)` — the latter feeds the `#dense`
+        `(new_scored, dense_log_by_idx)`; the latter feeds the `#dense`
         diagnostics entry (computed regardless of `INDRI_DENSE_W`, including 0,
         so the contribution is visible even when it doesn't affect ranking). Any
         dense-side failure returns `scored` unchanged (lexical-only)."""
@@ -521,8 +521,8 @@ class IndriExecutor:
     def _score_pool(self, root, pool, approx: bool) -> list:
         """Score every doc in `pool` against `root`; returns `[(doc_idx, belief), ...]`
         for docs that don't hard-fail (belief != NEG_INF). `approx=True` uses the
-        position-free STAGE 1 approximation (see Deviations); `approx=False` is the
-        exact evaluation (today's behavior)."""
+        position-free stage 1 approximation (see Deviations); `approx=False` is the
+        exact evaluation."""
         out = []
         for i in pool:
             b = self._belief(root, i, ("body",), ("body",), approx=approx)
@@ -531,15 +531,15 @@ class IndriExecutor:
         return out
 
     def _two_stage_score(self, root, pool: set, m: int) -> list:
-        """STAGE 1 (position-free approximate) + STAGE 2 (exact) max-score-style
-        rescoring — see module Deviations. STAGE 1 scores the whole pool cheaply;
-        STAGE 2 exactly re-scores only the top-`m` STAGE-1 docs (plus any
-        filter-REQUIRED doc, if there are fewer than `m` of those), so real
+        """Stage 1 (position-free approximate) plus stage 2 (exact) max-score-style
+        rescoring, see module Deviations. Stage 1 scores the whole pool cheaply;
+        stage 2 exactly re-scores only the top-`m` stage-1 docs (plus any
+        filter-required doc, if there are fewer than `m` of those), so real
         position/window matching work is bounded to a small fixed-size set
-        regardless of pool size. Docs outside the rescored set keep their STAGE 1
-        approximate score/inclusion; docs inside it are governed by STAGE 2's exact
+        regardless of pool size. Docs outside the rescored set keep their stage 1
+        approximate score/inclusion; docs inside it are governed by stage 2's exact
         score/inclusion (a rescored doc that exactly hard-fails is correctly
-        dropped even if STAGE 1 approximated it as passing)."""
+        dropped even if stage 1 approximated it as passing)."""
         approx = dict(self._score_pool(root, pool, approx=True))
         ranked = sorted(approx, key=lambda i: (-approx[i], self.units[i].doc_id))
         rescore_set = set(ranked[:m])
@@ -554,15 +554,15 @@ class IndriExecutor:
             elif i not in rescore_set and i in approx:
                 scored.append((i, approx[i]))
             # else: rescored but exact-excluded (-inf), or never had a finite
-            # STAGE 1 score and wasn't rescored -> correctly dropped from hits.
+            # stage 1 score and wasn't rescored -> correctly dropped from hits.
         return scored
 
     def _required_filter_docs(self, root) -> set:
-        """Docs a `#filreq`/date-filter node HARD REQUIRES — exact, and cheap to
+        """Docs a `#filreq`/date-filter node hard-requires: exact, and cheap to
         compute (bisect range lookups / a single exact `_matches` scan, no token
         positions), already computed en route to the candidate pool in
-        `_collect_filter_pool`. Used to guarantee STAGE 2 exact rescoring for
-        filter-gated docs even if STAGE 1's approximation under-ranked them for
+        `_collect_filter_pool`. Used to guarantee stage 2 exact rescoring for
+        filter-gated docs even if stage 1's approximation under-ranked them for
         an unrelated reason. `#filrej` is deliberately excluded: its "required"
         set is usually ~the whole corpus, which the `< m` guard in
         `_two_stage_score` naturally skips anyway (and computing it exactly would
@@ -731,9 +731,9 @@ class IndriExecutor:
 
     def _match_positions(self, subtoks: list, doc_idx: int, fields) -> list:
         """Exact position matches, early-exiting once `MATCH_POSITIONS_CAP` are
-        found (see module Deviations — a bound on otherwise-unbounded per-doc
-        work; only used for the STAGE 2 exact rescore set, or when the pool never
-        needed STAGE 1 at all)."""
+        found (see module Deviations, a bound on otherwise-unbounded per-doc
+        work; only used for the stage 2 exact rescore set, or when the pool never
+        needed stage 1 at all)."""
         if not subtoks:
             return []
         toks = self._doc_tokens(doc_idx, fields)
@@ -766,8 +766,8 @@ class IndriExecutor:
         return sum(self.index.cf_of(f, term) for f in fields)
 
     def _agg_tf(self, term: str, doc_idx: int, fields) -> int:
-        """Per-doc unigram tf straight from postings — O(1) dict lookups, no
-        tokenization/positions. Used by the STAGE 1 approximation (`_raw_tf_approx`)."""
+        """Per-doc unigram tf straight from postings: O(1) dict lookups, no
+        tokenization/positions. Used by the stage 1 approximation (`_raw_tf_approx`)."""
         return sum(self.index.tf(f, term, doc_idx) for f in fields)
 
     # --- positions / raw match counts / collection freq per leaf-ish node ---------
@@ -866,13 +866,13 @@ class IndriExecutor:
         return 0.0
 
     def _raw_tf_approx(self, node, doc_idx: int, fields) -> float:
-        """STAGE 1 position-free approximation of `_raw_tf` (see module Deviations:
+        """Stage 1 position-free approximation of `_raw_tf` (see module Deviations:
         two-stage max-score-style rescoring). Single-token terms and wildcards are
-        computed EXACTLY here (postings already give exact per-doc unigram counts,
-        no position scan needed) — only window/phrase operators are approximated,
+        computed exactly here (postings already give exact per-doc unigram counts,
+        no position scan needed); only window/phrase operators are approximated,
         via `min(member unigram tf)` (mirrors the existing `_raw_cf` "rarest
         constituent" approximation, and is a safe upper bound on the true window
-        match count, so STAGE 1 never under-ranks a doc relative to STAGE 2)."""
+        match count, so stage 1 never under-ranks a doc relative to stage 2)."""
         if isinstance(node, FieldExpr):
             f2 = node.fields if node.fields else fields
             return self._raw_tf_approx(node.child, doc_idx, f2)
@@ -954,7 +954,7 @@ class IndriExecutor:
 
     def _belief(self, node, doc_idx: int, counting_fields, smoothing_fields,
                 approx: bool = False) -> float:
-        """`approx=True` selects the STAGE 1 position-free approximation for
+        """`approx=True` selects the stage 1 position-free approximation for
         window/phrase leaves (`_raw_tf_approx` instead of `_raw_tf`); every other
         operator's math is identical between stages (see module Deviations)."""
         if isinstance(node, FieldExpr):
@@ -1087,13 +1087,12 @@ def load_or_build(units: Sequence[CodeUnit], index_root: Optional[str] = None,
                   key: Optional[str] = None, rebuild: bool = False,
                   dense: Optional["DenseBelief"] = None) -> IndriExecutor:
     """Return a prewarmed executor loaded from disk if one was materialized for this
-    corpus, else build it in memory and PERSIST it (same pattern as bql's
+    corpus, else build it in memory and persist it (same pattern as bql's
     `load_or_build`) so the O(n) build is paid once, not once per episode.
 
-    `dense` (OFF by default, `None`): a `DenseBelief` to attach via `attach_dense`
-    after load/build — convenience only, since `dense` is never persisted (see
-    module Deviations). Omitting it (the default) is byte-identical to before this
-    parameter existed."""
+    `dense` (off by default, `None`): a `DenseBelief` to attach via `attach_dense`
+    after load/build, convenience only, since `dense` is never persisted (see
+    module Deviations). Omitting it (the default) leaves the executor lexical-only."""
     if index_root and key and not rebuild:
         path = indri_index_path(index_root, key)
         if os.path.exists(path):

@@ -1,15 +1,17 @@
-"""Prompt condition registry — discovered from conditions.yaml.
+"""Pre-0.3 prompt condition registry, discovered from conditions.yaml. Kept so the parity
+tests can compare against it; `agent_search.strategies.conditions` (STRATEGIES, CONDITIONS)
+replaces this.
 
 A condition binds a task template (tasks/*.md, which carries the domain) to a
 toolset (tools.yaml). This registry reads conditions.yaml at import, so adding a
-condition is one binding — no code change here. The agent harness turns each
+condition is one binding: no code change here. The agent harness turns each
 condition `name` into a runnable `agent_<name>` (the bare `agent` alias points at
 `AGENT_DEFAULT_CONDITION`, `research_snip` by default).
 `get_prompt_spec(name)` returns the binding; `spec.path` is the condition NAME,
 which the loader composes via load_condition.
 
 Plugins can add conditions at runtime with `register_condition(name, task=..., toolset=...)`
-(a task template path outside the package is accepted) — see docs/EXTENDING.md.
+(a task template path outside the package is accepted). See docs/EXTENDING.md.
 """
 from __future__ import annotations
 
