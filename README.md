@@ -298,6 +298,7 @@ storage and is sent per request to OpenAI; the server does not store or log it. 
 | [docs/SIEVE.md](docs/SIEVE.md) | the Sieve paper: the method and its ablations |
 | [docs/REPRODUCING.md](docs/REPRODUCING.md) | the Sieve paper: its runs, judging, statistics and tables |
 | [docs/ITER.md](docs/ITER.md) | the ITER paper: its search tools, backbones, retrievers, datasets, training and the verified runs |
+| [docs/VERIFICATION.md](docs/VERIFICATION.md) | every strategy, dataset and backbone run on the cluster after the restructure, with the results |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | development setup and how to add components |
 
 ## Papers
