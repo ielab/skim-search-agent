@@ -130,6 +130,7 @@ call of an episode; completion tokens likewise. A row is added as its run comple
 |---|---|---|---|---|---|
 | Search-Visit (BM25) | `agent_research_bm25` | 36.7% (305/830) | 54.5 | 11.3k | 1.63M |
 | Sieve, BM25 ranking | `agent_research_snip` | 32.8% (272/830) | 60.6 | 15.8k | 1.57M |
+| Search-Fetch (BM25) | `agent_research_bm25_fetch_snip` | 33.5% (278/830) | 70.1 | 11.5k | 1.95M |
 
 ### Retrieval floors on BrowseComp-Plus structured
 
