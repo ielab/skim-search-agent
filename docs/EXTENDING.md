@@ -1,9 +1,9 @@
 # Extending SkimSearchAgent
 
-Every extension is a registration against a base class that lives next to its family:
-`agent_search/retrievers/base.py` (retrievers), `agent_search/agent/backbone/base.py` (model
-providers), `agent_search/agent/policies.py` (policies), `agent_search/tools/base.py` (tools)
-and `agent_search/tasks/base.py` (tasks). The evaluation does not
+Every extension is a registration against a base class. Each family keeps its base class next
+to it: retrievers in `agent_search/retrievers/base.py`, model providers in
+`agent_search/agent/backbone/base.py`, policies in `agent_search/agent/policies.py`, tools in
+`agent_search/tools/base.py`, and tasks in `agent_search/tasks/base.py`. The evaluation does not
 special-case the built-ins, so a registered component gets the same run record, metrics and
 resume behaviour. Each section below is a complete, runnable example.
 [`examples/plugin_strategy.py`](../examples/plugin_strategy.py) and
@@ -16,7 +16,7 @@ resume behaviour. Each section below is a complete, runnable example.
 | a tool | a `Tool` subclass (`agent_search.tools.base`) | declaration + `run(args) -> str` + an optional manual |
 | a task | a `Task` subclass (`agent_search.tasks.base`) with a `prompt.md` | the template, the domain, the terminal |
 | a strategy | `agent_search.strategies.base.register_strategy` | tools with their exposed names and options |
-| a condition | `agent_search.strategies.conditions.condition` | task x strategy; runnable by name |
+| a condition | `agent_search.strategies.conditions.condition` | a task paired with a strategy, runnable by name |
 | a model provider | any `messages -> text` callable | `Model` |
 | a policy | any object with `propose(task, history) -> str` | `Policy` |
 | a metric or judge | a function over rows | `evaluation/metrics.py`, `doc_scoring.py`, `llm_judge.py` |
@@ -48,7 +48,7 @@ def load_my_qa(limit=None, corpus_limit=None):
                      answer="Treaty of Guadalupe Hidalgo", corpus_id="my_qa")]
 ```
 
-`corpus_id` names the persistent index caches; keep it stable. For a BEIR-style directory
+`corpus_id` names the persistent index caches. Keep it stable. For a BEIR-style directory
 (`corpus.jsonl`, `queries.jsonl`, `qrels/test.tsv`) call `_load_beir_style` from
 `agent_search/evaluation/datasets/beir.py`. The paper's corpus builders are in
 [`corpus_build/`](../corpus_build/README.md).
@@ -81,13 +81,13 @@ def build(cfg: RetrieverConfig, name: str):
 `strategy=my_method` runs it as a retrieval-only condition with the same rank metrics as
 `bm25`. To use it inside an agent, give it to a tool (section 3). A persistent index
 should be keyed by `key` and by `agent_search.corpus.fingerprint.corpus_fingerprint(units)`, so an
-edited document is never served from a stale cache; the built-in retrievers do this.
+edited document is never served from a stale cache. The built-in retrievers do this.
 
 ### A dense encoder family
 
 Dense retrievers are one base class and one file per encoder family
 (`agent_search/retrievers/dense/`: `bge.py`, `coderank.py`, `qwen3_embedding.py`, `trained.py`).
-A family states its own query prefix, pooling, precision and lengths; nothing is looked up in a
+A family states its own query prefix, pooling, precision and lengths. Nothing is looked up in a
 table. To add one, write a file with a subclass, say which model ids it serves, and register it:
 
 ```python
@@ -104,7 +104,7 @@ class E5Retriever(DenseRetriever):
         return model_id.startswith("intfloat/e5-")
 ```
 
-`DenseRetriever("intfloat/e5-large-v2")` now returns an `E5Retriever`, and every dense arm
+`DenseRetriever("intfloat/e5-large-v2")` now returns an `E5Retriever`. Every dense arm
 (Sieve's ranker and fallback, the dense and hybrid baselines, Indri's belief) uses it through
 `retrieval.dense_model`. A checkpoint trained with `skimsearchagent-train-retriever` needs no
 family: `TrainedRetriever` reads its serving note.
@@ -112,7 +112,7 @@ family: `TrainedRetriever` reads its serving note.
 ### A fusion method
 
 A hybrid retriever is a list of retrievers and a fusion method. The methods live one file each
-under `agent_search/retrievers/fusion/`; a new one is a `Fusion` subclass that turns ranked
+under `agent_search/retrievers/fusion/`. A new one is a `Fusion` subclass that turns ranked
 `(doc_id, score)` lists into one ranking:
 
 ```python
@@ -139,7 +139,7 @@ Then, in an experiment file: `retrieval.hybrid_retrievers: bm25,dense` (any engi
 ### A reranker
 
 A reranked retriever is one retriever and one reranker. The rerankers live one file each under
-`agent_search/retrievers/rerankers/`; a new one is a `Reranker` subclass that scores
+`agent_search/retrievers/rerankers/`. A new one is a `Reranker` subclass that scores
 `(doc_id, text)` candidates for a query. A listwise reranker that asks the run's model to order
 the candidates would be the next file in that folder:
 
@@ -157,17 +157,18 @@ class TitleLength(Reranker):
 
 Then, in an experiment file: `retrieval.rerank_base: bm25` (any engine kind),
 `retrieval.rerank_method: title_length`, `retrieval.rerank_pool: 100`. The `reranked` floor and
-the `search_visit_reranked` strategy use them; the shipped method is `cross_encoder`
+the `search_visit_reranked` strategy use them. The shipped method is `cross_encoder`
 (`retrieval.rerank_model`, default `BAAI/bge-reranker-v2-m3`). A reranker reads the documents
 during the run, so it costs a forward pass per candidate per search.
 
 ## 3. A tool
 
-A tool is one action the agent can call. It owns three things: its declaration (the name the
-model sees, the description, the JSON parameters), its code (`run(args)` returns the observation
-text; an error is returned as text, never raised) and, when the agent has to learn a syntax, its
-manual (a Markdown file rendered into the prompt after the declarations). The built-ins live one
-folder each under `agent_search/tools/`; a plugin's tool is just the class.
+A tool is one action the agent can call. It owns three things. Its declaration is the name the
+model sees, the description, and the JSON parameters. Its code is `run(args)`, which returns
+the observation text. An error is returned as text, never raised. Its manual, needed only when
+the agent has to learn a syntax, is a Markdown file rendered into the prompt after the
+declarations. The built-ins live one folder each under `agent_search/tools/`. A plugin's tool is
+just the class.
 
 ```python
 from agent_search.tokens import cap_tokens
@@ -191,9 +192,10 @@ class TitleLookup(Tool):
 A bound tool sees `self.units`, `self.ubyid` (doc id to unit), `self.state` (the episode: `seen`,
 `last_hits`, `listing`, `reads`, `scratch`), `self.engine` (the engines it declared, built once
 per corpus and shared with the other tools), `self.files` (the repository files, when
-`needs_files = True`) and `self.corpus_key`. Options are class attributes a strategy overrides by
-keyword (`SearchBm25(name="bm25q_search", snippet=TermWindow())`); `on_bind()` runs once per episode.
-Text limits inside a tool are token caps (`cap_tokens`, `count_tokens` in `agent_search.tokens`).
+`needs_files = True`), and `self.corpus_key`. Options are class attributes a strategy overrides
+by keyword, for example `SearchBm25(name="bm25q_search", snippet=TermWindow())`. `on_bind()` runs
+once per episode. Text limits inside a tool are token caps: `cap_tokens` and `count_tokens` in
+`agent_search.tokens`.
 
 The engines a tool can name are the kinds in `agent_search/retrievers/engines.py`: `bm25`,
 `dense`, `bql`, `bql_fused`, `bql_dense`, `bql_plain`, `indri`. To use a retriever registered in
@@ -221,14 +223,15 @@ register_strategy(Strategy(name="search_visit_tail", description="search (BM25),
                            tools=(SearchBm25(name="bm25_search", snippet=LastLine()), Visit(name="visit"))))
 ```
 
-The width is always `SNIPPET_TOKENS` tokens; a method never caps by characters.
+The width is always `SNIPPET_TOKENS` tokens. A method never caps by characters.
 
 ## 4. A task
 
-A task is the goal and the answer protocol: a folder with `prompt.md` (front matter `name`,
-`domain`, `message_format`, `terminal`; a body with the `{{tools}}` and `{{tool_manuals}}`
-placeholders) and `task.py` (a `Task` subclass naming the folder). The four built-ins are under
-`agent_search/tasks/`. A plugin task points `prompt_file` at its own file:
+A task is the goal and the answer protocol. It is a folder with two files: `prompt.md`, which
+has front matter (`name`, `domain`, `message_format`, `terminal`) and a body with the `{{tools}}`
+and `{{tool_manuals}}` placeholders, and `task.py`, a `Task` subclass naming the folder. The
+four built-ins are under `agent_search/tasks/`. A plugin task points `prompt_file` at its own
+file:
 
 ```python
 from agent_search.tasks.base import Task, register_task
@@ -246,7 +249,7 @@ class TitleTask(Task):
 
 A strategy is a combination of tools with their options, under the names the prompt should show.
 A condition pairs a task with a strategy and is what a run names (`strategy=` in an experiment
-file or on the command line); it is registered as the retriever `agent_<name>` at the same time.
+file or on the command line). It is registered as the retriever `agent_<name>` at the same time.
 
 ```python
 from agent_search.strategies.base import Strategy, register_strategy
@@ -263,12 +266,12 @@ Every other strategy has a harness, ReAct unless it says otherwise.
 ### A harness
 
 A harness is how the model is put to work on a condition (`agent_search/harness/`, one file
-each). It gets a `HarnessContext` (the condition, the corpus, the run's engines, `generate`,
-and `policy_for(condition)` to make a policy) and returns a `HarnessResult`: a `Trajectory`
-(the record every run writes), the documents surfaced, and the member results of a team.
-`react.py` is the default loop; `rag.py` ranks once and asks once; `plan_and_search.py` is a
-team: a planner splits the question, one member condition runs per sub-question through its own
-harness, a synthesizer answers. A team with a different member is one line:
+each). It gets a `HarnessContext`: the condition, the corpus, the run's engines, `generate`, and
+`policy_for(condition)` to make a policy. It returns a `HarnessResult`: a `Trajectory` (the
+record every run writes), the documents surfaced, and the member results of a team. `react.py`
+is the default loop. `rag.py` ranks once and asks once. `plan_and_search.py` is a team: a
+planner splits the question, one member condition runs per sub-question through its own
+harness, and a synthesizer answers. A team with a different member is one line:
 
 ```python
 from agent_search.harness.plan_and_search import PlanAndSearch
@@ -279,12 +282,12 @@ register_strategy(Strategy(name="plan_and_search_dense",
                            harness=PlanAndSearch(searcher="search_visit_dense", max_subquestions=4)))
 ```
 
-A harness with different roles is a new file: subclass `Harness`, list the member strategies in
+A harness with different roles is a new file. Subclass `Harness`, list the member strategies in
 `members` (the run builds their engines), put its own prompt texts in `prompts()` (they are
 hashed into the run identity), and write `run(question, ctx)`, building the `Trajectory` with
 `trajectory_from_steps`. The record then carries the member trajectories under `members`, the
-union of their surfaced documents, and the steps you return; the evaluation judges it like any
-agent. Members can differ in strategy; they share the run's model.
+union of their surfaced documents, and the steps you return. The evaluation judges it like any
+agent. Members can differ in strategy. They share the run's model.
 
 The paper's condition names are aliases in `agent_search/strategies/paper.py`
 (`alias("research_snip", "research", "sieve_bm25")`). To change only the prompt of an existing
@@ -314,17 +317,17 @@ research(question, docs, strategy="sieve_bm25", generate=my_generate)
 ```
 
 To make a provider selectable by name on the command line (`model.name: my-model-x`), add a
-matcher and a branch to `make_generate` in `agent_search/agent/backbone/__init__.py`; the OpenAI and
-Gemini branches show the pattern. Set `.client` and `.model` attributes on the returned callable
-if the forced-answer elicitation should reuse your client.
+matcher and a branch to `make_generate` in `agent_search/agent/backbone/__init__.py`. The OpenAI
+and Gemini branches show the pattern. Set `.client` and `.model` attributes on the returned
+callable if the forced-answer elicitation should reuse your client.
 
 ## 7. A metric or judge
 
 Rank metrics are in `agent_search/evaluation/metrics.py` and are computed in
-`run_eval._score_instance`; answer metrics are in `evaluation/doc_scoring.py::score_answer`. A new
-metric is a function of `(prediction, gold, observations)` returning a float; add the call in
-`score_answer` and the value is averaged into `results.json` (every numeric row field is). A judge
-is a `generate(prompt) -> str` callable used by `llm_judge.judge_run_dir`.
+`run_eval._score_instance`. Answer metrics are in `evaluation/doc_scoring.py::score_answer`. A
+new metric is a function of `(prediction, gold, observations)` returning a float. Add the call
+in `score_answer`, and the value is averaged into `results.json` (every numeric row field is). A
+judge is a `generate(prompt) -> str` callable used by `llm_judge.judge_run_dir`.
 
 ## 8. A plugin package
 
