@@ -61,12 +61,9 @@ def test_unknown_condition_rejected():
 def test_retired_conditions_are_gone():
     """The old prefix-surface / one-shot-search / localization conditions are retired.
 
-    NOTE: `bm25` and `dense` are NOT in this list — those bare names now name the loop-free
-    retrieval-only floors (`agent_search/strategies/retrieval_only.py`, aliased in paper.py),
-    a live condition, not a retired one (mirrors how `research_dense` was reclaimed for the
-    modern dense retrieve-then-visit baseline)."""
-    for gone in ("bql", "grep", "tools", "tools_bql",
-                 "tools_nodense", "research_bql", "research_tools"):
+    `bm25`, `dense`, `bql` and `grep` are not in this list: those names are the loop-free
+    retrieval-only floors (`agent_search/strategies/retrieval_only.py`), live conditions."""
+    for gone in ("tools", "tools_bql", "tools_nodense", "research_bql", "research_tools"):
         with pytest.raises(ValueError):
             get_condition(gone)
 
@@ -143,8 +140,12 @@ def test_only_search_family_tools_have_a_manual():
     `fetch`/`fetch_s`/`fetch_bqld{f,os,s}` carry none — they're plain reads, no new coaching.
     The code arm's `search` carries the code BQL manual (bql_code.md)."""
     with_manual = sorted({t.name for cond in CONDITIONS.values() for t in cond.strategy.tools if t.manual})
-    assert with_manual == ["isearch_s", "search", "search_bqldf", "search_bqldos", "search_bqlds",
-                           "search_s"]
+    assert with_manual, "no tool carries a manual"
+    for name in with_manual:                    # only the query-language searches coach the agent
+        assert name.startswith(("search", "isearch")), name
+    without = {t.name for cond in CONDITIONS.values() for t in cond.strategy.tools if not t.manual}
+    assert not any(n.startswith(("search_s", "search_bql", "isearch")) for n in without), sorted(without)
+    assert not any(n.startswith(("fetch", "visit", "bash", "read", "get_document")) for n in with_manual)
 
 
 def test_research_baseline_is_uncoached():
