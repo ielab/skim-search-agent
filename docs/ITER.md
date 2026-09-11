@@ -105,29 +105,10 @@ is reachable: `skimsearchagent-judge --results-dir runs/iter_sample/... --judge-
 
 ## What was verified
 
-These runs were made on a SLURM cluster on 2026-09-09 with the launchers above (one GPU per
-job, express queue):
-
-| run | setting | result |
-|---|---|---|
-| smoke, stage 1 | 8 InfoSeek training questions, `dedup_dense`, Tongyi via vLLM, DIVER's i2 checkpoint and its HNSW index over all 11.2M wiki chunks | 8/8 scored, 0 errors, 23 steps per question, 49 min |
-| smoke, stage 2 | 9 triples (answer labeller), Qwen3-Embedding-0.6B, patched FlagEmbedding, 1 epoch | 4 steps, checkpoint with serving note |
-| smoke, stage 3 | trained vs base retriever on the triples, 3,010-document subset | recall@1 0.667 both; novelty@5 0.822 vs 0.844 (four steps do not move a retriever; the loop works) |
-| training check | 48 triples from every trajectory above (oracle labels on BrowseComp-Plus, answer labels on InfoSeek), Qwen3-Embedding-0.6B, bf16, 3 epochs, lr 5e-6 | loss per epoch 1.34, 0.29, 0.09 (72 steps); the checkpoint's serving note records bfloat16, last-token pooling, the i2 style |
-| training check, eval | the trained checkpoint loaded in bfloat16 vs its base, on the 19 BrowseComp-Plus triples (in-sample) over the 20,092-chunk sample corpus | recall@1 0.26 vs 0.11, recall@5 0.68 vs 0.37, recall@10 0.74 vs 0.47 |
-| training check, agent | the trained checkpoint (bfloat16) as the retriever of `dedup_dense` on the BrowseComp-Plus sample, Tongyi, 40 steps | 20/20 scored, 0 errors, hit@5 0.45, judged 15% (3/20); a 48-triple model, not a contender, the loop closes |
-| InfoSeek-Eval sample | 20 questions, released `ielabgroup/ITER-Qwen3-Embedding-0.6B`, Tongyi, 40 steps | judged accuracy 70% (14/20), 24 steps per question |
-| BrowseComp-Plus sample | 20 questions with qrels, the same retriever and backbone, 40 steps | judged accuracy 25% (5/20), hit@1 0.20, gold-document coverage 0.41; 90% of episodes used all 40 steps (the paper allows 100) |
-| held-out training | 99 InfoSeek training trajectories (97 triples, answer labels), Qwen3-Embedding-0.6B, bf16, 3 epochs | loss decreases each epoch; the checkpoint serves in bfloat16 |
-| held-out eval, retriever | the trained checkpoint vs its base vs the released ITER-0.6B on 20 InfoSeek-Eval triples the training never saw | recall@1 0.45 / 0.30 / 0.45; recall@5 0.60 / 0.75 / 0.75; recall@10 0.70 / 0.85 / 0.85 |
-| held-out eval, agent | `dedup_dense` on the 20-question InfoSeek-Eval sample, Tongyi, 40 steps, the trained checkpoint vs its base | judged accuracy 65% (13/20) vs 60% (12/20); 25.7 vs 27.6 steps per question |
-| after the 0.3 restructure | the InfoSeek-Eval sample again with the released ITER-0.6B, its index rebuilt in bfloat16, seed 42: the code before the restructure vs after, same setting | judged accuracy 65% (13/20) for both; a second run of the new code scored 50% (10/20) at the same seed (vLLM sampling is not bit-reproducible); replaying the earlier run's 20 trajectories through the old and the new code gives identical observations on all 486 steps |
-| one-shot RAG | `rag_bm25` on the same sample, Tongyi: BM25 top 5 in one prompt, one call | judged accuracy 70% (14/20), 3 empty answers |
-
-The sample numbers are smoke checks over 20 questions each, not paper results. The held-out
-rows show the whole loop closing on data the model never trained on (trajectories in, a
-checkpoint out, that checkpoint behind the agent); 97 triples and 20 questions are far too few to
-rank the retrievers.
+The smoke pipeline, the sample runs, the training check and the held-out check above all ran
+end to end on a SLURM cluster with the launchers in `scripts/slurm/`, each stage producing its
+record. Numbers from those runs are not reported here: they come from 20-question samples and
+say nothing about the paper's results. Run the full sets with the files under `configs/iter/`.
 
 ## Evaluate a retriever without an agent
 

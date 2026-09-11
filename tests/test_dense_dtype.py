@@ -76,8 +76,6 @@ def test_local_snapshot_skips_a_readme_only_revision(tmp_path, monkeypatch):
     empty = snaps / "bbb"; empty.mkdir(); (empty / "README.md").write_text("readme")
     import os, time
     os.utime(empty, (time.time() + 10, time.time() + 10))
-    monkeypatch.setattr(base, "snapshot_download", lambda *a, **k: str(empty), raising=False)
-    import huggingface_hub
-    monkeypatch.setattr(huggingface_hub, "snapshot_download", lambda *a, **k: str(empty))
+    monkeypatch.setattr(base, "_hub_snapshot", lambda model_id: str(empty))
     assert base.local_snapshot("x/y") == str(good)
     assert base.local_snapshot(str(good)) == str(good)

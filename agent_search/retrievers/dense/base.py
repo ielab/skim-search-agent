@@ -60,12 +60,17 @@ def local_snapshot(model_id: str) -> Optional[str]:
     cached hub snapshot for a hub id (no network), None when neither is available."""
     if os.path.isdir(model_id):
         return model_id
+    path = _hub_snapshot(model_id)
+    return _complete_snapshot(path) if path else None
+
+
+def _hub_snapshot(model_id: str) -> Optional[str]:
+    """The cached hub snapshot directory for `model_id` (no network), or None."""
     try:
         from huggingface_hub import snapshot_download
-        path = snapshot_download(model_id, local_files_only=True)
+        return snapshot_download(model_id, local_files_only=True)
     except Exception:  # noqa: BLE001
         return None
-    return _complete_snapshot(path)
 
 
 def _snapshot_is_complete(path: str) -> bool:

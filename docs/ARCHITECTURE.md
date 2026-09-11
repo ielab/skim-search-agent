@@ -25,7 +25,7 @@ behind one set of contracts, one run record, and one evaluation layer.
 | 03 | **Tools, tasks, strategies** | a *tool* is one atomic action with its declaration, its code and its manual; a *task* is the goal and the answer protocol; a *strategy* is a combination of tools with options; a *condition* is a task with a strategy | tools, tasks, strategies, conditions | `agent_search/tools/`, `agent_search/tasks/`, `agent_search/strategies/` |
 | 04 | **Agent runtime** | `run_episode` (reason, act, observe), budgets in tokens, forced-answer handling; the Agents-SDK driver as an alternative runtime | policies, models, drivers | `agent_search/agent/` (the loop, policies, drivers, and `backbone/` with the model providers) |
 | 05 | **Evaluation & evidence** | the run record (`rows.jsonl` + `config.json` + `results.json`), resume semantics, run identity | metrics, judges, paired statistics | `agent_search/evaluation/`, `scripts/summarize_runs.py`, `scripts/compare_cells.py` |
-| 06 | **Training & rollouts** | every episode is a full trajectory (prompts, tool calls, observations, tokens, what each search listed and each read opened) | retriever training from trajectories (the ITER recipe, shipped); policy SFT/RL consumers | `agent_search/training/`, `rows.jsonl` (see [TRAINING.md](TRAINING.md), [RUN_RECORD.md](RUN_RECORD.md)) |
+| 06 | **Training & rollouts** | every episode is a full trajectory (prompts, tool calls, observations, tokens, what each search listed and each read opened) | retriever training from trajectories (the ITER recipe, shipped); policy SFT/RL consumers | `agent_search/training/`, `rows.jsonl` (see [TRAINING.md](TRAINING.md) and "The run record" below) |
 
 Each family declares its contract in a base module next to its implementations:
 `retrievers/base.py`, `tools/base.py`, `tasks/base.py`, `strategies/base.py`,
@@ -176,19 +176,40 @@ tokenizer-independent. Measurement and the history budget use tiktoken `o200k_ba
 installed, whitespace tokens otherwise. There is no character cap anywhere in the prompt path. Do
 not add one: a character clip interacts silently with the token limit next to it.
 
-## Run identity and resumption
+## The run record
+
+Every experiment writes three files into `runs_dir/<agent|retrieval_only>/<dataset>/<model>/<retriever>`
+(a `seed=N` segment is appended when several seeds are requested):
+
+- `config.json`: what ran. Every flag, the resolved domain, every environment knob's value, the
+  condition (`prompt_task`, `prompt_strategy`, `prompt_toolset`, `prompt_field_profile`) and the
+  hash of the composed system prompt, the experiment file with its hash and overrides, the
+  package version, the token ruler and the git revision.
+- `rows.jsonl`: one JSON object per instance, appended as instances finish. A row carries the
+  question and gold, the agent's ranking (`retrieved`, first-seen order) and its rank metrics,
+  the answer and its scores (`answer_em`, `answer_f1`, the judge's verdict once graded), the
+  episode (`actions`, `queries`, `stopped`, `trajectory` with every observation in full and the
+  model's raw generation per step) and the cost (provider token counts plus a count-once
+  decomposition on one fixed ruler). `agent_search.evaluation.rows.observations_of(row)` reads
+  the observations of a row of any age.
+- `results.json`: `n`, `n_skipped`, `n_errors` and every numeric row field averaged over the
+  scored rows. `judge_summary.json` is added by `skimsearchagent-judge`.
+
+`scripts/summarize_runs.py` tabulates runs and `scripts/compare_cells.py` compares two conditions
+on the same instances. A row is a complete trajectory, so the retriever trainer
+(`docs/TRAINING.md`) works from `rows.jsonl` alone.
 
 An experiment is a YAML **experiment file** (`skimsearchagent run FILE`). One file fully
 determines one setting, every knob is explicit, unknown keys are rejected, and the whole file is
 recorded in `config.json`. The key=value launcher and the raw `run_eval` flags take the same
 execution path. Behaviour does not depend on how the run was started.
 
-A run directory is `runs_dir/<agent|retrieval_only>/<dataset>/<model>/<retriever>`, with a
-`seed=N` segment appended when several seeds are requested. `config.json` records the exact
-invocation, every environment knob, the composed prompt's hash, the package version, the token
-ruler, and the git revision. Re-running the same command resumes: finished instances are skipped
-and a torn last line is re-scored. Re-running a *different* experiment into the same directory
-(another backend, seed, budget, or prompt) is refused. Use a new `runs_dir`, or pass
+A run's identity is the subset of `config.json` in `RUN_IDENTITY_KEYS`
+(`agent_search/evaluation/identity.py`): dataset, retriever, model, dense model, policy,
+backend, budgets, seed, cutoffs, the prompt hash and the environment knobs. The served
+endpoint's address is not part of it. Re-running the same command resumes: finished instances
+are skipped and a torn last line is re-scored. Re-running a *different* experiment into a
+directory that has scored rows is refused; use a new `runs_dir`, or pass
 `--allow-config-drift`. Missing artifacts, a dense embedding cache or a Lucene index, abort the
 run before the first episode instead of partway through.
 

@@ -145,4 +145,4 @@ runs and what was verified) has its own page: [ITER.md](ITER.md).
 | tests | `tests/test_training_pipeline.py`, `tests/test_iter_integration.py` |
 
 This recipe trains the retriever only. The run record contains what an SFT or RL policy trainer
-needs (`docs/RUN_RECORD.md`, "Using the record for training"); a policy trainer is not included.
+needs (`docs/ARCHITECTURE.md`, "The run record"); a policy trainer is not included.

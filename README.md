@@ -293,12 +293,10 @@ storage and is sent per request to OpenAI; the server does not store or log it. 
 | [docs/EXTENDING.md](docs/EXTENDING.md) | every extension point with a complete code example |
 | [docs/CONFIGURATION.md](docs/CONFIGURATION.md) | the experiment-file schema, every flag and knob |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | modules, contracts, one episode end to end |
-| [docs/RUN_RECORD.md](docs/RUN_RECORD.md) | the fields of `rows.jsonl`, `config.json`, `results.json` |
 | [docs/TRAINING.md](docs/TRAINING.md) | retriever training from run records |
 | [docs/SIEVE.md](docs/SIEVE.md) | the Sieve paper: the method and its ablations |
 | [docs/REPRODUCING.md](docs/REPRODUCING.md) | the Sieve paper: its runs, judging, statistics and tables |
 | [docs/ITER.md](docs/ITER.md) | the ITER paper: its search tools, backbones, retrievers, datasets, training and the verified runs |
-| [docs/VERIFICATION.md](docs/VERIFICATION.md) | every strategy, dataset and backbone run on the cluster after the restructure, with the results |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | development setup and how to add components |
 
 ## Papers

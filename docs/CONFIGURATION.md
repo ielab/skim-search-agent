@@ -64,7 +64,7 @@ export the variables first. The tables below mark these knobs with "before impor
 ## 3. What a run records
 
 Every run directory holds `config.json`, `rows.jsonl` and `results.json`
-(see [RUN_RECORD.md](RUN_RECORD.md)). `config.json` has the experiment file's path and hash, the
+(see "The run record" in [ARCHITECTURE.md](ARCHITECTURE.md)). `config.json` has the experiment file's path and hash, the
 setting that actually ran (the file with any `section.key=value` overrides applied, and the
 overrides themselves), every harness flag, the composed prompt and its hash, the installed
 package version, the git revision, the token ruler, and a snapshot of every environment knob.

@@ -1,6 +1,6 @@
 """Helpers for reading the run record (``rows.jsonl`` rows and episode metadata).
 
-The run record is the library's one trace format (see ``docs/RUN_RECORD.md``). These
+The run record is the library's one trace format (see "The run record" in ``docs/ARCHITECTURE.md``). These
 helpers absorb the two shapes a row can have:
 
 * current rows carry every tool observation, in full, on ``trajectory[i]["observation"]``;

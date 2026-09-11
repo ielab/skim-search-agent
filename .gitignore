@@ -39,3 +39,4 @@ train_data/
 # The changelog is kept locally, not published
 CHANGELOG.md
 slurm-*.out
+configs/checks/
