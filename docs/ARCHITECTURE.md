@@ -142,7 +142,7 @@ agent_search/
     backend.py     which engine serves BQL and Indri: Lucene for documents, the in-memory executor for a code repository
     engines.py     the per-corpus engine registry the tools share
     registry.py    name -> retriever builder; plugin discovery; conditions registered as agent_<name>
-  snippets/        base.py (Snippet) + opening.py, term_window.py, none.py: the excerpt under a hit
+  snippets/        base.py (Snippet) + opening.py, term_window.py, none.py: the excerpt under a hit, in model tokens
   tools/           base.py (Tool, EpisodeState, ToolBox, the Workspace contract), seen.py (OrderedSeen), budgets.py (the token knobs), common.py (shared rendering),
                    then one folder per tool: search_bm25/, search_dense/, search_hybrid/, search_reranked/, search_bql/, search_indri/,
                    search_dedup/, search_bm25_dci/, visit/, fetch/, fetch_code/, get_document/, bash/, read/, grep/
@@ -210,10 +210,10 @@ hash and fails if any change moves it.
 
 Every limit the agent runs into is a **token** count (`agent_search/tokens.py`): snippet
 width, whole-document and section read budgets, shell-output and per-line caps, the prompt history
-budget. Read caps count whitespace tokens, the paper's ruler, which stays
-tokenizer-independent. Measurement and the history budget use tiktoken `o200k_base` when it is
-installed, whitespace tokens otherwise. There is no character cap anywhere in the prompt path. Do
-not add one: a character clip interacts silently with the token limit next to it.
+budget. Every one of them, and the measurement of an episode, uses the same ruler: tiktoken
+`o200k_base` when it is installed, whitespace words only as a fallback without it. The paper's
+code cut by whitespace words; the library does not. There is no character cap anywhere in the
+prompt path. Do not add one: a character clip interacts silently with the token limit next to it.
 
 ## The run record
 

@@ -206,9 +206,9 @@ writes `judge_summary.json` next to the rows. Rows that already have a verdict a
 
 ### Environment knobs
 
-Every length budget is a token count. The budgets below are counted on the library's whitespace
-ruler (`agent_search/tokens.py`), except the context budgets `AGENT_CTX_TOKENS` and
-`AGENT_CTX_WINDOW`, which are model tokens. There are no character limits.
+Every length budget is a count of model tokens on one ruler (`agent_search/tokens.py`: tiktoken
+`o200k_base` when it is installed, whitespace words only as a fallback without it). There are
+no character limits and no whitespace-word limits.
 
 "Before import" marks a knob the module reads when it loads. The `skimsearchagent` launcher
 handles that for you.
@@ -243,6 +243,7 @@ handles that for you.
 | `AUTOREAD_TOPK` | 5 | documents rendered in full per search, `autoread*` (before import) | `agent_search/tools/budgets.py` |
 | `BM25_DCI_TOPK` | 10 | documents staged per search, `bounded_dci` (before import) | `agent_search/tools/search_bm25_dci/tool.py` |
 | `DEDUP_TOPK` | 10 | results per search, `dedup_*` (before import) | `agent_search/tools/search_dedup/tool.py` |
+| `DEDUP_SNIPPET_TOKENS` | 64 | model tokens of passage text shown per hit, `dedup_*` (ITER's runs used 64; before import) | `agent_search/tools/budgets.py` |
 | `DEDUP_POOL_K` | 100 | how many candidates a dedup search draws before dropping documents shown earlier (before import) | `agent_search/tools/search_dedup/tool.py` |
 
 #### Retrieval and method switches

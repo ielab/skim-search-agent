@@ -17,15 +17,17 @@ in) is in [TRAINING.md](TRAINING.md). This page covers the ITER-specific part.
 
 ITER's agent has two tools: `search(query)` and `get_document(docid)`. A search over-fetches a
 pool of 100, drops every document an earlier search already surfaced in this episode, and shows
-the top 10 of the rest with a 64-token snippet. Documents that would have ranked but were shown
+the top 10 of the rest, each as its passage text cut to 64 model tokens (ITER's runs passed
+`--snippet-max-tokens 64`; ITER cuts with the served model's tokenizer, the library on its own
+token ruler, so the counts are close, not identical). Documents that would have ranked but were shown
 before are listed under "Already-seen" so the agent can reopen them. That is `strategy=dedup_dense`
 (the run's dense model behind `search`) or `dedup_bm25`, with the task template
 `agent_search/tasks/research_dedup/prompt.md`.
 
-Listing knobs: `listing.dedup_topk` (10) and `listing.dedup_pool_k` (100). Snippet length:
-`budgets.snippet_tokens: 64`. `get_document` returns at most 512 tokens in ITER
-(`budgets.max_visit_tokens: 512`). The wiki chunks are already 512 tokens, so this limit only
-matters on a corpus with longer documents.
+Listing knobs: `listing.dedup_topk` (10), `listing.dedup_pool_k` (100) and
+`listing.dedup_snippet_tokens` (64). `get_document` returns at most 512 model tokens in ITER
+(`budgets.max_visit_tokens: 512`, cut on the same ruler). The wiki chunks are already 512
+tokens, so both limits only matter on a corpus with longer documents.
 
 ## Backbones
 

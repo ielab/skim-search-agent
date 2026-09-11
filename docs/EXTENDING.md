@@ -205,7 +205,7 @@ section 2 from a tool, add a kind for it there.
 
 The excerpt a listing shows under each hit is a `Snippet` from `agent_search/snippets/`, one
 file per method: `OpeningLine` (the first tokens), `TermWindow` (the best window for the query
-terms), `NoSnippet` (structure only). A search tool takes one as `snippet=`, so a strategy
+terms), `NoSnippet` (structure only). Widths are model tokens on the library's ruler. A search tool takes one as `snippet=`, so a strategy
 decides the presentation:
 
 ```python

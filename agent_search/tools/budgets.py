@@ -6,7 +6,7 @@ counter these budgets are measured in; nothing here is a character cap.
 """
 import os
 
-# listing-snippet width, in whitespace tokens (agent_search/snippets)
+# listing-snippet width, in model tokens (agent_search/snippets)
 SNIPPET_TOKENS = int(os.environ.get("SNIPPET_TOKENS", "32"))
 # whole-doc visit/autoread read cap, in tokens
 MAX_VISIT_TOKENS = int(os.environ.get("MAX_VISIT_TOKENS", "12000"))
@@ -35,3 +35,5 @@ HYBRID_VISIT_TOPK = int(os.environ.get("HYBRID_VISIT_TOPK", "5"))
 HYBRID_FETCH_TOPK = int(os.environ.get("HYBRID_FETCH_TOPK", "10"))
 RERANK_VISIT_TOPK = int(os.environ.get("RERANK_VISIT_TOPK", "5"))
 RERANK_FETCH_TOPK = int(os.environ.get("RERANK_FETCH_TOPK", "10"))
+# ITER's listing: each hit shows the passage cut to this many model tokens (ITER's runs: 64)
+DEDUP_SNIPPET_TOKENS = int(os.environ.get("DEDUP_SNIPPET_TOKENS", "64"))

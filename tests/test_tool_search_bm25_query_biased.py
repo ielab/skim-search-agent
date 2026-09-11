@@ -41,7 +41,7 @@ def _padded_doc(doc_id: str, title: str, needle: str,
 
 
 DOCS = [
-    _padded_doc("d_mid", "Mid-body Match", "zephyrquokka marker phrase right here"),
+    _padded_doc("d_mid", "Mid-body Match", "cobra marker phrase right here"),
     {"_id": "d_flat", "title": "Adams-Onis Treaty",
      "text": "The Adams-Onis Treaty of 1819 concerned Florida."},
 ]
@@ -83,9 +83,9 @@ def test_best_line_is_module_level_and_search_bql_wraps_it():
     state = EpisodeState(question="q")
     search = SearchBql(name="search", snippet=TermWindow()).bind(state, units, ubyid, {"bql": None})
     u = search.ubyid["d_mid"]
-    assert search._best_line(u, ["zephyrquokka"]) == best_line(u, ["zephyrquokka"])
+    assert search._best_line(u, ["cobra"]) == best_line(u, ["cobra"])
     # sanity: it actually finds the needle window, not the (all-filler) opening.
-    assert "zephyrquokka" in search._best_line(u, ["zephyrquokka"])
+    assert "cobra" in search._best_line(u, ["cobra"])
 
 
 # --- 2. tools tuple switches with query_biased (instance override) ---------------------------
@@ -106,8 +106,8 @@ def test_query_biased_false_is_byte_identical_to_the_default():
     ranking = ("d_mid", "d_flat")
     box_a, search_a = _toolbox(ranking)                     # default (no query_biased kwarg)
     box_b, search_b = _toolbox(ranking, snippet=OpeningLine())  # explicit False
-    out_a = box_a.run("bm25_search", {"query": "zephyrquokka marker"})
-    out_b = box_b.run("bm25_search", {"query": "zephyrquokka marker"})
+    out_a = box_a.run("bm25_search", {"query": "cobra marker"})
+    out_b = box_b.run("bm25_search", {"query": "cobra marker"})
     assert out_a == out_b
 
 
@@ -116,32 +116,32 @@ def test_query_biased_false_opening_snippet_misses_the_mid_body_needle():
     wide) — the fixture pads one full window of filler before the needle, so the opening
     snippet never reaches it at any configured width."""
     box, _ = _toolbox(("d_mid",), snippet=OpeningLine())
-    out = box.run("bm25_search", {"query": "zephyrquokka marker"})
+    out = box.run("bm25_search", {"query": "cobra marker"})
     hit_line = next(l for l in out.splitlines() if "d_mid" in l)
-    assert "zephyrquokka" not in hit_line
+    assert "cobra" not in hit_line
 
 
 # --- 4. run() dispatch: bm25q_search/bm25_search/search + visit_q/visit aliases ---------------
 
 def test_run_aliases_bm25q_search_and_bm25_search_and_search():
     box1, _ = _toolbox(("d_mid",), snippet=TermWindow())
-    out1 = box1.run("bm25q_search", {"query": "zephyrquokka"})
+    out1 = box1.run("bm25q_search", {"query": "cobra"})
     box2, _ = _toolbox(("d_mid",), snippet=TermWindow())
-    out2 = box2.run("bm25_search", {"query": "zephyrquokka"})
+    out2 = box2.run("bm25_search", {"query": "cobra"})
     box3, _ = _toolbox(("d_mid",), snippet=TermWindow())
-    out3 = box3.run("search", {"query": "zephyrquokka"})
+    out3 = box3.run("search", {"query": "cobra"})
     assert out1 == out2 == out3
 
 
 def test_run_aliases_visit_q_and_visit():
     box1, _ = _toolbox(("d_mid",), snippet=TermWindow())
-    box1.run("bm25q_search", {"query": "zephyrquokka"})
+    box1.run("bm25q_search", {"query": "cobra"})
     out1 = box1.run("visit_q", {"rank": 1})
     box2, _ = _toolbox(("d_mid",), snippet=TermWindow())
-    box2.run("bm25q_search", {"query": "zephyrquokka"})
+    box2.run("bm25q_search", {"query": "cobra"})
     out2 = box2.run("visit", {"rank": 1})
     assert out1 == out2
-    assert "zephyrquokka" in out1
+    assert "cobra" in out1
 
 
 def test_run_unknown_tool_errors():
@@ -163,8 +163,8 @@ def test_engine_receives_the_raw_query_and_the_knob_depth():
     engine = _StubBm25(("d_mid",))
     search = SearchBm25(name="bm25q_search", snippet=TermWindow()).bind(state, units, ubyid, {"bm25": engine})
     box = ToolBox([search, Visit(name="visit_q").bind(state, units, ubyid, {})], state)
-    box.run("bm25q_search", {"query": "zephyrquokka marker", "k": 3})
-    assert engine.calls == [("zephyrquokka marker", m.BM25_VISIT_TOPK)]
+    box.run("bm25q_search", {"query": "cobra marker", "k": 3})
+    assert engine.calls == [("cobra marker", m.BM25_VISIT_TOPK)]
 
 
 # --- 6. condition wiring: research_bm25q was pruned from the paper's kept conditions — the

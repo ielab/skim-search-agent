@@ -15,6 +15,7 @@ from __future__ import annotations
 
 from agent_search.snippets import NoSnippet, TermWindow
 from agent_search.corpus.units import units_from_documents
+from agent_search.tokens import count_tokens
 from agent_search.tools.base import EpisodeState, ToolBox
 from agent_search.tools.fetch.tool import Fetch
 from agent_search.tools.search_dense.tool import SearchDense
@@ -30,7 +31,7 @@ def _padded_doc(doc_id, title, needle, pad_before=30, pad_after=30):
 
 
 DOCS = [
-    _padded_doc("d_mid", "Mid-body Match", "zephyrquokka marker phrase right here"),
+    _padded_doc("d_mid", "Mid-body Match", "cobra marker phrase right here"),
     {"_id": "d_plain2", "title": "Plain Doc Two", "text": "A short document about nothing special."},
 ]
 
@@ -83,7 +84,7 @@ def test_plain_tools_tuple_is_dense_search_fp_and_fetch():
 
 def test_plain_search_lists_structure_with_no_excerpt():
     box = _plain_box()
-    out = box.run("dense_search_fp", {"query": "zephyrquokka"})
+    out = box.run("dense_search_fp", {"query": "cobra"})
     assert "d_mid" in out and "'Mid-body Match'" in out
     assert "History" in out               # section name shown (structure)
     assert "»" not in out                 # NO excerpt marker — the whole point of this cell
@@ -91,7 +92,7 @@ def test_plain_search_lists_structure_with_no_excerpt():
 
 def test_plain_search_marks_hits_seen():
     box = _plain_box(ranking=("d_mid", "d_plain2"))
-    box.run("dense_search_fp", {"query": "zephyrquokka"})
+    box.run("dense_search_fp", {"query": "cobra"})
     assert {"d_mid", "d_plain2"} <= set(box.seen)
 
 
@@ -114,14 +115,14 @@ def test_plain_engine_receives_raw_query_and_topk():
     search = SearchDense(name="dense_search_fp", structure=True, snippet=NoSnippet(), k=7).bind(
         state, units, ubyid, {"dense": engine})
     box = ToolBox([search, Fetch(name="fetch").bind(state, units, ubyid, {})], state)
-    box.run("dense_search_fp", {"query": "zephyrquokka"})
-    assert engine.calls == [("zephyrquokka", 7)]
+    box.run("dense_search_fp", {"query": "cobra"})
+    assert engine.calls == [("cobra", 7)]
 
 
 def test_plain_search_is_live_and_re_retrieves():
     box = _toolbox("dense_search_fp", snippet=NoSnippet(),
-                   ranking={"zephyrquokka": ["d_mid"], "plain doc": ["d_plain2"]})
-    box.run("dense_search_fp", {"query": "zephyrquokka"})
+                   ranking={"cobra": ["d_mid"], "plain doc": ["d_plain2"]})
+    box.run("dense_search_fp", {"query": "cobra"})
     first = list(box.last_hits)
     box.run("dense_search_fp", {"query": "plain doc"})
     assert box.last_hits != first
@@ -130,21 +131,21 @@ def test_plain_search_is_live_and_re_retrieves():
 
 def test_plain_fetch_by_rank_after_search():
     box = _plain_box()
-    box.run("dense_search_fp", {"query": "zephyrquokka"})   # rank 1 = d_mid
+    box.run("dense_search_fp", {"query": "cobra"})   # rank 1 = d_mid
     out = box.run("fetch", {"specs": [[1, "History"]]})
     assert "History" in out and "ERROR" not in out
 
 
 def test_plain_fetch_bad_section_lists_available():
     box = _plain_box()
-    box.run("dense_search_fp", {"query": "zephyrquokka"})
+    box.run("dense_search_fp", {"query": "cobra"})
     out = box.run("fetch", {"specs": [[1, "Nonexistent"]]})
     assert "no section" in out and "History" in out
 
 
 def test_plain_fetch_marks_doc_seen():
     box = _plain_box()
-    box.run("dense_search_fp", {"query": "zephyrquokka"})
+    box.run("dense_search_fp", {"query": "cobra"})
     box.run("fetch", {"specs": [[1, "History"]]})
     assert "d_mid" in box.seen
 
@@ -156,9 +157,9 @@ def test_plain_run_aliases_dense_search_and_search_names():
     instance below (dropped from the old alias-fan-out test: the two are distinct tool
     instances with different `snippets` settings now, not interchangeable names of one
     generic workspace)."""
-    out1 = _plain_box().run("dense_search_fp", {"query": "zephyrquokka"})
-    out2 = _plain_box().run("dense_search", {"query": "zephyrquokka"})
-    out3 = _plain_box().run("search", {"query": "zephyrquokka"})
+    out1 = _plain_box().run("dense_search_fp", {"query": "cobra"})
+    out2 = _plain_box().run("dense_search", {"query": "cobra"})
+    out3 = _plain_box().run("search", {"query": "cobra"})
     assert out1 == out2 == out3
 
 
@@ -174,7 +175,7 @@ def test_plain_run_hallucinated_tool_names_error_not_silent_success():
     `fetch_bqlds`), so it legitimately answers that name here too — the old per-workspace exact
     dispatch that rejected it is gone by design, not a regression."""
     box = _plain_box()
-    box.run("dense_search_fp", {"query": "zephyrquokka"})
+    box.run("dense_search_fp", {"query": "cobra"})
     for bad_tool in ("dense_search_snip", "visit_d", "not_a_real_tool"):
         out = box.run(bad_tool, {"rank": 1})
         assert out.startswith("ERROR: unknown tool"), (bad_tool, out)
@@ -187,9 +188,9 @@ def test_plain_run_hallucinated_tool_names_error_not_silent_success():
 def test_dense_search_fp_and_dense_search_f_differ_only_by_the_excerpt_line():
     units = _units()
     plain_out = _plain_box(ranking=("d_mid", "d_plain2"), units=units).run(
-        "dense_search_fp", {"query": "zephyrquokka"})
+        "dense_search_fp", {"query": "cobra"})
     snip_out = _snip_box(ranking=("d_mid", "d_plain2"), units=units).run(
-        "dense_search_f", {"query": "zephyrquokka"})
+        "dense_search_f", {"query": "cobra"})
 
     assert "»" not in plain_out
     assert "»" in snip_out
@@ -211,20 +212,20 @@ def test_snip_tools_tuple_is_dense_search_f_and_fetch():
 
 def test_snip_search_lists_structure_plus_excerpt_not_full_text():
     box = _snip_box()
-    out = box.run("dense_search_f", {"query": "zephyrquokka"})
+    out = box.run("dense_search_f", {"query": "cobra"})
     assert "d_mid" in out and "'Mid-body Match'" in out
     assert "History" in out                      # section name shown (structure)
     assert "»" in out                             # excerpt marker present (content-bearing)
     hit_line = next(l for l in out.splitlines() if "d_mid" in l)
     excerpt = hit_line.split("»", 1)[1].strip()
-    assert "zephyrquokka" in excerpt
+    assert "cobra" in excerpt
     from agent_search.tools.budgets import SNIPPET_TOKENS
-    assert len(excerpt.split()) <= SNIPPET_TOKENS  # a bounded window, not the whole padded body
+    assert count_tokens(excerpt) <= SNIPPET_TOKENS  # a bounded window, not the whole padded body
 
 
 def test_snip_excerpt_is_mid_body_not_the_doc_opening():
     box = _snip_box()
-    out = box.run("dense_search_f", {"query": "zephyrquokka"})
+    out = box.run("dense_search_f", {"query": "cobra"})
     hit_line = next(l for l in out.splitlines() if "d_mid" in l)
     excerpt = hit_line.split("»", 1)[1].strip()
     opening = " ".join(["x"] * 30)
@@ -233,7 +234,7 @@ def test_snip_excerpt_is_mid_body_not_the_doc_opening():
 
 def test_snip_marks_hits_seen():
     box = _snip_box(ranking=("d_mid", "d_plain2"))
-    box.run("dense_search_f", {"query": "zephyrquokka"})
+    box.run("dense_search_f", {"query": "cobra"})
     assert {"d_mid", "d_plain2"} <= set(box.seen)
 
 
@@ -256,16 +257,16 @@ def test_snip_engine_receives_raw_query_and_topk():
     search = SearchDense(name="dense_search_f", structure=True, snippet=TermWindow(), k=7).bind(
         state, units, ubyid, {"dense": engine})
     box = ToolBox([search, Fetch(name="fetch").bind(state, units, ubyid, {})], state)
-    box.run("dense_search_f", {"query": "zephyrquokka"})
-    assert engine.calls == [("zephyrquokka", 7)]
+    box.run("dense_search_f", {"query": "cobra"})
+    assert engine.calls == [("cobra", 7)]
 
 
 def test_snip_search_is_live_and_re_retrieves():
     """LIVE retrieval: a NEW query string in a later dense_search_f call re-runs the dense
     engine and CHANGES the ranking — same live-per-call contract as the bm25 cells."""
     box = _toolbox("dense_search_f", snippet=TermWindow(),
-                   ranking={"zephyrquokka": ["d_mid"], "plain doc": ["d_plain2"]})
-    box.run("dense_search_f", {"query": "zephyrquokka"})
+                   ranking={"cobra": ["d_mid"], "plain doc": ["d_plain2"]})
+    box.run("dense_search_f", {"query": "cobra"})
     first = list(box.last_hits)
     box.run("dense_search_f", {"query": "plain doc"})
     assert box.last_hits != first
@@ -274,29 +275,29 @@ def test_snip_search_is_live_and_re_retrieves():
 
 def test_snip_fetch_by_rank_after_search():
     box = _snip_box()
-    box.run("dense_search_f", {"query": "zephyrquokka"})   # rank 1 = d_mid
+    box.run("dense_search_f", {"query": "cobra"})   # rank 1 = d_mid
     out = box.run("fetch", {"specs": [[1, "History"]]})
     assert "History" in out and "ERROR" not in out
 
 
 def test_snip_fetch_bad_section_lists_available():
     box = _snip_box()
-    box.run("dense_search_f", {"query": "zephyrquokka"})
+    box.run("dense_search_f", {"query": "cobra"})
     out = box.run("fetch", {"specs": [[1, "Nonexistent"]]})
     assert "no section" in out and "History" in out
 
 
 def test_snip_fetch_marks_doc_seen():
     box = _snip_box()
-    box.run("dense_search_f", {"query": "zephyrquokka"})
+    box.run("dense_search_f", {"query": "cobra"})
     box.run("fetch", {"specs": [[1, "History"]]})
     assert "d_mid" in box.seen
 
 
 def test_snip_run_aliases_dense_search_and_search_names():
-    out1 = _snip_box().run("dense_search_f", {"query": "zephyrquokka"})
-    out2 = _snip_box().run("dense_search", {"query": "zephyrquokka"})
-    out3 = _snip_box().run("search", {"query": "zephyrquokka"})
+    out1 = _snip_box().run("dense_search_f", {"query": "cobra"})
+    out2 = _snip_box().run("dense_search", {"query": "cobra"})
+    out3 = _snip_box().run("search", {"query": "cobra"})
     assert out1 == out2 == out3
 
 

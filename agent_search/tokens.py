@@ -5,7 +5,7 @@ each with one job:
 
 * **Whitespace tokens** (``ws_tokens`` / ``cap_tokens``): the budget ruler. Every read cap
   the agent experiences (``SNIPPET_TOKENS``, ``MAX_VISIT_TOKENS``, ``MAX_SECTION_TOKENS``,
-  bash/read output caps, the context-history budget) is expressed in whitespace tokens.
+  bash/read output caps, the context-history budget) is expressed in model tokens on one ruler.
   This is the ruler the paper's experiments used, it is tokenizer-independent, and it is
   cheap enough to apply on every tool call.
 * **Model tokens** (``count_tokens`` / ``truncate_tokens``): the measurement ruler.
@@ -38,17 +38,15 @@ def count_ws_tokens(text: Optional[str]) -> int:
 
 
 def cap_tokens(text: Optional[str], n: int, tail: str = TRUNCATED) -> str:
-    """Keep the first ``n`` whitespace tokens of ``text``; append ``tail`` when anything was
-    dropped. ``n <= 0`` returns ``tail`` alone for non-empty text (nothing shown) so that a
-    zero budget is visibly zero rather than silently unbounded."""
+    """Keep the first ``n`` model tokens of ``text`` (the same ruler as ``count_tokens``);
+    append ``tail`` when anything was dropped. ``n <= 0`` returns ``tail`` alone for non-empty
+    text (nothing shown) so that a zero budget is visibly zero rather than silently unbounded."""
     text = text or ""
     if n is None:
         return text
-    toks = text.split()
-    if len(toks) <= max(n, 0):
-        return text
-    kept = " ".join(toks[:max(n, 0)])
-    return kept + tail if kept else tail.lstrip()
+    if n <= 0:
+        return tail.lstrip() if text else text
+    return truncate_tokens(text, n, tail)
 
 
 def _encoding():

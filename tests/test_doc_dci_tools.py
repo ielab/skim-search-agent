@@ -6,6 +6,7 @@ exported file. There is no retriever; the agent must grep for candidate files it
 accumulates every doc_id surfaced (a direct read, or a filename mentioned in a bash command
 or its output), for gold-doc coverage."""
 from agent_search.corpus.units import units_from_documents
+from agent_search.tokens import count_tokens
 from agent_search.tools.base import EpisodeState, ToolBox
 from agent_search.tools.bash.tool import Bash, _tail_truncate
 from agent_search.tools.read.tool import Read, _run_read
@@ -142,15 +143,20 @@ def test_tail_truncate_under_budget_is_unchanged():
 
 
 def test_run_read_caps_an_oversized_line_in_tokens_with_a_token_count_marker(tmp_path):
-    """`_run_read`'s per-line cap (`cap_tokens`) truncates a line to `max_line_tokens`
-    whitespace tokens and appends a `...[line truncated; N tokens]` marker — no character
-    cap anywhere in the read path."""
+    """`_run_read`'s per-line cap (`cap_tokens`) truncates a line to `max_line_tokens` MODEL
+    tokens and appends a `...[line truncated; N tokens]` marker — no character cap anywhere
+    in the read path. (The marker's own count is still whitespace-word based — `_run_read`
+    computes it before calling `cap_tokens` — so it stays "25 tokens" regardless of the
+    ruler `cap_tokens` truncates on.)"""
     long_line = " ".join(f"w{i}" for i in range(30))
     f = tmp_path / "doc.txt"
     f.write_text(long_line)
     out = _run_read(tmp_path, "doc.txt", None, None, default_limit=10, max_line_tokens=5)
-    assert out.startswith(" ".join(f"w{i}" for i in range(5)))
-    assert "...[line truncated; 25 tokens]" in out
+    marker = "...[line truncated; 25 tokens]"
+    assert marker in out
+    kept = out.split(marker, 1)[0]
+    assert kept != long_line                 # something was actually cut
+    assert count_tokens(kept) == 5
 
 
 def test_run_read_line_within_budget_is_unmarked(tmp_path):

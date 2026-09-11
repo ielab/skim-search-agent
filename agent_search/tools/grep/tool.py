@@ -15,7 +15,7 @@ from agent_search.tokens import cap_tokens
 from agent_search.corpus.units import CodeUnit
 from agent_search.tools.base import Tool
 
-# per-line cap on a grep hit's shown text, in whitespace tokens (agent_search.tokens).
+# per-line cap on a grep hit's shown text, in model tokens (agent_search.tokens).
 # SkimSearchAgent caps text in tokens everywhere, never characters.
 GREP_LINE_TOKENS = int(os.environ.get("GREP_LINE_TOKENS", "24"))
 

@@ -7,8 +7,9 @@ under "Already-seen" so the agent can reopen them with `get_document`
 (`agent_search.tools.get_document`).
 
 `ranking="dense"` (default) queries the run's dense model; `ranking="bm25"` queries BM25.
-Result rendering follows ITER: ``DocID:<id>``, ``[<title>]``, then the opening
-`SNIPPET_TOKENS` tokens of the document.
+Result rendering follows ITER: ``DocID:<id>``, ``[<title>]``, then the passage cut to
+`DEDUP_SNIPPET_TOKENS` model tokens (ITER's runs: 64, by the served model's tokenizer; here
+the library's ruler). `snippet=` swaps the method.
 """
 from __future__ import annotations
 
@@ -16,7 +17,7 @@ import os
 from typing import Optional
 
 from agent_search.tools.base import Tool
-from agent_search.tools.budgets import SNIPPET_TOKENS
+from agent_search.tools.budgets import DEDUP_SNIPPET_TOKENS
 from agent_search.snippets import OpeningLine, Snippet
 
 DEDUP_POOL_K = int(os.environ.get("DEDUP_POOL_K", "100"))
@@ -52,7 +53,7 @@ class SearchDedup(Tool):
                                                 "description": "A keyword query, for example: treaty that ended the Mexican-American War."}},
                        "required": ["query"]}
 
-    snippet: Snippet = OpeningLine()   # the excerpt under each hit (agent_search.snippets)
+    snippet: Snippet = OpeningLine()   # the text under each hit (agent_search.snippets); ITER's cut
 
     def __init__(self, name: Optional[str] = None, **options):
         super().__init__(name=name, **options)
@@ -97,7 +98,7 @@ class SearchDedup(Tool):
             if u is None:
                 continue
             title = u.title or u.qualname or ""
-            blocks.append(f"DocID:{d}\n[{title}]\n{self.snippet.render(u, width=SNIPPET_TOKENS)}")
+            blocks.append(f"DocID:{d}\n[{title}]\n{self.snippet.render(u, width=DEDUP_SNIPPET_TOKENS)}")
         out = (f"A search for '{query}' found {len(blocks)} results:\n\n## Web Results\n"
                + "\n\n".join(blocks))
         if hidden:

@@ -38,7 +38,6 @@ agent:
 
 # --- budgets: length limits — all in TOKENS (there are no character limits anywhere)
 budgets:
-  snippet_tokens: 64                     # query-biased snippet width shown per result (whitespace tokens)
   max_visit_tokens: 512                  # whole-document read cap (the paper setting)
   closer_evidence_arg_tokens: 32         # SDK driver: per-call argument excerpt in the forced-answer evidence
   closer_evidence_obs_tokens: 160        # SDK driver: per-observation excerpt in the forced-answer evidence
@@ -47,6 +46,7 @@ budgets:
 listing:
   dedup_topk: 10                         # results per search, dedup arms (ITER: 10)
   dedup_pool_k: 100                      # over-fetch pool before dropping already-seen docs, dedup arms (ITER: 100)
+  dedup_snippet_tokens: 64                # model tokens of passage shown per hit (ITER's runs: 64)
 
 # --- retrieval: engines and ranking
 retrieval:

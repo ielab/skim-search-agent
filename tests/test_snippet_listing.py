@@ -13,6 +13,7 @@ import os
 from agent_search.snippets import NoSnippet, TermWindow
 from agent_search.corpus.units import units_from_documents
 from agent_search.strategies import get_condition
+from agent_search.tokens import count_tokens
 from agent_search.tools.base import EpisodeState, ToolBox
 from agent_search.tools.budgets import SNIPPET_TOKENS
 from agent_search.tools.fetch.tool import Fetch
@@ -40,7 +41,7 @@ def _padded_doc(doc_id: str, title: str, needle: str,
 
 
 DOCS = [
-    _padded_doc("d_mid", "Mid-body Match", "zephyrquokka marker phrase right here"),
+    _padded_doc("d_mid", "Mid-body Match", "cobra marker phrase right here"),
     {"_id": "d_plain", "title": "Plain Doc", "text": "A short document about nothing special."},
 ]
 
@@ -67,7 +68,7 @@ def _toolbox(snippet):
 def test_snippets_false_is_byte_identical_to_default():
     a, _, _ = _toolbox(snippet=NoSnippet())               # old default (no snippets kwarg at all)
     b, _, _ = _toolbox(snippet=NoSnippet())                # explicit False
-    query = "zephyrquokka[body]"
+    query = "cobra[body]"
     out_a = a.run("search", {"query": query})
     out_b = b.run("search", {"query": query})
     assert out_a == out_b
@@ -79,11 +80,11 @@ def test_snippets_false_is_byte_identical_to_default():
 
 def test_snippets_true_shows_mid_body_excerpt_not_opening():
     box, _, _ = _toolbox(snippet=TermWindow())
-    out = box.run("search", {"query": "zephyrquokka[body]"})
+    out = box.run("search", {"query": "cobra[body]"})
     hit_line = next(l for l in out.splitlines() if "d_mid" in l)
     assert "»" in hit_line
     excerpt = hit_line.split("»", 1)[1].strip()
-    assert "zephyrquokka" in excerpt
+    assert "cobra" in excerpt
     # the doc's opening window is pure filler — proves the MID-BODY window won, not a
     # blind opening slice.
     opening = " ".join([_PAD] * SNIPPET_TOKENS)
@@ -97,7 +98,7 @@ def test_snippets_true_second_hit_has_no_query_overlap_but_still_gets_a_line():
     # is still whichever appears earliest, score 0 throughout, so it's the opening).
     _, sb, ubyid = _toolbox(snippet=TermWindow())
     u = ubyid["d_plain"]
-    line = sb._best_line(u, ["zephyrquokka"])
+    line = sb._best_line(u, ["cobra"])
     assert line == "A short document about nothing special."
 
 
@@ -135,7 +136,7 @@ def test_research_snip_condition_loads_with_doc_skill_coaching():
 
 def test_run_accepts_search_s_and_fetch_s_aliases():
     box, _, _ = _toolbox(snippet=TermWindow())
-    out_alias = box.run("search_s", {"query": "zephyrquokka[body]", "k": 5})
+    out_alias = box.run("search_s", {"query": "cobra[body]", "k": 5})
     assert "»" in out_alias
     assert box.last_hits == ["d_mid"]
     fetch_out = box.run("fetch_s", {"specs": [[1, "(intro)"]]})
@@ -157,10 +158,11 @@ def test_default_width_is_32():
 def test_width_argument_controls_window_length():
     _, sb, ubyid = _toolbox(snippet=TermWindow())
     u = ubyid["d_mid"]
+    body_tokens = count_tokens(" ".join((u.body or "").split()))
     for width in (32, 64, 128, 256, 512):
         line = sb._best_line(u, [], width=width)
         # the doc is shorter than the larger widths, so the window saturates at the doc length
-        assert len(line.split()) == min(width, len((u.body or "").split()))
+        assert count_tokens(line) == min(width, body_tokens)
 
 
 def test_env_override_is_picked_up_on_import(monkeypatch):
@@ -183,10 +185,11 @@ def test_env_override_is_picked_up_on_import(monkeypatch):
 def test_window_is_not_character_capped():
     """The pre-knob implementation clipped every excerpt to 160 characters, which meant a
     token-count setting did not really control the snippet (prose runs ~6.4 chars/token, so
-    the cap bound from about 25 tokens up). A window as wide as the whole body must come back
-    as EXACTLY the whole body — any character cap would break the equality."""
+    the cap bound from about 25 tokens up). A window as wide as the whole body, in MODEL
+    tokens, must come back as EXACTLY the whole body — any character cap would break the
+    equality."""
     _, sb, ubyid = _toolbox(snippet=TermWindow())
     u = ubyid["d_mid"]
     whole = " ".join((u.body or "").split())
-    line = sb._best_line(u, [], width=len(whole.split()))
+    line = sb._best_line(u, [], width=count_tokens(whole))
     assert line == whole

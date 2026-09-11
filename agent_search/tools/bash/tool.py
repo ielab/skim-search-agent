@@ -23,7 +23,7 @@ import weakref
 from pathlib import Path
 from typing import Optional
 
-from agent_search.tokens import count_ws_tokens
+from agent_search.tokens import count_tokens
 from agent_search.corpus.flat_export import export_flat_corpus
 from agent_search.tools.base import Tool
 
@@ -38,7 +38,7 @@ def _tail_truncate(content: str, *, max_lines: int = BASH_MAX_LINES,
                    max_tokens: int = BASH_MAX_TOKENS) -> str:
     """Keep the last N lines or M whitespace tokens, whichever limit hits first; append a
     one-line `[Truncated: showing X of Y lines]` marker when truncation fires."""
-    total_tokens = count_ws_tokens(content)
+    total_tokens = count_tokens(content)
     lines = content.split("\n")
     total_lines = len(lines)
     if total_lines <= max_lines and total_tokens <= max_tokens:
@@ -52,7 +52,7 @@ def _tail_truncate(content: str, *, max_lines: int = BASH_MAX_LINES,
             truncated_by = "lines"
             break
         line = lines[i]
-        line_tokens = count_ws_tokens(line)
+        line_tokens = count_tokens(line)
         if out_tokens + line_tokens > max_tokens:
             truncated_by = "tokens"
             if not out_lines:

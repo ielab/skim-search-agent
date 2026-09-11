@@ -51,7 +51,7 @@ def test_files_are_scoped_to_what_the_strategy_reads():
     assert "dense_model" not in sv["retrieval"] and "bm25_index" in sv["retrieval"]
     X.validate(sv, complete=True)
     dd = yaml.safe_load(X.template(None, "dedup_dense"))
-    assert set(dd["listing"]) == {"dedup_topk", "dedup_pool_k"}
+    assert set(dd["listing"]) == {"dedup_topk", "dedup_pool_k", "dedup_snippet_tokens"}
     assert "dense_index" in dd["retrieval"] and "bm25_index" not in dd["retrieval"]
     code = yaml.safe_load(X.template(None, "codefix"))
     assert "listing" not in code and "repo_cache" in code["output"]

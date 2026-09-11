@@ -1,10 +1,13 @@
-"""The query-term window: the document's best-matching `width`-token window for the query.
+"""The query-term window: the document's best-matching window for the query, at most `width`
+model tokens.
 
-One pass over the document's tokens, sliding a window one token at a time and counting how
-many distinct query terms (`code_tokenize`d, case-insensitive) it holds. The highest count
-wins; ties go to the earliest window. With no terms (an unparseable query) the window is the
-opening one. This is the excerpt Sieve's result cards show (`search_s`), and the fairness
-variant of the BM25 listing (`bm25q_search`).
+One pass over the document's words, sliding a window of `width` words one word at a time and
+counting how many distinct query terms (`code_tokenize`d, case-insensitive) it holds. The
+highest count wins; ties go to the earliest window. With no terms (an unparseable query) the
+window is the opening one. The winning window is then cut to `width` model tokens on the
+library's ruler (a word is never shorter than one token, so the window is wide enough, and a
+cut keeps its start, where the matching terms sit). This is the excerpt Sieve's result cards
+show (`search_s`), and the fairness variant of the BM25 listing (`bm25q_search`).
 """
 from __future__ import annotations
 
@@ -12,6 +15,7 @@ from typing import Optional, Sequence
 
 from agent_search.corpus.units import CodeUnit, code_tokenize
 from agent_search.snippets.base import Snippet, register_snippet, unit_tokens
+from agent_search.tokens import truncate_tokens
 from agent_search.tools.budgets import SNIPPET_TOKENS
 
 
@@ -62,7 +66,7 @@ class TermWindow(Snippet):
 
     def render(self, u: CodeUnit, terms: Optional[Sequence[str]] = None,
                width: int = SNIPPET_TOKENS) -> str:
-        return best_window(unit_tokens(u), terms or [], width)
+        return truncate_tokens(best_window(unit_tokens(u), terms or [], width), width, "")
 
 
 __all__ = ["TermWindow", "best_window"]

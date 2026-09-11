@@ -39,7 +39,7 @@ ENV_KNOBS = (
     "bql_soft_fallback", "bql_dense", "bql_dense_rrf_k", "bql_date_range", "rrf_k",
     "hybrid_retrievers", "hybrid_fusion", "hybrid_weights",
     "rerank_visit_topk", "rerank_fetch_topk", "rerank_base", "rerank_method", "rerank_model", "rerank_pool",
-    "rerank_batch_size", "rerank_max_length",
+    "rerank_batch_size", "rerank_max_length", "dedup_snippet_tokens",
     "indri_dense", "indri_dense_w", "indri_dense_expand_k", "lucene_mu",
     # engine selection / models
     "dense_model", "dense_query_style", "dense_query_instruction", "dense_pooling", "dense_dtype",

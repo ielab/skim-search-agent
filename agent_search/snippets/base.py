@@ -3,8 +3,9 @@
 How a hit is presented is part of a strategy: the opening line, a window around the query
 terms, or nothing at all changes what the model sees and what it does next. Snippet methods
 live one file each under this package; a tool takes one as its `snippet=` option, so a
-strategy swaps presentation without touching the tool. Widths are token counts
-(`agent_search/tools/budgets.py`, `SNIPPET_TOKENS`), never characters.
+strategy swaps presentation without touching the tool. Widths are model tokens on the
+library's ruler (`agent_search.tokens`; `SNIPPET_TOKENS` in `agent_search/tools/budgets.py`),
+never characters and never whitespace words.
 """
 from __future__ import annotations
 
@@ -16,9 +17,14 @@ from agent_search.tools.budgets import SNIPPET_TOKENS
 SNIPPETS: dict[str, type] = {}
 
 
+def unit_text(u: CodeUnit) -> str:
+    """A unit's text: its body, or its code."""
+    return (u.body if u.body is not None else u.code) or ""
+
+
 def unit_tokens(u: CodeUnit) -> list[str]:
-    """The whitespace tokens of a unit's text (its body, or its code)."""
-    return ((u.body if u.body is not None else u.code) or "").split()
+    """The words of a unit's text, for the window search; widths are model tokens."""
+    return unit_text(u).split()
 
 
 class Snippet:
@@ -49,4 +55,4 @@ def build_snippet(name: str, **params) -> Snippet:
     return cls(**params)
 
 
-__all__ = ["Snippet", "SNIPPETS", "register_snippet", "build_snippet", "unit_tokens"]
+__all__ = ["Snippet", "SNIPPETS", "register_snippet", "build_snippet", "unit_text", "unit_tokens"]

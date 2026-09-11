@@ -122,16 +122,26 @@ def test_search_ignores_a_hallucinated_k_arg():
 def test_per_doc_text_is_truncated_at_max_visit_tokens_with_same_marker():
     """MAX_VISIT_TOKENS is read once at import time (like AUTOREAD_TOPK) — pin it explicitly via
     a fresh subprocess so the truncation boundary is deterministic regardless of the ambient
-    environment. d00's body is 5 prefix tokens ("common topic document number 0") + 1500 filler
-    tokens (word0..word1499); with MAX_VISIT_TOKENS=50, the cap keeps the first 50 tokens total
-    -> the last KEPT filler token is word44 (position 5..49), and word45 is the first token cut.
+    environment. d00's body is "common topic document number 0" plus 1500 filler words
+    (word0..word1499); with MAX_VISIT_TOKENS=50, the cap keeps the first 50 MODEL tokens of the
+    body. The exact word where that lands depends on the tokenizer (some of "word0".."word1499"
+    are more than one model token each), so the expected boundary is computed here with the
+    same `truncate_tokens` ruler the tool uses, rather than a hardcoded word count.
     """
     import subprocess
     import sys as _sys
 
+    from agent_search.tokens import TRUNCATED, truncate_tokens
+
     filler = " ".join(f"word{i}" for i in range(1500))
-    docs = [{"_id": "d00", "title": "Common Topic 0",
-             "text": f"common topic document number 0 {filler}"}]
+    body = f"common topic document number 0 {filler}"
+
+    kept = truncate_tokens(body, 50, TRUNCATED)
+    assert kept.endswith(TRUNCATED)
+    kept_words = kept[: -len(TRUNCATED)].split()
+    last_kept_word = kept_words[-1]
+    first_cut_word = filler.split()[filler.split().index(last_kept_word) + 1]
+
     code = (
         "from agent_search.tools.base import EpisodeState, ToolBox\n"
         "from agent_search.tools.search_bm25.tool import SearchBm25\n"
@@ -141,7 +151,8 @@ def test_per_doc_text_is_truncated_at_max_visit_tokens_with_same_marker():
         "         'text': f'common topic document number 0 {filler}'}]\n"
         "units = units_from_documents(docs)\n"
         "ubyid = {u.doc_id: u for u in units}\n"
-        + _subprocess_engine_code(units_from_documents(docs)) +
+        + _subprocess_engine_code(units_from_documents([{"_id": "d00", "title": "Common Topic 0",
+                                                          "text": body}])) +
         "state = EpisodeState(question='q')\n"
         "search = SearchBm25(name='bm25_read_search', full_text=True).bind(state, units, ubyid, {'bm25': engine})\n"
         "box = ToolBox([search], state)\n"
@@ -154,8 +165,8 @@ def test_per_doc_text_is_truncated_at_max_visit_tokens_with_same_marker():
     assert result.returncode == 0, result.stderr
     out = result.stdout
     assert "…(truncated — this is the whole-doc cap)" in out
-    assert "word44" in out              # last kept filler token (50 - 5 prefix - 1, 0-indexed)
-    assert "word45" not in out          # truncated away
+    assert last_kept_word in out.split()          # last kept filler word
+    assert first_cut_word not in out.split()      # truncated away
 
 
 def test_short_docs_are_not_marked_truncated():

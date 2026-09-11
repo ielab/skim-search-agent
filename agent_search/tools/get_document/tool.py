@@ -2,7 +2,8 @@
 
 Accepts a bare doc_id, a ``DocID:<id>`` string (as rendered by `agent_search.tools.search_dedup`),
 or, when the id is purely numeric and not itself a doc_id, a 1-based rank into the last
-search's `state.last_hits`. The read is capped at `MAX_VISIT_TOKENS` (tokens, never
+search's `state.last_hits`. The read is capped at `MAX_VISIT_TOKENS` model tokens on the
+library's ruler, the way ITER cuts a document with the served model's tokenizer (never
 characters). The document is added to `state.seen` and `state.reads`.
 """
 from __future__ import annotations
@@ -11,7 +12,7 @@ import re
 
 from agent_search.tools.base import Tool
 from agent_search.tools.budgets import MAX_VISIT_TOKENS
-from agent_search.tools.common import _cap_tokens
+from agent_search.tokens import truncate_tokens
 
 _DOCID = re.compile(r"DocID:\s*(\S+)")
 
@@ -45,8 +46,8 @@ class GetDocument(Tool):
                     f"result.")
         self.state.seen.add(ref)
         self.state.reads.append(ref)
-        text = _cap_tokens(u.body or u.code or "", MAX_VISIT_TOKENS,
-                           " …(truncated — this is the whole-doc cap)")
+        text = truncate_tokens(u.body or u.code or "", MAX_VISIT_TOKENS,
+                               " …(truncated — this is the whole-doc cap)")
         title = u.title or u.qualname or ""
         return f"DocID:{ref}\n[{title}]\n{text}"
 
