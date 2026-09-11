@@ -5,7 +5,7 @@
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=2
 #SBATCH --mem=8g
-#SBATCH --account=YOUR_SLURM_ACCOUNT
+#SBATCH --account=YOUR_SLURM_ACCOUNT   # or export SLURM_ACCOUNT=<account>; the array inherits it
 #SBATCH --output=slurm_logs/submitters/%x-%j.out
 #SBATCH --error=slurm_logs/submitters/%x-%j.err
 # (sbatch'ing THIS file only submits per-shard child jobs, so it needs no GPU)
@@ -309,6 +309,7 @@ LOGDIR="slurm_logs/agent_runs/$DATASET"; mkdir -p "$LOGDIR"
 n=$(( NUM_SHARDS - 1 ))
 JOB_NAME="shard-${CONDITION}-${DATASET}-${MODEL_TAG}"
 jid=$(sbatch --parsable --array=0-${n} --time="$JOB_TIME" \
+  ${SLURM_ACCOUNT:+--account=$SLURM_ACCOUNT} \
   ${EXCLUDE_NODES:+--exclude=$EXCLUDE_NODES} \
   --partition="$GPU_PARTITION" --qos="$QOS" --gres=gpu:1 \
   --cpus-per-task="$JOB_CPUS" --mem="$JOB_MEM" \
