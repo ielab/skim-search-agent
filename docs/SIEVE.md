@@ -47,7 +47,7 @@ and `sieve`.
 |---|---|---|
 | Strict Boolean (no fallback) | `BQL_SOFT_FALLBACK=0` | accuracy drops well below the Search-Visit baseline, so the fallback is load-bearing |
 | Without snippets | condition `agent_research_bql_dense_fetch` | 2.9 to 6.8 accuracy points lost, with everything else matched |
-| Snippet width sweep | `snippet_tokens=32 / 64 / 128 / 256 / 512` on the `skimsearchagent` launcher, or `SNIPPET_TOKENS=` in the environment. Default 32. It governs BOTH arms' listing snippets, Sieve's query-biased window and the visit baselines' opening window, so a sweep moves the whole comparison rather than one side of it | not yet run; listing size grows roughly linearly with the window |
+| Snippet width sweep | `snippet_tokens=32 / 64 / 128 / 256 / 512` on the `skimsearchagent` launcher, or `SNIPPET_TOKENS=` in the environment. Default 32. It governs BOTH arms' listing snippets, Sieve's query-biased window, and the visit baselines' opening window. A sweep moves the whole comparison, not just one side of it | not yet run; listing size grows roughly linearly with the window |
 | Dense encoder sweep | `DENSE_MODEL=<hf-id>` (bge-small/base/large, Qwen3-Embedding 0.6B/4B/8B) | token saving holds from 33M to 8B; accuracy moves within about 3 points |
 | Ranker swap | the three conditions above | fusion wins on BrowseComp-Plus, dense wins on HotpotQA |
 | Engine swap | `agent_research_indri_snip` | Indri-QL executor comparison |
@@ -78,7 +78,7 @@ Against the BM25 Search-Visit baseline under identical budgets (5 results per se
 
 The effect carries across agent backbones (Qwen-AgentWorld, OpenResearcher), and the token savings
 are largest where the baseline uses the most context. For the full tables, ablations and
-statistics, see the paper, and [`REPRODUCING.md`](REPRODUCING.md) to regenerate them.
+statistics, see the paper. To regenerate them, see [`REPRODUCING.md`](REPRODUCING.md).
 
 ## Ranking invariant: Boolean filters, one model ranks
 
@@ -89,16 +89,17 @@ experiment cannot mix rankers:
 
 1. **The 0-hit fallback ranks with the same model over the same index as the exact path.**
    When a Boolean query matches nothing, `soft_topk` builds a pool of the lexically closest
-   documents plus (when a dense belief is attached) the dense side's nearest neighbours, and
-   orders it with the arm's own fusion rule (`StructuralExecutor._fuse_soft`,
+   documents. If a dense belief is attached, it adds the dense side's nearest neighbours to that
+   pool. The arm's own fusion rule then orders the pool (`StructuralExecutor._fuse_soft`,
    `DenseOnlyStructuralExecutor._fuse_soft`). The coverage-tier fallback for a many-clause AND
    fuses within tiers by the same rule. Pool size: `BQL_SOFT_POOL` (default 100).
 2. **Dense similarity always comes from the persisted embedding cache** built by
    `skimsearchagent-build-indexes --retriever dense --model <dense_model>`. The run refuses
-   to start a dense arm without that cache and never encodes documents online; only the query
-   is encoded, once per search call. The model is the run's `dense_model` (`--dense-model`,
-   or `DENSE_MODEL`, default `BAAI/bge-base-en-v1.5`) for every dense arm, so Sieve's ranker, its
-   fallback, and the dense and hybrid baselines all read the same index for the same model.
+   to start a dense arm without that cache. It never encodes documents online: only the query
+   gets encoded, once per search call. The model is the run's `dense_model` (`--dense-model` on
+   the CLI, or `DENSE_MODEL` in the environment; default `BAAI/bge-base-en-v1.5`). Every dense arm
+   uses that same model, so Sieve's ranker, its fallback, and the dense and hybrid baselines all
+   read the same index for the same model.
 
 `tests/test_sieve_fallback_consistency.py` pins both rules.
 
