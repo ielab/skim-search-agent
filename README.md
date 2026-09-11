@@ -256,10 +256,10 @@ agent.search(question, k=10)
 | ITER search | `dedup_bm25`, `dedup_dense` | ITER's tool setup; see [docs/ITER.md](docs/ITER.md) |
 | Multi-agent | `plan_and_search`, `plan_and_search_visit` | a planner splits the question, one agent per sub-question (Sieve, or search-visit), a synthesizer answers; every member episode is recorded |
 
-Every index is built once per dataset, before any run: the dense embedding cache
-(`skimsearchagent-build-indexes --dataset <name> --retriever dense`), the Lucene BM25 index
-(`--retriever bm25_pyserini`) and the Lucene structured index behind BQL and Indri
-(`--retriever search_lucene`). A run builds what it needs in its first step; a missing dense
+Every index is built once per dataset, before any run. Build the dense embedding cache with
+`skimsearchagent-build-indexes --dataset <name> --retriever dense`, the Lucene BM25 index with
+`--retriever bm25_pyserini`, and the Lucene structured index behind BQL and Indri with
+`--retriever search_lucene`. A run builds what it needs in its first step; a missing dense
 cache stops the run before the first episode and prints the build command. A code repository
 is indexed in memory and re-indexed only for the files that change.
 
@@ -269,7 +269,7 @@ in the file; nothing is encoded during a run. See [docs/ITER.md](docs/ITER.md).
 ## Train a retriever
 
 Every run is a trajectory, so it is also training data. Triples with tiered negatives come out
-of any run directory, a patched FlagEmbedding trainer fits a dense retriever on them, and the
+of any run directory. A patched FlagEmbedding trainer fits a dense retriever on them. The
 checkpoint plugs back in as the dense model of any strategy, served with the query style,
 instruction and precision it was trained with:
 
@@ -310,9 +310,9 @@ pip install -e ".[demo-live]"
 python demo/server.py          # http://localhost:8008/
 ```
 
-Ask a question and watch Sieve and Search–Visit race over a 250-document subsample of
-BrowseComp-Plus, with every token metered. Your OpenAI key stays in the browser's session
-storage and is sent per request to OpenAI; the server does not store or log it. See
+Ask a question and watch Sieve and Search–Visit answer it side by side, over a 250-document
+subsample of BrowseComp-Plus, with every token metered. Your OpenAI key stays in the browser's
+session storage and is sent per request to OpenAI; the server does not store or log it. See
 [`demo/`](demo/README.md).
 
 ## Documentation
