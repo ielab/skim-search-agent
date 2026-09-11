@@ -10,7 +10,7 @@
 
 [Project page](https://ielab.github.io/skim-search-agent/) ·
 [Paper](https://arxiv.org/abs/2608.02751) ·
-[Install](#install) · [Run an experiment](#run-an-experiment) · [Change one thing](#change-one-thing) ·
+[The library](#the-library) · [Install](#install) · [Run an experiment](#run-an-experiment) · [Change one thing](#change-one-thing) ·
 [Python API](#python-api) · [Strategies](#strategies) · [Train a retriever](#train-a-retriever) ·
 [Docs](#documentation)
 
@@ -26,6 +26,30 @@ and how the answer is scored are separate decisions. SkimSearchAgent makes each 
 with a fixed interface and runs every combination through the same harness, so two experiments
 differ only where you changed them. Every run writes the same record: the full trajectory, the
 configuration, and the metrics.
+
+## The library
+
+One package, `agent_search`, one folder per kind of component. Each folder is a base class plus
+one file per concrete class, so a new method is one new file. Read them in the order a query
+travels:
+
+| module | what it holds | the files |
+|---|---|---|
+| `corpus/` | documents and functions as units; an on-disk store for corpora too large for memory; fingerprints so a persisted index is never served against a corpus it was not built for | `units.py`, `docstore.py`, `fingerprint.py`, `code_repo.py` |
+| `retrievers/` | engines that rank ids for a query: Lucene BM25, dense encoders (one file per family), the Boolean method BQL, Indri; and two compositions, a hybrid (any retrievers fused by one method) and a reranked retriever (one retriever's pool reordered by a reranker) | `lexical/`, `dense/`, `bql/`, `indri/`, `lucene/`, `fusion/`, `hybrid.py`, `rerankers/`, `reranked.py`, `engines.py`, `backend.py` |
+| `snippets/` | how one hit is excerpted in a listing: the opening line, the best window for the query terms, or nothing | `opening.py`, `term_window.py`, `none.py` |
+| `tools/` | the actions a model can call, one folder each with its declaration, code and manual; a tool names its engine kind and its snippet | `search_bm25/`, `search_dense/`, `search_hybrid/`, `search_reranked/`, `search_bql/`, `search_indri/`, `search_dedup/`, `search_bm25_dci/`, `visit/`, `fetch/`, `fetch_code/`, `get_document/`, `bash/`, `read/`, `grep/` |
+| `tasks/` | what the model is asked to produce: the prompt template and the answer protocol | `research/`, `research_dedup/`, `codefix/`, `codefix_patch/` |
+| `agent/` | one agent: the model providers, the policies, the loop, and `episode.py`, which runs one condition on one question | `backbone/`, `policies.py`, `loop.py`, `episode.py`, `sdk_driver.py` |
+| `procedures/` | programs that are not a tool loop: one-shot RAG, and teams whose members are conditions run as agents | `rag.py`, `plan_and_search.py` |
+| `strategies/` | the named combinations a run selects: tools with their options, a procedure, or a retrieval-only floor; `conditions.py` pairs a strategy with a task | `search_visit.py`, `search_fetch.py`, `autoread.py`, `sieve.py`, `indri.py`, `dci.py`, `dedup.py`, `codefix.py`, `rag.py`, `teams.py`, `retrieval_only.py` |
+| `evaluation/` | the harness: datasets, the runner, the metrics, the judge, the run record and its identity, the index prebuild | `datasets/`, `runner.py`, `run_eval.py`, `llm_judge.py`, `identity.py`, `build_indexes.py` |
+| `training/` | the ITER recipe: trajectories to triples, retriever training and evaluation | `build_triples.py`, `retriever.py`, `retriever_eval.py` |
+
+Document corpora rank on Lucene (BM25 through Pyserini, BQL and Indri on a fielded Lucene
+index); a code repository is indexed in memory and re-indexed only for the files that change.
+Every length limit is a token count. [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) explains each
+module; [docs/EXTENDING.md](docs/EXTENDING.md) shows how to add one of each.
 
 ## Install
 

@@ -16,20 +16,23 @@ behind one set of contracts, one run record, and one evaluation layer.
                                                                                                          (trajectories in rows.jsonl)
 ```
 
-## The six modules and where they live
+## The modules and where they live
 
 | # | module | what stays stable | what you swap | code |
 |---|---|---|---|---|
 | 01 | **Corpus & document representation** | `Unit` (`doc_id`, `title`, `body`, optional `sections`, `metadata`); one dataset registry; corpora too large for memory are served from an on-disk document store | corpus builders, dataset loaders, field profiles | `agent_search/corpus/`, `agent_search/evaluation/datasets/`, `corpus_build/` |
-| 02 | **Retrieval & reranking** | `Retriever.index / search`; persistent indexes keyed by corpus identity and content fingerprint; one engine registry per corpus shared by every tool | BM25 (local or Lucene), dense encoders, RRF fusion, BQL fielded retrieval, Indri-style structured retrieval, your ranker | `agent_search/retrievers/` |
-| 03 | **Tools, tasks, strategies** | a *tool* is one atomic action with its declaration, its code and its manual; a *task* is the goal and the answer protocol; a *strategy* is a combination of tools with options; a *condition* is a task with a strategy | tools, tasks, strategies, conditions | `agent_search/tools/`, `agent_search/tasks/`, `agent_search/strategies/` |
-| 04 | **Agent runtime** | `run_episode` (reason, act, observe), budgets in tokens, forced-answer handling; the Agents-SDK driver as an alternative runtime | policies, models, drivers | `agent_search/agent/` (the loop, policies, drivers, and `backbone/` with the model providers) |
-| 05 | **Evaluation & evidence** | the run record (`rows.jsonl` + `config.json` + `results.json`), resume semantics, run identity | metrics, judges, paired statistics | `agent_search/evaluation/`, `scripts/summarize_runs.py`, `scripts/compare_cells.py` |
-| 06 | **Training & rollouts** | every episode is a full trajectory (prompts, tool calls, observations, tokens, what each search listed and each read opened) | retriever training from trajectories (the ITER recipe, shipped); policy SFT/RL consumers | `agent_search/training/`, `rows.jsonl` (see [TRAINING.md](TRAINING.md) and "The run record" below) |
+| 02 | **Retrieval & reranking** | `Retriever.index / search`; persistent indexes keyed by corpus identity and content fingerprint; one engine registry per corpus shared by every tool; a hybrid is retrievers plus a fusion method, a reranked retriever is one retriever plus a reranker | Lucene BM25, dense encoders, fusion methods, rerankers, BQL fielded retrieval, Indri-style structured retrieval, your ranker | `agent_search/retrievers/` (`fusion/`, `rerankers/`, `hybrid.py`, `reranked.py`) |
+| 03 | **Snippets** | `Snippet.render(unit, terms, width)`: the excerpt a listing shows under one hit, in tokens | the opening line, the query-term window, none, your excerpt method | `agent_search/snippets/` |
+| 04 | **Tools, tasks, strategies** | a *tool* is one atomic action with its declaration, its code and its manual, and names its engine kind and its snippet; a *task* is the goal and the answer protocol; a *strategy* is a combination of tools with options, a procedure, or a floor; a *condition* is a task with a strategy | tools, tasks, strategies, conditions | `agent_search/tools/`, `agent_search/tasks/`, `agent_search/strategies/` |
+| 05 | **Agent runtime** | `run_condition_episode` (one condition on one question) over `run_episode` (reason, act, observe), budgets in tokens, forced-answer handling; the Agents-SDK driver as an alternative runtime | policies, models, drivers | `agent_search/agent/` (`episode.py`, the loop, policies, drivers, and `backbone/` with the model providers) |
+| 06 | **Procedures** | `Procedure.run(question, ctx)`: a program over engines and agents; a team runs member conditions through the same episode function and records them all | one-shot RAG, plan-and-search, your team | `agent_search/procedures/` |
+| 07 | **Evaluation & evidence** | the run record (`rows.jsonl` + `config.json` + `results.json`), resume semantics, run identity | metrics, judges, paired statistics | `agent_search/evaluation/`, `scripts/summarize_runs.py`, `scripts/compare_cells.py` |
+| 08 | **Training & rollouts** | every episode is a full trajectory (prompts, tool calls, observations, tokens, what each search listed and each read opened) | retriever training from trajectories (the ITER recipe, shipped); policy SFT/RL consumers | `agent_search/training/`, `rows.jsonl` (see [TRAINING.md](TRAINING.md) and "The run record" below) |
 
 Each family declares its contract in a base module next to its implementations:
-`retrievers/base.py`, `tools/base.py`, `tasks/base.py`, `strategies/base.py`,
-`agent/policies.py` and `agent/backbone/base.py`. Every built-in implements them the same way
+`retrievers/base.py`, `retrievers/fusion/base.py`, `retrievers/rerankers/base.py`, `snippets/base.py`,
+`tools/base.py`, `tasks/base.py`, `strategies/base.py`, `procedures/base.py`, `agent/policies.py` and
+`agent/backbone/base.py`. Every built-in implements them the same way
 a plugin does. [EXTENDING.md](EXTENDING.md) covers each extension point with a
 runnable example.
 
