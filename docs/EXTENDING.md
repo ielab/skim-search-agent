@@ -192,7 +192,7 @@ A bound tool sees `self.units`, `self.ubyid` (doc id to unit), `self.state` (the
 `last_hits`, `listing`, `reads`, `scratch`), `self.engine` (the engines it declared, built once
 per corpus and shared with the other tools), `self.files` (the repository files, when
 `needs_files = True`) and `self.corpus_key`. Options are class attributes a strategy overrides by
-keyword (`SearchBm25(name="bm25q_search", query_biased=True)`); `on_bind()` runs once per episode.
+keyword (`SearchBm25(name="bm25q_search", snippet=TermWindow())`); `on_bind()` runs once per episode.
 Text limits inside a tool are token caps (`cap_tokens`, `count_tokens` in `agent_search.tokens`).
 
 The engines a tool can name are the kinds in `agent_search/retrievers/engines.py`: `bm25`,

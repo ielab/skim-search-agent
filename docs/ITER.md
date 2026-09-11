@@ -84,6 +84,19 @@ InfoSeek has answers but no document labels. Such an answer-only set runs like a
 metrics are left out of the rows, the answer metrics and the LLM judge (`evaluation.judge_model`)
 score it.
 
+## A corpus you already embedded
+
+ITER's `encode.py` (Tevatron) writes one pickle per shard, `(embeddings, doc_ids)`.
+`scripts/import_tevatron_index.py` turns those shards into the prebuilt index layout the
+library serves (`index.faiss` + `index.lookup.pkl`), checks every id against the corpus, and
+`retrieval.dense_index` points at the result. The corpus is then served from disk and never
+re-embedded; the query side still needs the encoder (`retrieval.dense_model`).
+
+```bash
+python scripts/import_tevatron_index.py --shards "/path/to/index-*.pkl" \
+    --out indexes/external/iter06b_bcp_chunks --corpus data/browsecomp_plus_chunks/corpus.jsonl
+```
+
 ## Sample a paper setting first
 
 `skimsearchagent-sample-dataset` cuts a small dataset out of a big one in the same layout: a few
