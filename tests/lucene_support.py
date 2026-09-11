@@ -31,10 +31,13 @@ def jvm_available() -> bool:
 
 
 def require_jvm() -> None:
-    """Skip the calling module when no JVM is available."""
+    """Skip when no JVM is available: the whole module when called at import time, the one
+    test when called inside a test function."""
     if not jvm_available():
+        import inspect
+        at_import = any(f.function == "<module>" for f in inspect.stack()[1:3])
         pytest.skip("needs a JVM (pip install -e '.[retrieval]' and JAVA_HOME at a JDK 21)",
-                    allow_module_level=True)
+                    allow_module_level=at_import)
 
 
 def index_root() -> str:

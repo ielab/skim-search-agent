@@ -14,6 +14,7 @@ from agent_search.evaluation.config import (
     results_dir_for,
 )
 from agent_search.evaluation.datasets import available_datasets
+from lucene_support import require_jvm
 
 
 CONFIG_DIR = Path("configs")
@@ -93,6 +94,7 @@ def test_search_fetch_conditions_compose_the_new_toolsets():
 
 
 def test_run_config_fixture(tmp_path):
+    require_jvm()
     from agent_search.evaluation.run_eval import run_config
 
     # the fixture is a DOC instance; agent_research_snip drives search -> fetch -> <answer>.
@@ -114,6 +116,7 @@ def test_run_config_fixture(tmp_path):
 
 
 def test_config_json_records_env_knobs(tmp_path):
+    require_jvm()
     """Provenance audit fix: MAX_VISIT_TOKENS/INDRI_DENSE/... are read at import/call time
     deep in agent_search but never used to differ config.json, so two run dirs could be
     indistinguishable on disk. config.json now carries a resolved `env_knobs` sub-dict —
@@ -144,6 +147,7 @@ def test_config_json_records_env_knobs(tmp_path):
 
 
 def test_config_json_env_knobs_reflect_set_env_var(tmp_path, monkeypatch):
+    require_jvm()
     """A non-default env value must show up resolved in config.json, not the default.
 
     Uses INDRI_DENSE/AGENT_DRIVER (read live via `os.environ.get` on every call — see

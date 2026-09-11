@@ -13,6 +13,7 @@ from agent_search.training import history as H
 from agent_search.training import queries as Q
 from agent_search.training import retriever as R
 from agent_search.training import triples as T
+from lucene_support import require_jvm
 
 REPO = Path(__file__).resolve().parent.parent
 CORPUS = {"d1": "Treaty of Guadalupe Hidalgo\nEnded the Mexican-American War in 1848.",
@@ -124,6 +125,7 @@ def test_history_context_renders_the_same_query_at_inference():
 
 
 def test_run_record_carries_hit_and_read_ids(tmp_path):
+    require_jvm()
     from agent_search import cli
     assert cli.main([f"runs_dir={tmp_path / 'runs'}", f"index_root={tmp_path / 'idx'}"]) == 0
     row = json.loads(next((tmp_path / "runs").rglob("rows.jsonl")).read_text().splitlines()[0])
@@ -174,6 +176,7 @@ def test_patch_file_ships_and_environment_check_runs():
 
 
 def test_build_triples_cli_on_the_fixture(tmp_path):
+    require_jvm()
     from agent_search import cli
     assert cli.main(["dataset=doc_fixture", "strategy=search_visit", f"runs_dir={tmp_path / 'runs'}",
                      f"index_root={tmp_path / 'idx'}"]) == 0

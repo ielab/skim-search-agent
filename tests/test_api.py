@@ -3,6 +3,9 @@ command line uses, with the caller's own model callable."""
 import agent_search
 from agent_search import research
 from agent_search.api import build_agent
+from lucene_support import index_root, require_jvm
+
+require_jvm()
 
 DOCS = [
     {"_id": "d_guadalupe", "title": "Treaty of Guadalupe Hidalgo",
@@ -26,7 +29,7 @@ def test_research_with_a_scripted_model_callable():
             return '<tool_call>{"name": "fetch_s", "arguments": {"specs": [[1, "(intro)"]]}}</tool_call>'
         return "<answer>Treaty of Guadalupe Hidalgo, 1848</answer>"
 
-    result = research(QUESTION, DOCS, strategy="sieve_bm25", generate=generate, max_steps=6)
+    result = research(QUESTION, DOCS, strategy="sieve_bm25", generate=generate, max_steps=6, index_root=index_root())
     assert result.answer == "Treaty of Guadalupe Hidalgo, 1848"
     assert result.stopped == "answer"
     assert result.ranking and result.ranking[0] == "d_guadalupe"
@@ -37,7 +40,7 @@ def test_research_with_a_scripted_model_callable():
 
 
 def test_research_without_a_model_runs_the_scripted_policy():
-    result = research(QUESTION, DOCS, strategy="search_visit", max_steps=4)
+    result = research(QUESTION, DOCS, strategy="search_visit", max_steps=4, index_root=index_root())
     assert result.condition == "agent_research_bm25"
     assert result.steps and result.usage["llm_calls"] >= 1
 
