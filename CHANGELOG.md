@@ -4,9 +4,11 @@
 
 The code now says what a tool is, what a task is and what a strategy is. Nothing the model sees
 changed: every paper condition renders the same system prompt (`tests/test_prompt_fidelity.py`
-pins all 24), every tool gives the same observations as the workspace it replaces
-(`tests/test_tool_parity.py`) and a stub episode is identical end to end
-(`tests/test_episode_parity.py`). Old import paths keep working for this release.
+pins all 24). The parity checks below (every tool against the workspace it replaces, a stub
+episode end to end, a replay of recorded generations on a real corpus) were run at commit
+9dfa5b2; the old code and the parity harness (`agent_search/legacy/`, `tests/test_tool_parity.py`,
+`tests/test_episode_parity.py`, `scripts/replay_check.py`, `scripts/episode_parity.py`) were then
+removed. Anyone can rerun the parity checks by checking out that commit.
 
 ### Structure
 - `agent_search/tools/`: one folder per atomic tool (`search_bm25`, `search_dense`, `search_hybrid`,
@@ -23,16 +25,17 @@ pins all 24), every tool gives the same observations as the workspace it replace
   runs a loop-free strategy. Every condition is the retriever `agent_<name>`.
 - `agent_search/retrievers/`: `structural/` flattened into `bql/`, `indri/`, `lucene/` and
   `backend.py`; dense retrievers are a base class and one file per encoder family.
-- `agent_search/legacy/`: the pre-0.3 workspaces, `AgentRetriever` and the YAML prompt registry,
-  reachable under their old names, removed next release.
+- The pre-0.3 workspaces, `AgentRetriever` and the YAML prompt registry lived at
+  `agent_search/legacy/` for this release, then were removed once the parity checks below passed
+  (see "Verified on the cluster").
 - The code task's grounding guards live with the task (`tasks/codefix/guards.py`); the corpus
   vocabulary helper moved to `corpus/grounding.py`.
 
 ### Extending
 - A tool is a `Tool` subclass; a strategy is `register_strategy(Strategy(...))`; a condition is
   `condition(name, task, strategy)`. `docs/EXTENDING.md` and `examples/plugin_strategy.py` show
-  the whole path. `register_tool` / `register_toolset` / `register_condition` /
-  `register_workspace` still work through `agent_search.legacy`.
+  the whole path. The old YAML-registry plugin hooks (`register_tool` / `register_toolset` /
+  `register_condition` / `register_workspace`) were removed with `agent_search.legacy`.
 
 ### Verified on the cluster (2026-09-11)
 - The smoke suite (`scripts/slurm/smoke_suite.sbatch`): the full test suite, every strategy on

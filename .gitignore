@@ -35,3 +35,6 @@ analysis/paper_tables_cache.json
 envs-train/
 train_data/
 /models/
+
+# The changelog is kept locally, not published
+CHANGELOG.md

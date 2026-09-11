@@ -51,5 +51,5 @@ A component that lives outside this repository registers the same way from a plu
 1. `python -m pytest -q` passes.
 2. A new strategy runs with the scripted policy: `skimsearchagent dataset=doc_fixture strategy=<name>`.
 3. New prompts or tools come with a scripted-model test (pattern: `tests/test_extension_points.py`).
-4. A change that affects the paper's numbers says so in the pull request and in `CHANGELOG.md`.
+4. A change that affects the paper's numbers says so in the pull request.
 5. Open the pull request against `main`. CI runs the suite on Python 3.10 and 3.12 and checks the wheel.

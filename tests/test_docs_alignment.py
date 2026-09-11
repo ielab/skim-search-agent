@@ -10,7 +10,7 @@ from pathlib import Path
 import pytest
 
 REPO = Path(__file__).resolve().parents[1]
-DOCS = [REPO / "README.md", REPO / "CONTRIBUTING.md", REPO / "CHANGELOG.md",
+DOCS = [REPO / "README.md", REPO / "CONTRIBUTING.md",
         *(REPO / "docs").glob("*.md"), REPO / "corpus_build" / "README.md",
         REPO / "scripts" / "slurm" / "README.md", REPO / "demo" / "README.md"]
 DOCS = [p for p in DOCS if p.exists()]
