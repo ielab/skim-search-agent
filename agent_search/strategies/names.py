@@ -49,7 +49,7 @@ STRATEGIES: dict[str, str] = {
 DENSE_STRATEGIES = frozenset({
     "search_visit_dense", "search_visit_hybrid", "autoread_dense", "autoread_hybrid", "search_fetch_dense",
     "search_fetch_dense_plain", "search_fetch_hybrid", "sieve", "sieve_dense", "sieve_nosnip",
-    "sieve_visit_fused", "sieve_visit_dense", "dedup_dense", "rag_dense", "rag_hybrid", "hybrid",
+    "sieve_visit_fused", "sieve_visit_dense", "dedup_dense", "rag_dense", "rag_hybrid", "hybrid", "dense",
 })
 
 DEFAULT_STRATEGY = "sieve_bm25"

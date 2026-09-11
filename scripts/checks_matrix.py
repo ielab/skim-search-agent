@@ -67,7 +67,9 @@ CHECKS = (
 DENSE = {"search_visit_dense", "search_visit_hybrid", "autoread_dense", "search_fetch_dense", "search_fetch_hybrid",
          "sieve", "sieve_dense", "dedup_dense", "rag_dense", "rag_hybrid"}
 # the retrieval-only floors, on the full structured set (830 questions), through floors.sbatch
-FLOORS = [("browsecomp_plus_structured", s) for s in ("bm25", "dense", "hybrid", "reranked", "bql")]
+# (dataset, strategy, dense model or None for the default): the paper's default encoder and ITER's
+FLOORS = ([("browsecomp_plus_structured", s, None) for s in ("bm25", "dense", "hybrid", "reranked", "bql")]
+          + [("browsecomp_plus_structured", s, ITER) for s in ("dense", "hybrid")])
 FLOOR_RUNS = "runs/floors"
 
 
@@ -119,18 +121,19 @@ def write() -> list[str]:
 def write_floors() -> list[str]:
     os.makedirs(OUT, exist_ok=True)
     paths = []
-    for dataset, strategy in FLOORS:
+    for dataset, strategy, dense_model in FLOORS:
+        tag = f"{strategy}_iter" if dense_model == ITER else strategy
         t = subprocess.run(["skimsearchagent", "template", "paper", strategy], capture_output=True, text=True, check=True).stdout
-        t = re.sub(r"^name:[^\n#]*", f"name: floor_{dataset}_{strategy}", t, count=1, flags=re.M)
+        t = re.sub(r"^name:[^\n#]*", f"name: floor_{dataset}_{tag}", t, count=1, flags=re.M)
         for sec, k, v in [("dataset", "name", dataset), ("evaluation", "workers", "4"), ("output", "runs_dir", FLOOR_RUNS)]:
             t = _setk(t, sec, k, v)
-        if strategy in ("dense", "hybrid"):
+        if dense_model == ITER:
             for k, v in [("dense_model", ITER), ("dense_dtype", "bfloat16"), ("dense_query_style", "i2"),
                          ("dense_query_instruction", "Given the main question, the current sub-query, and the sub-queries already tried"),
                          ("dense_pooling", "last_token")]:
                 t = _setk(t, "retrieval", k, v)
         t = re.sub(r"^env: \{\}", "env:\n  HF_HUB_OFFLINE: '1'", t, flags=re.M)
-        p = os.path.join(OUT, f"floor__{dataset}__{strategy}.yaml")
+        p = os.path.join(OUT, f"floor__{dataset}__{tag}.yaml")
         open(p, "w").write(t)
         r = subprocess.run(["skimsearchagent", "validate", p], capture_output=True, text=True)
         print(os.path.relpath(p, ROOT), "|", (r.stdout + r.stderr).strip().split("\n")[0][:100])
@@ -138,11 +141,14 @@ def write_floors() -> list[str]:
     return paths
 
 
-def submit_floors() -> None:
+def submit_floors(only: str | None = None) -> None:
     """One job per floor (a GPU for the dense encoder and the reranker), through floors.sbatch."""
-    for dataset, strategy in FLOORS:
-        p = os.path.join(OUT, f"floor__{dataset}__{strategy}.yaml")
-        cmd = ["sbatch", "-A", ACCOUNT, f"--qos={QOS}", "--time=03:00:00", f"--job-name=floor-{strategy}",
+    for dataset, strategy, dense_model in FLOORS:
+        tag = f"{strategy}_iter" if dense_model == ITER else strategy
+        if only and only != tag:
+            continue
+        p = os.path.join(OUT, f"floor__{dataset}__{tag}.yaml")
+        cmd = ["sbatch", "-A", ACCOUNT, f"--qos={QOS}", "--time=03:00:00", f"--job-name=floor-{tag}",
                f"--export=ALL,JAVA_HOME_OVERRIDE={JDK},EXPERIMENTS={p}", "scripts/slurm/floors.sbatch"]
         out = subprocess.run(cmd, capture_output=True, text=True)
         print(os.path.basename(p), "->", (out.stdout + out.stderr).strip())
@@ -198,4 +204,5 @@ if __name__ == "__main__":
     if sys.argv[1] == "submit":
         submit(sys.argv[2] if len(sys.argv) > 2 else None)
     else:
-        {"write": write, "table": table, "write_floors": write_floors, "submit_floors": submit_floors}[sys.argv[1]]()
+        {"write": write, "table": table, "write_floors": write_floors,
+         "submit_floors": lambda: submit_floors(sys.argv[2] if len(sys.argv) > 2 else None)}[sys.argv[1]]()
