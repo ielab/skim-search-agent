@@ -91,7 +91,7 @@ answer; `acc@5` is the rank metric where the dataset has qrels; `fix ok` is the 
 | infoseek_eval_sample | agent_research_indri_snip | Tongyi-DeepResearch-30B-A3B | 20 | 0 | 14.15 |  |  | 13/20 |
 | infoseek_eval_sample | agent_research_snip | Tongyi-DeepResearch-30B-A3B | 20 | 0 | 16.15 |  |  | 12/16 |
 | infoseek_eval_sample | agent_research_bm25 | gpt-oss-120b | 20 | 0 | 11.05 |  |  | 15/20 |
-| infoseek_eval_sample | agent_research_dedup_dense | gpt-oss-120b | 12 | 0 | 39.50 |  |  | 2/12 |
+| infoseek_eval_sample | agent_research_dedup_dense | gpt-oss-120b | 20 | 0 | 40.65 |  |  | 6/20 |
 | infoseek_eval_sample | agent_research_snip | gpt-oss-120b | 20 | 0 | 13.90 |  |  | 16/20 |
 | infoseek_eval_sample | bm25_local | ITER-Qwen3-Embedding-0.6B | 20 | 0 |  |  |  |  |
 | infoseek_eval_sample | bql | ITER-Qwen3-Embedding-0.6B | 20 | 0 |  |  |  |  |
