@@ -47,30 +47,30 @@ module. You find a component by asking "what is it?" and opening the folder with
 **Corpus.** Documents turned into units (chunks, sections, functions), in memory or on disk,
 fingerprinted so a persisted index is never served against a corpus it was not built for.
 
-**Engine.** An index over a corpus plus a `query -> ranked ids` function. Built once per corpus,
-persisted under `indexes/`, shared by every tool that needs it (`retrievers/engines.py`).
-Families: BM25 (Lucene, through Pyserini), dense (one file per encoder family, plus the
-trained-checkpoint family), BQL (Boolean selection with one ranking model), Indri. Document
-corpora rank on Lucene only: BM25 and the structured index behind BQL and Indri, including the
-zero-hit fallback and the coverage ranking. A code repository is the one corpus kind with
-in-memory engines (the grep ranker and the Boolean executor with its AST scopes); they are
-indexes that re-index only the files that changed. `retrievers/backend.py` picks by corpus
-kind, never by an environment variable. A hybrid is
-not a family of its own: it is any retrievers the run names, fused by one method (`rrf` over
-ranks, `interpolation` over normalised scores), so `search_hybrid` and the `hybrid` floor use
-whatever `retrieval.hybrid_retrievers` and `retrieval.hybrid_fusion` say; the paper's arms are
-the defaults (BM25 and the dense model, RRF). A reranked engine is the same idea with one
-retriever and a reranker (`retrievers/rerankers/`, one file per method): the base retriever
-named in `retrieval.rerank_base` supplies a pool, the reranker reads each (query, document)
-pair and reorders it. Rerankers score online during a run; that is what reranking is.
+**Engine.** An index over a corpus plus a `query -> ranked ids` function. Each engine is built
+once per corpus, persisted under `indexes/`, and shared by every tool that needs it
+(`retrievers/engines.py`). There are four families: BM25 (Lucene, through Pyserini), dense
+(one file per encoder family, plus the trained-checkpoint family), BQL (Boolean selection with
+one ranking model), and Indri. Document corpora rank on Lucene only: BM25 and the structured
+index behind BQL and Indri, including the zero-hit fallback and the coverage ranking. A code
+repository is the one corpus kind with in-memory engines: the grep ranker and the Boolean
+executor with its AST scopes. Those engines re-index only the files that changed.
+`retrievers/backend.py` picks the engine by corpus kind, never by an environment variable. A
+hybrid is not a family of its own. It is any retrievers the run names, fused by one method
+(`rrf` over ranks, `interpolation` over normalised scores), so `search_hybrid` and the `hybrid`
+floor use whatever `retrieval.hybrid_retrievers` and `retrieval.hybrid_fusion` say. The paper's
+arms are the defaults: BM25 and the dense model, RRF. A reranked engine follows the same idea
+with one retriever and a reranker (`retrievers/rerankers/`, one file per method): the base
+retriever named in `retrieval.rerank_base` supplies a pool, and the reranker reads each (query,
+document) pair and reorders it. Rerankers score online during a run. That is what reranking is.
 
 **Harness.** How the model is put to work on a condition (`harness/`, one file each). ReAct
 is the default: a loop in which the model picks each step from the strategy's tools. One-shot
-RAG ranks, prompts once and reads the answer. A team (plan-and-search) runs member conditions
-through their own harnesses and combines what they found; the run record keeps every member
+RAG ranks, prompts once, and reads the answer. A team (plan-and-search) runs member conditions
+through their own harnesses and combines what they found. The run record keeps every member
 trajectory, sums their steps and tokens, and takes the union of their surfaced documents, so a
 team is judged with the same metrics as one agent. A strategy names its harness with
-`harness=`; a new harness is one new file, and the `agent/` package holds the machinery a
+`harness=`. A new harness is one new file, and the `agent/` package holds the machinery a
 harness is built from.
 
 **Snippet.** How one hit is excerpted in a listing (`snippets/`, one file each): the opening
@@ -78,12 +78,13 @@ line, the best window for the query terms, or nothing. A search tool takes one a
 `snippet=` option, so a strategy changes what the model reads under each hit without touching
 the tool. Widths are token counts (`SNIPPET_TOKENS`).
 
-**Tool.** One atomic action the agent can call. A tool owns its declaration (the name the model
-sees, the description, the JSON parameters), its code (`run(args)` returns the observation text;
-an error is text, never an exception) and, when the agent has to learn a syntax, its manual (the
-text rendered into the prompt). A tool reads and writes the episode state (what was listed, what
-was surfaced, what was read) and names the engines it needs. One folder per tool:
-`tools/<name>/tool.py`, plus `manual.md` files where there is a manual.
+**Tool.** One atomic action the agent can call. A tool owns three things: its declaration (the
+name the model sees, the description, the JSON parameters), its code, and, when the agent has
+to learn a syntax, its manual (the text rendered into the prompt). The code is `run(args)`,
+which returns the observation text; an error is text too, never an exception. A tool reads and
+writes the episode state (what was listed, what was surfaced, what was read) and names the
+engines it needs. One folder per tool: `tools/<name>/tool.py`, plus `manual.md` files where
+there is a manual.
 
 The atomic tools: `search_bm25`, `search_dense`, `search_hybrid`, `search_bql`, `search_indri`,
 `search_dedup`, `search_bm25_dci`, `visit`, `fetch`, `fetch_code` (with `search_code`),
@@ -112,10 +113,11 @@ without a loop. One file per family under `strategies/`:
 | `retrieval_only.py` | `bm25`, `dense`, `bql`, `grep`, `hybrid`, `reranked` | no loop, no model: the floor |
 
 A strategy gives each tool the exposed name the paper prompt used (`search_s`, `fetch_s`,
-`bm25_search`, `visit_d`, ...) and, by the union of its tools, the engines a run must build.
+`bm25_search`, `visit_d`, ...). The union of its tools also decides the engines a run must
+build.
 
 **Condition.** A task with a strategy. What a run names, what a config file's `strategy:` and
-`dataset:` resolve to, what the record carries. `strategies/conditions.py` holds the registry;
+`dataset:` resolve to, what the record carries. `strategies/conditions.py` holds the registry.
 `strategies/paper.py` keeps the paper's condition names (`research_snip`, `research_bm25`,
 `codefix`, ...) as aliases, one line each. Every condition is a retriever the evaluation can run,
 named `agent_<condition>`.
@@ -223,12 +225,12 @@ Every experiment writes three files into `runs_dir/<agent|retrieval_only>/<datas
   hash of the composed system prompt, the experiment file with its hash and overrides, the
   package version, the token ruler and the git revision.
 - `rows.jsonl`: one JSON object per instance, appended as instances finish. A row carries the
-  question and gold, the agent's ranking (`retrieved`, first-seen order) and its rank metrics,
-  the answer and its scores (`answer_em`, `answer_f1`, the judge's verdict once graded), the
-  episode (`actions`, `queries`, `stopped`, `trajectory` with every observation in full and the
-  model's raw generation per step) and the cost (provider token counts plus a count-once
-  decomposition on one fixed ruler). `agent_search.evaluation.rows.observations_of(row)` reads
-  the observations of a row of any age.
+  question and gold, the agent's ranking (`retrieved`, first-seen order), and its rank metrics.
+  It also carries the answer and its scores (`answer_em`, `answer_f1`, the judge's verdict once
+  graded), the episode (`actions`, `queries`, `stopped`, `trajectory` with every observation in
+  full and the model's raw generation per step), and the cost (provider token counts plus a
+  count-once decomposition on one fixed ruler). `agent_search.evaluation.rows.observations_of(row)`
+  reads the observations of a row of any age.
 - `results.json`: `n`, `n_skipped`, `n_errors` and every numeric row field averaged over the
   scored rows. `judge_summary.json` is added by `skimsearchagent-judge`.
 
@@ -246,9 +248,9 @@ A run's identity is the subset of `config.json` in `RUN_IDENTITY_KEYS`
 backend, budgets, seed, cutoffs, the prompt hash and the environment knobs. The served
 endpoint's address is not part of it. Re-running the same command resumes: finished instances
 are skipped and a torn last line is re-scored. Re-running a *different* experiment into a
-directory that has scored rows is refused; use a new `runs_dir`, or pass
-`--allow-config-drift`. Missing artifacts, a dense embedding cache or a Lucene index, abort the
-run before the first episode instead of partway through.
+directory that has scored rows is refused. Use a new `runs_dir`, or pass
+`--allow-config-drift`. A missing artifact, such as a dense embedding cache or a Lucene index,
+aborts the run before the first episode instead of partway through.
 
 ## Ranking never changes model behind the agent's back
 
@@ -274,7 +276,7 @@ burning the retry budget on every question.
 The same loop, tools, and run record also drive a **code** task. The agent is given a bug report
 and a repository at a commit. It searches or greps the code, reads the relevant functions, and
 commits a `<fix>` naming the file and the change. Those are the `codefix` task with the
-`codefix` and `codefix_grep` strategies; the `codefix_patch` task asks for a unified diff
+`codefix` and `codefix_grep` strategies. The `codefix_patch` task asks for a unified diff
 instead. Units are functions parsed out of the repository, and the score is `fix_file_ok` plus
 the usual rank metrics over the gold patch's functions. It runs on the inline `code_fixture` and
 on staged SWE-bench repositories (`--repo-cache`).
