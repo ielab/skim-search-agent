@@ -193,7 +193,8 @@ def judge_run_dir(results_dir: str, generate: Callable[[str], str], *,
 
     Idempotent: a row that already carries a verdict (`judge_correct` is True/False) is not
     re-judged unless ``force=True``; rows whose earlier judge reply was unparseable
-    (`judge_correct` is None) are retried. rows.jsonl is rewritten atomically (temp file +
+    (`judge_correct` is None) are retried. Rows stream through one at a time, so memory stays
+    flat however large the trajectories are. rows.jsonl is rewritten atomically (temp file +
     rename) so an interrupt can never truncate the run's only durable artifact."""
     rd = Path(results_dir)
     rows_path = rd / "rows.jsonl"
@@ -202,28 +203,35 @@ def judge_run_dir(results_dir: str, generate: Callable[[str], str], *,
         # appended would rewrite it and drop the rows written after the read
         raise SystemExit(f"{results_dir} has no results.json: the run is still writing (or was cut off). "
                          "Wait for it, resume it, or pass unfinished_ok=True (--unfinished-ok).")
-    rows = [json.loads(line) for line in rows_path.read_text().splitlines() if line.strip()]
     q_by_id = _questions_from_dataset(dataset)
-    n_new = 0
-    for r in rows:
-        if "gold_answer" not in r:                       # not a doc-QA row -> nothing to judge
-            continue
-        if not force and r.get("judge_correct") is not None:
-            continue                                     # already graded: never re-bill
-        question = r.get("question") or q_by_id.get(r.get("instance_id"), "")
-        r.update(judge_answer_detail(question, r.get("gold_answer", ""), r.get("final_answer", ""), generate))
-        n_new += 1
+    # One row at a time: a run that reads whole documents (autoread, DCI) keeps every read in its
+    # trajectory, and its rows.jsonl runs to tens of gigabytes. Loading it whole would take the
+    # judge host down, so rows stream from the file into a temp file that replaces it at the end.
+    n_new = n_graded = n_correct = n_errored = 0
+    tmp = rows_path.with_suffix(f".jsonl.tmp.{os.getpid()}")
+    with open(rows_path, encoding="utf-8") as src, open(tmp, "w", encoding="utf-8") as dst:
+        for line in src:
+            if not line.strip():
+                continue
+            r = json.loads(line)
+            if "gold_answer" in r and (force or r.get("judge_correct") is None):
+                question = r.get("question") or q_by_id.get(r.get("instance_id"), "")
+                r.update(judge_answer_detail(question, r.get("gold_answer", ""), r.get("final_answer", ""), generate))
+                n_new += 1
+            if r.get("judge_correct") is not None:
+                n_graded += 1
+                n_correct += bool(r.get("judge_correct"))
+            elif "judge_error" in r:
+                n_errored += 1
+            dst.write(json.dumps(r, ensure_ascii=False) + "\n")
     if n_new:
-        tmp = rows_path.with_suffix(f".jsonl.tmp.{os.getpid()}")
-        tmp.write_text("\n".join(json.dumps(r, ensure_ascii=False) for r in rows) + "\n")
         os.replace(tmp, rows_path)
-    graded = [r for r in rows if r.get("judge_correct") is not None]
-    errored = [r for r in rows if "judge_error" in r and r.get("judge_correct") is None]
-    n_correct = sum(1 for r in graded if r.get("judge_correct"))
+    else:
+        os.remove(tmp)
     summary = {"judge_model": judge_model, "judge_prompt": "BrowseComp Appendix F (verbatim)",
-               "n_judged": len(graded), "n_correct": n_correct, "n_judge_errors": len(errored),
+               "n_judged": n_graded, "n_correct": n_correct, "n_judge_errors": n_errored,
                "n_newly_judged": n_new,
-               "judge_accuracy": (n_correct / len(graded)) if graded else 0.0}
+               "judge_accuracy": (n_correct / n_graded) if n_graded else 0.0}
     tmp = (rd / "judge_summary.json").with_suffix(f".json.tmp.{os.getpid()}")
     tmp.write_text(json.dumps(summary, indent=2))
     os.replace(tmp, rd / "judge_summary.json")
