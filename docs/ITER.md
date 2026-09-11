@@ -11,7 +11,7 @@ the agent already searched, and it is trained to return documents the agent has 
 This page maps the paper's setup onto this library: the strategy, the backbones, the retrievers,
 the datasets and corpus, the training recipe, the evaluation, and the runs made to verify it.
 The generic training recipe (triples from run records, the trainer, plugging a checkpoint back
-in) is in [TRAINING.md](TRAINING.md); this page is the ITER-specific part.
+in) is in [TRAINING.md](TRAINING.md). This page covers the ITER-specific part.
 
 ## Strategy
 
@@ -20,15 +20,17 @@ pool of 100, drops every document an earlier search already surfaced in this epi
 the top 10 of the rest with a 64-token snippet. Documents that would have ranked but were shown
 before are listed under "Already-seen" so the agent can reopen them. That is `strategy=dedup_dense`
 (the run's dense model behind `search`) or `dedup_bm25`, with the task template
-`agent_search/tasks/research_dedup/prompt.md`. Listing knobs: `listing.dedup_topk` (10),
-`listing.dedup_pool_k` (100); snippet: `budgets.snippet_tokens: 64`; `get_document` returns at
-most 512 tokens in ITER (`budgets.max_visit_tokens: 512`; the wiki chunks are 512 tokens, so this
-only matters on a corpus with longer documents).
+`agent_search/tasks/research_dedup/prompt.md`.
+
+Listing knobs: `listing.dedup_topk` (10) and `listing.dedup_pool_k` (100). Snippet length:
+`budgets.snippet_tokens: 64`. `get_document` returns at most 512 tokens in ITER
+(`budgets.max_visit_tokens: 512`). The wiki chunks are already 512 tokens, so this limit only
+matters on a corpus with longer documents.
 
 ## Backbones
 
 The backbone is `model.name` plus `model.backend`. ITER ran Tongyi-DeepResearch-30B-A3B,
-WebExplorer-8B, Qwen3-30B-A3B-Thinking and gpt-oss through vLLM; every one of them emits the
+WebExplorer-8B, Qwen3-30B-A3B-Thinking and gpt-oss through vLLM. Every one of them emits the
 `<tool_call>{"name": ..., "arguments": ...}</tool_call>` text format the loop parses, so they are
 one line each:
 
@@ -41,21 +43,20 @@ model:
 
 `scripts/slurm/serve_and_run.sbatch` starts the vLLM server on the node and runs the file
 (`TP=2` for gpt-oss-120b; `VLLM_PYTHON=` names the interpreter that has vLLM). A hosted API
-model needs no GPU, but only if the compute nodes have network egress; on a cluster without it,
+model needs no GPU, but only if the compute nodes have network egress. On a cluster without it,
 serve the backbone on the node.
 
 ## Retrievers
 
 Any embedding model is `retrieval.dense_model`. ITER's released checkpoints
-(`ielabgroup/ITER-Qwen3-Embedding-0.6B`, `-4B`), the plain `Qwen/Qwen3-Embedding-*` baselines and
+(`ielabgroup/ITER-Qwen3-Embedding-0.6B`, `-4B`), the plain `Qwen/Qwen3-Embedding-*` baselines, and
 LRAT (`Yuqi-Zhou/LRAT-Qwen3-Embedding-0.6B`) are decoder checkpoints without a sentence-transformers
-config; the library detects that from `config.json` and serves them with last-token pooling and
+config. The library detects that from `config.json` and serves them with last-token pooling and
 normalisation (`retrieval.dense_pooling` overrides). ITER encoded its corpora in bfloat16, so the
 shipped files set `retrieval.dense_dtype: bfloat16` for these checkpoints. The query side is the pair
 `retrieval.dense_query_style` + `retrieval.dense_query_instruction`: `i2` with ITER's instruction
 for the trained models, `plain` for the baselines. Pull a released checkpoint once on a node with
-internet (`hf download ielabgroup/ITER-Qwen3-Embedding-0.6B`); the runs themselves
-stay offline.
+internet (`hf download ielabgroup/ITER-Qwen3-Embedding-0.6B`). The runs themselves stay offline.
 
 ## Corpus and datasets
 
@@ -81,16 +82,16 @@ retrieval:
 ```
 
 InfoSeek has answers but no document labels. Such an answer-only set runs like any other: rank
-metrics are left out of the rows, the answer metrics and the LLM judge (`evaluation.judge_model`)
-score it.
+metrics are left out of the rows. The answer metrics and the LLM judge (`evaluation.judge_model`)
+score it instead.
 
 ## A corpus you already embedded
 
 ITER's `encode.py` (Tevatron) writes one pickle per shard, `(embeddings, doc_ids)`.
 `scripts/import_tevatron_index.py` turns those shards into the prebuilt index layout the
-library serves (`index.faiss` + `index.lookup.pkl`), checks every id against the corpus, and
-`retrieval.dense_index` points at the result. The corpus is then served from disk and never
-re-embedded; the query side still needs the encoder (`retrieval.dense_model`).
+library serves (`index.faiss` + `index.lookup.pkl`) and checks every id against the corpus. Point
+`retrieval.dense_index` at the result. The corpus is then served from disk and never re-embedded.
+The query side still needs the encoder (`retrieval.dense_model`).
 
 ```bash
 python scripts/import_tevatron_index.py --shards "/path/to/index-*.pkl" \
@@ -130,9 +131,9 @@ skimsearchagent-eval-retriever --triples train_data/infoseek_i2.jsonl --dataset 
     --dense-model models/my-retriever --k 1,5,10 --subset 5000
 ```
 
-Recall@k of the positive and novelty@k (the share of the top k the agent had not read) for every
-triple; `--subset N` encodes only the triples' documents plus the first N chunks, the quick check
-after a smoke run.
+The command reports Recall@k of the positive and novelty@k (the share of the top k the agent had
+not read) for every triple. `--subset N` encodes only the triples' documents plus the first N
+chunks, a quick check to run after a smoke run.
 
 ## The whole loop, on SLURM
 
@@ -148,7 +149,7 @@ sbatch --account=ACCT --export=ALL scripts/slurm/iter_smoke_eval.sbatch         
 The paper-scale files are `configs/iter/infoseek_train_trajectories_i2.yaml` (trajectory
 generation with Tongyi), `configs/iter/infoseek_eval_dedup_dense_iter06b_tongyi.yaml` and the
 BrowseComp-Plus counterpart. Re-indexing the wiki corpus with a new checkpoint is a sharded GPU
-job outside this library (ITER's `build_faiss_index.sh` + `build_ann_index.py`); point
+job outside this library (ITER's `build_faiss_index.sh` + `build_ann_index.py`). Point
 `retrieval.dense_index` at its output.
 
 ## The setting in one file
