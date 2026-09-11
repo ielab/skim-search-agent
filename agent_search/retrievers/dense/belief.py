@@ -77,6 +77,14 @@ class DenseBelief:
         qv = self._encode_query_vector(current_query_for(_plain_text(query_text)))
         return self._retriever._index.search(qv, k or self.top_k)
 
+    def search_scored(self, query_text: str, k: Optional[int] = None) -> list:
+        """`[(doc_id, cosine similarity)]` best first, for score-based fusion."""
+        ids = self.top_k_doc_ids(query_text, k)
+        if not ids:
+            return []
+        sims = self.score(query_text, ids)
+        return [(d, float(sims.get(d, 0.0))) for d in ids]
+
     def score(self, query_text: str, doc_ids: Optional[Sequence[str]] = None) -> dict:
         """`{doc_id: cosine similarity}` for `doc_ids` (every indexed document if None); raw
         values in [-1, 1], normalised across the pool by the caller."""

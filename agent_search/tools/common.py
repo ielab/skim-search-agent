@@ -3,7 +3,7 @@
 `sections_from_body`/`_infobox` parse a document's `##` sections and infobox facts.
 `best_line`/`opening_line` compute the listing snippet (query-biased and opening-window
 respectively) shared by `search_bm25`, `search_dense`, `search_hybrid`, `search_bql`, and
-`search_indri`. `rrf_fuse` is the Reciprocal Rank Fusion used by `search_hybrid`.
+`search_indri`.
 """
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ from typing import Optional, Sequence
 
 from agent_search.corpus.units import CodeUnit, code_tokenize
 
-from .budgets import RRF_K, SNIPPET_TOKENS
+from .budgets import SNIPPET_TOKENS
 
 _INTRO = "(intro)"
 # a markdown/wiki heading line: leading #'s (level) then the heading text. The structured
@@ -138,31 +138,6 @@ class _SeenMixin:
     def surfaced(self) -> list:
         return list(self.seen)
 
-
-def rrf_fuse(bm25_ids: "Sequence[str]", dense_ids: "Sequence[str]", k: int = RRF_K,
-            topk: Optional[int] = None) -> list:
-    """Reciprocal Rank Fusion over two ranked doc_id lists (a BM25 pool, a dense pool).
-
-        score(d) = sum_i  1 / (k + rank_i(d))     for each list i in which d appears
-                                                    (rank_i is 1-based; a doc absent from a
-                                                    list contributes nothing for it, never
-                                                    an infinite or penalized rank)
-
-    Docs are ranked by descending score; ties are broken by doc_id ascending. This matches
-    `FlatIndex.search`'s own tie-break convention, so results stay reproducible even when two
-    docs land on an identical fused score, for example both absent from one list and tied in
-    the other. `topk` truncates the returned list; `None` returns every doc_id appearing in
-    either list (the full union), still score-sorted.
-
-    A pure function of the two id lists, with no corpus or engine access, so it is
-    unit-testable against a hand-computed fixture with no retrieval stack at all (see
-    tests/test_hybrid.py)."""
-    scores: dict = {}
-    for ids in (bm25_ids, dense_ids):
-        for rank, doc_id in enumerate(ids, start=1):
-            scores[doc_id] = scores.get(doc_id, 0.0) + 1.0 / (k + rank)
-    ranked = sorted(scores, key=lambda d: (-scores[d], d))
-    return ranked[:topk] if topk is not None else ranked
 
 
 def _cap_tokens(text: str, max_tokens: int, marker: str = "") -> str:

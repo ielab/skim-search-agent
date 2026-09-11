@@ -9,3 +9,4 @@ bm25_lucene = register_strategy(Strategy(name="bm25_lucene", description="rank o
 dense = register_strategy(Strategy(name="dense", description="rank once with the run's dense model", loop=False, retriever="dense"))
 bql = register_strategy(Strategy(name="bql", description="rank once with a BQL query", loop=False, retriever="bql"))
 grep = register_strategy(Strategy(name="grep", description="rank once with a regex over the units", loop=False, retriever="grep"))
+hybrid = register_strategy(Strategy(name="hybrid", description="rank once with the fused hybrid engine (HYBRID_RETRIEVERS, HYBRID_FUSION)", loop=False, retriever="hybrid"))

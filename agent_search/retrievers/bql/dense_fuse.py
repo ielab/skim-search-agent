@@ -85,27 +85,11 @@ def _rank_map(ordered_ids: Sequence[str]) -> dict:
 
 def rrf_fuse(bm25_ranked_ids: Sequence[str], dense_ranked_ids: Sequence[str],
              k: int = RRF_K) -> list:
-    """Reciprocal Rank Fusion of two doc_id rankings over (nominally) the same candidate set.
-
-    `fused_score(d) = 1/(k + rank_bm25(d)) + 1/(k + rank_dense(d))` (1-based ranks); a doc_id
-    present in only one input contributes 0 from the other side rather than being dropped.
-    This is defensive: the two inputs are always built from the same candidate set here, but
-    a caller that ever passes mismatched pools degrades gracefully instead of losing docs.
-    Deterministic tie-break: doc_id ascending, matching every other ranker in this codebase
-    (`FlatIndex.search`, `BM25.score_subset`)."""
-    bm_rank = _rank_map(bm25_ranked_ids)
-    dn_rank = _rank_map(dense_ranked_ids)
-    ids = set(bm_rank) | set(dn_rank)
-    scored = []
-    for d in ids:
-        s = 0.0
-        if d in bm_rank:
-            s += 1.0 / (k + bm_rank[d])
-        if d in dn_rank:
-            s += 1.0 / (k + dn_rank[d])
-        scored.append((d, s))
-    scored.sort(key=lambda p: (-p[1], p[0]))
-    return [d for d, _ in scored]
+    """Reciprocal Rank Fusion of the two rankings of the filter-passing candidates, through
+    `agent_search.retrievers.fusion.RRF` (the same method the hybrid engine uses). A doc id
+    present in only one input contributes nothing from the other side; ties break by doc id."""
+    from agent_search.retrievers.fusion import RRF
+    return RRF(k=k).fuse([[(d, 0.0) for d in bm25_ranked_ids], [(d, 0.0) for d in dense_ranked_ids]])
 
 
 def dense_rank_for_candidates(dense_belief, query_text: str,

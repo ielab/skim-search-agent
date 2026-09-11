@@ -26,7 +26,13 @@ from agent_search.retrievers.lexical.bm25 import BM25Local
 from agent_search.retrievers.registry import RetrieverConfig, build_factory
 from agent_search.tools.base import EpisodeState, ToolBox
 from agent_search.tools.budgets import RRF_K
-from agent_search.tools.common import rrf_fuse
+from agent_search.retrievers.fusion import RRF
+from agent_search.retrievers.hybrid import HybridEngine
+
+
+def rrf_fuse(bm25_ids, dense_ids, k=60, topk=None):
+    """The two-list RRF the hybrid arms use, through the fusion package."""
+    return RRF(k=k).fuse([[(d, 0.0) for d in bm25_ids], [(d, 0.0) for d in dense_ids]], topk)
 from agent_search.tools.fetch.tool import Fetch
 from agent_search.tools.search_bm25.tool import SearchBm25
 from agent_search.tools.search_hybrid.tool import SearchHybrid
@@ -190,7 +196,7 @@ def _hybrid_visit_box(bm25_ranking=("d_harbor",), dense_ranking=()):
     ubyid = {u.doc_id: u for u in units}
     state = EpisodeState(question="q")
     search = SearchHybrid(name="hybrid_search").bind(
-        state, units, ubyid, {"bm25": _StubBm25Engine(bm25_ranking), "dense": _StubDenseEngine(dense_ranking)})
+        state, units, ubyid, {"hybrid": HybridEngine({"bm25": _StubBm25Engine(bm25_ranking), "dense": _StubDenseEngine(dense_ranking)}, RRF(k=60), pool=100)})
     visit = Visit(name="visit_h").bind(state, units, ubyid, {})
     return ToolBox([search, visit], state), search
 
@@ -206,7 +212,7 @@ def test_hybridvisit_both_rankers_are_consulted_at_the_hybrid_pool_depth():
     units = _units()
     ubyid = {u.doc_id: u for u in units}
     state = EpisodeState(question="q")
-    search = SearchHybrid(name="hybrid_search").bind(state, units, ubyid, {"bm25": bm25, "dense": dense})
+    search = SearchHybrid(name="hybrid_search").bind(state, units, ubyid, {"hybrid": HybridEngine({"bm25": bm25, "dense": dense}, RRF(k=60), pool=100)})
     search.run({"query": "harbor festival", "k": 5})
     assert bm25.calls == [("harbor festival", search.pool)]
     assert dense.calls == [("harbor festival", search.pool)]
@@ -230,8 +236,7 @@ def test_hybridvisit_search_matches_plain_bm25_listing_format_byte_for_byte():
 
     hybrid_state = EpisodeState(question="q")
     hybrid_search = SearchHybrid(name="hybrid_search").bind(
-        hybrid_state, units, ubyid, {"bm25": _StubBm25Engine(("d_harbor", "d_flat")),
-                                     "dense": _StubDenseEngine([])})
+        hybrid_state, units, ubyid, {"hybrid": HybridEngine({"bm25": _StubBm25Engine(("d_harbor", "d_flat")), "dense": _StubDenseEngine([])}, RRF(k=60), pool=100)})
     hybrid_out = hybrid_search.run({"query": "harbor festival", "k": 5})
 
     bm25_state = EpisodeState(question="q")
@@ -299,7 +304,7 @@ def _hybrid_fetch_snip_box(bm25_ranking=("d_harbor",), dense_ranking=(), topk=5)
     ubyid = {u.doc_id: u for u in units}
     state = EpisodeState(question="q")
     search = SearchHybrid(name="hybrid_search_snip", structure=True, snippets=True, k=topk).bind(
-        state, units, ubyid, {"bm25": _StubBm25Engine(bm25_ranking), "dense": _StubDenseEngine(dense_ranking)})
+        state, units, ubyid, {"hybrid": HybridEngine({"bm25": _StubBm25Engine(bm25_ranking), "dense": _StubDenseEngine(dense_ranking)}, RRF(k=60), pool=100)})
     fetch = Fetch(name="fetch").bind(state, units, ubyid, {})
     return ToolBox([search, fetch], state), search
 
@@ -316,7 +321,7 @@ def test_hybridfetchsnip_both_rankers_consulted_at_pool_depth():
     ubyid = {u.doc_id: u for u in units}
     state = EpisodeState(question="q")
     search = SearchHybrid(name="hybrid_search_snip", structure=True, snippets=True).bind(
-        state, units, ubyid, {"bm25": bm25, "dense": dense})
+        state, units, ubyid, {"hybrid": HybridEngine({"bm25": bm25, "dense": dense}, RRF(k=60), pool=100)})
     search.run({"query": "harbor festival"})
     assert bm25.calls == [("harbor festival", search.pool)]
     assert dense.calls == [("harbor festival", search.pool)]
@@ -356,7 +361,7 @@ def test_hybridfetchsnip_matches_plain_bm25_fetch_snip_listing_shape():
 
     hybrid_state = EpisodeState(question="q")
     hybrid_search = SearchHybrid(name="hybrid_search_snip", structure=True, snippets=True, k=3).bind(
-        hybrid_state, units, ubyid, {"bm25": _bm25_engine(), "dense": _StubDenseEngine([])})
+        hybrid_state, units, ubyid, {"hybrid": HybridEngine({"bm25": _bm25_engine(), "dense": _StubDenseEngine([])}, RRF(k=60), pool=100)})
     hybrid_out = hybrid_search.run({"query": query})
 
     plain_state = EpisodeState(question="q")

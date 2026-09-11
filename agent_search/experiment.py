@@ -107,6 +107,9 @@ SCHEMA: dict[str, dict[str, Key]] = {
         "bql_dense": Key(False, "env", "BQL_DENSE", "retrofit dense fusion onto the plain BQL arms (the sieve family attaches it regardless)"),
         "bql_dense_rrf_k": Key(60, "env", "BQL_DENSE_RRF_K", "RRF constant for BQL dense fusion"),
         "rrf_k": Key(60, "env", "RRF_K", "RRF constant for the hybrid baselines"),
+        "hybrid_retrievers": Key("bm25,dense", "env", "HYBRID_RETRIEVERS", "the retrievers a hybrid fuses, comma-separated engine kinds (bm25, dense, bql, indri)"),
+        "hybrid_fusion": Key("rrf", "env", "HYBRID_FUSION", "how a hybrid fuses them: rrf | interpolation"),
+        "hybrid_weights": Key("", "env", "HYBRID_WEIGHTS", "interpolation weights, comma-separated floats, one per retriever (empty = equal)"),
         "bql_prefilter_min": Key(5000, "env", "AGENT_SEARCH_BQL_PREFILTER_MIN", "corpus size above which the BQL inverted-index prefilter is used"),
         "indri_dense": Key(False, "env", "INDRI_DENSE", "attach the dense belief to the Indri arm"),
         "indri_dense_w": Key(0.35, "env", "INDRI_DENSE_W", "Indri dense belief weight"),
@@ -205,7 +208,7 @@ _BM25_USERS = {"search_visit", "search_visit_snippets", "search_fetch", "search_
                "bm25", "bm25_lucene", "rag_bm25", "rag_hybrid"}
 _BQL = {"sieve", "sieve_bm25", "sieve_dense", "sieve_nosnip", "sieve_plain", "sieve_v2", "sieve_visit",
         "sieve_visit_fused", "sieve_visit_dense", "codefix", "codefix_patch"}
-_HYBRID = {"search_visit_hybrid", "search_fetch_hybrid", "autoread_hybrid", "rag_hybrid"}
+_HYBRID = {"search_visit_hybrid", "search_fetch_hybrid", "autoread_hybrid", "rag_hybrid", "hybrid"}
 _VISIT = {"search_visit", "search_visit_dense", "search_visit_hybrid", "search_visit_snippets", "autoread",
           "autoread_dense", "autoread_hybrid", "sieve_visit", "sieve_visit_fused", "sieve_visit_dense",
           "indri_visit", "dedup_bm25", "dedup_dense"}
@@ -241,7 +244,8 @@ APPLIES: dict[str, set] = {
     "retrieval.bql_soft_fallback": _BQL, "retrieval.bql_soft_pool": _BQL, "retrieval.bql_date_range": _BQL,
     "retrieval.bql_dense": {"sieve_bm25", "sieve_plain", "sieve_v2", "sieve_visit"},
     "retrieval.bql_dense_rrf_k": {"sieve", "sieve_nosnip", "sieve_bm25", "sieve_visit_fused"},
-    "retrieval.rrf_k": _HYBRID, "retrieval.bql_prefilter_min": _BQL,
+    "retrieval.rrf_k": _HYBRID, "retrieval.hybrid_retrievers": _HYBRID, "retrieval.hybrid_fusion": _HYBRID,
+    "retrieval.hybrid_weights": _HYBRID, "retrieval.bql_prefilter_min": _BQL,
     "retrieval.indri_dense": _INDRI, "retrieval.indri_dense_w": _INDRI, "retrieval.indri_dense_expand_k": _INDRI,
     "retrieval.indri_mu": _INDRI, "retrieval.lucene_mu": _INDRI, "retrieval.indri_pool_cap": _INDRI,
     "retrieval.indri_rescore_m": _INDRI,

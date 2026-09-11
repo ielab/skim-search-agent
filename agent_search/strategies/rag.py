@@ -38,17 +38,13 @@ def prompt_budget() -> int:
 
 
 def rank(ranker: str, engines: dict, query: str, k: int) -> list:
-    """Ranked doc ids from one engine, or the RRF fusion of BM25 and dense for `hybrid`."""
+    """Ranked doc ids from one engine; `hybrid` is the run's fused engine."""
     if ranker == "bm25":
         return list(engines["bm25"].search(query, k=k) or [])
     if ranker == "dense":
         return list(engines["dense"].top_k_doc_ids(query, k=k) or [])
     if ranker == "hybrid":
-        from agent_search.tools.budgets import HYBRID_POOL, RRF_K
-        from agent_search.tools.common import rrf_fuse
-        bm25_ids = list(engines["bm25"].search(query, k=HYBRID_POOL) or [])
-        dense_ids = list(engines["dense"].top_k_doc_ids(query, k=HYBRID_POOL) or [])
-        return rrf_fuse(bm25_ids, dense_ids, k=RRF_K, topk=k)
+        return list(engines["hybrid"].search(query, k))
     raise ValueError(f"unknown ranker {ranker!r} (bm25, dense, hybrid)")
 
 
@@ -85,7 +81,7 @@ class OneShotRag:
 
     @property
     def engines(self) -> tuple:
-        return {"bm25": ("bm25",), "dense": ("dense",), "hybrid": ("bm25", "dense")}[self.ranker]
+        return {"bm25": ("bm25",), "dense": ("dense",), "hybrid": ("hybrid",)}[self.ranker]
 
     def run(self, question: str, engines: dict, ubyid: dict, generate: Callable) -> tuple:
         doc_ids = rank(self.ranker, engines, question, self.k)
@@ -108,7 +104,7 @@ rag_dense = register_strategy(Strategy(
 
 rag_hybrid = register_strategy(Strategy(
     name="rag_hybrid", description="one-shot RAG: top-5 by RRF of BM25 and dense in one prompt, one model call",
-    loop=False, procedure=OneShotRag("hybrid"), extra_engines=("bm25", "dense")))
+    loop=False, procedure=OneShotRag("hybrid"), extra_engines=("hybrid",)))
 
 
 __all__ = ["OneShotRag", "SYSTEM_PROMPT", "TOP_K", "prompt_budget", "rank", "stuff", "messages",

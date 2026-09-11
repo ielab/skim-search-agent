@@ -16,14 +16,14 @@ from __future__ import annotations
 from agent_search.corpus.units import code_tokenize
 from agent_search.tools.base import Tool
 from agent_search.tools.budgets import AUTOREAD_TOPK, HYBRID_FETCH_TOPK, HYBRID_POOL, HYBRID_VISIT_TOPK, MAX_VISIT_TOKENS
-from agent_search.tools.common import _INTRO, _cap_tokens, _infobox, best_line, opening_line, rrf_fuse, sections_from_body
+from agent_search.tools.common import _INTRO, _cap_tokens, _infobox, best_line, opening_line, sections_from_body
 
 
 class SearchHybrid(Tool):
     name = "hybrid_search"
     description = "Hybrid keyword+semantic search over the document corpus: a canonical Lucene BM25 ranking and a dense-embedding (cosine similarity) ranking are each computed over a top-100 pool, then combined by Reciprocal Rank Fusion (RRF, k=60) into one ranked list. Returns ranked documents (title + a short opening snippet). `visit_h` a ranked doc for its full text — no other documents are reachable."
     parameters = {"type": "object", "properties": {"query": {"type": "string", "description": "A keyword or natural-language query, for example: treaty that ended the Mexican-American War."}, "k": {"type": "integer", "description": "Max fused candidates to return (default 5)."}}, "required": ["query"]}
-    engines = ("bm25", "dense")
+    engines = ("hybrid",)
 
     # the structure-listing text (`structure=True`).
     STRUCTURE_DESCRIPTION = ("Hybrid keyword+semantic search over the document corpus "
@@ -92,9 +92,7 @@ class SearchHybrid(Tool):
         except (TypeError, ValueError):
             call_k = None
         k = call_k or self.k or HYBRID_FETCH_TOPK
-        bm25_ids = list(self.engine["bm25"].search(query, k=self.pool))
-        dense_ids = list(self.engine["dense"].top_k_doc_ids(query, k=self.pool) or [])
-        ids = rrf_fuse(bm25_ids, dense_ids, topk=k)
+        ids = list(self.engine["hybrid"].search(query, k))
         if not ids:
             prior = "  (previous results still available to fetch)" if state.last_hits else ""
             return (f"search: {query}   (0 matches){prior}"
@@ -131,9 +129,7 @@ class SearchHybrid(Tool):
         if self.structure:
             return self._run_structure(query, args)
         k = self.k or (AUTOREAD_TOPK if self.full_text else HYBRID_VISIT_TOPK)
-        bm25_ids = list(self.engine["bm25"].search(query, k=self.pool))
-        dense_ids = list(self.engine["dense"].top_k_doc_ids(query, k=self.pool) or [])
-        ids = rrf_fuse(bm25_ids, dense_ids, topk=k)
+        ids = list(self.engine["hybrid"].search(query, k))
         state = self.state
         state.previous_queries.append(query)
         if not ids:

@@ -37,6 +37,7 @@ ENV_KNOBS = (
     "dedup_topk", "dedup_pool_k",
     # method switches
     "bql_soft_fallback", "bql_dense", "bql_dense_rrf_k", "bql_date_range", "rrf_k",
+    "hybrid_retrievers", "hybrid_fusion", "hybrid_weights",
     "indri_dense", "indri_dense_w", "indri_dense_expand_k", "indri_mu", "indri_pool_cap",
     "indri_rescore_m", "lucene_mu",
     # engine selection / models

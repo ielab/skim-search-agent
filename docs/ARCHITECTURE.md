@@ -48,7 +48,11 @@ fingerprinted so a persisted index is never served against a corpus it was not b
 **Engine.** An index over a corpus plus a `query -> ranked ids` function. Built once per corpus,
 persisted under `indexes/`, shared by every tool that needs it (`retrievers/engines.py`).
 Families: BM25 (in memory, Lucene), dense (one file per encoder family, plus the
-trained-checkpoint family), BQL (Boolean selection with one ranking model), Indri.
+trained-checkpoint family), BQL (Boolean selection with one ranking model), Indri. A hybrid is
+not a family of its own: it is any retrievers the run names, fused by one method (`rrf` over
+ranks, `interpolation` over normalised scores), so `search_hybrid` and the `hybrid` floor use
+whatever `retrieval.hybrid_retrievers` and `retrieval.hybrid_fusion` say; the paper's arms are
+the defaults (BM25 and the dense model, RRF).
 
 **Tool.** One atomic action the agent can call. A tool owns its declaration (the name the model
 sees, the description, the JSON parameters), its code (`run(args)` returns the observation text;
@@ -104,6 +108,8 @@ agent_search/
     bql/           the Boolean structural method: parser, executor, dense fusion, the BQL retriever
     indri/         the Indri query language: parser, index, model
     lucene/        both query languages compiled to Lucene: compilers, engine, adapters
+    fusion/        base.py (the Fusion contract) + rrf.py, interpolation.py: how rankings are combined
+    hybrid.py      the hybrid engine and retriever: any retrievers the run names, fused by one method
     backend.py     which engine serves BQL and Indri (Python reference or Lucene)
     engines.py     the per-corpus engine registry the tools share
     registry.py    name -> retriever builder; plugin discovery; conditions registered as agent_<name>

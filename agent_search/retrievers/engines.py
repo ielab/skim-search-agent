@@ -1,8 +1,8 @@
 """The engines a run builds once per corpus and every tool shares.
 
 `Engines(units, key, ...)` hands out the BM25 engine, the dense engine (`DenseBelief`), the BQL
-executor in its three rankings (plain BM25, fused with the dense model, dense only) and the
-Indri executor. Each is built on first request under a lock, so concurrent episodes never load
+executor in its three rankings (plain BM25, fused with the dense model, dense only), the Indri
+executor and the hybrid engine (several of the others fused, `agent_search.retrievers.hybrid`). Each is built on first request under a lock, so concurrent episodes never load
 the same index twice, and persisted under `index_root` keyed by the corpus. A missing dense
 cache is a `SetupError`: nothing is encoded during a run.
 """
@@ -29,7 +29,8 @@ class Engines:
     # --- what a tool asks for, by kind -----------------------------------------------------
     def get(self, kind: str):
         builders = {"bm25": self.bm25, "dense": self.dense, "bql": self.bql, "bql_fused": self.bql_fused,
-                    "bql_dense": self.bql_dense_only, "bql_plain": self.bql_plain, "indri": self.indri}
+                    "bql_dense": self.bql_dense_only, "bql_plain": self.bql_plain, "indri": self.indri,
+                    "hybrid": self.hybrid}
         if kind not in builders:
             raise ValueError(f"unknown engine kind {kind!r}; choose from {sorted(builders)}")
         return builders[kind]()
@@ -125,6 +126,31 @@ class Engines:
                               f"degrading to lexical-only Indri retrieval.", file=sys.stderr)
                 self._built["indri"] = build_indri_engine(self.units, self.index_root, self.key, self.rebuild, dense=dense)
         return self._built["indri"]
+
+    def hybrid(self):
+        """The fused engine over the retrievers the run names (`HYBRID_RETRIEVERS`, default
+        `bm25,dense`) with the run's fusion method (`HYBRID_FUSION`, default `rrf`)."""
+        with self._lock:
+            if "hybrid" not in self._built:
+                from agent_search.retrievers.hybrid import HybridEngine, components_from_env, fusion_from_env, pool_from_env
+                names = components_from_env()
+                if "hybrid" in names:
+                    raise SetupError("a hybrid cannot contain itself")
+                components = {}
+                for n in names:
+                    if n not in self._built:
+                        self._built[n] = self._build_unlocked(n)
+                    components[n] = self._built[n]
+                self._built["hybrid"] = HybridEngine(components, fusion_from_env(), pool_from_env())
+        return self._built["hybrid"]
+
+    def _build_unlocked(self, kind: str):
+        """Build one kind while the lock is already held (the lock is not re-entrant)."""
+        self._lock.release()
+        try:
+            return self.get(kind)
+        finally:
+            self._lock.acquire()
 
     # the harness records which engines were built and reads them for tests
     @property

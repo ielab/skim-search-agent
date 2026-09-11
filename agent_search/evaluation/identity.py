@@ -87,6 +87,9 @@ def _resolve_env_knobs() -> dict:
     # the same way `INDRI_DENSE` is above. A condition whose strategy already fuses or uses
     # dense ranking unconditionally (the `bql_fused`/`bql_dense` engine kinds) does not read
     # this var, but its value is still recorded here for provenance.
+    knobs["HYBRID_RETRIEVERS"] = _os.environ.get("HYBRID_RETRIEVERS", "bm25,dense")
+    knobs["HYBRID_FUSION"] = _os.environ.get("HYBRID_FUSION", "rrf")
+    knobs["HYBRID_WEIGHTS"] = _os.environ.get("HYBRID_WEIGHTS", "")
     try:
         from agent_search.retrievers.bql.dense_fuse import bql_dense_enabled, RRF_K
         knobs["BQL_DENSE"] = bql_dense_enabled()

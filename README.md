@@ -218,7 +218,7 @@ agent.search(question, k=10)
 
 | family | `strategy=` | what the agent does |
 |---|---|---|
-| Retrieval-only | `bm25`, `bm25_lucene`, `dense`, `bql`, `grep` | rank once, no agent loop, no model |
+| Retrieval-only | `bm25`, `bm25_lucene`, `dense`, `bql`, `grep`, `hybrid` | rank once, no agent loop, no model; `hybrid` fuses the retrievers named in `retrieval.hybrid_retrievers` with `retrieval.hybrid_fusion` (`rrf` or `interpolation`) |
 | One-shot RAG | `rag_bm25`, `rag_dense`, `rag_hybrid` | rank once, put the top five documents in one prompt, one model call |
 | Search–Visit | `search_visit`, `search_visit_dense`, `search_visit_hybrid`, `search_visit_snippets` | read a result list, open whole documents |
 | Search–AutoRead | `autoread`, `autoread_dense`, `autoread_hybrid` | every search returns full text |

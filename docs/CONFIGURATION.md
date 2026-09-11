@@ -251,7 +251,10 @@ handles that for you.
 | `BQL_DATE_RANGE` | 1 | allow `date[YYYY..YYYY]` in BQL | `agent_search/retrievers/bql/surface.py` |
 | `BQL_DENSE` | 0 | attach the dense model to the BM25-only Sieve arms too | `agent_search/retrievers/bql/dense_fuse.py` |
 | `BQL_DENSE_RRF_K` | 60 | RRF constant for Sieve's BM25 and dense fusion (before import) | `agent_search/retrievers/bql/dense_fuse.py` |
-| `RRF_K` | 60 | RRF constant for the hybrid baselines (before import) | `agent_search/tools/budgets.py` |
+| `RRF_K` | 60 | the RRF constant of the hybrid engine (before import) | `agent_search/retrievers/fusion/rrf.py` |
+| `HYBRID_RETRIEVERS` | `bm25,dense` | the retrievers a hybrid fuses: comma-separated engine kinds (`bm25`, `dense`, `bql`, `indri`) | `agent_search/retrievers/hybrid.py` |
+| `HYBRID_FUSION` | `rrf` | how a hybrid fuses them: `rrf` (ranks) or `interpolation` (min-max normalised scores) | `agent_search/retrievers/hybrid.py` |
+| `HYBRID_WEIGHTS` | equal | interpolation weights, comma-separated floats, one per retriever | `agent_search/retrievers/hybrid.py` |
 | `AGENT_SEARCH_BQL_PREFILTER_MIN` | 5000 | corpus size above which BQL narrows a scan with an inverted index first; speed only (before import) | `agent_search/retrievers/bql/executor.py` |
 | `INDRI_DENSE` | 0 | attach the dense model to the Indri arm | `agent_search/retrievers/engines.py` |
 | `INDRI_DENSE_W` | 0.35 | weight of the dense score in Indri's ranking | `agent_search/retrievers/indri/model.py` |

@@ -37,6 +37,7 @@ STRATEGIES: dict[str, str] = {
     # retrieval-only floors (no agent loop)
     "bm25": "bm25_local",
     "bm25_lucene": "bm25_pyserini",
+    "hybrid": "hybrid",
 }
 
 #: Strategies that need a pre-built dense embedding cache (``skimsearchagent-build-indexes
@@ -44,7 +45,7 @@ STRATEGIES: dict[str, str] = {
 DENSE_STRATEGIES = frozenset({
     "search_visit_dense", "search_visit_hybrid", "autoread_dense", "autoread_hybrid", "search_fetch_dense",
     "search_fetch_dense_plain", "search_fetch_hybrid", "sieve", "sieve_dense", "sieve_nosnip",
-    "sieve_visit_fused", "sieve_visit_dense", "dedup_dense", "rag_dense", "rag_hybrid",
+    "sieve_visit_fused", "sieve_visit_dense", "dedup_dense", "rag_dense", "rag_hybrid", "hybrid",
 })
 
 DEFAULT_STRATEGY = "sieve_bm25"

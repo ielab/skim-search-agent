@@ -23,6 +23,10 @@ class BM25Local(Retriever):
     def search(self, query: str, k: int) -> list[str]:
         return [doc_id for doc_id, _ in self._bm.search(query, k=k)]
 
+    def search_scored(self, query: str, k: int) -> list[tuple[str, float]]:
+        """`[(doc_id, bm25 score)]` best first, for score-based fusion."""
+        return [(doc_id, float(s)) for doc_id, s in self._bm.search(query, k=k)]
+
 
 # --- registry ---------------------------------------------------------------
 from agent_search.retrievers.registry import RetrieverConfig, register  # noqa: E402

@@ -24,7 +24,8 @@ BM25_FETCH_TOPK = int(os.environ.get("BM25_FETCH_TOPK", "10"))
 # search_dense's retrieval pool size when structure=True (the search_fetch_dense strategy)
 DENSE_FETCH_TOPK = int(os.environ.get("DENSE_FETCH_TOPK", "10"))
 
-# Reciprocal Rank Fusion constant (Cormack, Clarke & Buettcher 2009); see common.rrf_fuse
+# Reciprocal Rank Fusion constant (Cormack, Clarke and Buettcher 2009); read by
+# agent_search.retrievers.fusion.rrf, kept here so the run record lists it with the other knobs
 RRF_K = int(os.environ.get("RRF_K", "60"))
 # per-ranker pool depth queried before RRF fusion (bm25 pool and dense pool, each this deep)
 HYBRID_POOL = int(os.environ.get("HYBRID_POOL", "100"))

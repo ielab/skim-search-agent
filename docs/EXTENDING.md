@@ -109,6 +109,33 @@ class E5Retriever(DenseRetriever):
 `retrieval.dense_model`. A checkpoint trained with `skimsearchagent-train-retriever` needs no
 family: `TrainedRetriever` reads its serving note.
 
+### A fusion method
+
+A hybrid retriever is a list of retrievers and a fusion method. The methods live one file each
+under `agent_search/retrievers/fusion/`; a new one is a `Fusion` subclass that turns ranked
+`(doc_id, score)` lists into one ranking:
+
+```python
+from agent_search.retrievers.fusion import Fusion, register_fusion
+
+@register_fusion
+class CombSum(Fusion):
+    name = "combsum"
+    needs_scores = True                       # False when only ranks are read
+
+    def fuse(self, rankings, k=None):
+        total = {}
+        for ranking in rankings:
+            for doc_id, score in ranking:
+                total[doc_id] = total.get(doc_id, 0.0) + score
+        ranked = sorted(total, key=lambda d: (-total[d], d))
+        return ranked[:k] if k is not None else ranked
+```
+
+Then, in an experiment file: `retrieval.hybrid_retrievers: bm25,dense` (any engine kinds),
+`retrieval.hybrid_fusion: combsum`. Every hybrid strategy (`search_visit_hybrid`,
+`search_fetch_hybrid`, `autoread_hybrid`, `rag_hybrid`) and the `hybrid` floor use them.
+
 ## 3. A tool
 
 A tool is one action the agent can call. It owns three things: its declaration (the name the

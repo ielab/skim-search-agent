@@ -293,6 +293,10 @@ class BM25Pyserini(Retriever):
         return self._is_built(index_dir)
 
     def search(self, query: str, k: int) -> list[str]:
+        return [doc_id for doc_id, _ in self.search_scored(query, k)]
+
+    def search_scored(self, query: str, k: int) -> list[tuple[str, float]]:
+        """`[(doc_id, Lucene score)]` best first, for score-based fusion."""
         # SWE-bench's adaptive truncation: very long issue texts can exceed
         # Lucene's clause limit; shrink by 20% until the query is accepted.
         cutoff = len(query)
@@ -300,7 +304,7 @@ class BM25Pyserini(Retriever):
         while cutoff > 0:
             try:
                 hits = self._searcher.search(query[:cutoff], k=k)
-                return [h.docid for h in hits]
+                return [(h.docid, float(h.score)) for h in hits]
             except Exception as e:           # noqa: BLE001 - JVM errors vary
                 last_exc = e
                 cutoff = int(cutoff * 0.8)   # floor: reaches 0 (round() fixates at 2)
