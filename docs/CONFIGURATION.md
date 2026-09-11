@@ -3,14 +3,14 @@
 Everything that changes what a run does or how it is measured is a setting you can see, set and
 find again in the run's record. This page covers, in order:
 
-1. experiment files, the normal way to run something;
-2. how a setting travels from the file to the code;
-3. what the run records;
-4. the `key=value` launcher for one-off runs;
-5. the reference tables: `run_eval` flags, index-building flags, judge flags, and every
-   environment knob with its default;
-6. the paper's base setting;
-7. training files.
+1. Experiment files: the normal way to run something.
+2. How a setting travels from the file to the code.
+3. What the run records.
+4. The `key=value` launcher for one-off runs.
+5. The reference tables: `run_eval` flags, index-building flags, judge flags, and every
+   environment knob with its default.
+6. The paper's base setting.
+7. Training files.
 
 ## 1. Experiment files
 
@@ -28,8 +28,8 @@ and the BM25 backend and nothing about dense models or Sieve. A `sieve` file has
 keys and no listing depths. `validate` tells you when a file is missing a key the strategy needs,
 and names any key the strategy does not read. Strategies added by a plugin read every key.
 
-The `paper` preset fills in the paper's base setting (100 steps, Pyserini BM25, Lucene BQL,
-12,000-token reads); the `library` preset (the default) uses the library defaults.
+The `paper` preset fills in the paper's base setting: 100 steps, Pyserini BM25, Lucene BQL,
+12,000-token reads. The `library` preset (the default) uses the library defaults.
 
 The sections of a file:
 
@@ -64,9 +64,9 @@ export the variables first. The tables below mark these knobs with "before impor
 ## 3. What a run records
 
 Every run directory holds `config.json`, `rows.jsonl` and `results.json`
-(see "The run record" in [ARCHITECTURE.md](ARCHITECTURE.md)). `config.json` has the experiment file's path and hash, the
-setting that actually ran (the file with any `section.key=value` overrides applied, and the
-overrides themselves), every `run_eval` flag, the composed prompt and its hash, the installed
+(see "The run record" in [ARCHITECTURE.md](ARCHITECTURE.md)). `config.json` has the experiment file's path and hash, and the
+setting that actually ran: the file with any `section.key=value` overrides applied, plus the
+overrides themselves. It also records every `run_eval` flag, the composed prompt and its hash, the installed
 package version, the git revision, the token ruler, and a snapshot of every environment knob.
 Secrets (`OPENAI_API_KEY`, `GEMINI_API_KEY`) and infrastructure settings (server URLs, devices,
 cache paths) are left out because they don't change results.
@@ -210,7 +210,7 @@ Every length budget is a token count. The budgets below are counted on the libra
 ruler (`agent_search/tokens.py`), except the context budgets `AGENT_CTX_TOKENS` and
 `AGENT_CTX_WINDOW`, which are model tokens. There are no character limits.
 
-"Before import" marks a knob the module reads when it loads; the `skimsearchagent` launcher
+"Before import" marks a knob the module reads when it loads. The `skimsearchagent` launcher
 handles that for you.
 
 #### Length budgets
@@ -339,10 +339,10 @@ paper sets:
 | `model.temperature`, `model.seed` | 0.6, 42 | 0.6, 42 |
 
 The shipped files under `configs/paper/` are these settings for each paper cell. Trust the run's
-`config.json` over the file you meant to run, and check the first rows before scaling a sweep.
+`config.json` over the file you meant to run. Check the first rows before scaling a sweep.
 
 ## 7. Training files
 
-Retriever training has its own one-file-per-run format: `skimsearchagent-train-retriever template`
-prints every knob with ITER's defaults, `skimsearchagent-train-retriever run train.yaml` runs it.
+Retriever training has its own one-file-per-run format. `skimsearchagent-train-retriever template`
+prints every knob with ITER's defaults; `skimsearchagent-train-retriever run train.yaml` runs it.
 See [TRAINING.md](TRAINING.md).
