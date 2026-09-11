@@ -3,15 +3,14 @@
 SkimSearchAgent measures and caps text in **tokens, never characters**. Two rulers exist,
 each with one job:
 
-* **Whitespace tokens** (``ws_tokens`` / ``cap_tokens``): the budget ruler. Every read cap
-  the agent experiences (``SNIPPET_TOKENS``, ``MAX_VISIT_TOKENS``, ``MAX_SECTION_TOKENS``,
-  bash/read output caps, the context-history budget) is expressed in model tokens on one ruler.
-  This is the ruler the paper's experiments used, it is tokenizer-independent, and it is
-  cheap enough to apply on every tool call.
-* **Model tokens** (``count_tokens`` / ``truncate_tokens``): the measurement ruler.
-  Cost and context accounting use tiktoken's ``o200k_base`` when it is installed so that
-  every condition is measured on one fixed scale; when tiktoken is unavailable the whitespace
-  ruler is used instead (never a characters-divided-by-four proxy).
+* **Model tokens** (``count_tokens`` / ``truncate_tokens`` / ``cap_tokens``): the ruler for
+  every cap the agent experiences (``SNIPPET_TOKENS``, ``MAX_VISIT_TOKENS``,
+  ``MAX_SECTION_TOKENS``, bash/read output caps, the context-history budget) and for cost and
+  context accounting. It is tiktoken's ``o200k_base`` when tiktoken is installed, so every
+  condition is measured and cut on one fixed scale.
+* **Whitespace tokens** (``ws_tokens``): the fallback when tiktoken is not installed, and a
+  cheap word count for code that only needs a rough length. Never a characters-divided-by-four
+  proxy.
 
 There is deliberately no character-based helper in this module, and none should be added
 elsewhere: a character cap silently interacts with a token knob (a 160-character clip once
@@ -29,7 +28,7 @@ _ENC_TRIED = False
 
 
 def ws_tokens(text: Optional[str]) -> list[str]:
-    """Whitespace tokens of ``text`` (the budget ruler)."""
+    """Whitespace tokens of ``text``: the fallback ruler and a rough word count."""
     return (text or "").split()
 
 
