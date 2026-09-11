@@ -19,7 +19,7 @@ model:
   policy: null                           # llm | stub; null = llm when a model is named, else stub
   backend: api # api (an OpenAI-compatible server at api_base) | vllm (in-process)
   api_base: http://127.0.0.1:8000/v1 # OpenAI-compatible endpoint for backend=api
-  tp: 2 # tensor parallelism for backend=vllm
+  tp: 4 # tensor parallelism for backend=vllm
   temperature: 0.6                       # sampling temperature
   seed: 42                               # sampling seed (fixed for reproducibility)
   seeds: null                            # variance band: a list such as [0, 1, 2] -> one seed=N run directory per seed (overrides seed)

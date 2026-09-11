@@ -30,6 +30,7 @@ def test_resume_into_a_different_experiment_is_refused(tmp_path, monkeypatch):
     rd = tmp_path / "run"
     cfg = R._run_config_dict(_base_args(), "general")
     R._write_run_config(str(rd), _base_args(), "general", cfg=cfg)
+    (rd / "rows.jsonl").write_text('{"instance_id": "q1"}\n')     # something was scored under this config
     # same experiment: fine
     R._check_run_identity(str(rd), R._run_config_dict(_base_args(limit=2), "general"))
     # a changed backend knob is a different experiment

@@ -62,9 +62,36 @@ def local_snapshot(model_id: str) -> Optional[str]:
         return model_id
     try:
         from huggingface_hub import snapshot_download
-        return snapshot_download(model_id, local_files_only=True)
+        path = snapshot_download(model_id, local_files_only=True)
     except Exception:  # noqa: BLE001
         return None
+    return _complete_snapshot(path)
+
+
+def _snapshot_is_complete(path: str) -> bool:
+    """A snapshot directory that can be loaded: it has config.json and either weights or a
+    sentence-transformers configuration."""
+    if not os.path.exists(os.path.join(path, "config.json")):
+        return False
+    names = set(os.listdir(path))
+    return "modules.json" in names or any(n.endswith((".safetensors", ".bin")) for n in names)
+
+
+def _complete_snapshot(path: str) -> str:
+    """The hub cache keeps one directory per revision, and a refresh that only fetched the
+    README leaves the newest revision with nothing to load. When the resolved snapshot is not
+    loadable, serve the newest sibling snapshot that is."""
+    if _snapshot_is_complete(path):
+        return path
+    parent = os.path.dirname(path)
+    try:
+        siblings = [os.path.join(parent, n) for n in os.listdir(parent)]
+    except OSError:
+        return path
+    complete = [d for d in siblings if os.path.isdir(d) and _snapshot_is_complete(d)]
+    if not complete:
+        return path
+    return max(complete, key=os.path.getmtime)
 
 
 def external_index_path() -> Optional[str]:

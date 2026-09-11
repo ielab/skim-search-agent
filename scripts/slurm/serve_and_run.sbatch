@@ -21,7 +21,7 @@ SERVER_PID=""
 if [ -n "${MODEL:-}" ]; then
   export VLLM_USE_FLASHINFER_MOE_FP16=0
   "${VLLM_PYTHON:-python}" -m vllm.entrypoints.openai.api_server --model "$MODEL" --tensor-parallel-size "$TP" \
-      --max-model-len "$MAX_MODEL_LEN" --host 127.0.0.1 --port "$PORT" --trust-remote-code \
+      --max-model-len "$MAX_MODEL_LEN" --host 127.0.0.1 --port "$PORT" --trust-remote-code ${VLLM_EXTRA_ARGS:-} \
       > "slurm_logs/vllm-${SLURM_JOB_ID:-local}.log" 2>&1 &
   SERVER_PID=$!
   trap '[ -n "$SERVER_PID" ] && kill "$SERVER_PID" 2>/dev/null || true' EXIT

@@ -31,16 +31,18 @@ RUNS = "runs/checks"
 ITER = "ielabgroup/ITER-Qwen3-Embedding-0.6B"
 TONGYI = "Alibaba-NLP/Tongyi-DeepResearch-30B-A3B"
 # name -> (model id, backend, context window, tensor parallelism). The paper backbones served
-# here: Tongyi (both papers), gpt-oss-120b, Qwen3-30B-A3B-Thinking-2507 and Qwen-AgentWorld-35B-A3B
-# (ITER); gpt-4o-mini (Sieve) runs from a node with API egress, not from this matrix.
+# here: Tongyi (both papers), gpt-oss-120b and Qwen3-30B-A3B-Thinking-2507 (ITER); gpt-4o-mini
+# (Sieve) runs from a node with API egress, not from this matrix.
 BACKBONES = {
     "tongyi": (TONGYI, "api", 98304, 1),
     "qwen3_30b": ("Qwen/Qwen3-30B-A3B-Instruct-2507", "api", 98304, 1),
     "qwen3_8b": ("Qwen/Qwen3-8B", "api", 32768, 1),
     "qwen3_30b_thinking": ("Qwen/Qwen3-30B-A3B-Thinking-2507", "api", 98304, 1),
-    "agentworld_35b": ("Qwen/Qwen-AgentWorld-35B-A3B", "api", 98304, 2),
-    "gpt_oss_120b": ("openai/gpt-oss-120b", "api", 98304, 2),
+    "gpt_oss_120b": ("openai/gpt-oss-120b", "api", 98304, 4),
 }
+# extra vLLM server arguments per backbone (gpt-oss-120b on two 94 GB GPUs runs out of memory
+# in the sampler warm-up at the default 1024 sequences)
+VLLM_EXTRA = {"gpt_oss_120b": "--max-num-seqs 32 --gpu-memory-utilization 0.92"}
 DOC_STRATEGIES = ["search_visit", "search_visit_dense", "search_visit_hybrid", "autoread", "autoread_dense",
                   "search_fetch", "search_fetch_dense", "search_fetch_hybrid", "sieve_bm25", "sieve", "sieve_dense",
                   "sieve_nosnip", "dci", "bounded_dci", "indri", "dedup_dense", "dedup_bm25",
@@ -52,7 +54,10 @@ CHECKS = (
     + [("browsecomp_plus_chunks_sample", s, "tongyi") for s in ("search_visit", "dedup_dense")]
     + [("code_fixture", s, "tongyi") for s in ("codefix", "codefix_grep", "codefix_patch")]
     + [("infoseek_eval_sample", s, b) for b in ("qwen3_30b", "qwen3_8b") for s in ("search_visit", "sieve_bm25", "dedup_dense", "rag_bm25")]
-    + [("infoseek_eval_sample", s, b) for b in ("qwen3_30b_thinking", "agentworld_35b", "gpt_oss_120b") for s in ("search_visit", "sieve_bm25", "dedup_dense")]
+    + [("infoseek_eval_sample", s, b) for b in ("qwen3_30b_thinking", "gpt_oss_120b") for s in ("search_visit", "sieve_bm25", "dedup_dense")]
+    # Qwen/Qwen-AgentWorld-35B-A3B (ITER) is not in the matrix: its released checkpoint has no
+    # vision weights while its config declares the vision-language architecture, and vLLM 0.18
+    # has no text-only loader for it (the server fails at weight initialisation)
     # the in-process vLLM backend (model.backend: vllm) needs the vllm package in the run's own
     # environment; this cluster serves vLLM from a separate environment, so it is not in the matrix
 )
@@ -120,6 +125,7 @@ def submit(only: str | None = None) -> None:
         cmd = ["sbatch", "-A", ACCOUNT, f"--qos={QOS}", "--time=02:30:00", f"--gres=gpu:{tp}",
                f"--job-name=chk-{strategy}-{backbone}",
                f"--export=ALL,{common},MODEL={model},TP={tp},PORT={port},MAX_MODEL_LEN={window},DATASETS={datasets},"
+               f"VLLM_EXTRA_ARGS={VLLM_EXTRA.get(backbone, '')},"
                f"EXPERIMENTS={p},RETRIEVER={ITER},OVERRIDES=",
                "scripts/slurm/iter_sample.sbatch"]
         out = subprocess.run(cmd, capture_output=True, text=True)

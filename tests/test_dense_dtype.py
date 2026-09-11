@@ -64,3 +64,20 @@ def test_bf16_tensors_become_float32_numpy():
     torch = pytest.importorskip("torch")
     out = D.to_numpy(torch.ones(2, 3, dtype=torch.bfloat16))
     assert out.dtype.name == "float32" and out.shape == (2, 3)
+
+
+def test_local_snapshot_skips_a_readme_only_revision(tmp_path, monkeypatch):
+    """A hub refresh can leave the newest snapshot directory holding only a README; the loader
+    must serve the newest sibling that has config.json and weights."""
+    from agent_search.retrievers.dense import base
+    snaps = tmp_path / "models--x--y" / "snapshots"
+    good = snaps / "aaa"; good.mkdir(parents=True)
+    (good / "config.json").write_text("{}"); (good / "model.safetensors").write_text("w")
+    empty = snaps / "bbb"; empty.mkdir(); (empty / "README.md").write_text("readme")
+    import os, time
+    os.utime(empty, (time.time() + 10, time.time() + 10))
+    monkeypatch.setattr(base, "snapshot_download", lambda *a, **k: str(empty), raising=False)
+    import huggingface_hub
+    monkeypatch.setattr(huggingface_hub, "snapshot_download", lambda *a, **k: str(empty))
+    assert base.local_snapshot("x/y") == str(good)
+    assert base.local_snapshot(str(good)) == str(good)

@@ -28,7 +28,7 @@ What each one does:
 - `serve_and_run.sbatch` starts vLLM inside the job, runs one experiment file against it, and
   stops the server on the way out. `EXPERIMENT` is required. Add `MODEL` to serve an open-weight
   model, or leave it unset to use whatever `model.name` the experiment file already names (an API
-  model needs no server at all). `TP`, `PORT`, `MAX_MODEL_LEN` and `OVERRIDES` are optional; the port
+  model needs no server at all). `TP`, `PORT`, `MAX_MODEL_LEN`, `VLLM_EXTRA_ARGS` (extra vLLM server flags) and `OVERRIDES` are optional; the port
   defaults to one derived from the job id, so several jobs can serve on one node.
 - `train_retriever.sbatch` trains a dense retriever from trajectory triples. `TRAIN` is required
   and points at a training YAML. Training lives in its own environment because FlagEmbedding pins
