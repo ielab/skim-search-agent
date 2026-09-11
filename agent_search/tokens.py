@@ -64,8 +64,7 @@ def _encoding():
 
 def count_tokens(text: Optional[str]) -> int:
     """Model-token count on one fixed ruler (tiktoken ``o200k_base``); whitespace tokens when
-    tiktoken is not installed. Used for measurement (context size, tokens read), never as
-    the agent-facing read budget."""
+    tiktoken is not installed. The same ruler measures an episode and cuts every budget."""
     enc = _encoding()
     if enc is None:
         return count_ws_tokens(text)
@@ -79,8 +78,12 @@ def truncate_tokens(text: Optional[str], n: int, tail: str = TRUNCATED) -> str:
     if n is None:
         return text
     enc = _encoding()
-    if enc is None:
-        return cap_tokens(text, n, tail)
+    if enc is None:                       # no tiktoken: the whitespace fallback, cut inline
+        toks = text.split()
+        if len(toks) <= max(n, 0):
+            return text
+        kept = " ".join(toks[:max(n, 0)])
+        return kept + tail if kept else tail.lstrip()
     ids = enc.encode(text, disallowed_special=())
     if len(ids) <= max(n, 0):
         return text

@@ -69,3 +69,12 @@ def test_truncate_tokens_prefix_fits_budget():
 def test_cap_and_count_agree_on_model_ruler(n):
     text = " ".join(f"t{i}" for i in range(100))
     assert T.count_tokens(T.cap_tokens(text, n, tail="")) == n
+
+
+def test_truncate_tokens_falls_back_to_whitespace_without_tiktoken(monkeypatch):
+    """Without tiktoken the cut is by whitespace words and must not recurse."""
+    from agent_search import tokens as T
+    monkeypatch.setattr(T, "_encoding", lambda: None)
+    assert T.truncate_tokens("a b c d e", 3, " …") == "a b c …"
+    assert T.cap_tokens("a b c d e", 3, " …") == "a b c …"
+    assert T.truncate_tokens("a b", 5) == "a b"
