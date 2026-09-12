@@ -19,7 +19,7 @@ from agent_search.tools.budgets import AUTOREAD_TOPK, MAX_VISIT_TOKENS, RERANK_F
 from agent_search.tools.common import _INTRO, _cap_tokens, _infobox, sections_from_body
 from agent_search.corpus.units import code_tokenize
 from agent_search.snippets import NoSnippet, OpeningLine, Snippet
-from agent_search.tools.base import Tool
+from agent_search.tools.base import Tool, query_text
 
 
 class SearchReranked(Tool):
@@ -123,7 +123,7 @@ class SearchReranked(Tool):
         return "\n".join(lines)
 
     def run(self, args: dict) -> str:
-        query = (args.get("query") or args.get("q") or "")
+        query = query_text(args)
         if isinstance(query, list):
             query = query[0] if query else ""
         query = str(query).strip()

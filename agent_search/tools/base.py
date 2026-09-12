@@ -150,6 +150,8 @@ class ToolBox:
         self.state = state
 
     def run(self, name: str, args: Optional[dict]) -> str:
+        if name.startswith("functions.") and name[len("functions."):] in self._tools:
+            name = name[len("functions."):]           # some backbones prefix the namespace
         tool = self._tools.get(name)
         if tool is None:
             for t in self._tools.values():

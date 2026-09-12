@@ -290,8 +290,13 @@ def run_episode(policy: Policy, task: Task, workspace: WorkspaceLike,
 
         t_tool = 0.0
         if not call:
+            # name the tools: a backbone that knows other names (Tongyi's own are search and
+            # visit) otherwise loops on an empty <tool_call></tool_call>
+            names = ", ".join(getattr(workspace, "tools", ()) or ())
             obs = ('ERROR: no tool call found. Emit ONE <tool_call>{"name":...,'
-                   '"arguments":{...}}</tool_call>, or submit your answer.')
+                   '"arguments":{...}}</tool_call>'
+                   + (f" using one of these tools: {names}" if names else "")
+                   + ', or submit your answer.')
         else:
             if before_tool is not None:
                 # what the model said before this call (its notes on the last read) must be
