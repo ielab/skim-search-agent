@@ -94,8 +94,17 @@ def _repair_load(raw: str | None) -> dict | None:
                 k -= 1
             if k >= 0 and out[k] == ",":
                 del out[k:]
-            if stack:
-                stack.pop()
+            if not stack:
+                continue                       # a stray closer with nothing open: drop it
+            # The closer must match what is open. Tongyi often drops one "]" in a nested
+            # list ("specs":[[1779,"Intro"]}} ...), so a "}" arrives while a "[" is still
+            # open: close the open brackets first, then write this closer.
+            closers = {"{": "}", "[": "]"}
+            while stack and closers[stack[-1]] != ch:
+                out.append(closers[stack.pop()])
+            if not stack:
+                continue
+            stack.pop()
             out.append(ch)
         else:
             out.append(ch)
