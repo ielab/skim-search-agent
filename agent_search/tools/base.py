@@ -61,6 +61,19 @@ class Workspace(Protocol):
     def surfaced(self) -> Sequence[str]: ...
 
 
+def query_text(args: dict, *keys: str) -> str:
+    """The query argument as one string. A backbone sometimes passes a list of queries (ITER's
+    tool accepts one) or a number; a list is joined with spaces, anything else is str()."""
+    value = ""
+    for k in keys or ("query", "q"):
+        if args.get(k) not in (None, ""):
+            value = args[k]
+            break
+    if isinstance(value, (list, tuple)):
+        value = " ".join(str(v) for v in value if v not in (None, ""))
+    return str(value).strip()
+
+
 class Tool:
     """Subclass per tool. Class attributes are the declaration; `run` is the implementation."""
 

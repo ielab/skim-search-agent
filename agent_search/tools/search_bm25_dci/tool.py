@@ -20,7 +20,7 @@ from typing import Optional
 
 from agent_search.corpus.flat_export import stage_units_into
 from agent_search.tools.bash.tool import get_dci_dir
-from agent_search.tools.base import Tool
+from agent_search.tools.base import Tool, query_text
 from agent_search.snippets import OpeningLine, Snippet
 
 # The retrieval-stage cutoff: how many bm25 hits a `bm25_search` call surfaces and stages by
@@ -54,7 +54,7 @@ class SearchBm25Dci(Tool):
     def run(self, args: dict) -> str:
         args = args or {}
         k = args.get("k")
-        query = args.get("query") or args.get("q") or self.query
+        query = query_text(args) or self.query
         return self.search(query, int(k) if k else None)
 
     def search(self, query: str, k: Optional[int] = None) -> str:

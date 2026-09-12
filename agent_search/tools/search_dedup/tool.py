@@ -16,7 +16,7 @@ from __future__ import annotations
 import os
 from typing import Optional
 
-from agent_search.tools.base import Tool
+from agent_search.tools.base import Tool, query_text
 from agent_search.tools.budgets import DEDUP_SNIPPET_TOKENS
 from agent_search.snippets import OpeningLine, Snippet
 
@@ -68,7 +68,7 @@ class SearchDedup(Tool):
 
     def run(self, args: dict) -> str:
         args = args or {}
-        query = args.get("query") or args.get("q") or ""
+        query = query_text(args)
         if isinstance(query, list):
             query = query[0] if query else ""
         return self.search(str(query))

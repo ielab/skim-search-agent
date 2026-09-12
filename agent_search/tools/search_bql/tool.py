@@ -31,7 +31,7 @@ from agent_search.retrievers.bql.executor import _rank_leaves, execute_bql
 from agent_search.retrievers.bql.parser import parse as bql_parse
 from agent_search.retrievers.bql.surface import to_bql
 
-from agent_search.tools.base import Tool
+from agent_search.tools.base import Tool, query_text
 from agent_search.tools.budgets import SNIPPET_TOKENS
 from agent_search.snippets import NoSnippet, Snippet
 from agent_search.tools.common import _INTRO, _infobox, sections_from_body
@@ -337,7 +337,7 @@ class SearchBql(Tool):
         return self._render_hits(self.state.last_hits, leaf_toks, header)
 
     def run(self, args: dict) -> str:
-        query = args.get("query") or args.get("q") or ""
+        query = query_text(args)
         k = int(args.get("k", 5) or 5)
         return self._search(query, k)
 
