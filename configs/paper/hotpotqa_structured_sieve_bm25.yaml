@@ -4,7 +4,7 @@
 # Every key that changes what runs or how it is measured is listed; unknown keys are errors.
 schema: 1
 name: paper-hotpotqa_structured-sieve_bm25
-strategy: sieve_bm25   # friendly name (skimsearchagent --help) or agent_<condition>
+strategy: research_snip   # the paper's condition: its strategy under the paper's prompt (research_paper)
 
 # --- dataset: what is searched and asked
 dataset:

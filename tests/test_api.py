@@ -41,7 +41,7 @@ def test_research_with_a_scripted_model_callable():
 
 def test_research_without_a_model_runs_the_scripted_policy():
     result = research(QUESTION, DOCS, strategy="search_visit", max_steps=4, index_root=index_root())
-    assert result.condition == "agent_research_bm25"
+    assert result.condition == "agent_search_visit"
     assert result.steps and result.usage["llm_calls"] >= 1
 
 

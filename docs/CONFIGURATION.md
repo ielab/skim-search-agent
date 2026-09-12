@@ -108,28 +108,33 @@ same source as this page.
 
 | strategy | registered retriever | needs a dense cache | what it is |
 |---|---|---|---|
-| `search_visit` | `agent_research_bm25` | no | search, then read whole documents; BM25 |
-| `search_visit_dense` | `agent_research_dense` | yes | the same with a dense ranker |
-| `search_visit_hybrid` | `agent_research_hybrid` | yes | the same with BM25 and dense fused by RRF |
+| `search_visit` | `agent_search_visit` | no | search, then read whole documents; BM25 |
+| `search_visit_dense` | `agent_search_visit_dense` | yes | the same with a dense ranker |
+| `search_visit_hybrid` | `agent_search_visit_hybrid` | yes | the same with BM25 and dense fused by RRF |
 | `search_visit_reranked` | `agent_search_visit_reranked` | if `rerank_base` is dense | the same with the base retriever's pool reordered by a reranker |
-| `autoread` | `agent_research_bm25_autoread` | no | every search returns full documents; BM25 |
-| `autoread_dense` | `agent_research_dense_autoread` | yes | the same with a dense ranker |
-| `dci` | `agent_research_dci` | no | shell commands over exported files, no retriever |
-| `bounded_dci` | `agent_research_bm25_dci` | no | the same, scoped to what BM25 surfaced |
-| `search_fetch` | `agent_research_bm25_fetch_snip` | no | result cards with snippets, then named sections; BM25 |
-| `search_fetch_dense` | `agent_research_dense_fetch` | yes | the same with a dense ranker |
-| `search_fetch_hybrid` | `agent_research_hybrid_fetch_snip` | yes | the same with RRF fusion |
-| `sieve` | `agent_research_bql_dense_snip` | yes | the paper's method: BQL filter, BM25 and dense fused, cards, sections |
-| `sieve_bm25` | `agent_research_snip` | no | Sieve with BM25 ranking only (the default strategy) |
-| `sieve_dense` | `agent_research_bql_donly_snip` | yes | Sieve with dense ranking only |
-| `sieve_nosnip` | `agent_research_bql_dense_fetch` | yes | Sieve without listing snippets |
-| `indri` | `agent_research_indri_snip` | no | Indri query language, cards and sections |
+| `autoread` | `agent_autoread` | no | every search returns full documents; BM25 |
+| `autoread_dense` | `agent_autoread_dense` | yes | the same with a dense ranker |
+| `dci` | `agent_dci` | no | shell commands over exported files, no retriever |
+| `bounded_dci` | `agent_bounded_dci` | no | the same, scoped to what BM25 surfaced |
+| `search_fetch` | `agent_search_fetch` | no | result cards with snippets, then named sections; BM25 |
+| `search_fetch_dense` | `agent_search_fetch_dense` | yes | the same with a dense ranker |
+| `search_fetch_hybrid` | `agent_search_fetch_hybrid` | yes | the same with RRF fusion |
+| `sieve` | `agent_sieve` | yes | the paper's method: BQL filter, BM25 and dense fused, cards, sections |
+| `sieve_bm25` | `agent_sieve_bm25` | no | Sieve with BM25 ranking only (the default strategy) |
+| `sieve_dense` | `agent_sieve_dense` | yes | Sieve with dense ranking only |
+| `sieve_nosnip` | `agent_sieve_nosnip` | yes | Sieve without listing snippets |
+| `indri` | `agent_indri` | no | Indri query language, cards and sections |
 | `dedup_bm25` | `agent_research_dedup_bm25` | no | ITER's tools: search that hides documents shown before, `get_document` by id; BM25 |
 | `dedup_dense` | `agent_research_dedup_dense` | yes | the same with the run's dense model |
 | `codefix`, `codefix_grep`, `codefix_patch` | `agent_codefix*` | no | code localization over a repository |
 | `plan_and_search`, `plan_and_search_visit` | `agent_plan_and_search*` | no | a planner, one member agent per sub-question (`sieve_bm25` or `search_visit`), a synthesizer |
 | `bm25` | `bm25_pyserini` | no | rank once with Lucene BM25, no agent |
 | `reranked` | `reranked` | if `rerank_base` is dense | rank once with a retriever, reorder its pool with a reranker |
+
+The document strategies above run under the library's default prompt, the task `research`. The
+paper's conditions keep the paper's prompt (`research_paper`) and are selectable by their own
+names (`research_snip`, `research_bql_dense_snip`, `research_bm25`, ...; see
+[REPRODUCING.md](REPRODUCING.md)); the shipped `configs/paper/*.yaml` name them.
 
 "Needs a dense cache" means the corpus must be embedded once
 (`skimsearchagent-build-indexes --dataset <name> --retriever dense --model <model>`) or a

@@ -19,7 +19,7 @@ from agent_search.tasks.base import TASKS, Task
 CONDITIONS: dict[str, "Condition"] = {}
 
 # what the bare retriever name `agent` runs (an environment knob so no condition is hardwired)
-AGENT_DEFAULT_CONDITION = os.environ.get("AGENT_DEFAULT_CONDITION", "research_snip")
+AGENT_DEFAULT_CONDITION = os.environ.get("AGENT_DEFAULT_CONDITION", "sieve_bm25")
 
 # the paper's condition names -> (task, strategy)
 ALIASES: dict[str, tuple[str, str]] = {}

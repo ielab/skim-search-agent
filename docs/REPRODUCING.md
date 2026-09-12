@@ -149,8 +149,9 @@ python -m agent_search.evaluation.run_eval \
   --runs-dir runs/<tier> [--limit N] [--only-instances ids.txt]
 ```
 
-The alias form does the same thing (`sieve` resolves to `agent_research_bql_dense_snip`;
-`skimsearchagent --help` lists every alias):
+The paper's condition names carry the paper's prompt; the friendly names (`sieve`, `sieve_bm25`,
+`search_visit`) run the same strategies under the library's default prompt, so a reproduction names
+the condition (`skimsearchagent --help` lists both):
 
 ```bash
 skimsearchagent dataset=browsecomp_plus_structured_full strategy=sieve runs_dir=runs/<tier>

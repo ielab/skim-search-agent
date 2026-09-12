@@ -92,7 +92,7 @@ The atomic tools: `search_bm25`, `search_dense`, `search_hybrid`, `search_bql`, 
 
 **Task.** The goal and the answer protocol: the prompt template, the domain, the message format,
 the terminal (`<answer>`, `<fix>`, a patch). One folder per task: `tasks/<name>/prompt.md` and
-`tasks/<name>/task.py`. The tasks: `research`, `research_dedup` (ITER's prompt), `codefix`,
+`tasks/<name>/task.py`. The tasks: `research` (the default prompt), `research_paper` (the Sieve paper's), `research_dedup` (ITER's prompt), `research_dedup_strong`, `codefix`,
 `codefix_patch`.
 
 **Strategy.** A named combination of tools with their options, or a procedure that uses engines
@@ -146,9 +146,9 @@ agent_search/
   tools/           base.py (Tool, EpisodeState, ToolBox, the Workspace contract), seen.py (OrderedSeen), budgets.py (the token knobs), common.py (shared rendering),
                    then one folder per tool: search_bm25/, search_dense/, search_hybrid/, search_reranked/, search_bql/, search_indri/,
                    search_dedup/, search_bm25_dci/, visit/, fetch/, fetch_code/, get_document/, bash/, read/, grep/
-  tasks/           base.py (Task), render.py (template + declarations + manuals), then research/, research_dedup/,
+  tasks/           base.py (Task), render.py (template + declarations + manuals), then research/, research_paper/, research_dedup/, research_dedup_strong/,
                    codefix/, codefix_patch/ (prompt.md + task.py each)
-  strategies/      base.py (Strategy), names.py (friendly CLI names), conditions.py (the registry), paper.py
+  strategies/      base.py (Strategy), names.py (friendly CLI names), conditions.py (the registry), defaults.py (friendly names under the default prompt), paper.py (the paper's conditions), prompt_variants.py
                    (the paper's names), then one file per family: search_visit.py, autoread.py, search_fetch.py,
                    sieve.py, indri.py, dci.py, dedup.py, codefix.py, rag.py, teams.py, retrieval_only.py
   harness/         base.py (Harness, HarnessContext, HarnessResult), then one file per harness:

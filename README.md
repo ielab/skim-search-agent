@@ -198,7 +198,8 @@ condition("title_agent", task="research", strategy="title_only")
 # run it: strategy=title_agent
 ```
 
-**The task**, what the backbone is asked to produce: edit `agent_search/tasks/research/prompt.md`,
+**The task**, what the backbone is asked to produce: edit `agent_search/tasks/research/prompt.md`
+(the default prompt; the Sieve paper's own prompt is `research_paper/`),
 or write a task with your own template and pair it with an existing strategy:
 
 ```python

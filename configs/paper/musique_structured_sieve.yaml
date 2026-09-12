@@ -4,7 +4,7 @@
 # Every key that changes what runs or how it is measured is listed; unknown keys are errors.
 schema: 1
 name: paper-musique_structured-sieve
-strategy: sieve   # friendly name (skimsearchagent --help) or agent_<condition>
+strategy: research_bql_dense_snip   # the paper's condition: its strategy under the paper's prompt (research_paper)
 
 # --- dataset: what is searched and asked
 dataset:

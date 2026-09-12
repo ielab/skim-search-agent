@@ -42,7 +42,7 @@ def test_model_implies_llm_policy_and_forwards_flags():
     args, env = cli.build_run_eval_argv(
         {"dataset": "hotpotqa_fixture", "strategy": "search_visit", "model": "gpt-4o-mini",
          "limit": "3", "max_steps": "7", "runs_dir": "runs/x"})
-    assert args[:4] == ["--dataset", "hotpotqa_fixture", "--retriever", "agent_research_bm25"]
+    assert args[:4] == ["--dataset", "hotpotqa_fixture", "--retriever", "agent_search_visit"]
     assert args[args.index("--model") + 1] == "gpt-4o-mini"
     assert args[args.index("--policy") + 1] == "llm"
     assert args[args.index("--limit") + 1] == "3"

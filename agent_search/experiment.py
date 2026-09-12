@@ -271,7 +271,11 @@ def _friendly(strategy: str) -> Optional[str]:
             return k
     from agent_search.strategies.conditions import CONDITIONS
     name = strategy[len("agent_"):] if strategy.startswith("agent_") else strategy
-    return name if name in CONDITIONS else None
+    if name not in CONDITIONS:
+        return None
+    # a condition (the paper's `research_snip`, a plugin's own) scopes like the strategy it runs
+    inner = CONDITIONS[name].strategy.name
+    return inner if inner in STRATEGIES else name
 
 
 def applies(section: str, key: str, strategy: str) -> bool:
@@ -308,7 +312,7 @@ def defaults(preset: Optional[str] = None, strategy: Optional[str] = None) -> di
     if preset == "paper":
         for section, over in PAPER_PRESET.items():
             data[section].update(over)
-        data["strategy"] = "sieve"
+        data["strategy"] = "research_bql_dense_snip"     # the paper's condition: fused Sieve under the paper's prompt
         data["dataset"]["name"] = "hotpotqa_structured"
     elif preset not in (None, "library"):
         raise ExperimentError(f"unknown preset {preset!r} (choose: library, paper)")
@@ -497,7 +501,7 @@ def to_invocation(exp: Experiment) -> tuple[list[str], dict[str, str]]:
 def requirements(exp: Experiment) -> list[str]:
     """Human-readable prerequisites implied by the setting (printed before a run)."""
     notes = []
-    if exp.strategy in DENSE_STRATEGIES:
+    if (_friendly(exp.strategy) or exp.strategy) in DENSE_STRATEGIES:
         ext = exp.get("retrieval", "dense_index")
         if ext:
             notes.append(f"the prebuilt vector index at {ext} (retrieval.dense_index) and faiss")
