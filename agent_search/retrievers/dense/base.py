@@ -122,6 +122,23 @@ def to_numpy(embeddings):
     return np.asarray(embeddings, dtype="float32")
 
 
+def encode_with_retry(model, texts, **kw):
+    """`model.encode` with one retry after a CUDA out-of-memory error: the cache is released and
+    the call repeated, so a search does not fail on a transient allocation next to the served
+    backbone. A second failure raises."""
+    try:
+        return model.encode(texts, **kw)
+    except Exception as e:  # noqa: BLE001: torch raises RuntimeError or OutOfMemoryError
+        if "out of memory" not in str(e).lower():
+            raise
+        try:
+            import torch
+            torch.cuda.empty_cache()
+        except Exception:  # noqa: BLE001
+            pass
+        return model.encode(texts, **kw)
+
+
 def encode_query(model, text: str, query_len: int):
     """Encode one query under the shared lock with the query-side length, restoring the
     document length afterwards (one encoder serves both sides)."""
@@ -133,10 +150,10 @@ def encode_query(model, text: str, query_len: int):
         if doc_len is not None and query_len and query_len != doc_len:
             try:
                 model.max_seq_length = query_len
-                return to_numpy(model.encode([text], convert_to_tensor=True, normalize_embeddings=True))[0]
+                return to_numpy(encode_with_retry(model, [text], convert_to_tensor=True, normalize_embeddings=True))[0]
             finally:
                 model.max_seq_length = doc_len
-        return to_numpy(model.encode([text], convert_to_tensor=True, normalize_embeddings=True))[0]
+        return to_numpy(encode_with_retry(model, [text], convert_to_tensor=True, normalize_embeddings=True))[0]
     finally:
         if lock is not None:
             lock.release()
@@ -182,9 +199,12 @@ class DenseRetriever(Retriever):
 
     def __init__(self, model: str = "nomic-ai/CodeRankEmbed", batch_size: int = 64,
                  index_root: str = "indexes", rebuild: bool = False, encoder=None,
-                 max_seq_length: int = 1024, device: str | None = None, dtype: str | None = None):
+                 max_seq_length: int | None = None, device: str | None = None, dtype: str | None = None):
         self.model_id = model
-        self.max_seq_length = max_seq_length
+        # the length documents and queries are cut to, in the encoder's tokens: the constructor's
+        # value, else `DENSE_SEQ_LENGTH` (retrieval.dense_seq_length), else 1024. ITER encodes at
+        # 512, the length its checkpoints were trained on.
+        self.max_seq_length = int(max_seq_length or os.environ.get("DENSE_SEQ_LENGTH") or 1024)
         self._model = encoder
         self._device = device
         self._batch = batch_size
@@ -333,8 +353,8 @@ class DenseRetriever(Retriever):
         if lock is not None:
             lock.acquire()
         try:
-            emb = to_numpy(model.encode(texts, batch_size=self._batch, convert_to_tensor=True,
-                                        normalize_embeddings=True, show_progress_bar=big))
+            emb = to_numpy(encode_with_retry(model, texts, batch_size=self._batch, convert_to_tensor=True,
+                                              normalize_embeddings=True, show_progress_bar=big))
         finally:
             if lock is not None:
                 lock.release()

@@ -22,7 +22,7 @@ from agent_search.retrievers.dense.belief import DEFAULT_TOP_K, DenseBelief
 __all__ = ["DenseRetriever", "BgeRetriever", "CodeRankEmbedRetriever", "Qwen3EmbeddingRetriever",
            "TrainedRetriever", "DenseBelief", "DEFAULT_TOP_K", "FAMILIES", "SERVING_NOTE",
            "QWEN3_EMBED_INSTRUCT", "register_family", "family_for", "local_snapshot",
-           "external_index_path", "encode_query", "to_numpy", "read_serving_note",
+           "external_index_path", "encode_query", "encode_with_retry", "to_numpy", "read_serving_note",
            "_ENCODER_CACHE", "_ENCODER_LOCK"]
 
 # the `dense` retrieval-only condition: the run's dense model (`--dense-model`), no agent

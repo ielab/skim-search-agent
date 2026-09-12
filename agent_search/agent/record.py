@@ -38,6 +38,9 @@ def trajectory_meta(traj, surfaced=None) -> dict:
         # usable). SDK-driven episodes carry "ask_retry_inline"/"ask_retry_failed".
         "elicitation": getattr(traj, "elicitation", None),
         "declared": traj.declared, "llm_calls": traj.llm_calls, "n_steps": len(traj.steps),
+        # tool calls whose observation is an error string (a tool exception becomes an
+        # observation, never a crash); a cell with many of these has a serving problem
+        "tool_errors": sum(1 for s in steps if str(s["observation"]).startswith("ERROR")),
         "prompt_tokens": traj.prompt_tokens, "completion_tokens": traj.completion_tokens,
         "cached_input_tokens": traj.cached_input_tokens,
         "reasoning_tokens": traj.reasoning_tokens,
