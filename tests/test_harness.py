@@ -123,3 +123,15 @@ def test_harness_base_contract():
     with pytest.raises(NotImplementedError):
         h.run("q", HarnessContext(condition=None, units=[], ubyid={}, engines={}))
     assert HarnessResult.__dataclass_fields__.keys() >= {"trajectory", "surfaced", "members"}
+
+
+def test_trajectory_from_steps_meters_an_unmetered_single_step(monkeypatch):
+    """One-shot RAG makes one call and records one step; the usage since the reset is that
+    step's, so count-once accounting sees the stuffed prompt instead of zero."""
+    import agent_search.agent.backbone as backends
+    from agent_search.agent.loop import Step
+    from agent_search.harness.base import trajectory_from_steps
+    monkeypatch.setattr(backends, "usage_totals", lambda: {"llm_calls": 1, "prompt_tokens": 81234, "completion_tokens": 900})
+    traj = trajectory_from_steps([Step(name="retrieve", args={}, observation="(5 matches)")], ["d1"], "<answer>x</answer>")
+    assert traj.steps[0].prompt_tokens == 81234 and traj.steps[0].completion_tokens == 900
+    assert traj.prompt_tokens == 81234

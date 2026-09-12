@@ -95,7 +95,15 @@ def trajectory_from_steps(steps: list, located: Sequence[str], raw: str, stopped
     from agent_search.agent.loop import Trajectory, _extract_answer
     import agent_search.agent.backbone as backends
     totals = backends.usage_totals()
-    return Trajectory(task_id="q", steps=list(steps), located=list(located), declared=[],
+    steps = list(steps)
+    if steps and not any(getattr(st, "prompt_tokens", 0) for st in steps):
+        # a program harness that did not meter its calls: the usage since the reset belongs to
+        # the steps it made. With one step (one-shot RAG) the step is the whole call, so the
+        # count-once accounting reads the real prompt size from it instead of zero.
+        last = steps[-1]
+        last.prompt_tokens = int(totals.get("prompt_tokens", 0) or 0)
+        last.completion_tokens = int(totals.get("completion_tokens", 0) or 0)
+    return Trajectory(task_id="q", steps=steps, located=list(located), declared=[],
                       llm_calls=int(totals.get("llm_calls", 0) or 0),
                       prompt_tokens=int(totals.get("prompt_tokens", 0) or 0),
                       completion_tokens=int(totals.get("completion_tokens", 0) or 0),
