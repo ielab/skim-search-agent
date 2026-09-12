@@ -37,6 +37,7 @@
 #   SEEDS / SEED / TEMPERATURE / LIMIT / CORPUS_LIMIT / GPU_UTIL / EAGER / CUDAGRAPH /
 #   VLLM_ARGS / QUANT / DTYPE / KV_CACHE_DTYPE / MAX_MODEL_LEN / LOAD_FORMAT /
 #   AGENT_SEARCH_DENSE_DEVICE / PREBUILD  — same meaning + defaults as scripts/run.sh
+#   SNIPPET_TOKENS / DEDUP_SNIPPET_TOKENS  snippet widths in model tokens (defaults 32 and 64)
 #   QOS           default 'normal' (eval_agent_suite's QOS=normal path — a fixed policy
 #                 here, not that script's split/auto scheduling logic, since N GPU jobs
 #                 landing together is exactly the case express's per-user cap punishes)
@@ -313,7 +314,7 @@ jid=$(sbatch --parsable --array=0-${n} --time="$JOB_TIME" \
   --cpus-per-task="$JOB_CPUS" --mem="$JOB_MEM" \
   --job-name="$JOB_NAME" \
   --output="$LOGDIR/%x-%A_%a.out" --error="$LOGDIR/%x-%A_%a.err" \
-  --export=ALL,MAX_VISIT_TOKENS=$MAX_VISIT_TOKENS,MAX_SECTION_TOKENS=$MAX_SECTION_TOKENS,DATASET=$DATASET,RUNS_DIR=$RUNS_DIR,CONDITION=$CONDITION,NUM_SHARDS=$NUM_SHARDS,MODEL=$MODEL,DENSE_MODEL=$DENSE_MODEL,TP=$TP,WORKERS=$WORKERS,LEVEL=$LEVEL,REPO_CACHE=$REPO_CACHE,INDEX_ROOT=$INDEX_ROOT,MAX_STEPS=$MAX_STEPS,SEEDS="$SEEDS",SEED=${SEED:-},TEMPERATURE=$TEMPERATURE,CORPUS_LIMIT=$CORPUS_LIMIT,PREBUILD=${PREBUILD:-1} \
+  --export=ALL,MAX_VISIT_TOKENS=$MAX_VISIT_TOKENS,MAX_SECTION_TOKENS=$MAX_SECTION_TOKENS,SNIPPET_TOKENS=${SNIPPET_TOKENS:-32},DEDUP_SNIPPET_TOKENS=${DEDUP_SNIPPET_TOKENS:-64},DATASET=$DATASET,RUNS_DIR=$RUNS_DIR,CONDITION=$CONDITION,NUM_SHARDS=$NUM_SHARDS,MODEL=$MODEL,DENSE_MODEL=$DENSE_MODEL,TP=$TP,WORKERS=$WORKERS,LEVEL=$LEVEL,REPO_CACHE=$REPO_CACHE,INDEX_ROOT=$INDEX_ROOT,MAX_STEPS=$MAX_STEPS,SEEDS="$SEEDS",SEED=${SEED:-},TEMPERATURE=$TEMPERATURE,CORPUS_LIMIT=$CORPUS_LIMIT,PREBUILD=${PREBUILD:-1} \
   scripts/shard_cell.sh)
 
 echo ">> submitted array ${jid}_[0-${n}] (qos=$QOS, ${JOB_MEM} mem, ${WORKERS} workers/shard)"
