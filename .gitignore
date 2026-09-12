@@ -36,7 +36,8 @@ envs-train/
 train_data/
 /models/
 
-# The changelog is kept locally, not published
+# The changelog and the publishing notes are kept locally, not published
 CHANGELOG.md
+docs/PUBLISHING.md
 slurm-*.out
 configs/checks/
