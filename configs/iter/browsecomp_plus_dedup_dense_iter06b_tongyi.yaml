@@ -3,12 +3,12 @@
 # Validate: skimsearchagent validate <this file>
 # Every key that changes what runs or how it is measured is listed; unknown keys are errors.
 schema: 1
-name: iter_infoseek_train_traj
+name: iter_bcp_tongyi
 strategy: dedup_dense   # friendly name (skimsearchagent --help) or agent_<condition>
 
 # --- dataset: what is searched and asked
 dataset:
-  name: infoseek_train                   # registered dataset (`skimsearchagent-eval --help` lists them)
+  name: browsecomp_plus_structured       # registered dataset (`skimsearchagent-eval --help` lists them)
   limit: null                            # cap the number of questions (null = all)
   corpus_limit: null                     # cap the shared corpus (null = all; queries whose gold docs fall outside are dropped with a warning)
   only_instances: null                   # path to a file of instance ids to run (null = all)
@@ -55,7 +55,7 @@ retrieval:
   dense_query_instruction: Given the main question, the current sub-query, and the sub-queries already tried # override the query instruction prefix (null = the checkpoint's serving note or the built-in table)
   dense_pooling: last_token              # pooling for a local checkpoint: last_token | mean | cls (null = serving note, else auto from config.json)
   dense_dtype: bfloat16                  # precision the dense encoder runs in: float32 | float16 | bfloat16 (null = the checkpoint's serving note, else float32)
-  dense_index: indexes/external/iter06b_wiki25_512 # prebuilt vector index to serve (this library's cache dir, or ITER's index.faiss + index.lookup.pkl); null = the per-corpus cache under index_root
+  dense_index: null                      # prebuilt vector index to serve (this library's cache dir, or ITER's index.faiss + index.lookup.pkl); null = the per-corpus cache under index_root
   ann_ef_search: 256                     # HNSW efSearch for a prebuilt index (0 = as built)
   ann: auto                              # vector index backend: auto | flat | hnsw | ivfpq
   ann_min: 1000000                       # corpus size above which an ANN index is used
@@ -67,13 +67,13 @@ evaluation:
   level: function                        # function | file (code arm only; documents ignore it)
   k: [1, 3, 5, 10]                       # rank cutoffs for @k metrics
   workers: 1                             # concurrent episodes (use with a served model)
-  judge_model: null                      # LLM judge for document answers (null = off)
+  judge_model: gpt-4o-mini               # LLM judge for document answers (null = off)
   judge_api_base: null                   # endpoint for a served judge
   rejudge: false                         # re-grade rows that already carry a verdict
 
 # --- output: where the run record goes
 output:
-  runs_dir: runs/iter_traj               # root of the run record (runs_dir/<kind>/<dataset>/<model>/<retriever>)
+  runs_dir: runs/iter                    # root of the run record (runs_dir/<kind>/<dataset>/<model>/<retriever>)
   results_dir: null                      # explicit run directory (overrides runs_dir layout)
   index_root: indexes                    # where persistent indexes and embedding caches live
   rebuild: false                         # rebuild persistent indexes

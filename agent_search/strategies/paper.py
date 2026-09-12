@@ -2,7 +2,7 @@
 `--retriever agent_<name>` keep working; the registry grows here as strategies are ported."""
 from agent_search.strategies import (  # noqa: F401  (registrations)
     autoread, codefix, dci, dedup, indri, rag, retrieval_only, search_fetch, search_visit, sieve, teams)
-from agent_search.strategies.conditions import alias
+from agent_search.strategies.conditions import alias, condition
 from agent_search.tasks import TASKS  # noqa: F401  (registrations)
 
 alias("research_bm25", "research", "search_visit")
@@ -18,6 +18,8 @@ alias("research_dci", "research", "dci")
 alias("research_bm25_dci", "research", "bounded_dci")
 alias("research_dedup_bm25", "research_dedup", "dedup_bm25")
 alias("research_dedup_dense", "research_dedup", "dedup_dense")
+condition("research_dedup_bm25_strong", "research_dedup_strong", "dedup_bm25")     # DIVER --strong, general backbones
+condition("research_dedup_dense_strong", "research_dedup_strong", "dedup_dense")
 alias("codefix", "codefix", "codefix")
 alias("codefix_grep", "codefix", "codefix_grep")
 alias("codefix_patch", "codefix_patch", "codefix")

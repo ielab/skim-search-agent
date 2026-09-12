@@ -3,7 +3,8 @@
 from agent_search.tasks.base import TASKS, Task, register_task
 from agent_search.tasks.research.task import Research
 from agent_search.tasks.research_dedup.task import ResearchDedup
+from agent_search.tasks.research_dedup_strong.task import ResearchDedupStrong
 from agent_search.tasks.codefix.task import CodeFix
 from agent_search.tasks.codefix_patch.task import CodeFixPatch
 
-__all__ = ["Task", "TASKS", "register_task", "Research", "ResearchDedup", "CodeFix", "CodeFixPatch"]
+__all__ = ["Task", "TASKS", "register_task", "Research", "ResearchDedup", "ResearchDedupStrong", "CodeFix", "CodeFixPatch"]

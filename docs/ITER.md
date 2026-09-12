@@ -21,8 +21,15 @@ the top 10 of the rest, each as its passage text cut to 64 model tokens (ITER's 
 `--snippet-max-tokens 64`; ITER cuts with the served model's tokenizer, the library on its own
 token ruler, so the counts are close, not identical). Documents that would have ranked but were shown
 before are listed under "Already-seen" so the agent can reopen them. That is `strategy=dedup_dense`
-(the run's dense model behind `search`) or `dedup_bm25`, with the task template
-`agent_search/tasks/research_dedup/prompt.md`.
+(the run's dense model behind `search`) or `dedup_bm25`.
+
+The prompt is the one DIVER evaluated Tongyi-DeepResearch with: Tongyi's deep-research system
+prompt, DIVER's strict tool rules, and its dedup notice (`agent_search/tasks/research_dedup/prompt.md`,
+condition `agent_research_dedup_dense`). DIVER's `--strong` prompt for general backbones, a
+meticulous multi-constraint research agent, is the task `research_dedup_strong` (condition
+`agent_research_dedup_dense_strong`). DIVER capped an episode at 50 LLM calls (`MAX_LLM_CALL_PER_RUN`),
+so ITER cells run with `max_steps: 50`, not the 100 of the Sieve experiments. Its BrowseComp-Plus
+runs use the full 100,195-document corpus (`browsecomp_plus_structured` here), not a chunked one.
 
 Listing knobs: `listing.dedup_topk` (10), `listing.dedup_pool_k` (100) and
 `listing.dedup_snippet_tokens` (64). `get_document` returns at most 512 model tokens in ITER

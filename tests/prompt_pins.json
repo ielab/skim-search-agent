@@ -117,23 +117,47 @@
  },
  "research_dedup_bm25": {
   "domain": "general",
-  "sha": "0c9a7ca64088278e",
+  "sha": "7b831d2724610ff7",
   "task": "research_dedup",
   "tools": [
    "bm25_search",
    "get_document"
   ],
-  "toolset": "dedup_bm25"
+  "toolset": "dedup_bm25",
+  "note": "DIVER's Tongyi evaluation prompt (SYSTEM_PROMPT_SEARCH_ONLY + DEDUP_NOTICE), pinned 2026-09-12"
+ },
+ "research_dedup_bm25_strong": {
+  "domain": "general",
+  "sha": "0c9a7ca64088278e",
+  "task": "research_dedup_strong",
+  "tools": [
+   "bm25_search",
+   "get_document"
+  ],
+  "toolset": "dedup_bm25",
+  "note": "DIVER's --strong prompt; the pre-0.3 research_dedup prompt, moved to its own task on 2026-09-12"
  },
  "research_dedup_dense": {
   "domain": "general",
-  "sha": "b4402098a6830110",
+  "sha": "afbd92dc65b51d28",
   "task": "research_dedup",
   "tools": [
    "search",
    "get_document"
   ],
-  "toolset": "dedup_dense"
+  "toolset": "dedup_dense",
+  "note": "DIVER's Tongyi evaluation prompt (SYSTEM_PROMPT_SEARCH_ONLY + DEDUP_NOTICE), pinned 2026-09-12"
+ },
+ "research_dedup_dense_strong": {
+  "domain": "general",
+  "sha": "b4402098a6830110",
+  "task": "research_dedup_strong",
+  "tools": [
+   "search",
+   "get_document"
+  ],
+  "toolset": "dedup_dense",
+  "note": "DIVER's --strong prompt; the pre-0.3 research_dedup prompt, moved to its own task on 2026-09-12"
  },
  "research_dense": {
   "domain": "general",

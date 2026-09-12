@@ -82,7 +82,9 @@ def test_dedup_conditions_and_strategies_are_registered():
                              ("research_dedup_dense", ("search", "get_document"))):
         c = CONDITIONS[cond_name]
         assert c.tool_names == tools
-        assert "Already-seen" in c.render()
+        assert "de-duplicates across steps" in c.render()          # DIVER's dedup notice
+    for cond_name in ("research_dedup_bm25_strong", "research_dedup_dense_strong"):
+        assert "Already-seen" in CONDITIONS[cond_name].render()      # DIVER's --strong prompt
     assert STRATEGIES["dedup_dense"] == "agent_research_dedup_dense"
     assert "dedup_dense" in DENSE_STRATEGIES and "dedup_bm25" not in DENSE_STRATEGIES
 
