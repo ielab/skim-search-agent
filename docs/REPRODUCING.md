@@ -131,14 +131,18 @@ in the top k. These are the numbers a fresh clone of `dev` reproduces.
 |---|---|---|---|---|
 | `bm25` | Lucene BM25 (Pyserini, k1=0.9, b=0.4) | 0.027 | 0.036 | 0.049 |
 | `dense` | `BAAI/bge-base-en-v1.5` | 0.092 | 0.102 | 0.152 |
-| `dense` | `ielabgroup/ITER-Qwen3-Embedding-0.6B` (i2 query style) | 0.047 | 0.072 | 0.107 |
+| `dense` | `ielabgroup/ITER-Qwen3-Embedding-0.6B` (i2 query style, 512 tokens) | 0.172 | 0.213 | 0.293 |
+| `dense` | `ielabgroup/ITER-Qwen3-Embedding-4B` (i2 query style, 512 tokens) | 0.318 | 0.390 | 0.510 |
 | `hybrid` | BM25 + bge-base, RRF k=60, pools of 100 | 0.074 | 0.083 | 0.127 |
-| `hybrid` | BM25 + ITER-0.6B, RRF k=60, pools of 100 | 0.050 | 0.077 | 0.106 |
+| `hybrid` | BM25 + ITER-0.6B, RRF k=60, pools of 100 | 0.151 | 0.153 | 0.272 |
 | `reranked` | BM25 pool of 100, `BAAI/bge-reranker-v2-m3` | 0.046 | 0.060 | 0.080 |
 
 A single-shot ranking barely reaches the evidence on this collection, which is why every
-agent strategy searches many times. ITER's encoder is trained on the history-shaped queries its
-agent writes, not on raw questions, so it trails bge-base here and leads inside the agent.
+agent strategy searches many times. The ITER encoders are served the way they were trained
+(`agent_search/retrievers/dense/decoder_encoder.py`: the end token kept, last position pooled,
+512 tokens); the 0.6B checkpoint doubles bge-base's recall and the 4B checkpoint doubles that
+again. Fusing BM25 into ITER by reciprocal rank lowers recall: BM25 is far weaker here and its
+votes dilute the dense ranking.
 
 To run one cell locally:
 
