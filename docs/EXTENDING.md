@@ -86,7 +86,8 @@ edited document is never served from a stale cache. The built-in retrievers do t
 ### A dense encoder family
 
 Dense retrievers are one base class and one file per encoder family
-(`agent_search/retrievers/dense/`: `bge.py`, `coderank.py`, `qwen3_embedding.py`, `trained.py`).
+(`agent_search/retrievers/dense/`: `bge.py`, `coderank.py`, `qwen3_embedding.py`, `trained.py`; `decoder_encoder.py` serves a checkpoint that has no
+sentence-transformers config, the way Tevatron encodes it).
 A family states its own query prefix, pooling, precision and lengths. Nothing is looked up in a
 table. To add one, write a file with a subclass, say which model ids it serves, and register it:
 

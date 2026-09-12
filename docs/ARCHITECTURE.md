@@ -131,7 +131,7 @@ agent_search/
   retrievers/
     base.py        the Retriever contract, Hit, Observation
     lexical/       pyserini.py (Lucene BM25, every corpus), grep.py and scorer.py (the code repository ranker and its in-memory scorer)
-    dense/         base.py (DenseRetriever) + bge.py, coderank.py, qwen3_embedding.py, trained.py; belief.py; vector_index.py
+    dense/         base.py (DenseRetriever) + bge.py, coderank.py, qwen3_embedding.py, trained.py; decoder_encoder.py; belief.py; vector_index.py
     bql/           the Boolean structural method: parser, executor, dense fusion, the BQL retriever
     indri/         the Indri query language: parser, fields, result
     lucene/        both query languages compiled to Lucene: compilers, engine, adapters

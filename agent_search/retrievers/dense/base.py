@@ -34,7 +34,6 @@ FAMILIES: list = []
 
 _DTYPES = {"float32": "float32", "fp32": "float32", "float16": "float16", "fp16": "float16", "half": "float16",
            "bfloat16": "bfloat16", "bf16": "bfloat16"}
-_POOLINGS = {"last_token": "lasttoken", "mean": "mean", "cls": "cls"}
 
 
 def register_family(cls):
@@ -247,25 +246,20 @@ class DenseRetriever(Retriever):
 
     # --- the encoder --------------------------------------------------------------------
     def build_encoder(self, device, max_seq_length: int, dtype: str):
-        """A sentence-transformers model for this family. Families with a pooling of their own
-        (a decoder checkpoint without a sentence-transformers config) get the pipeline rebuilt:
-        transformer, pooling, optional normalisation."""
+        """The encoder for this family: a sentence-transformers model when the checkpoint ships
+        its config, else a plain decoder encoder (`decoder_encoder.py`) with the family's pooling."""
         from sentence_transformers import SentenceTransformer  # heavy, cluster-only
         torch_dtype = _torch_dtype(dtype)
         pooling = self.resolve_pooling()
         snap = local_snapshot(self.model_id)
         has_st_config = os.path.exists(os.path.join(snap, "modules.json")) if snap else True
         if pooling and not has_st_config:
-            if pooling not in _POOLINGS:
-                raise ValueError(f"unknown pooling {pooling!r} for {self.model_id}; choose one of "
-                                 f"{sorted(_POOLINGS)} (DENSE_POOLING / the serving note)")
-            from sentence_transformers import models as st_models
-            word = st_models.Transformer(snap or self.model_id,
-                                         max_seq_length=int(self.encoder_seq_length or max_seq_length),
-                                         model_args={"trust_remote_code": True, "torch_dtype": torch_dtype})
-            pool = st_models.Pooling(word.get_word_embedding_dimension(), pooling_mode=_POOLINGS[pooling])
-            mods = [word, pool] + ([st_models.Normalize()] if self.normalize else [])
-            return SentenceTransformer(modules=mods, device=device)
+            # a decoder checkpoint served the way it was trained and indexed (Tevatron's eos
+            # pooling); the sentence-transformers module path drops the end token for these
+            from agent_search.retrievers.dense.decoder_encoder import DecoderEncoder
+            return DecoderEncoder(snap or self.model_id, pooling=pooling, normalize=self.normalize,
+                                  max_seq_length=int(self.encoder_seq_length or max_seq_length),
+                                  device=device, torch_dtype=torch_dtype)
         return SentenceTransformer(self.model_id, trust_remote_code=True, device=device,
                                    model_kwargs={"torch_dtype": torch_dtype})
 
@@ -379,6 +373,9 @@ class DenseRetriever(Retriever):
     def _cache_dir(self, key: Optional[str]) -> str:
         model_key = re.sub(r"[^A-Za-z0-9_.@-]+", "__", self.model_id)
         model_key += f"-sl{self.max_seq_length}"   # seq len changes the embeddings
+        snap = local_snapshot(self.model_id)
+        if self.resolve_pooling() and snap and not os.path.exists(os.path.join(snap, "modules.json")):
+            model_key += "-eos"                     # the plain decoder encoder (end token pooled), not the old module path
         if self.dtype != "float32":
             model_key += f"-{self.dtype}"           # so do the weights' precision
         corpus_key = re.sub(r"[^A-Za-z0-9_.@-]+", "__", key or "default")

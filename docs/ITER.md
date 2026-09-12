@@ -60,12 +60,16 @@ serve the backbone on the node.
 Any embedding model is `retrieval.dense_model`. ITER's released checkpoints
 (`ielabgroup/ITER-Qwen3-Embedding-0.6B`, `-4B`), the plain `Qwen/Qwen3-Embedding-*` baselines, and
 LRAT (`Yuqi-Zhou/LRAT-Qwen3-Embedding-0.6B`) are decoder checkpoints without a sentence-transformers
-config. The library detects that from `config.json` and serves them with last-token pooling and
-normalisation (`retrieval.dense_pooling` overrides). ITER encoded its corpora in bfloat16, so the
-shipped files set `retrieval.dense_dtype: bfloat16` for these checkpoints. The query side is the pair
-`retrieval.dense_query_style` + `retrieval.dense_query_instruction`: `i2` with ITER's instruction
-for the trained models, `plain` for the baselines. Pull a released checkpoint once on a node with
-internet (`hf download ielabgroup/ITER-Qwen3-Embedding-0.6B`). The runs themselves stay offline.
+config. The library serves them with its plain decoder encoder
+(`agent_search/retrievers/dense/decoder_encoder.py`): the checkpoint's tokenizer with its end token,
+left padding, the last position pooled, unit-length vectors, documents and queries cut at 512
+tokens (`retrieval.dense_seq_length`). That is Tevatron's `--pooling eos` encoding, which is how
+ITER trained and indexed; it reproduces ITER's published vectors to 0.997 cosine. ITER encoded its
+corpora in bfloat16, so the shipped files set `retrieval.dense_dtype: bfloat16`. The query side is
+the pair `retrieval.dense_query_style` + `retrieval.dense_query_instruction`: `i2` with ITER's
+instruction for the trained models, `plain` for the baselines. Pull a released checkpoint once on a
+node with internet (`hf download ielabgroup/ITER-Qwen3-Embedding-0.6B`). The runs themselves stay
+offline.
 
 ## Corpus and datasets
 
