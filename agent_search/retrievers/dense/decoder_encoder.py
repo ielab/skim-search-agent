@@ -19,10 +19,10 @@ class DecoderEncoder:
     def __init__(self, path: str, *, pooling: str = "last_token", normalize: bool = True,
                  max_seq_length: int = 512, device: Optional[str] = None, torch_dtype=None,
                  batch_size: int = 32):
-        import torch
-        from transformers import AutoModel, AutoTokenizer
         if pooling not in ("last_token", "mean", "cls"):
             raise ValueError(f"unknown pooling {pooling!r}; choose last_token, mean or cls")
+        import torch                                    # retrieval extra; checked after the cheap validation
+        from transformers import AutoModel, AutoTokenizer
         self.pooling = pooling
         self.normalize = normalize
         self.max_seq_length = int(max_seq_length)
