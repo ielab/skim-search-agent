@@ -3,7 +3,9 @@
 The composition is the one the paper prompts were rendered with: the `<tools>` block is one
 compact JSON function declaration per line, the manuals are the tools' markdown files in tool
 order (deduplicated by file), and the template placeholders `{{tools}}`, `{{tool_manuals}}`,
-`{{tool_names}}` and `{{toolset}}` are replaced textually.
+`{{tool_names}}`, `{{tool_rules}}` and `{{toolset}}` are replaced textually. `{{tool_rules}}` is
+generated from the declarations: one line per tool naming its exact argument structure, so a
+task can state strict argument rules without naming the tools itself.
 """
 from __future__ import annotations
 
@@ -49,12 +51,28 @@ def render_manuals(manual_paths: Sequence[Optional[str]]) -> str:
     return "\n\n".join(blocks)
 
 
+def render_tool_rules(declarations: Sequence[dict]) -> str:
+    """One line per tool: its exact argument structure, from the declaration's JSON schema."""
+    lines = []
+    for d in declarations:
+        params = d.get("parameters") or {}
+        props = params.get("properties") or {}
+        required = set(params.get("required") or [])
+        parts = []
+        for arg, spec in props.items():
+            kind = (spec or {}).get("type", "value")
+            parts.append(f'"{arg}": <{kind}{"" if arg in required else ", optional"}>')
+        lines.append(f"- {d['name']}: {{{', '.join(parts)}}}")
+    return "\n".join(lines)
+
+
 def compose(body: str, declarations: Sequence[dict], manual_paths: Sequence[Optional[str]],
             toolset_name: Optional[str] = None) -> str:
     replacements = {
         "{{tools}}": render_declarations(declarations),
         "{{tool_manuals}}": render_manuals(manual_paths),
         "{{tool_names}}": ", ".join(d["name"] for d in declarations),
+        "{{tool_rules}}": render_tool_rules(declarations),
         "{{toolset}}": str(toolset_name or ""),
     }
     out = body
@@ -63,4 +81,4 @@ def compose(body: str, declarations: Sequence[dict], manual_paths: Sequence[Opti
     return out.rstrip() + "\n"
 
 
-__all__ = ["split_front_matter", "render_declarations", "render_manuals", "compose"]
+__all__ = ["split_front_matter", "render_declarations", "render_manuals", "render_tool_rules", "compose"]

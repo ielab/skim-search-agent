@@ -75,7 +75,7 @@ def test_tasks_are_tool_agnostic():
     """Task templates carry the {{tools}}/{{tool_manuals}} slots and must not TEACH the query
     language (that lives in the manuals) — a single illustrative example call is fine, but the
     operator reference / field table constructs must not appear in the task body."""
-    for task in ("research",):
+    for task in ("research", "research_combined"):
         _, body = TASKS[task].template()
         assert "{{tools}}" in body and "{{tool_manuals}}" in body
         for marker in ("IN(def", "term[field]", "| `def` |", "| `title` |",
@@ -207,3 +207,16 @@ def test_unknown_field_lowers_to_a_rejected_query():
     readable reason — it must NOT silently translate to a valid query."""
     r = parse(to_bql("x[module]", "code"))
     assert (not r.ok) or (not check(r.expr).ok)
+
+
+def test_tool_rules_render_from_declarations():
+    """`{{tool_rules}}` names each tool's exact argument structure, so the combined prompt's
+    strict rules follow the toolset instead of hardcoding search and get_document."""
+    from agent_search.strategies import CONDITIONS
+    from agent_search.tasks.render import render_tool_rules
+    assert render_tool_rules([{"name": "search", "parameters": {"type": "object", "properties": {"query": {"type": "string"}, "k": {"type": "integer"}}, "required": ["query"]}}]) == '- search: {"query": <string>, "k": <integer, optional>}'
+    for name, tools in (("research_bm25_combined", ("bm25_search", "visit")), ("research_dedup_dense_combined", ("search", "get_document"))):
+        rendered = CONDITIONS[name].render()
+        assert "{{" not in rendered.replace("{{step_budget}}", "")   # the budget is filled when the loop starts
+        for tool in tools:
+            assert f"- {tool}: {{" in rendered
