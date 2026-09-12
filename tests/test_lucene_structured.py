@@ -404,3 +404,16 @@ def test_isearch_tool_text_shows_zero_hits_and_warning(lucene_eng, units):
     out = ws.run("isearch", {"query": "dog.bogusfield"})
     assert "(0 hits)" in out
     assert "warning" in out.lower() and "bogusfield" in out
+
+
+def test_exact_field_keeps_numbers_and_one_member_window_compiles():
+    """Schema 2: the exact fields tokenize numbers (a year is a term), and a window with one
+    member is that member instead of a span query Lucene rejects."""
+    pytest.importorskip("jnius")
+    from agent_search.retrievers.lucene import jni_utils as J
+    from agent_search.retrievers.indri import parser as P
+    from agent_search.retrievers.lucene.indri_compiler import compile_score
+    assert J.exact_tokens("Treaty of 1848") == ["treaty", "of", "1848"]
+    parsed = P.parse("#combine(#uw5(treaty 1848) #od2(guadalupe))")
+    node = getattr(parsed, "tree", None) or getattr(parsed, "root", None) or getattr(parsed, "expr", None) or parsed
+    assert compile_score(node) is not None

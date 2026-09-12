@@ -2,7 +2,7 @@
 there is no environment switch.
 
 Document corpora run on Lucene (`agent_search/retrievers/lucene/`): a prebuilt fielded index
-under `indexes/lucene_structured/<key>/`, BM25 scoring for BQL and LMDirichlet scoring for
+under `indexes/lucene_structured/<key>_v<schema>/`, BM25 scoring for BQL and LMDirichlet scoring for
 Indri, with the zero-hit fallback and the coverage ranking on the same index. The index is
 built once per corpus: ahead of a run with `skimsearchagent-build-indexes --retriever
 search_lucene --dataset <name>` (the way to do it for a large corpus, off the clock), or on

@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import re
 
-from agent_search.tools.base import Tool
+from agent_search.tools.base import Tool, query_text
 from agent_search.snippets import NoSnippet, Snippet
 from agent_search.tools.common import _INTRO, _infobox, sections_from_body
 
@@ -179,7 +179,7 @@ class SearchIndri(Tool):
         return "\n".join(lines)
 
     def run(self, args: dict) -> str:
-        query = args.get("query") or args.get("q") or ""
+        query = query_text(args)
         k = int(args.get("k", 5) or 5)
         result = self._search_impl(query, k)
         if (self.op_nudge and self._op_nudge_emitted < _OP_NUDGE_CAP

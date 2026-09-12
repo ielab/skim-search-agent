@@ -36,8 +36,8 @@ data this engine's callers never read back through it. `LuceneHit` carries
     "Deviations" section documents that the Python engine does not stem, so this
     Lucene backend is a graded-ranking equivalent, not a byte-identical one; see
     `indri_compiler.py`'s Deviations for how that is validated.
-  - `body_exact` (TextField, `SimpleAnalyzer`: lowercasing plus letter-run
-    tokenization, no stemming, no stopwords, not stored): the literal/positional
+  - `body_exact` (TextField, `StandardAnalyzer` with no stop words: lowercasing plus
+    word tokenization that keeps numbers, no stemming, not stored): the literal/positional
     field for span/window ops (`#odN`/`#uwN`/`#syn` as SpanOr) and for exact boolean
     "matches" tests (`#band`/`#filreq`/`#filrej`) that the validation suite requires
     to agree with the Python reference's match set (analyzer-light). This is the
@@ -65,7 +65,7 @@ data this engine's callers never read back through it. `LuceneHit` carries
     sparse proper nouns and LMD scoring over them is rarely meaningful. A
     `.author`-scoped Indri scoring leaf compiles to an exact `TermQuery` on this
     StringField instead of Dirichlet-smoothed LM scoring.
-  - `author_text` / `date_text` (TextField, `SimpleAnalyzer`, same unstemmed
+  - `author_text` / `date_text` (TextField, the same unstemmed analyzer, same unstemmed
     analyzer as the `_exact` fields, not stored): a tokenized sibling of
     `author`/`date`, needed because BQL's Python reference (`bql/executor.py`'s
     `_field_bag`) tokenizes `metadata['author']`/`metadata['date']` word by word for
@@ -84,6 +84,10 @@ from __future__ import annotations
 # between index_builder.py (writer) and the compilers (reader).
 F_ID = "id"
 F_BODY = "body"
+# Bumped when the analyzers or fields change; the index directory carries it, so an old index
+# stays readable by running jobs while a new one is built next to it.
+SCHEMA_VERSION = 2
+
 F_BODY_EXACT = "body_exact"
 F_TITLE = "title"
 F_TITLE_EXACT = "title_exact"

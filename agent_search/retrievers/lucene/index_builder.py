@@ -7,7 +7,7 @@ Field schema: see `schema.py`'s module docstring for the full decision + rationa
 (one Lucene Document per `CodeUnit`, stemmed/exact field pairs for body/title/
 section, StringField date/author).
 
-Persisted under `<index_root>/lucene_structured/<dataset>/` (index_root defaults to
+Persisted under `<index_root>/lucene_structured/<dataset>_v<schema>/` (index_root defaults to
 `indexes/`, mirroring every other backend's `indexes/<name>/<key>/` convention).
 
 CLI:
@@ -43,7 +43,10 @@ _META_FILE = "meta.json"
 
 
 def index_dir(index_root: str, dataset: str) -> str:
-    return os.path.join(index_root, "lucene_structured", dataset)
+    """`<index_root>/lucene_structured/<dataset>_v<schema>`; schema 1 had no suffix."""
+    from agent_search.retrievers.lucene.schema import SCHEMA_VERSION
+    suffix = "" if SCHEMA_VERSION == 1 else f"_v{SCHEMA_VERSION}"
+    return os.path.join(index_root, "lucene_structured", dataset + suffix)
 
 
 def has_segments(path: str) -> bool:

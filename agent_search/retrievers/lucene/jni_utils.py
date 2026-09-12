@@ -219,13 +219,12 @@ def analyze(analyzer, field: str, text: str) -> list:
 # `bm25_pyserini` indexes with (see agent_search/retrievers/lexical/pyserini.py's
 # module docstring). Used for `body`/`title`/`section` (the scored fields).
 #
-# SimpleAnalyzer: LetterTokenizer plus LowerCaseFilter, lowercases and splits on any
-# non-letter run, no stemming, no stopword removal. Used for the `*_exact` fields
-# (span/window ops and exact boolean "matches" tests) as the closest built-in Lucene
-# analyzer to the Python reference's `code_tokenize` (word-splitting, unstemmed). It
-# does not split camelCase/snake_case identifiers the way `code_tokenize` does; this
-# deviation has low impact for this prose document corpus (see `indri_compiler.py`'s
-# module docstring).
+# StandardAnalyzer with no stop words: StandardTokenizer (Unicode word boundaries, so letters
+# and digits both form tokens) plus LowerCaseFilter, no stemming. Used for the `*_exact` fields
+# (span/window ops and exact boolean "matches" tests) as the closest built-in Lucene analyzer to
+# the Python reference's word-splitting, unstemmed tokenization. Its predecessor here,
+# SimpleAnalyzer, tokenizes letter runs only and silently dropped every number, so a window such
+# as #uw5(treaty 1848) had no term for 1848 and every year-bearing window failed (index schema 2).
 _analyzers: dict = {}
 
 
@@ -240,7 +239,7 @@ def stemmed_analyzer():
 def exact_analyzer():
     a = _analyzers.get("exact")
     if a is None:
-        a = J("SimpleAnalyzer")()
+        a = J("StandardAnalyzer")()                  # Lucene 9: the default stop set is empty
         _analyzers["exact"] = a
     return a
 

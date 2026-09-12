@@ -453,9 +453,11 @@ def _span_of(node, field: str):
 def _window_span(node: Window, field: str):
     ordered = node.kind == "od"
     slop = (node.n - 1) if node.n is not None else _LARGE_SLOP
+    spans = [_span_of(c, field) for c in node.children]
+    if len(spans) == 1:
+        return spans[0]                     # a window of one member is that member (Lucene needs two)
     b = J.J("SpanNearQueryBuilder")(field, ordered)
-    for c in node.children:
-        span_q = _span_of(c, field)
+    for span_q in spans:
         b.addClause(span_q)
     b.setSlop(max(slop, 0))
     return b.build()
