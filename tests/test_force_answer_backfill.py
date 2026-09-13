@@ -31,6 +31,18 @@ CAPPED_PLACEHOLDER = "SHOULD NOT APPEAR (this is the 600-char-capped trajectory 
 FULL_OBSERVATION = "FULL UNCAPPED OBSERVATION " + ("x" * 700)   # > 600 chars, distinct from the cap
 
 
+
+import pytest
+
+
+@pytest.fixture(autouse=True)
+def _no_empty_retries(monkeypatch):
+    """These tests pin the one-fallback contract with canned replies; the empty-turn retry
+    (LLM_EMPTY_RETRIES, a served-model behaviour) would consume the canned fallback reply."""
+    monkeypatch.setenv("LLM_EMPTY_RETRIES", "1")
+    monkeypatch.setenv("LLM_RETRY_BASE_S", "0")
+
+
 def _synthetic_row(instance_id="inst_1", final_answer="", prompt_profile_path="research_dci"):
     """A minimal but schema-faithful row: trajectory[i]['observation'] deliberately holds a
     DIFFERENT (short) placeholder than observations[i], mirroring the real display-cap
