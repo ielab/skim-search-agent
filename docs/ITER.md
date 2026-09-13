@@ -28,8 +28,11 @@ prompt, DIVER's strict tool rules, and its dedup notice (`agent_search/tasks/res
 condition `agent_research_dedup_dense`). DIVER's `--strong` prompt for general backbones, a
 meticulous multi-constraint research agent, is the task `research_dedup_strong` (condition
 `agent_research_dedup_dense_strong`). DIVER capped an episode at 50 LLM calls (`MAX_LLM_CALL_PER_RUN`),
-so ITER cells run with `max_steps: 50`, not the 100 of the Sieve experiments. Its BrowseComp-Plus
-runs use the full 100,195-document corpus (`browsecomp_plus_structured` here), not a chunked one.
+so ITER cells run with `max_steps: 50`, not the 100 of the Sieve experiments. At the cap DIVER
+forces the answer with a 10,000-token generation budget (`agent.forced_answer_tokens`, the library's
+default); its search tool runs the first query when the backbone passes a list, as the library's
+tools do. Its BrowseComp-Plus runs use the full 100,195-document corpus (`browsecomp_plus_structured`
+here), not a chunked one.
 
 Listing knobs: `listing.dedup_topk` (10), `listing.dedup_pool_k` (100) and
 `listing.dedup_snippet_tokens` (64). `get_document` returns at most 512 model tokens in ITER
@@ -175,7 +178,7 @@ retrieval:
   dense_model: ielabgroup/ITER-Qwen3-Embedding-0.6B
   dense_dtype: bfloat16       # ITER encoded its corpora in bfloat16
   dense_query_style: i2       # the query carries the earlier sub-queries, as the model was trained
-  dense_query_instruction: "Given the main question, the current sub-query, and the sub-queries already tried in previous interactions, retrieve documents relevant to the current sub-query that provide NEW information not yet found."
+  dense_query_instruction: null   # the built-in i2 instruction: "Given the main question, the current sub-query, and the sub-queries already tried in previous interactions, retrieve documents relevant to the current sub-query that provide NEW information not yet found."
 ```
 
 A corpus that does not fit in memory, served from disk and searched through prebuilt indexes:

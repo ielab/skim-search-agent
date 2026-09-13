@@ -107,7 +107,6 @@ def write() -> list[str]:
             t = _setk(t, "dataset", "limit", "20")
         if strategy in DENSE:
             for k, v in [("dense_model", ITER), ("dense_dtype", "bfloat16"), ("dense_query_style", "i2"),
-                         ("dense_query_instruction", "Given the main question, the current sub-query, and the sub-queries already tried"),
                          ("dense_pooling", "last_token")]:
                 t = _setk(t, "retrieval", k, v)
         t = re.sub(r"^env: \{\}", "env:\n  HF_HUB_OFFLINE: '1'", t, flags=re.M)
@@ -130,7 +129,6 @@ def write_floors() -> list[str]:
             t = _setk(t, sec, k, v)
         if dense_model == ITER:
             for k, v in [("dense_model", ITER), ("dense_dtype", "bfloat16"), ("dense_query_style", "i2"),
-                         ("dense_query_instruction", "Given the main question, the current sub-query, and the sub-queries already tried"),
                          ("dense_pooling", "last_token")]:
                 t = _setk(t, "retrieval", k, v)
         t = re.sub(r"^env: \{\}", "env:\n  HF_HUB_OFFLINE: '1'", t, flags=re.M)

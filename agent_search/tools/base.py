@@ -62,15 +62,16 @@ class Workspace(Protocol):
 
 
 def query_text(args: dict, *keys: str) -> str:
-    """The query argument as one string. A backbone sometimes passes a list of queries (ITER's
-    tool accepts one) or a number; a list is joined with spaces, anything else is str()."""
+    """The query argument as one string. Tongyi often passes a list of queries; its own search
+    tool and DIVER's run the first one, so a list means its first non-empty element (not a join,
+    which would mash several queries into one). A number is stringified."""
     value = ""
     for k in keys or ("query", "q"):
         if args.get(k) not in (None, ""):
             value = args[k]
             break
     if isinstance(value, (list, tuple)):
-        value = " ".join(str(v) for v in value if v not in (None, ""))
+        value = next((v for v in value if v not in (None, "")), "")
     return str(value).strip()
 
 

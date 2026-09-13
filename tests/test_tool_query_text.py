@@ -1,11 +1,12 @@
 """A search tool takes its query as a string, a list of strings or a number: the backbone
-sometimes emits a list (ITER's tool accepted one), and a crash there would cost the step."""
+sometimes emits a list (Tongyi's own tool and DIVER's run its first query), and a crash there
+would cost the step."""
 from agent_search.tools.base import query_text
 
 
 def test_query_text_accepts_string_list_and_number():
     assert query_text({"query": " treaty 1848 "}) == "treaty 1848"
-    assert query_text({"query": ["treaty", "1848"]}) == "treaty 1848"
+    assert query_text({"query": ["treaty of 1848", "guadalupe hidalgo"]}) == "treaty of 1848"   # the first query, as Tongyi's tool runs it
     assert query_text({"query": 1848}) == "1848"
     assert query_text({"q": ["only"]}) == "only"
     assert query_text({}) == ""

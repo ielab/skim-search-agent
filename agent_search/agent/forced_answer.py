@@ -42,11 +42,17 @@ calls also go through `backends._with_retries` (exponential backoff on a transie
 """
 from __future__ import annotations
 
+import os
+
 from typing import Optional, Tuple
 
 # --- tuning defaults (shared with force_answer_backfill.py) -------
 
-DEFAULT_PREFILL_MAX_TOKENS = 200         # the answer span only, no room for tool-call syntax
+# Generation budget of the forced final answer (`FORCED_ANSWER_TOKENS`, agent.forced_answer_tokens).
+# The call stops at </answer>, so the budget only matters for a backbone that answers at length:
+# Tongyi writes a few hundred words, and DIVER gives this call 10,000 tokens; a 200-token cap cut
+# those answers off and the judge marked them wrong.
+DEFAULT_PREFILL_MAX_TOKENS = int(os.environ.get("FORCED_ANSWER_TOKENS", "10000"))
 DEFAULT_FALLBACK_MAX_TOKENS = 512        # the one plain-ask fallback, same cap the harness uses
 DEFAULT_TEMPERATURE = 0.6                # matches agent_search.agent.backbone' Tongyi-native default
 DEFAULT_SEED = 42

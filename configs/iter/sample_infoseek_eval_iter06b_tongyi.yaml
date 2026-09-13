@@ -31,6 +31,7 @@ model:
 # --- agent: the episode loop
 agent:
   max_steps: 50                          # tool calls before the forced final answer (ITER's MAX_LLM_CALL_PER_RUN = 50)
+  forced_answer_tokens: 10000            # generation budget of the forced final answer at the step cap (stops at </answer>; DIVER: 10000)
   prompt_profile: null                   # override the condition's prompt (a condition name or a .md path); null = the strategy's own
   ctx_tokens: 86000                      # history budget in model tokens kept in the prompt
   ctx_window: 98304                      # the serving model's context window (tokens)
@@ -52,7 +53,7 @@ listing:
 retrieval:
   dense_model: ielabgroup/ITER-Qwen3-Embedding-0.6B # the ONE dense model for every dense arm (ranker, fallback, baselines); null = BAAI/bge-base-en-v1.5 for documents; a directory trained by skimsearchagent-train-retriever works too
   dense_query_style: i2                  # how the dense query is written from the agent's history: plain | mem | docs | i1..i7 (must match the trained retriever)
-  dense_query_instruction: Given the main question, the current sub-query, and the sub-queries already tried # override the query instruction prefix (null = the checkpoint's serving note or the built-in table)
+  dense_query_instruction: null                # null = the checkpoint's serving note or the built-in table (i2's full instruction)
   dense_pooling: last_token              # pooling for a local checkpoint: last_token | mean | cls (null = serving note, else auto from config.json)
   dense_dtype: bfloat16                  # precision the dense encoder runs in: float32 | float16 | bfloat16 (null = the checkpoint's serving note, else float32)
   dense_seq_length: 512                   # encoder tokens a document or query is cut to (null = 1024; ITER encodes at 512)
