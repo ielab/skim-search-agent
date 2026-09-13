@@ -171,7 +171,7 @@
  },
  "research_dense_autoread": {
   "domain": "general",
-  "sha": "29a4480d8f294788",
+  "sha": "9d25906c5249c579",
   "task": "research",
   "tools": [
    "dense_read_search"

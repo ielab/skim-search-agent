@@ -1,7 +1,11 @@
 """AutoRead: every search returns the full text of its top hits; there is no read tool.
 
-The same three rankers as Search-Visit. The tool descriptions are the paper's
-(`bm25_read_search`, `dense_read_search`, `hybrid_read_search`).
+The same three rankers as Search-Visit. The tool names are the paper's (`bm25_read_search`,
+`dense_read_search`, `hybrid_read_search`). Each description is one plain sentence in the same
+shape. The dense description used to open with "Semantic/dense retrieval search ... (dense
+embeddings, cosine similarity)"; under that wording Tongyi answered 18-34% of its turns with an
+empty <tool_call></tool_call>, against 2% for the BM25 tool. The plain wording brings it to 0%
+(A/B on 40 BrowseComp-Plus questions, 2026-09-13).
 """
 from agent_search.strategies.base import Strategy, register_strategy
 from agent_search.tools.search_bm25.tool import SearchBm25
@@ -11,10 +15,9 @@ from agent_search.tools.search_hybrid.tool import SearchHybrid
 _BM25_READ = ("Keyword search over the document corpus (BM25); returns the FULL TEXT of the top-ranked documents "
               "directly (not a listing to visit) — there is no separate visit or fetch tool in this condition, "
               "so everything you need from a hit is already in this response.")
-_DENSE_READ = ("Semantic/dense retrieval search over the document corpus (dense embeddings, cosine similarity); "
-               "returns the FULL TEXT of the top-ranked documents directly (not a listing to visit) — there is "
-               "no separate visit or fetch tool in this condition, so everything you need from a hit is already "
-               "in this response.")
+_DENSE_READ = ("Semantic search over the document corpus (dense embeddings); returns the FULL TEXT of the "
+               "top-ranked documents directly (not a listing to visit) — there is no separate visit or fetch "
+               "tool in this condition, so everything you need from a hit is already in this response.")
 _HYBRID_READ = ("Keyword and semantic search over the document corpus (BM25 and dense embeddings fused); returns "
                 "the FULL TEXT of the top-ranked documents directly (not a listing to visit) — there is no separate "
                 "visit or fetch tool in this condition, so everything you need from a hit is already in this response.")
