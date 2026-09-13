@@ -25,6 +25,7 @@ def trajectory_meta(traj, surfaced=None) -> dict:
             "read_ids": list(getattr(s, "read_ids", []) or []),
             "t_llm_s": round(s.t_llm, 3), "t_tool_s": round(s.t_tool, 3),
             "prompt_tokens": s.prompt_tokens, "completion_tokens": s.completion_tokens,
+            "finish_reason": getattr(s, "finish_reason", None),
         })
     return {
         "queries": [s["query"] for s in steps],

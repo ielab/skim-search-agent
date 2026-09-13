@@ -121,3 +121,50 @@ def test_text_terminal_forced_prefill_is_divers_sentence_and_keeps_the_whole_con
     assert calls[0]["messages"][-1] == {"role": "assistant", "content": TEXT_PREFILL}
     assert calls[0]["stop"] is None
     assert len(calls) == 1
+
+
+def test_an_empty_turn_is_re_asked_with_backoff_and_every_attempt_is_metered(monkeypatch):
+    monkeypatch.setenv("LLM_RETRY_BASE_S", "0")
+    monkeypatch.setenv("LLM_EMPTY_RETRIES", "4")
+    from agent_search.agent.backbone.usage import reset_usage, usage_events
+    reset_usage()
+    replies = iter(["", "   ", "finally a call"])
+
+    def create(**kw):
+        return SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content=next(replies)), finish_reason="stop")],
+                               usage=SimpleNamespace(prompt_tokens=10, completion_tokens=1))
+    gen = OC.openai_compat_generate("m", client=SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create))))
+    assert gen("q") == "finally a call"
+    assert len(usage_events()) == 3                      # the two empty attempts cost tokens too
+
+
+def test_an_always_empty_turn_gives_up_after_the_retry_budget(monkeypatch):
+    monkeypatch.setenv("LLM_RETRY_BASE_S", "0")
+    monkeypatch.setenv("LLM_EMPTY_RETRIES", "3")
+    n = {"calls": 0}
+
+    def create(**kw):
+        n["calls"] += 1
+        return SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content=""), finish_reason="length")])
+    gen = OC.openai_compat_generate("m", client=SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create))))
+    assert gen("q") == "" and n["calls"] == 3 and gen.last_finish_reason == "length"
+
+
+def test_the_forced_prefill_re_asks_an_empty_continuation(monkeypatch):
+    monkeypatch.setenv("LLM_RETRY_BASE_S", "0")
+    monkeypatch.setenv("LLM_EMPTY_RETRIES", "5")
+    monkeypatch.delenv("FORCED_ANSWER_PREFILL", raising=False)
+    replies = iter(["", "1848"])
+
+    def create(**kw):
+        return SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content=next(replies)))])
+    client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
+    answer, tag, _ = elicit_final_answer([{"role": "user", "content": "q"}], client, "m", terminal="text")
+    assert answer == "1848" and tag == "prefill"
+
+
+def test_every_step_records_the_turns_finish_reason():
+    gen = _gen(['<tool_call>{"name":"search","arguments":{"query":"a"}}</tool_call>', "done"], finish=["stop", "stop"])
+    traj = run_episode(AgentPolicy(generate=gen, system=QWEN_SYSTEM), Task("t", "q"), _WS(), units=[], max_steps=5,
+                       domain="general", terminal="text")
+    assert [s.finish_reason for s in traj.steps] == ["stop", "stop"]

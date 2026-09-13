@@ -118,6 +118,7 @@ class Step:
     t_tool: float = 0.0
     prompt_tokens: int = 0
     completion_tokens: int = 0
+    finish_reason: Optional[str] = None   # the served model's finish reason for this turn (stop | length | ...)
 
 
 @dataclass
@@ -303,7 +304,8 @@ def run_episode(policy: Policy, task: Task, workspace: WorkspaceLike,
             else:                                   # <answer>...</answer>, ignoring <think>
                 final_answer = _extract_answer(_THINK.sub("", raw or ""))
             _push(Step(name=reason, args=args, observation="(episode ended)",
-                      raw_output=raw or "", t_llm=t_llm))
+                      raw_output=raw or "", t_llm=t_llm,
+                      finish_reason=getattr(policy, "last_finish_reason", None)))
             break
 
         t_tool = 0.0
@@ -333,7 +335,8 @@ def run_episode(policy: Policy, task: Task, workspace: WorkspaceLike,
             obs = workspace.run(name, args)
             t_tool = time.monotonic() - t1
         _push(Step(name=name or "none", args=args, observation=obs,
-                  raw_output=raw or "", t_llm=t_llm, t_tool=t_tool))
+                  raw_output=raw or "", t_llm=t_llm, t_tool=t_tool,
+                  finish_reason=getattr(policy, "last_finish_reason", None)))
         if nudge_injected and is_forced_final_turn:
             # The forced final turn (triggered by max_steps or by the context budget) did not
             # terminate organically: the model tool-called again instead of answering. On a

@@ -20,6 +20,17 @@ from agent_search.agent.forced_answer import (
 )
 
 
+import pytest
+
+
+@pytest.fixture(autouse=True)
+def _no_empty_retries(monkeypatch):
+    """These tests pin the one-fallback contract with canned replies; the empty-turn retry
+    (LLM_EMPTY_RETRIES, a served-model behaviour) would consume the canned fallback reply."""
+    monkeypatch.setenv("LLM_EMPTY_RETRIES", "1")
+    monkeypatch.setenv("LLM_RETRY_BASE_S", "0")
+
+
 def _fake_client(contents):
     calls = []
 

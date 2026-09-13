@@ -43,6 +43,7 @@ calls also go through `backends._with_retries` (exponential backoff on a transie
 from __future__ import annotations
 
 import os
+import time
 
 from typing import Optional, Tuple
 
@@ -127,11 +128,20 @@ def call_prefill(client, model: str, messages: list, *, max_tokens: int = DEFAUL
     Routed through `backends._with_retries` (transient 429/5xx/connection/timeout only; see
     module docstring) and records `resp.usage` on the shared per-episode ledger."""
     from agent_search.agent.backbone import _with_retries
-    resp = _with_retries(lambda: client.chat.completions.create(
-        model=model, messages=prefill_messages_for(messages, prefill), max_tokens=max_tokens,
-        temperature=temperature, seed=seed, stop=(["</answer>"] if stop is None else stop) or None,
-        extra_body={"add_generation_prompt": False, "continue_final_message": True}))
-    _record_call_usage(resp)
+    retries = max(1, int(os.environ.get("LLM_EMPTY_RETRIES", "10")))
+    base = float(os.environ.get("LLM_RETRY_BASE_S", "1.0"))
+    resp = None
+    for attempt in range(retries):
+        resp = _with_retries(lambda: client.chat.completions.create(
+            model=model, messages=prefill_messages_for(messages, prefill), max_tokens=max_tokens,
+            temperature=temperature, seed=seed, stop=(["</answer>"] if stop is None else stop) or None,
+            extra_body={"add_generation_prompt": False, "continue_final_message": True}))
+        _record_call_usage(resp)
+        if (resp.choices[0].message.content or "").strip():
+            break
+        # an empty continuation is re-asked the way the served backend re-asks an empty turn
+        # (LLM_EMPTY_RETRIES, backoff); see agent_search/agent/backbone/openai_chat.py
+        time.sleep(min(base * (2 ** attempt), 30.0))
     return resp.choices[0].message.content or ""
 
 

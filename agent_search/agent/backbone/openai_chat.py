@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import time
 from typing import Callable
 
 from .retry import _with_retries
@@ -76,11 +77,19 @@ def openai_compat_generate(model: str = DEFAULT_MODEL, *,
                   presence_penalty=presence_penalty, stop=stop or _STOP)
         if extra:
             kw["extra_body"] = extra
-        resp = _with_retries(lambda: client.chat.completions.create(**kw))
-        u = getattr(resp, "usage", None)
-        if u is not None:
-            _record_usage(getattr(u, "prompt_tokens", 0), getattr(u, "completion_tokens", 0),
-                          _cached_tokens(u), _reasoning_tokens(u))
+        resp = None
+        for attempt in range(max(1, _env_int("LLM_EMPTY_RETRIES", 10))):
+            resp = _with_retries(lambda: client.chat.completions.create(**kw))
+            u = getattr(resp, "usage", None)
+            if u is not None:
+                _record_usage(getattr(u, "prompt_tokens", 0), getattr(u, "completion_tokens", 0),
+                              _cached_tokens(u), _reasoning_tokens(u))
+            if (resp.choices[0].message.content or "").strip():
+                break
+            # an empty turn: the model put everything into its reasoning channel, or produced
+            # nothing. DIVER's Qwen3.5 client re-asks the same turn with backoff; so does this,
+            # LLM_EMPTY_RETRIES times (10). Every attempt's usage is recorded above.
+            time.sleep(min(_env_float("LLM_RETRY_BASE_S", 1.0) * (2 ** attempt), 30.0))
         generate.last_finish_reason = getattr(resp.choices[0], "finish_reason", None)
         return _truncate_at_tool_response(_repair_open_tag(resp.choices[0].message.content or ""))
 
