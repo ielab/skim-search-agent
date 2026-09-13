@@ -62,7 +62,7 @@ SCHEMA: dict[str, dict[str, Key]] = {
     },
     "agent": {
         "max_steps": Key(50, "flag", "--max-steps", "tool calls before the forced final answer (paper: 100)"),
-        "forced_answer_tokens": Key(10000, "env", "FORCED_ANSWER_TOKENS", "generation budget of the forced final answer at the step cap (stops at </answer>; DIVER: 10000)"),
+        "forced_answer_tokens": Key(2000, "env", "FORCED_ANSWER_TOKENS", "generation budget of the forced final answer at the step cap (stops at </answer>; the ITER files use DIVER's 10000)"),
         "prompt_profile": Key(None, "flag", "--prompt-profile", "override the condition's prompt (a condition name or a .md path); null = the strategy's own"),
         "ctx_tokens": Key(115000, "env", "AGENT_CTX_TOKENS", "history budget in model tokens kept in the prompt"),
         "ctx_window": Key(131072, "env", "AGENT_CTX_WINDOW", "the serving model's context window (tokens)"),

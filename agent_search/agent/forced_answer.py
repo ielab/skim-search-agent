@@ -49,10 +49,13 @@ from typing import Optional, Tuple
 # --- tuning defaults (shared with force_answer_backfill.py) -------
 
 # Generation budget of the forced final answer (`FORCED_ANSWER_TOKENS`, agent.forced_answer_tokens).
-# The call stops at </answer>, so the budget only matters for a backbone that answers at length:
-# Tongyi writes a few hundred words, and DIVER gives this call 10,000 tokens; a 200-token cap cut
-# those answers off and the judge marked them wrong.
-DEFAULT_PREFILL_MAX_TOKENS = int(os.environ.get("FORCED_ANSWER_TOKENS", "10000"))
+# The call stops at </answer>, so the budget only matters for a backbone that answers at length.
+# Measured on 830-question runs: under the paper's short-span prompt the forced answer is 3 tokens
+# at the median and 18 at the 90th percentile, and the old 200-token cap cut 2-6% of them; under
+# Tongyi's own prompt the answers run to a few hundred words (DIVER: median 374, 90th percentile
+# 694), and DIVER gives the call 10,000 tokens. 2,000 covers both with margin; the ITER files set
+# DIVER's 10,000.
+DEFAULT_PREFILL_MAX_TOKENS = int(os.environ.get("FORCED_ANSWER_TOKENS", "2000"))
 DEFAULT_FALLBACK_MAX_TOKENS = 512        # the one plain-ask fallback, same cap the harness uses
 DEFAULT_TEMPERATURE = 0.6                # matches agent_search.agent.backbone' Tongyi-native default
 DEFAULT_SEED = 42

@@ -29,8 +29,8 @@ condition `agent_research_dedup_dense`). DIVER's `--strong` prompt for general b
 meticulous multi-constraint research agent, is the task `research_dedup_strong` (condition
 `agent_research_dedup_dense_strong`). DIVER capped an episode at 50 LLM calls (`MAX_LLM_CALL_PER_RUN`),
 so ITER cells run with `max_steps: 50`, not the 100 of the Sieve experiments. At the cap DIVER
-forces the answer with a 10,000-token generation budget (`agent.forced_answer_tokens`, the library's
-default); its search tool runs the first query when the backbone passes a list, as the library's
+forces the answer with a 10,000-token generation budget (`agent.forced_answer_tokens`; the ITER files
+set it, the library default is 2,000); its search tool runs the first query when the backbone passes a list, as the library's
 tools do. Its BrowseComp-Plus runs use the full 100,195-document corpus (`browsecomp_plus_structured`
 here), not a chunked one.
 

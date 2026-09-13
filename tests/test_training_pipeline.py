@@ -145,7 +145,7 @@ def test_trainer_command_and_config():
     assert "--bf16" in cmd and "--gradient_checkpointing" in cmd
     text = R.template()
     parsed = yaml.safe_load(text)
-    assert parsed["base_model"] == "Qwen/Qwen3-Embedding-0.6B" and parsed["query_style"] == "i2"
+    assert parsed["base_model"] == "Qwen/Qwen3-Embedding-0.6B" and parsed["query_style"] == Q.DEFAULT_STYLE
     assert yaml.safe_load(R.template("plain"))["query_max_len"] == 512
 
 
@@ -158,7 +158,7 @@ def test_training_file_round_trip_and_serving_note(tmp_path):
     assert data["pooling"] == "last_token" and data["query_instruction"] == Q.INSTRUCTIONS[Q.DEFAULT_STYLE]
     from agent_search.retrievers.dense import DenseRetriever
     assert (DenseRetriever(str(tmp_path / "ckpt"), encoder=object()).query_prefix_for()
-            == Q.instruction_prefix(Q.INSTRUCTIONS["i2"]))
+            == Q.instruction_prefix(Q.INSTRUCTIONS[Q.DEFAULT_STYLE]))
     assert DenseRetriever("BAAI/bge-base-en-v1.5", encoder=object()).query_prefix_for() == ""
     bad = tmp_path / "bad.yaml"
     bad.write_text("train_data: x\nlearning_rat: 1\n")
