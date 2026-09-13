@@ -190,8 +190,40 @@ and the other research strategies use the combined one.
 DIVER's prompt is not the same for every backbone. Tongyi gets the deep-research persona, the
 answer tags and the strict tool rules; Qwen3.5 and WebExplorer get "You are a helpful assistant."
 plus the tools block; gpt-oss gets a one-line system prompt with the tools passed as native
-function definitions. The library carries all three (the Backbones section above); the Qwen3.5
-and gpt-oss cells on BrowseComp-Plus are not in this table yet.
+function definitions. The library carries all three (the Backbones section above), and the table
+below runs them on the same retriever.
+
+### Backbones on the ITER protocol
+
+Same protocol and retriever as above (ITER-Qwen3-Embedding-0.6B, i9 queries, dedup on, 50 calls),
+each backbone under the task and driver DIVER used for it. Our judge is gpt-4o-mini; the paper
+column is DIVER's own backbone table, which scores a different retriever (DIVER, or LRAT) with
+string-match accuracy, so it shows the order the paper found, not a like-for-like number.
+
+| backbone | task, driver | accuracy % (our judge) | DIVER paper (DIVER / LRAT retriever, string match) | steps | tokens once (k) | at the 50-call cap |
+|---|---|---|---|---|---|---|
+| Tongyi-DeepResearch-30B-A3B | research_dedup (Tongyi prompt), loop | 41.2 | 44.8 (ITER paper) | 44.7 | 49.3 | 521 |
+| Qwen3.5-27B | research_dedup_qwen, loop | 33.5 | 48.3 / 42.2 | 29.2 | 25.4 | 142 |
+| Qwen3.5-9B | research_dedup_qwen, loop | 37.7 | 32.4 / 32.8 | 27.0 | 33.3 | 41 |
+| Qwen3.5-4B | research_dedup_qwen, loop | 25.1 | 24.6 / 26.7 | 26.9 | 30.0 | 71 |
+| gpt-oss-120b | research_dedup_strong, responses | 39.4 | 37.5 / 32.0 | 17.9 | 21.4 | 1 |
+| gpt-oss-20b | research_dedup_strong, responses | 29.2 | 21.6 / 22.2 | 29.5 | 37.8 | 0 |
+
+Tongyi stays first on its own retriever. gpt-oss-120b is second with the fewest calls and tokens
+of any backbone by a wide margin, and the 4B model trails, as in the paper. The one departure from
+the paper's order is Qwen3.5-27B, which the paper ranks first and which lands third here. Its
+trajectories show why: under DIVER's turn budgets (4096, 2048, then 1024 generation tokens) the
+27B model keeps reasoning in the open after its thinking is switched off, so a turn is cut before
+it reaches a tool call 1,188 times in 830 episodes, 17% of its episodes run out of calls against 5%
+for the 9B, and its gold coverage ends below the 4B's. The behaviour is the protocol's, not a
+serving fault: the chat template honours the thinking switch (the follow-up turns carry no think
+block) and the budgets are DIVER's.
+
+Every backbone family needed one serving detail to run at all: Tongyi's text protocol needed the
+tool-call repairs described on the [reproduction page](REPRODUCING.md), Qwen3.5 needed the reasoning channel read as the reply
+when vLLM's Qwen3 parser filed a reply without a closing think tag as reasoning, and gpt-oss needed
+a turn the server refused to re-parse dropped and taken again. Those are library behaviour now, not
+per-run patches.
 
 The earlier smoke pipeline, sample runs, training check and held-out check ran end to end on
 SLURM with the launchers in `scripts/slurm/`; their 20-question numbers are not reported.
