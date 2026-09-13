@@ -343,6 +343,7 @@ session storage and is sent per request to OpenAI; the server does not store or 
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | modules, contracts, one episode end to end |
 | [docs/TRAINING.md](docs/TRAINING.md) | retriever training from run records |
 | [docs/SIEVE.md](docs/SIEVE.md) | the Sieve paper: the method and its ablations |
+| [docs/REPRODUCING.md](docs/REPRODUCING.md) | the paper from a fresh clone, and the full-set results this code reproduces |
 | [docs/ITER.md](docs/ITER.md) | the ITER paper: its search tools, backbones, retrievers, datasets, training and the verified runs |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | development setup and how to add components |
 

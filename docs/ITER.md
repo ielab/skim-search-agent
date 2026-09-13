@@ -137,12 +137,45 @@ The job indexes both samples with the released ITER retriever, serves Tongyi, an
 `configs/iter/sample_*_iter06b_tongyi.yaml`. Judge the answer-only set afterwards where the API
 is reachable: `skimsearchagent-judge --results-dir runs/iter_sample/... --judge-model gpt-4o-mini`.
 
-## What was verified
+## Results on BrowseComp-Plus
 
-The smoke pipeline, the sample runs, the training check and the held-out check above all ran
-end to end on a SLURM cluster with the launchers in `scripts/slurm/`, each stage producing its
-record. Numbers from those runs are not reported here: they come from 20-question samples and
-say nothing about the paper's results. Run the full sets with the files under `configs/iter/`.
+The ITER protocol cells ran on this code with Tongyi-DeepResearch-30B-A3B as the backbone: DIVER's
+Tongyi prompt with the dedup notice, 50 LLM calls, dedup on (pool 100, top 10), 64-model-token
+snippets, 512-token reads, i9 queries at 8,192 tokens, the encoder served as trained (end token
+kept, last position pooled, bfloat16), the forced answer at 10,000 tokens, seed 42, temperature 0.6.
+830 questions, the 67,707-document structured corpus. Accuracy is our gpt-4o-mini judge. The paper
+column is DIVER's own judge; that judge scored DIVER's released answers 5.6 points higher than ours
+on the same trajectories, so read the two columns with that gap in mind.
+
+| retriever and prompt | accuracy % (our judge) | paper (DIVER's judge) | steps | tokens once (k) | at the 50-call cap | runs dir |
+|---|---|---|---|---|---|---|
+| ITER-Qwen3-Embedding-0.6B, DIVER prompt | 41.2 | 44.8 | 44.7 | 49.3 | 521 | `bcp_s_iter` |
+| ITER-Qwen3-Embedding-4B, DIVER prompt | 40.7 | 45.7 | 44.4 | 47.6 | 538 | `bcp_s_iter_4b` |
+| Qwen3-Embedding-0.6B (untrained), DIVER prompt | 34.3 | 40.6 | 45.7 | 52.4 | 582 | `bcp_s_iter_qwen06b` |
+| ITER-0.6B, combined prompt | 35.3 | - | 45.4 | 48.0 | 593 | `bcp_s_prompt` |
+| ITER-0.6B, paper prompt | 34.0 | - | 43.7 | 45.6 | 451 | `bcp_s_prompt` |
+
+The three retrievers land where the paper puts them once the judge gap is applied. Inside the
+trajectories the trained retriever is the difference: final recall@10 is 0.278 for ITER-0.6B,
+0.361 for ITER-4B and 0.104 for the untrained Qwen3-Embedding-0.6B; gold documents first surface
+at the second search with ITER and at the fifth with Qwen, and a quarter of the Qwen episodes never
+surface one (8% with ITER-0.6B). The 4B retriever finds more yet the judged accuracy is the same
+within noise (standard error 1.7 points): Tongyi compensates for the weaker 0.6B retriever.
+
+The prompt matters in the other direction from the Sieve tools. On ITER's `search` and
+`get_document`, DIVER's own prompt beats the library's combined prompt by six points and the Sieve
+paper's prompt by seven, with identical retrieval in all three cells; on the Sieve tools the
+combined prompt beats the paper prompt by eight. That is why the ITER task keeps DIVER's prompt
+and the other research strategies use the combined one.
+
+DIVER's prompt is not the same for every backbone. Tongyi gets the deep-research persona, the
+answer tags and the strict tool rules; Qwen3.5 and WebExplorer get "You are a helpful assistant."
+plus the tools block; gpt-oss gets a one-line system prompt with the tools passed as native
+function definitions. The library's ITER task carries the Tongyi prompt. The other two prompt
+families and their backbone cells are not in this release yet.
+
+The earlier smoke pipeline, sample runs, training check and held-out check ran end to end on
+SLURM with the launchers in `scripts/slurm/`; their 20-question numbers are not reported.
 
 ## Evaluate a retriever without an agent
 
