@@ -23,3 +23,11 @@ def test_truncated_call_still_repairs():
 def test_stray_closer_is_dropped():
     raw = '<tool_call>{"name":"visit","arguments":{"rank":2}}}</tool_call>'
     assert parse_tool_call(raw) == ("visit", {"rank": 2})
+
+
+def test_dropped_colon_after_the_key_is_repaired():
+    """Tongyi drops the colon and the value's opening quote when a query starts with a quoted
+    phrase; the key is also stripped of padding spaces."""
+    raw = '<tool_call>\n{"name":"hybrid_search","arguments":{"query "\\"more than 28\\" roads built"}}\n</tool_call>'
+    assert parse_tool_call(raw) == ("hybrid_search", {"query": '"more than 28" roads built'})
+    assert parse_tool_call('<tool_call>{"name":"bm25_search","arguments":{"query" "treaty 1848"}}</tool_call>') == ("bm25_search", {"query": "treaty 1848"})

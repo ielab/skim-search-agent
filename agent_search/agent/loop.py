@@ -298,8 +298,10 @@ def run_episode(policy: Policy, task: Task, workspace: WorkspaceLike,
             # name the tools: a backbone that knows other names (Tongyi's own are search and
             # visit) otherwise loops on an empty <tool_call></tool_call>
             names = ", ".join(getattr(workspace, "tools", ()) or ())
-            obs = ('ERROR: no tool call found. Emit ONE <tool_call>{"name":...,'
-                   '"arguments":{...}}</tool_call>'
+            malformed = "<tool_call>" in (raw or "")
+            obs = (('ERROR: the JSON inside your <tool_call> did not parse (check the colon after each '
+                    'key and the quotes around the value). ' if malformed else 'ERROR: no tool call found. ')
+                   + 'Emit ONE <tool_call>{"name":"<tool>","arguments":{"<arg>":"<value>"}}</tool_call>'
                    + (f" using one of these tools: {names}" if names else "")
                    + ', or submit your answer.')
         else:

@@ -56,6 +56,18 @@ def _last_json_object(s: str) -> str | None:
     return best
 
 
+# Tongyi drops the colon (and the value's opening quote) after a key when the value starts with a
+# quoted phrase: {"query "\"more than 28\" roads built"}. It also writes {"query" "text"}. Both
+# are put back before parsing; strings are matched with their escapes so quoted content is safe.
+_MISSING_COLON_ESC = re.compile(r'([{,]\s*)("(?:[^"\\]|\\.)*?")\s*(\\")')
+_MISSING_COLON = re.compile(r'([{,]\s*)("(?:[^"\\]|\\.)*")\s+(")')
+
+
+def _fix_missing_colons(text: str) -> str:
+    text = _MISSING_COLON_ESC.sub(lambda m: f'{m.group(1)}{m.group(2)[:-1].rstrip()}": "{m.group(3)}', text)
+    return _MISSING_COLON.sub(r"\1\2: \3", text)
+
+
 def _repair_load(raw: str | None) -> dict | None:
     """Best-effort repair of a near-valid, truncated JSON object: string-literal-aware
     (brackets/commas inside string values are never touched, backslash-escapes are
@@ -155,6 +167,14 @@ def parse_tool_call(text: str | None) -> tuple[str, dict] | None:
         try:
             data = json.loads(raw)
         except json.JSONDecodeError:
+            fixed = _fix_missing_colons(raw)
+            try:
+                data = json.loads(fixed) if fixed != raw else None
+            except json.JSONDecodeError:
+                data = None
+            if data is None:
+                raw = fixed
+        if data is None:
             # a <tool_call> block whose JSON didn't parse (e.g. the non-greedy regex
             # truncated at a literal </tool_call> inside a string value) -> retry with
             # the string-literal-aware balanced-object scanner over the whole text.
@@ -179,4 +199,5 @@ def parse_tool_call(text: str | None) -> tuple[str, dict] | None:
     args = data.get("arguments")
     if not isinstance(args, dict):
         args = {}
+    args = {str(k).strip(): v for k, v in args.items()}      # a key the model padded with spaces
     return (name, args) if name else None
