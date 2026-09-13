@@ -60,7 +60,8 @@ vLLM has to be started the way DIVER started it for the tool-call and reasoning 
 through `VLLM_ARGS` when the shard script serves the model:
 
 ```bash
-# Qwen3.5: --enable-auto-tool-choice --tool-call-parser qwen3_xml --reasoning-parser qwen3
+# Qwen3.5: --enable-auto-tool-choice --tool-call-parser qwen3_xml --reasoning-parser qwen3 --gdn-prefill-backend triton
+#          (the FlashInfer gated-delta-net kernel is JIT-compiled with nvcc and fails on CUDA 12.4; Triton needs no compile)
 # gpt-oss: --enable-auto-tool-choice --tool-call-parser openai --reasoning-parser openai_gptoss   (GPU_UTIL=0.8)
 ```
 

@@ -15,7 +15,7 @@ dataset:
 
 # --- model: the language model driving the agent
 model:
-  name: Qwen/Qwen3.5-27B                    # served by vLLM with --enable-auto-tool-choice --tool-call-parser qwen3_xml --reasoning-parser qwen3 (VLLM_ARGS), as DIVER served it
+  name: Qwen/Qwen3.5-27B                    # served by vLLM with --enable-auto-tool-choice --tool-call-parser qwen3_xml --reasoning-parser qwen3 --gdn-prefill-backend triton (VLLM_ARGS), as DIVER served it
   policy: null                           # llm | stub; null = llm when a model is named, else stub
   backend: api                           # api (an OpenAI-compatible server at api_base) | vllm (in-process)
   api_base: http://127.0.0.1:8000/v1     # OpenAI-compatible endpoint for backend=api
