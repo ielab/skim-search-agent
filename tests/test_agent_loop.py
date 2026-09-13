@@ -550,3 +550,12 @@ def test_run_episode_broken_on_step_never_crashes_episode():
     traj = run_episode(policy, Task("t", "q"), _AnyToolWS(), units=[],
                        max_steps=3, domain="general", on_step=boom)
     assert traj.final_answer == "Paris"
+
+
+def test_a_call_to_a_pseudo_tool_named_answer_is_the_final_answer():
+    """Tongyi sometimes "calls" a tool named answer with its answer as the argument. With no such
+    tool in the box that is the final answer, not an unknown-tool error and a wasted step."""
+    policy = AgentPolicy(generate=lambda m: '<tool_call>{"name":"answer","arguments":{"answer":"1848"}}</tool_call>',
+                         system=RESEARCH_SNIP_SYSTEM)
+    traj = run_episode(policy, Task("t", "when?"), _AnyToolWS(), units=[], max_steps=3, domain="general")
+    assert traj.stopped_reason == "submit" and traj.final_answer == "1848" and len(traj.steps) == 1

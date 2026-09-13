@@ -246,6 +246,11 @@ def run_episode(policy: Policy, task: Task, workspace: WorkspaceLike,
         call = parse_tool_call(raw)
         name = call[0] if call else ""
         args = call[1] if call else {}
+        if name == "answer" and "answer" not in (getattr(workspace, "tools", ()) or ()):
+            # the model "calls" a tool named answer with its answer as the argument: that is a
+            # final answer, not an unknown tool (Tongyi does this a few hundred times per 830 runs)
+            text = next((str(v) for v in args.values() if isinstance(v, (str, int, float)) and str(v).strip()), "")
+            name, args = "submit", {"answer": text}
 
         # the code-fix task ends with a <fix> block, not a tool call. It is checked before
         # tool-call parsing so a <fix> that also mentions a call in reasoning still terminates.

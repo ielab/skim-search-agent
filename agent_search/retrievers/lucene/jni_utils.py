@@ -181,6 +181,29 @@ def J(name: str):
     return cls
 
 
+_span_or_cls = None
+
+
+def span_or(members: list):
+    """`SpanOrQuery` over `members`. Lucene's only constructor is varargs, and pyjnius packs a
+    Python list passed to a varargs parameter as one element, which arrives as null; declaring the
+    constructor non-varargs makes the list cross as a proper `SpanQuery[]`."""
+    global _span_or_cls
+    _boot()
+    if _span_or_cls is None:
+        from jnius import JavaClass, JavaMethod, MetaJavaClass
+
+        class _SpanOrQuery(JavaClass, metaclass=MetaJavaClass):
+            __javaclass__ = "org/apache/lucene/queries/spans/SpanOrQuery"
+            __javaconstructor__ = [("([Lorg/apache/lucene/queries/spans/SpanQuery;)V", False)]
+            toString = JavaMethod("()Ljava/lang/String;")
+            getClauses = JavaMethod("()[Lorg/apache/lucene/queries/spans/SpanQuery;")
+            getField = JavaMethod("()Ljava/lang/String;")
+
+        _span_or_cls = _SpanOrQuery
+    return _span_or_cls(list(members))
+
+
 def jcast(iface_name: str, obj):
     """`jnius.cast` to a named JVM interface/class (e.g. `DirectoryReader` ->
     `IndexReader` for `IndexSearcher`'s constructor)."""

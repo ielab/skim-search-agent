@@ -438,15 +438,11 @@ def _span_of(node, field: str):
     if isinstance(node, Window):
         return _window_span(node, field)
     if isinstance(node, Syn):
-        SpanOrQuery = J.J("SpanOrQuery")
-        # SpanOrQuery's varargs constructor wants an array, not a List; pyjnius
-        # accepts a Python list for a Java varargs `SpanQuery...` parameter.
         member_spans = [_span_of(c, field) for c in node.children]
-        return SpanOrQuery(member_spans)
+        return J.span_or(member_spans)
     if isinstance(node, WSyn):
-        SpanOrQuery = J.J("SpanOrQuery")
         member_spans = [_span_of(c, field) for _, c in node.pairs]
-        return SpanOrQuery(member_spans)
+        return J.span_or(member_spans)
     raise LuceneCompileError(op=type(node).__name__, message="not span-compilable")
 
 
@@ -490,9 +486,8 @@ def _syn_scored(node: Syn, fields):
             return SynonymQueryBuilder.build()
         # Tier 2: every member span-compilable -> SpanOrQuery on the exact field.
         try:
-            SpanOrQuery = J.J("SpanOrQuery")
             member_spans = [_span_of(c, ef) for c in node.children]
-            return SpanOrQuery(member_spans)
+            return J.span_or(member_spans)
         except LuceneCompileError:
             pass
         # Tier 3: independent scored disjunction (approx, see module Deviations).

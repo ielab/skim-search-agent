@@ -417,3 +417,17 @@ def test_exact_field_keeps_numbers_and_one_member_window_compiles():
     parsed = P.parse("#combine(#uw5(treaty 1848) #od2(guadalupe))")
     node = getattr(parsed, "tree", None) or getattr(parsed, "root", None) or getattr(parsed, "expr", None) or parsed
     assert compile_score(node) is not None
+
+
+def test_span_or_keeps_every_member():
+    """pyjnius passes a Python list to a varargs parameter as one null element; the library's
+    span_or declares the constructor non-varargs so a #syn of several members compiles."""
+    pytest.importorskip("jnius")
+    from agent_search.retrievers.indri import parser as P
+    from agent_search.retrievers.lucene.indri_compiler import compile_score
+    from agent_search.retrievers.lucene import jni_utils as J
+    q = compile_score(P.parse("#combine(#syn(union of educators) #syn(age 14))").expr)
+    assert q is not None
+    SpanTermQuery, JTerm = J.J("SpanTermQuery"), J.J("Term")
+    s = J.span_or([SpanTermQuery(JTerm("body_exact", w)) for w in ("a", "b", "c")])
+    assert len(s.getClauses()) == 3

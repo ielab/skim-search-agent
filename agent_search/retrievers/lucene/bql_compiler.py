@@ -311,9 +311,8 @@ def _span_of(expr: Expr, field: str):
         prefix_q = _prefix_query(field, expr.term.text.lower())
         return SpanMultiTermQueryWrapper(prefix_q)
     if isinstance(expr, Or):
-        SpanOrQuery = J.J("SpanOrQuery")
         member_spans = [_span_of(c, field) for c in expr.children]
-        return SpanOrQuery(member_spans)
+        return J.span_or(member_spans)
     raise LuceneCompileError(op=type(expr).__name__, message="not span-compilable "
                               "(And/Not/In/Near operands fall back to co-occurrence)")
 
