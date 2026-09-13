@@ -11,12 +11,28 @@ from .usage import _cached_tokens, _reasoning_tokens, _record_usage
 from .vllm_local import DEFAULT_MODEL
 
 
+def _env_float(name: str, default: float) -> float:
+    v = os.environ.get(name)
+    return float(v) if v not in (None, "") else default
+
+
+def _env_int(name: str, default):
+    v = os.environ.get(name)
+    return int(v) if v not in (None, "") else default
+
+
+def _env_bool(name: str):
+    v = (os.environ.get(name) or "").strip().lower()
+    return None if v in ("", "null", "none") else v in ("1", "true", "yes", "on")
+
+
 def openai_compat_generate(model: str = DEFAULT_MODEL, *,
                            base_url: str = "http://localhost:8000/v1",
                            api_key: str | None = None, client=None,
-                           max_tokens: int = 4000, temperature: float = 0.6,
+                           max_tokens: int | None = None, temperature: float = 0.6,
                            seed: int | None = 42,   # fixed default for reproducibility
-                           top_p: float = 0.95, presence_penalty: float = 1.1,
+                           top_p: float | None = None, presence_penalty: float | None = None,
+                           top_k: int | None = None, thinking: bool | None = None,
                            stop: list[str] | None = None,
                            ) -> Callable[[str], str]:
     """Call an OpenAI-compatible chat endpoint (vLLM server or API). `client` is
@@ -28,27 +44,44 @@ def openai_compat_generate(model: str = DEFAULT_MODEL, *,
     server ignores the key entirely, so this default is a no-op for it.
 
     `seed` is passed through for reproducible sampling (vLLM/OpenAI honor it);
-    leave it None to allow non-deterministic sampling."""
+    leave it None to allow non-deterministic sampling.
+
+    `max_tokens`, `top_p`, `presence_penalty`, `top_k` and `thinking` default to the environment
+    knobs LLM_MAX_TOKENS (4000), LLM_TOP_P (0.95), LLM_PRESENCE_PENALTY (1.1), LLM_TOP_K (unset)
+    and LLM_THINKING (unset), the `model.*` keys of an experiment file. `top_k` and `thinking` are
+    vLLM extensions (`extra_body`: `top_k`, `chat_template_kwargs.enable_thinking`). The returned
+    callable takes per-call overrides, `generate(messages, max_tokens=..., thinking=...)`, and
+    exposes the last response's finish reason as `generate.last_finish_reason`."""
+    max_tokens = _env_int("LLM_MAX_TOKENS", 4000) if max_tokens is None else max_tokens
+    top_p = _env_float("LLM_TOP_P", 0.95) if top_p is None else top_p
+    presence_penalty = _env_float("LLM_PRESENCE_PENALTY", 1.1) if presence_penalty is None else presence_penalty
+    top_k = _env_int("LLM_TOP_K", None) if top_k is None else top_k
+    thinking = _env_bool("LLM_THINKING") if thinking is None else thinking
     if client is None:
         from openai import OpenAI
         client = OpenAI(base_url=base_url, api_key=api_key or os.environ.get("OPENAI_API_KEY", "EMPTY"),
                         timeout=float(os.environ.get("LLM_TIMEOUT_S", "600")), max_retries=0)
 
-    def generate(prompt) -> str:
+    def generate(prompt, **opts) -> str:
         messages = prompt if isinstance(prompt, list) else [{"role": "user", "content": prompt}]
-        resp = _with_retries(lambda: client.chat.completions.create(
-            model=model,
-            messages=messages,
-            max_tokens=max_tokens,
-            temperature=temperature,
-            seed=seed,
-            top_p=top_p,
-            presence_penalty=presence_penalty,
-            stop=stop or _STOP))
+        extra = {}
+        if top_k is not None:
+            extra["top_k"] = top_k
+        think = opts.get("thinking", thinking)
+        if think is not None:
+            extra["chat_template_kwargs"] = {"enable_thinking": bool(think)}
+        kw = dict(model=model, messages=messages,
+                  max_tokens=int(opts.get("max_tokens") or max_tokens),
+                  temperature=temperature, seed=seed, top_p=top_p,
+                  presence_penalty=presence_penalty, stop=stop or _STOP)
+        if extra:
+            kw["extra_body"] = extra
+        resp = _with_retries(lambda: client.chat.completions.create(**kw))
         u = getattr(resp, "usage", None)
         if u is not None:
             _record_usage(getattr(u, "prompt_tokens", 0), getattr(u, "completion_tokens", 0),
                           _cached_tokens(u), _reasoning_tokens(u))
+        generate.last_finish_reason = getattr(resp.choices[0], "finish_reason", None)
         return _truncate_at_tool_response(_repair_open_tag(resp.choices[0].message.content or ""))
 
     # Expose the underlying (client, model) as attributes on the closure. Setting these
@@ -62,4 +95,5 @@ def openai_compat_generate(model: str = DEFAULT_MODEL, *,
     # and degrades to `elicitation="prefill_failed"` instead of crashing.
     generate.client = client
     generate.model = model
+    generate.last_finish_reason = None
     return generate

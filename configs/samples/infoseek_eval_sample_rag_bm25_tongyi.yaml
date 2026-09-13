@@ -24,6 +24,12 @@ model:
   seed: 42                               # sampling seed (fixed for reproducibility)
   seeds: null                            # variance band: a list such as [0, 1, 2] -> one seed=N run directory per seed (overrides seed)
   reasoning_effort: low                  # OpenAI reasoning models only
+  top_p: 0.95                            # nucleus sampling for a served or in-process model
+  top_k: null                            # top-k sampling for a served model (null = the server's default; DIVER's Qwen3.5 runs use 20)
+  presence_penalty: 1.1                  # presence penalty (DIVER's Qwen3.5 runs use 1.5)
+  max_tokens: 4000                       # generation budget per turn
+  max_tokens_schedule: null              # per-turn budgets, comma separated, the last repeating (DIVER's Qwen3.5 runs: 4096,2048,1024); null = max_tokens every turn
+  thinking: null                         # chat-template thinking switch for a served model (true | false; null = the template's default)
   timeout_s: 600                         # per-request timeout for API clients
   retry_attempts: 5                      # retries on rate limits / transient errors
 

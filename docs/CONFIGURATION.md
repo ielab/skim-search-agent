@@ -37,8 +37,8 @@ The sections of a file:
 |---|---|
 | top level | `schema`, `name`, `strategy` |
 | `dataset` | `name`, `limit`, `corpus_limit`, `only_instances` |
-| `model` | `name`, `policy`, `backend`, `api_base`, `tp`, `temperature`, `seed`, `seeds`, `driver`, `reasoning_effort`, `timeout_s`, `retry_attempts` |
-| `agent` | `max_steps`, `prompt_profile`, `ctx_tokens`, `ctx_window`, `ctx_stop_frac` |
+| `model` | `name`, `policy`, `backend`, `api_base`, `tp`, `temperature`, `seed`, `seeds`, `driver`, `reasoning_effort`, `top_p`, `top_k`, `presence_penalty`, `max_tokens`, `max_tokens_schedule`, `thinking`, `timeout_s`, `retry_attempts` |
+| `agent` | `max_steps`, `forced_answer_tokens`, `forced_answer_prefill`, `prompt_profile`, `ctx_tokens`, `ctx_window`, `ctx_stop_frac` |
 | `budgets` | every length budget: `snippet_tokens`, `max_visit_tokens`, `max_section_tokens`, `bash_max_tokens`, `read_max_line_tokens`, `grep_line_tokens`, `closer_evidence_*_tokens` |
 | `listing` | how many results a search shows: `*_topk`, `hybrid_pool`, `dedup_pool_k` |
 | `retrieval` | which engines and models: `bm25_index`, `dense_model`, `dense_query_style`, `dense_query_instruction`, `dense_pooling`, `dense_dtype`, `dense_index`, the `bql_*`, `rrf_k`, `indri_*`, `lucene_mu`, `ann*` and `dense_device` knobs |
@@ -314,11 +314,18 @@ handles that for you.
 | knob | default | what it does | read by |
 |---|---|---|---|
 | `LLM_TIMEOUT_S` | 600 | HTTP timeout for every model call | `agent_search/agent/backbone/openai_chat.py` |
+| `LLM_TOP_P` | 0.95 | nucleus sampling for a served or in-process model | `agent_search/agent/backbone/openai_chat.py` |
+| `LLM_TOP_K` | unset | top-k sampling for a served model, a vLLM extension (DIVER's Qwen3.5 runs: 20) | `agent_search/agent/backbone/openai_chat.py` |
+| `LLM_PRESENCE_PENALTY` | 1.1 | presence penalty (DIVER's Qwen3.5 runs: 1.5) | `agent_search/agent/backbone/openai_chat.py` |
+| `LLM_MAX_TOKENS` | 4000 | generation budget per turn (the Responses driver's `max_output_tokens`) | `agent_search/agent/backbone/openai_chat.py`, `agent_search/agent/responses_driver.py` |
+| `LLM_MAX_TOKENS_SCHEDULE` | unset | per-turn budgets, comma separated, the last one repeating (DIVER's Qwen3.5 runs: `4096,2048,1024`) | `agent_search/agent/policies.py` |
+| `LLM_THINKING` | unset | chat-template thinking switch for a served model (`true` / `false`); a turn cut off mid-thought is discarded and the next runs with thinking off | `agent_search/agent/backbone/openai_chat.py`, `agent_search/agent/loop.py` |
+| `FORCED_ANSWER_PREFILL` | unset | text the forced final answer continues from (unset = an open `<answer>` tag, or DIVER's sentence for a text-terminal task) | `agent_search/agent/forced_answer.py` |
 | `LLM_RETRY_ATTEMPTS` | 5 | attempts per model call before giving up | `agent_search/agent/backbone/retry.py` |
 | `LLM_RETRY_BASE_S` | 1.0 | base delay of the retry backoff | `agent_search/agent/backbone/retry.py` |
 | `REASONING_EFFORT` | `low` | reasoning effort for OpenAI reasoning models | `agent_search/agent/backbone/openai_reasoning.py` |
 | `AGENT_SEARCH_MAX_CONSECUTIVE_ERRORS` | 3 | stop a run after this many consecutive failed questions before any success (an unreachable endpoint, a broken index); `0` disables | `agent_search/evaluation/run_eval.py` |
-| `AGENT_DRIVER` | auto | `loop` (text-parsed tool calls) or `sdk` (OpenAI Agents SDK, native tool calling, document arms only) | `agent_search/evaluation/agent_runner.py` |
+| `AGENT_DRIVER` | auto | `loop` (text-parsed tool calls), `sdk` (OpenAI Agents SDK, native tool calling, document arms only) or `responses` (native function calling through `/v1/responses`, DIVER's gpt-oss protocol) | `agent_search/evaluation/agent_runner.py`, `agent_search/harness/react.py` |
 | `AGENT_DEFAULT_CONDITION` | `research_snip` | the condition the bare `agent` alias means (before import) | `agent_search/strategies/conditions.py` |
 | `LLM_JUDGE_MODEL` | `gpt-4o-mini` | the judge module's default grader (before import) | `agent_search/evaluation/llm_judge.py` |
 | `VLLM_API_BASE` | `http://localhost:8000/v1` | the served endpoint the SDK driver falls back to | `agent_search/agent/sdk_driver.py` |

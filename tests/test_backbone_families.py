@@ -1,0 +1,123 @@
+"""The per-backbone protocol pieces DIVER's clients differ in: a text terminal (a reply without
+a tool call is the answer), a turn cut off mid-thought, per-turn generation budgets, the thinking
+switch, the sampling knobs a served model takes, and the text-mode forced prefill."""
+from types import SimpleNamespace
+
+import agent_search.agent.backbone.openai_chat as OC
+from agent_search.agent.forced_answer import TEXT_PREFILL, elicit_final_answer, prefill_for
+from agent_search.agent.loop import Task, run_episode
+from agent_search.agent.policies import AgentPolicy
+from agent_search.strategies import CONDITIONS
+
+QWEN_SYSTEM = CONDITIONS["research_dedup_dense_qwen"].render()
+
+
+class _WS:
+    tools = ("search", "get_document")
+
+    def run(self, name, args):
+        return "DocID:7\n[A doc]\nsome text"
+
+
+def _gen(replies, finish=None):
+    """A generate callable that replays `replies` and reports `finish` reasons like the served backend."""
+    calls = []
+
+    def generate(messages, **opts):
+        i = len(calls)
+        calls.append((messages, opts))
+        generate.last_finish_reason = (finish or [None] * len(replies))[min(i, len(replies) - 1)]
+        return replies[min(i, len(replies) - 1)]
+    generate.calls = calls
+    generate.last_finish_reason = None
+    return generate
+
+
+def test_text_terminal_ends_on_the_first_reply_without_a_tool_call():
+    gen = _gen(['<tool_call>{"name":"search","arguments":{"query":"treaty 1848"}}</tool_call>',
+                "<think>done</think>The Treaty of Guadalupe Hidalgo."])
+    traj = run_episode(AgentPolicy(generate=gen, system=QWEN_SYSTEM), Task("t", "which treaty?"), _WS(),
+                       units=[], max_steps=10, domain="general", terminal="text")
+    assert traj.stopped_reason == "answer"
+    assert traj.final_answer == "The Treaty of Guadalupe Hidalgo."
+    assert [s.name for s in traj.steps] == ["search", "answer"]
+
+
+def test_answer_terminal_still_nudges_on_a_reply_without_a_tool_call():
+    gen = _gen(["I think it is Guadalupe Hidalgo.", "<answer>Guadalupe Hidalgo</answer>"])
+    traj = run_episode(AgentPolicy(generate=gen, system=QWEN_SYSTEM), Task("t", "which treaty?"), _WS(),
+                       units=[], max_steps=10, domain="general")
+    assert traj.steps[0].name == "none" and traj.steps[0].observation.startswith("ERROR: no tool call")
+    assert traj.final_answer == "Guadalupe Hidalgo"
+
+
+def test_a_turn_cut_off_mid_thought_is_discarded_and_the_next_turn_runs_without_thinking():
+    gen = _gen(["<think>let me reason at great length about", '<tool_call>{"name":"search","arguments":{"query":"x"}}</tool_call>', "Final: 1848."],
+               finish=["length", "stop", "stop"])
+    policy = AgentPolicy(generate=gen, system=QWEN_SYSTEM)
+    traj = run_episode(policy, Task("t", "when?"), _WS(), units=[], max_steps=10, domain="general", terminal="text")
+    assert traj.steps[0].name == "none"
+    assert "too long and has been discarded" in traj.steps[0].observation
+    assert gen.calls[1][1] == {"thinking": False}     # the retry runs with thinking off
+    assert gen.calls[2][1] == {}                       # and only that one
+    assert traj.final_answer == "Final: 1848."
+
+
+def test_per_turn_generation_budgets_follow_the_schedule(monkeypatch):
+    monkeypatch.setenv("LLM_MAX_TOKENS_SCHEDULE", "4096,2048,1024")
+    gen = _gen(['<tool_call>{"name":"search","arguments":{"query":"a"}}</tool_call>'] * 4 + ["done"])
+    run_episode(AgentPolicy(generate=gen, system=QWEN_SYSTEM), Task("t", "q"), _WS(), units=[], max_steps=10,
+                domain="general", terminal="text")
+    assert [c[1].get("max_tokens") for c in gen.calls] == [4096, 2048, 1024, 1024, 1024]
+
+
+def test_served_backend_passes_sampling_knobs_and_reports_the_finish_reason(monkeypatch):
+    monkeypatch.setenv("LLM_TOP_K", "20")
+    monkeypatch.setenv("LLM_PRESENCE_PENALTY", "1.5")
+    monkeypatch.setenv("LLM_THINKING", "true")
+    sink = {}
+
+    def create(**kw):
+        sink.update(kw)
+        return SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content="hi"), finish_reason="length")],
+                               usage=SimpleNamespace(prompt_tokens=3, completion_tokens=2))
+    client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
+    gen = OC.openai_compat_generate("m", client=client, temperature=1.0)
+    assert gen([{"role": "user", "content": "q"}], max_tokens=2048, thinking=False) == "hi"
+    assert sink["max_tokens"] == 2048 and sink["temperature"] == 1.0 and sink["presence_penalty"] == 1.5
+    assert sink["extra_body"] == {"top_k": 20, "chat_template_kwargs": {"enable_thinking": False}}
+    assert gen.last_finish_reason == "length"
+    gen([{"role": "user", "content": "q"}])
+    assert sink["max_tokens"] == 4000 and sink["extra_body"]["chat_template_kwargs"] == {"enable_thinking": True}
+
+
+def test_served_backend_sends_no_extra_body_by_default(monkeypatch):
+    for k in ("LLM_TOP_K", "LLM_THINKING", "LLM_PRESENCE_PENALTY", "LLM_TOP_P", "LLM_MAX_TOKENS"):
+        monkeypatch.delenv(k, raising=False)
+    sink = {}
+
+    def create(**kw):
+        sink.update(kw)
+        return SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content="hi"), finish_reason="stop")])
+    gen = OC.openai_compat_generate("m", client=SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create))))
+    gen("q")
+    assert "extra_body" not in sink and sink["top_p"] == 0.95 and sink["presence_penalty"] == 1.1
+
+
+def test_text_terminal_forced_prefill_is_divers_sentence_and_keeps_the_whole_continuation(monkeypatch):
+    monkeypatch.delenv("FORCED_ANSWER_PREFILL", raising=False)
+    assert prefill_for("text") == TEXT_PREFILL and prefill_for() == "<answer>"
+    monkeypatch.setenv("FORCED_ANSWER_PREFILL", "My answer: ")
+    assert prefill_for("text") == "My answer: "
+    monkeypatch.delenv("FORCED_ANSWER_PREFILL", raising=False)
+    calls = []
+
+    def create(**kw):
+        calls.append(kw)
+        return SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content="the treaty of 1848. <tool_call>x"))])
+    client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
+    answer, tag, raw = elicit_final_answer([{"role": "user", "content": "q"}], client, "m", terminal="text")
+    assert answer == "the treaty of 1848." and tag == "prefill"
+    assert calls[0]["messages"][-1] == {"role": "assistant", "content": TEXT_PREFILL}
+    assert calls[0]["stop"] is None
+    assert len(calls) == 1

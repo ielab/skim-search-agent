@@ -4,6 +4,7 @@ from agent_search.tasks.base import TASKS, Task, register_task
 from agent_search.tasks.research.task import Research
 from agent_search.tasks.research_dedup.task import ResearchDedup
 from agent_search.tasks.research_dedup_strong.task import ResearchDedupStrong
+from agent_search.tasks.research_dedup_qwen.task import ResearchDedupQwen
 from agent_search.tasks.research_paper.task import ResearchPaper
 from agent_search.tasks.codefix.task import CodeFix
 from agent_search.tasks.codefix_patch.task import CodeFixPatch

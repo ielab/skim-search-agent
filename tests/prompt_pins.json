@@ -128,7 +128,7 @@
  },
  "research_dedup_bm25_strong": {
   "domain": "general",
-  "sha": "0c9a7ca64088278e",
+  "sha": "e4e81bcf4a02ad4b",
   "task": "research_dedup_strong",
   "tools": [
    "bm25_search",
@@ -150,7 +150,7 @@
  },
  "research_dedup_dense_strong": {
   "domain": "general",
-  "sha": "b4402098a6830110",
+  "sha": "43c1bca86aa9473c",
   "task": "research_dedup_strong",
   "tools": [
    "search",
@@ -233,5 +233,19 @@
  },
  "research_snip@wiki": {
   "sha": "9b61845e5c810125"
+ },
+ "research_dedup_dense_qwen": {
+  "sha": "e253370612e87348",
+  "tools": [
+   "search",
+   "get_document"
+  ]
+ },
+ "research_dedup_bm25_qwen": {
+  "sha": "47735fbdde1e77f4",
+  "tools": [
+   "bm25_search",
+   "get_document"
+  ]
  }
 }

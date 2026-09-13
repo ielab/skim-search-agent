@@ -41,14 +41,32 @@ tokens, so both limits only matter on a corpus with longer documents.
 
 ## Backbones
 
-The backbone is `model.name` plus `model.backend`. ITER ran Tongyi-DeepResearch-30B-A3B,
-WebExplorer-8B, Qwen3-30B-A3B-Thinking and gpt-oss through vLLM. Every one of them emits the
-`<tool_call>{"name": ..., "arguments": ...}</tool_call>` text format the loop parses, so they are
-one line each:
+The backbone is `model.name` plus `model.backend`. DIVER did not run every backbone through the
+same client, and the library keeps that split, one task and one driver per family:
+
+| backbone family | task | driver | what DIVER's client does |
+|---|---|---|---|
+| Tongyi-DeepResearch-30B | `research_dedup` | `loop` | Tongyi's deep-research persona, strict tool rules, answer tags, tool calls as `<tool_call>` text |
+| Qwen3.5 (4B, 9B, 27B), WebExplorer | `research_dedup_qwen` | `loop` | "You are a helpful assistant." plus the tools block; no answer tags, the first reply without a tool call is the answer; temperature 1.0, top-k 20, presence penalty 1.5, thinking on, generation budgets 4096 / 2048 / 1024 by turn, a turn cut off mid-thought is discarded and the next runs with thinking off, the answer is forced once the conversation passes 26k tokens |
+| gpt-oss (20B, 120B) | `research_dedup_strong` | `responses` | the strong prompt with the dedup notice as `instructions`, DIVER's question template as the user turn, native function calling through `/v1/responses`, reasoning effort medium, 10,000 output tokens per turn, the final turn made with no tools |
+
+The dedup notice is appended to every family's prompt. The three settings are complete files:
+`configs/iter/browsecomp_plus_dedup_dense_iter06b_tongyi.yaml`,
+`..._qwen35_4b.yaml` (9b, 27b) and `..._gptoss_20b.yaml` (120b). The Qwen and gpt-oss files set
+the sampling keys (`model.top_k`, `presence_penalty`, `max_tokens_schedule`, `thinking`) and the
+driver; nothing else differs from the Tongyi file.
+
+vLLM has to be started the way DIVER started it for the tool-call and reasoning parsers to apply,
+through `VLLM_ARGS` when the shard script serves the model:
+
+```bash
+# Qwen3.5: --enable-auto-tool-choice --tool-call-parser qwen3_xml --reasoning-parser qwen3
+# gpt-oss: --enable-auto-tool-choice --tool-call-parser openai --reasoning-parser openai_gptoss   (GPU_UTIL=0.8)
+```
 
 ```yaml
 model:
-  name: Alibaba-NLP/Tongyi-DeepResearch-30B-A3B   # or hkust-nlp/WebExplorer-8B, Qwen/Qwen3-30B-A3B-Thinking-2507, openai/gpt-oss-120b
+  name: Alibaba-NLP/Tongyi-DeepResearch-30B-A3B   # or Qwen/Qwen3.5-27B, openai/gpt-oss-120b
   backend: api                # a served model; the loop talks to it over the OpenAI protocol
   api_base: http://127.0.0.1:8000/v1
 ```
@@ -171,8 +189,8 @@ and the other research strategies use the combined one.
 DIVER's prompt is not the same for every backbone. Tongyi gets the deep-research persona, the
 answer tags and the strict tool rules; Qwen3.5 and WebExplorer get "You are a helpful assistant."
 plus the tools block; gpt-oss gets a one-line system prompt with the tools passed as native
-function definitions. The library's ITER task carries the Tongyi prompt. The other two prompt
-families and their backbone cells are not in this release yet.
+function definitions. The library carries all three (the Backbones section above); the Qwen3.5
+and gpt-oss cells on BrowseComp-Plus are not in this table yet.
 
 The earlier smoke pipeline, sample runs, training check and held-out check ran end to end on
 SLURM with the launchers in `scripts/slurm/`; their 20-question numbers are not reported.

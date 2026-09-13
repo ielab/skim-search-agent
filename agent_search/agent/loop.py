@@ -166,7 +166,8 @@ def run_episode(policy: Policy, task: Task, workspace: WorkspaceLike,
                 domain: str = "code",
                 fix_guard: Optional[Callable[[str, List["Step"]], tuple]] = None,
                 on_step: Optional[Callable[[Step], None]] = None,
-                before_tool: Optional[Callable[[str, dict, str], None]] = None) -> Trajectory:
+                before_tool: Optional[Callable[[str, dict, str], None]] = None,
+                terminal: str = "answer") -> Trajectory:
     """Drive one episode over the tool box's enabled toolset.
 
     `fix_guard` (code-fix task only) gates the terminal <fix> block: called with
@@ -178,7 +179,13 @@ def run_episode(policy: Policy, task: Task, workspace: WorkspaceLike,
     `on_step`, when given, is called with the just-appended Step after every step the episode
     records (tool, nudge, or terminal); this is the live-demo streaming hook. A raising
     listener is swallowed, since an episode must never die because a spectator did. None
-    (the default) runs no listener and leaves the loop otherwise unaffected."""
+    (the default) runs no listener and leaves the loop otherwise unaffected.
+
+    `terminal` is the task's answer protocol: `answer` (the default) ends the episode on an
+    `<answer>` block or a submit call; `text` ends it on the first reply that carries no tool
+    call, that reply being the answer, as DIVER's Qwen3.5 and WebExplorer clients do. Under
+    `text` a reply the server cut off mid-thought (finish reason `length`) is not an answer: the
+    model is told its thought was discarded and the next turn runs with thinking off."""
     steps: List[Step] = []
 
     def _push(step: Step) -> None:
@@ -280,13 +287,19 @@ def run_episode(policy: Policy, task: Task, workspace: WorkspaceLike,
         # <answer> to declare locations from.
         is_stop = (finals is None and not call
                    and _THINK.sub("", raw or "").strip().upper() == "STOP")
-        if finals is not None or is_stop:       # submit / <answer> / STOP -> episode end
+        cut_off = (not call and getattr(policy, "last_finish_reason", None) == "length")
+        plain_text = _THINK.sub("", raw or "").strip()
+        is_text_answer = (terminal == "text" and finals is None and not call and not is_stop
+                          and not cut_off and bool(plain_text))
+        if finals is not None or is_stop or is_text_answer:   # submit / <answer> / STOP / plain reply
             reason = "submit" if name == "submit" else ("stop" if is_stop else "answer")
             declared = finals or []
             if name == "submit":
                 final_answer = args.get("answer") or ""
             elif is_stop:
                 final_answer = ""
+            elif is_text_answer:                    # the reply itself, ignoring <think>
+                final_answer = plain_text
             else:                                   # <answer>...</answer>, ignoring <think>
                 final_answer = _extract_answer(_THINK.sub("", raw or ""))
             _push(Step(name=reason, args=args, observation="(episode ended)",
@@ -294,7 +307,14 @@ def run_episode(policy: Policy, task: Task, workspace: WorkspaceLike,
             break
 
         t_tool = 0.0
-        if not call:
+        if cut_off:
+            # DIVER's Qwen3.5 client: a turn cut off mid-thought is discarded, and the next turn
+            # runs with thinking off so the model gets to the call
+            obs = ("ERROR: Your previous thought was too long and has been discarded. Now, skip all "
+                   "reasoning and directly provide the <tool_call> or final answer.")
+            if hasattr(policy, "suppress_thinking_once"):
+                policy.suppress_thinking_once = True
+        elif not call:
             # name the tools: a backbone that knows other names (Tongyi's own are search and
             # visit) otherwise loops on an empty <tool_call></tool_call>
             names = ", ".join(getattr(workspace, "tools", ()) or ())
@@ -337,7 +357,7 @@ def run_episode(policy: Policy, task: Task, workspace: WorkspaceLike,
             # provenance from one that genuinely ran out its full step budget.
             if nudge_reason == "ctx_budget":
                 reason = "ctx_budget"
-            answer, elicitation = _elicit_inline(policy, task, steps)
+            answer, elicitation = _elicit_inline(policy, task, steps, terminal=terminal)
             if answer:
                 final_answer = answer
         elif reason in ("answer", "submit"):
@@ -372,7 +392,7 @@ def run_episode(policy: Policy, task: Task, workspace: WorkspaceLike,
     return traj
 
 
-def _elicit_inline(policy, task: Task, steps: List[Step]) -> tuple:
+def _elicit_inline(policy, task: Task, steps: List[Step], terminal: str = "answer") -> tuple:
     """Best-effort inline forced-answer elicitation for a budget-exhausted episode whose reserved
     final nudge still produced no `<answer>` (see the `force_answer` block above). Uses the same
     mechanism `scripts/force_answer_backfill.py` runs offline
@@ -409,7 +429,7 @@ def _elicit_inline(policy, task: Task, steps: List[Step]) -> tuple:
             messages = build_messages(task, steps, ctx_tokens=ctx)
             messages.append({"role": "user", "content": f"<tool_response>\n{FORCE_MSG}\n</tool_response>"})
             try:
-                answer, _method_tag, _raw = elicit_final_answer(messages, client, model)
+                answer, _method_tag, _raw = elicit_final_answer(messages, client, model, terminal=terminal)
                 return (answer, "prefill_inline") if answer else ("", "prefill_failed")
             except Exception as e:
                 if "maximum context length" not in str(e) or shrink == 3:

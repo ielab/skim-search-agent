@@ -36,7 +36,7 @@ def openai_reasoning_generate(model: str, *, base_url: str = _OPENAI_BASE_URL,
                         api_key=api_key or os.environ.get("OPENAI_API_KEY", "EMPTY"),
                         timeout=float(os.environ.get("LLM_TIMEOUT_S", "600")), max_retries=0)
 
-    def generate(prompt) -> str:
+    def generate(prompt, **opts) -> str:   # per-call options are a served-model feature; ignored here
         messages = prompt if isinstance(prompt, list) else [{"role": "user", "content": prompt}]
         kw = dict(model=model, messages=messages,
                   max_completion_tokens=max_completion_tokens, reasoning_effort=effort)

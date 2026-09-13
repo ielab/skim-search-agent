@@ -25,6 +25,12 @@ model:
   seeds: null                            # variance band: a list such as [0, 1, 2] -> one seed=N run directory per seed (overrides seed)
   driver: null                           # loop | sdk; null = loop, or sdk when openai-agents is installed and the model is API-served
   reasoning_effort: low                  # OpenAI reasoning models only
+  top_p: 0.95                            # nucleus sampling for a served or in-process model
+  top_k: null                            # top-k sampling for a served model (null = the server's default; DIVER's Qwen3.5 runs use 20)
+  presence_penalty: 1.1                  # presence penalty (DIVER's Qwen3.5 runs use 1.5)
+  max_tokens: 4000                       # generation budget per turn
+  max_tokens_schedule: null              # per-turn budgets, comma separated, the last repeating (DIVER's Qwen3.5 runs: 4096,2048,1024); null = max_tokens every turn
+  thinking: null                         # chat-template thinking switch for a served model (true | false; null = the template's default)
   timeout_s: 600                         # per-request timeout for API clients
   retry_attempts: 5                      # retries on rate limits / transient errors
 
@@ -32,6 +38,7 @@ model:
 agent:
   max_steps: 50                          # tool calls before the forced final answer (paper: 100)
   forced_answer_tokens: 2000                 # generation budget of the forced final answer at the step cap (stops at </answer>; ITER files: DIVER's 10000)
+  forced_answer_prefill: null            # text the forced final answer continues from (null = an open <answer> tag, or DIVER's sentence for a text-terminal task)
   prompt_profile: null                   # override the condition's prompt (a condition name or a .md path); null = the strategy's own
   ctx_tokens: 115000                     # history budget in model tokens kept in the prompt
   ctx_window: 131072                     # the serving model's context window (tokens)

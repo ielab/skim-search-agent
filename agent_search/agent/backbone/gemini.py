@@ -46,7 +46,7 @@ def gemini_generate(model: str, *, base_url: str = _GEMINI_BASE_URL,
         client = OpenAI(base_url=base_url, api_key=api_key or os.environ.get("GEMINI_API_KEY", "EMPTY"),
                         timeout=float(os.environ.get("LLM_TIMEOUT_S", "600")), max_retries=0)
 
-    def generate(prompt) -> str:
+    def generate(prompt, **opts) -> str:   # per-call options are a served-model feature; ignored here
         messages = prompt if isinstance(prompt, list) else [{"role": "user", "content": prompt}]
         kw = dict(model=model, messages=messages, max_tokens=max_tokens,
                   temperature=temperature, top_p=top_p, stop=stop or _STOP)

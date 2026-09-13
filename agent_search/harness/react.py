@@ -1,7 +1,9 @@
 """ReAct: the default harness. One loop in which the model reasons, picks one of the
 strategy's tools, and reads the observation, until it answers or the step budget ends
 (`agent_search/agent/loop.py`). The Agents-SDK driver (`ctx.driver == "sdk"`, native function
-calling) runs the same tools through a hosted model's own tool-calling API.
+calling) runs the same tools through a hosted model's own tool-calling API; the Responses driver
+(`ctx.driver == "responses"`, `agent_search/agent/responses_driver.py`) runs them through
+`/v1/responses`, the protocol DIVER evaluated gpt-oss with.
 
 The dense-query context (`agent_search.training.history`) is set for the episode so a trained
 retriever sees the same history text it was trained on.
@@ -28,6 +30,9 @@ class ReAct(Harness):
         driver = os.environ.get("AGENT_DRIVER") or ctx.driver
         if driver == "sdk" and strategy.sdk:
             traj = self._run_sdk(ctx, ws, question)
+            return HarnessResult(trajectory=traj, surfaced=sorted(getattr(ws, "seen", set()) or set()))
+        if driver == "responses":
+            traj = self._run_responses(ctx, ws, question)
             return HarnessResult(trajectory=traj, surfaced=sorted(getattr(ws, "seen", set()) or set()))
         from agent_search.agent.loop import Task as LoopTask, run_episode
         from agent_search.tasks.codefix.guards import fix_guard_for
@@ -61,10 +66,49 @@ class ReAct(Harness):
         try:
             traj = run_episode(policy, LoopTask(task_id="q", query=question), ws, ctx.units,
                                max_steps=ctx.max_steps, usage_fn=backends.usage_events,
-                               domain=task.domain, before_tool=_before_tool, fix_guard=guard, on_step=_on_step)
+                               domain=task.domain, terminal=task.terminal, before_tool=_before_tool, fix_guard=guard, on_step=_on_step)
         finally:
             CURRENT.reset(token)
         return HarnessResult(trajectory=traj, surfaced=sorted(getattr(ws, "seen", set()) or set()))
+
+    def _run_responses(self, ctx: HarnessContext, ws, question: str):
+        """Native function calling through the Responses API (DIVER's gpt-oss protocol). The
+        dense-query context is kept the way the loop keeps it: the turn's reasoning before a
+        search is the pre-search reasoning, the hits and reads are observed per step."""
+        from agent_search.agent.backbone import DEFAULT_MODEL
+        from agent_search.agent.responses_driver import run_episode_responses
+        from agent_search.training.history import CURRENT, QueryContext, dense_query_style
+        from agent_search.training.triples import is_read_action, is_search_action, read_ids
+        condition = ctx.condition
+        task = condition.task
+        system = re.sub(r"\n{3,}", "\n\n", condition.render(ctx.field_profile)).strip()
+        system = system.replace("{{step_budget}}", str(ctx.max_steps))
+
+        def _doc_text(doc_id: str):
+            u = ctx.ubyid.get(doc_id)
+            if u is None:
+                return None
+            return "\n".join(p for p in (u.title, u.body or u.code) if p)
+
+        qctx = QueryContext(question=question, text_of=_doc_text, style=dense_query_style())
+
+        def _on_step(step) -> None:
+            hits = list(getattr(ws, "last_hits", []) or [])
+            step.hit_ids = hits if is_search_action(step.name) else []
+            step.read_ids = read_ids({"args": step.args}, hits) if is_read_action(step.name) else []
+            qctx.observe(step, hits)
+
+        def _before_tool(name, args, thinking) -> None:
+            qctx.note(thinking)
+
+        token = CURRENT.set(qctx)
+        try:
+            return run_episode_responses(ws, question, model=ctx.model or DEFAULT_MODEL, api_base=ctx.api_base,
+                                         instructions=system, max_turns=ctx.max_steps,
+                                         user_template=getattr(task, "user_template", None),
+                                         on_step=_on_step, before_tool=_before_tool)
+        finally:
+            CURRENT.reset(token)
 
     def _run_sdk(self, ctx: HarnessContext, ws, question: str):
         from agent_search.agent.loop import Step, Trajectory, resolve_locations

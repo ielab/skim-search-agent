@@ -40,7 +40,7 @@ def vllm_generate(model: str = DEFAULT_MODEL, *, llm=None, tokenizer=None,
                               # shares this callable. (Use --backend api + a vLLM
                               # server for true concurrency/continuous batching.)
 
-    def generate(prompt) -> str:
+    def generate(prompt, **opts) -> str:   # per-call options are a served-model feature; ignored here
         messages = prompt if isinstance(prompt, list) else [{"role": "user", "content": prompt}]
         text = tok.apply_chat_template(
             messages, tokenize=False, add_generation_prompt=True)

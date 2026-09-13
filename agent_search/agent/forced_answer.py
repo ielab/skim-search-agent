@@ -79,10 +79,24 @@ METHOD_ASK_RETRY_INLINE = "ask_retry_inline"  # sdk driver: ask-and-retry filled
 METHOD_ASK_RETRY_FAILED = "ask_retry_failed"  # sdk driver: ask-and-retry exhausted its attempts
 
 
-def prefill_messages_for(messages: list) -> list:
-    """`messages` plus the forced-continuation assistant turn: an open `<answer>` tag with no
-    closing tag, for vLLM's `continue_final_message` to extend."""
-    return messages + [{"role": "assistant", "content": "<answer>"}]
+# the forced continuation of a task whose answer is plain text (terminal `text`, the Qwen3.5 and
+# WebExplorer prompts): DIVER's qwen35_utils prefill, the whole continuation is the answer
+TEXT_PREFILL = "Based on all the information gathered so far, my final answer is: "
+
+
+def prefill_for(terminal: str = "answer") -> str:
+    """The text the forced final answer continues from: FORCED_ANSWER_PREFILL when set, else an
+    open `<answer>` tag, or `TEXT_PREFILL` for a text-terminal task."""
+    override = os.environ.get("FORCED_ANSWER_PREFILL")
+    if override:
+        return override
+    return TEXT_PREFILL if terminal == "text" else "<answer>"
+
+
+def prefill_messages_for(messages: list, prefill: str = "<answer>") -> list:
+    """`messages` plus the forced-continuation assistant turn (`prefill`, an open `<answer>` tag
+    by default, with no closing tag) for vLLM's `continue_final_message` to extend."""
+    return messages + [{"role": "assistant", "content": prefill}]
 
 
 def _record_call_usage(resp) -> None:
@@ -100,7 +114,8 @@ def _record_call_usage(resp) -> None:
 
 
 def call_prefill(client, model: str, messages: list, *, max_tokens: int = DEFAULT_PREFILL_MAX_TOKENS,
-                 temperature: float = DEFAULT_TEMPERATURE, seed: Optional[int] = DEFAULT_SEED) -> str:
+                 temperature: float = DEFAULT_TEMPERATURE, seed: Optional[int] = DEFAULT_SEED,
+                 prefill: str = "<answer>", stop: Optional[list] = None) -> str:
     """The primary forcing call: `messages` plus an open `<answer>` assistant turn, continued
     (not restarted) by vLLM via `continue_final_message=True` and `add_generation_prompt=False`
     (mutually exclusive per vLLM's `ChatCompletionRequest` validator; see the module docstring
@@ -113,8 +128,8 @@ def call_prefill(client, model: str, messages: list, *, max_tokens: int = DEFAUL
     module docstring) and records `resp.usage` on the shared per-episode ledger."""
     from agent_search.agent.backbone import _with_retries
     resp = _with_retries(lambda: client.chat.completions.create(
-        model=model, messages=prefill_messages_for(messages), max_tokens=max_tokens,
-        temperature=temperature, seed=seed, stop=["</answer>"],
+        model=model, messages=prefill_messages_for(messages, prefill), max_tokens=max_tokens,
+        temperature=temperature, seed=seed, stop=(["</answer>"] if stop is None else stop) or None,
         extra_body={"add_generation_prompt": False, "continue_final_message": True}))
     _record_call_usage(resp)
     return resp.choices[0].message.content or ""
@@ -139,7 +154,7 @@ def elicit_final_answer(messages: list, client, model: str, *,
                         prefill_max_tokens: int = DEFAULT_PREFILL_MAX_TOKENS,
                         fallback_max_tokens: int = DEFAULT_FALLBACK_MAX_TOKENS,
                         temperature: float = DEFAULT_TEMPERATURE, seed: Optional[int] = DEFAULT_SEED,
-                        extract_fn=None) -> Tuple[str, str, str]:
+                        extract_fn=None, terminal: str = "answer") -> Tuple[str, str, str]:
     """Primary: forced assistant-prefill continuation (deterministic, single call,
     `call_prefill`). Fallback: exactly one plain-ask retry, only if the continuation is empty or
     whitespace. Returns `(answer_text, method_tag, raw_text)`:
@@ -152,8 +167,15 @@ def elicit_final_answer(messages: list, client, model: str, *,
     `extract_fn` extracts an `<answer>...</answer>` span from the fallback's raw text; defaults
     to `agent_search.agent.loop._extract_answer` (imported lazily to avoid a module-load-time
     circular import, since `loop.py` itself calls into this module for the inline elicitation)."""
+    prefill = prefill_for(terminal)
+    if terminal == "text":
+        # a plain-text answer: no closing tag to stop at, the whole continuation is the answer
+        raw = call_prefill(client, model, messages, max_tokens=prefill_max_tokens,
+                           temperature=temperature, seed=seed, prefill=prefill, stop=[])
+        answer = raw.split("<tool_call>")[0].strip()
+        return (answer, "prefill", raw) if answer else ("", "empty", raw)
     raw = call_prefill(client, model, messages, max_tokens=prefill_max_tokens,
-                       temperature=temperature, seed=seed)
+                       temperature=temperature, seed=seed, prefill=prefill)
     # belt-and-braces strip: vLLM's default include_stop_str_in_output=False already excludes the
     # stop string from the returned text, but a differently-configured server or a model that
     # emits the closing tag anyway (max_tokens hit before the stop is seen, etc.) is handled too.

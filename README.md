@@ -42,7 +42,7 @@ travels:
 | `tasks/` | what the backbone is asked to produce: the prompt template and the answer protocol | `research/`, `research_dedup/`, `codefix/`, `codefix_patch/` |
 | `strategies/` | the named combinations a run selects: tools with their options and a harness, or a retrieval-only floor; `conditions.py` pairs a strategy with a task | `search_visit.py`, `search_fetch.py`, `autoread.py`, `sieve.py`, `indri.py`, `dci.py`, `dedup.py`, `codefix.py`, `rag.py`, `teams.py`, `retrieval_only.py` |
 | `harness/` | how the backbone is put to work on a condition, one file each: ReAct (the default loop, the backbone picks each step), one-shot RAG (rank once, one call), plan-and-search (a team: a planner, one member agent per sub-question, a synthesizer) | `react.py`, `rag.py`, `plan_and_search.py` |
-| `agent/` | the machinery a harness is built from: the backbone providers, the policies, the step loop, the forced answer, the Agents-SDK driver, the run record | `backbone/`, `policies.py`, `loop.py`, `forced_answer.py`, `sdk_driver.py`, `record.py` |
+| `agent/` | the machinery a harness is built from: the backbone providers, the policies, the step loop, the forced answer, the Agents-SDK and Responses drivers, the run record | `backbone/`, `policies.py`, `loop.py`, `forced_answer.py`, `sdk_driver.py`, `responses_driver.py`, `record.py` |
 | `evaluation/` | the evaluation: datasets, the runner, the metrics, the judge, the run record and its identity, the index prebuild | `datasets/`, `runner.py`, `run_eval.py`, `llm_judge.py`, `identity.py`, `build_indexes.py` |
 | `training/` | the ITER recipe: trajectories to triples, retriever training and evaluation | `build_triples.py`, `retriever.py`, `retriever_eval.py` |
 

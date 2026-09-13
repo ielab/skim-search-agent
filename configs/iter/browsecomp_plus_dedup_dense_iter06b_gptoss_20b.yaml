@@ -3,32 +3,32 @@
 # Validate: skimsearchagent validate <this file>
 # Every key that changes what runs or how it is measured is listed; unknown keys are errors.
 schema: 1
-name: doc_fixture-search_visit-gpt-4o-mini
-strategy: search_visit   # friendly name (skimsearchagent --help) or agent_<condition>
+name: iter_bcp_gptoss_20b
+strategy: agent_research_dedup_dense_strong   # DIVER's gpt-oss protocol: the strong prompt with the dedup notice, native tools through the Responses API
 
 # --- dataset: what is searched and asked
 dataset:
-  name: doc_fixture                      # registered dataset (`skimsearchagent-eval --help` lists them)
+  name: browsecomp_plus_structured       # registered dataset (`skimsearchagent-eval --help` lists them)
   limit: null                            # cap the number of questions (null = all)
   corpus_limit: null                     # cap the shared corpus (null = all; queries whose gold docs fall outside are dropped with a warning)
   only_instances: null                   # path to a file of instance ids to run (null = all)
 
 # --- model: the language model driving the agent
 model:
-  name: gpt-4o-mini                      # model id: gpt-* / gemini-* route to their APIs; anything else is served (backend api) or in-process (backend vllm); null = the scripted stub policy
+  name: openai/gpt-oss-20b                # served by vLLM with --tool-call-parser openai --reasoning-parser openai_gptoss --enable-auto-tool-choice (VLLM_ARGS), GPU_UTIL 0.8, as DIVER served it
   policy: null                           # llm | stub; null = llm when a model is named, else stub
   backend: api                           # api (an OpenAI-compatible server at api_base) | vllm (in-process)
-  api_base: http://localhost:8000/v1     # OpenAI-compatible endpoint for backend=api
-  tp: 1                                  # tensor parallelism for backend=vllm
+  api_base: http://127.0.0.1:8000/v1     # OpenAI-compatible endpoint for backend=api
+  tp: 1                                  # tensor parallelism (DIVER served gpt-oss-120b on two GPUs)
   temperature: 0.6                       # sampling temperature
   seed: 42                               # sampling seed (fixed for reproducibility)
   seeds: null                            # variance band: a list such as [0, 1, 2] -> one seed=N run directory per seed (overrides seed)
-  driver: null                           # loop | sdk; null = loop, or sdk when openai-agents is installed and the model is API-served
-  reasoning_effort: low                  # OpenAI reasoning models only
+  driver: responses                      # native function calling through /v1/responses (DIVER's gptoss_responses_client)
+  reasoning_effort: medium               # DIVER's gpt-oss runs: --reasoning-effort medium
   top_p: 0.95                            # nucleus sampling for a served or in-process model
   top_k: null                            # top-k sampling for a served model (null = the server's default; DIVER's Qwen3.5 runs use 20)
   presence_penalty: 1.1                  # presence penalty (DIVER's Qwen3.5 runs use 1.5)
-  max_tokens: 4000                       # generation budget per turn
+  max_tokens: 10000                      # max_output_tokens per turn (DIVER's --max-tokens 10000)
   max_tokens_schedule: null              # per-turn budgets, comma separated, the last repeating (DIVER's Qwen3.5 runs: 4096,2048,1024); null = max_tokens every turn
   thinking: null                         # chat-template thinking switch for a served model (true | false; null = the template's default)
   timeout_s: 600                         # per-request timeout for API clients
@@ -36,45 +36,60 @@ model:
 
 # --- agent: the episode loop
 agent:
-  max_steps: 50                          # tool calls before the forced final answer (paper: 100)
-  forced_answer_tokens: 2000                 # generation budget of the forced final answer at the step cap (stops at </answer>; ITER files: DIVER's 10000)
+  max_steps: 50                          # tool calls before the forced final answer (ITER's MAX_LLM_CALL_PER_RUN = 50)
+  forced_answer_tokens: 10000            # unused by the Responses driver: the final turn is made with no tools instead
   forced_answer_prefill: null            # text the forced final answer continues from (null = an open <answer> tag, or DIVER's sentence for a text-terminal task)
   prompt_profile: null                   # override the condition's prompt (a condition name or a .md path); null = the strategy's own
-  ctx_tokens: 115000                     # history budget in model tokens kept in the prompt
-  ctx_window: 131072                     # the serving model's context window (tokens)
+  ctx_tokens: 86000                      # history budget in model tokens kept in the prompt
+  ctx_window: 98304                      # the serving model's context window (tokens)
   ctx_stop_frac: 0.9                     # force the answer once the observed prompt exceeds this fraction of ctx_window (>= 1 disables)
 
 # --- budgets: length limits — all in TOKENS (there are no character limits anywhere)
 budgets:
-  snippet_tokens: 32                     # query-biased snippet width shown per result (whitespace tokens)
-  max_visit_tokens: 12000                # whole-document read cap (the paper setting)
+  max_visit_tokens: 512                  # whole-document read cap (the paper setting)
   closer_evidence_arg_tokens: 32         # SDK driver: per-call argument excerpt in the forced-answer evidence
   closer_evidence_obs_tokens: 160        # SDK driver: per-observation excerpt in the forced-answer evidence
 
 # --- listing: how many results a search shows
 listing:
-  bm25_visit_topk: 5                     # results per search, search->visit arms
+  dedup_topk: 10                         # results per search, dedup arms (ITER: 10)
+  dedup_pool_k: 100                      # over-fetch pool before dropping already-seen docs, dedup arms (ITER: 100)
+  dedup_snippet_tokens: 64                # model tokens of passage shown per hit (ITER's runs: 64)
 
 # --- retrieval: engines and ranking
 retrieval:
-  bm25_index: null                       # prebuilt Lucene index directory for the pyserini backend; null = built under index_root
+  dense_model: ielabgroup/ITER-Qwen3-Embedding-0.6B # the ONE dense model for every dense arm (ranker, fallback, baselines); null = BAAI/bge-base-en-v1.5 for documents; a directory trained by skimsearchagent-train-retriever works too
+  dense_query_style: i9                  # the released ITER checkpoints' format: main question, pre-search reasoning, sub-query, previous sub-queries
+  dense_query_instruction: null                # null = the checkpoint's serving note or the built-in table (i2's full instruction)
+  dense_pooling: last_token              # pooling for a local checkpoint: last_token | mean | cls (null = serving note, else auto from config.json)
+  dense_dtype: bfloat16                  # precision the dense encoder runs in: float32 | float16 | bfloat16 (null = the checkpoint's serving note, else float32)
+  dense_seq_length: 512                   # encoder tokens a document or query is cut to (null = 1024; ITER encodes at 512)
+  dense_query_seq_length: 8192                  # encoder tokens a query is cut to (null = the document length; the ITER checkpoints take 8192)
+  dense_index: null                      # prebuilt vector index to serve (this library's cache dir, or ITER's index.faiss + index.lookup.pkl); null = the per-corpus cache under index_root
+  ann_ef_search: 256                     # HNSW efSearch for a prebuilt index (0 = as built)
+  ann: auto                              # vector index backend: auto | flat | hnsw | ivfpq
+  ann_min: 1000000                       # corpus size above which an ANN index is used
+  ann_pq_min: 8000000                    # corpus size above which IVF-PQ is used
+  dense_device: null                     # device for the dense encoder (null = auto)
 
 # --- evaluation: scoring
 evaluation:
   level: function                        # function | file (code arm only; documents ignore it)
   k: [1, 3, 5, 10]                       # rank cutoffs for @k metrics
   workers: 1                             # concurrent episodes (use with a served model)
-  judge_model: null                      # LLM judge for document answers (null = off)
+  judge_model: gpt-4o-mini               # LLM judge for document answers (null = off)
   judge_api_base: null                   # endpoint for a served judge
   rejudge: false                         # re-grade rows that already carry a verdict
 
 # --- output: where the run record goes
 output:
-  runs_dir: runs/quick                   # root of the run record (runs_dir/<kind>/<dataset>/<model>/<retriever>)
+  runs_dir: runs/iter_backbones                    # root of the run record (runs_dir/<kind>/<dataset>/<model>/<retriever>)
   results_dir: null                      # explicit run directory (overrides runs_dir layout)
   index_root: indexes                    # where persistent indexes and embedding caches live
   rebuild: false                         # rebuild persistent indexes
   allow_config_drift: false              # resume even if the directory holds a different experiment
 
 # --- env: any other environment knob, verbatim (escape hatch; recorded in config.json)
-env: {}
+env:
+  HF_HUB_OFFLINE: '1'
+  AGENT_SEARCH_DENSE_DEVICE: cpu

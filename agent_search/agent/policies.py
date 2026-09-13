@@ -45,6 +45,14 @@ def _tool_call(name: str, **args) -> str:
 
 # --- LLM policy --------------------------------------------------------------
 
+def max_tokens_schedule() -> list:
+    """LLM_MAX_TOKENS_SCHEDULE as a list of ints ("4096,2048,1024"); empty when unset."""
+    raw = (os.environ.get("LLM_MAX_TOKENS_SCHEDULE") or "").strip()
+    if not raw:
+        return []
+    return [int(x) for x in raw.replace(";", ",").split(",") if x.strip()]
+
+
 def default_ctx_tokens() -> int:
     """The history budget in model tokens. ``AGENT_CTX_TOKENS`` overrides; the default leaves
     headroom inside a 131k-token window (the paper's served backbone) for the system prompt,
@@ -69,6 +77,14 @@ class AgentPolicy:
         self.max_history = max_history
         self.ctx_tokens = int(ctx_tokens) if ctx_tokens is not None else default_ctx_tokens()
         self.last_raw = ""
+        # per-turn generation budgets (LLM_MAX_TOKENS_SCHEDULE, "4096,2048,1024": the last value
+        # repeats); empty = the backend's own budget every turn
+        self.max_tokens_schedule = max_tokens_schedule()
+        # set by the loop after a turn was cut off mid-thought: the next call runs with thinking
+        # off (DIVER's Qwen3.5 client), then the switch clears
+        self.suppress_thinking_once = False
+        self.calls = 0
+        self.last_finish_reason = None
 
     def build_messages(self, task, history, ctx_tokens: int | None = None) -> list:
         system = _re.sub(r"\n{3,}", "\n\n", self.system).strip() + "\n"
@@ -117,9 +133,18 @@ class AgentPolicy:
         # the window 15% and retry, up to 3 times. Episodes that never trip the error are
         # unaffected by this loop.
         ctx = self.ctx_tokens
+        opts = {}
+        if self.max_tokens_schedule:
+            opts["max_tokens"] = self.max_tokens_schedule[min(self.calls, len(self.max_tokens_schedule) - 1)]
+        if self.suppress_thinking_once:
+            opts["thinking"] = False
+            self.suppress_thinking_once = False
         for shrink in range(4):
             try:
-                self.last_raw = self.generate(self.build_messages(task, history, ctx_tokens=ctx))
+                messages = self.build_messages(task, history, ctx_tokens=ctx)
+                self.last_raw = self.generate(messages, **opts) if opts else self.generate(messages)
+                self.calls += 1
+                self.last_finish_reason = getattr(self.generate, "last_finish_reason", None)
                 return self.last_raw
             except Exception as e:
                 if "maximum context length" not in str(e) or shrink == 3:

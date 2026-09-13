@@ -31,6 +31,10 @@ class Task:
     terminal: str = "answer"                      # answer | fix | patch
     description: str = ""
     prompt_file: str = "prompt.md"                # next to the task's task.py
+    # the user turn that carries the question, with `{question}`; None = the date line plus the
+    # question (the loop driver's default). The Responses driver honours it; DIVER's strong prompt
+    # pairs with its QUERY_TEMPLATE (Explanation / Exact Answer / Confidence lines).
+    user_template: Optional[str] = None
     prompt_path: Optional[str] = None             # or an explicit path (a plugin's own template)
 
     def template_path(self) -> Path:
