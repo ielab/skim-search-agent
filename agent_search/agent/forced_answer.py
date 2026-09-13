@@ -100,6 +100,17 @@ def prefill_messages_for(messages: list, prefill: str = "<answer>") -> list:
     return messages + [{"role": "assistant", "content": prefill}]
 
 
+def _turn_text(resp) -> str:
+    """The reply text of a chat completion: `content`, or the reasoning channel when the content
+    is empty and the turn finished normally (a reasoning parser that expects a closing think tag
+    files a reply without one as reasoning; see agent_search/agent/backbone/openai_chat.py)."""
+    choice = resp.choices[0]
+    text = choice.message.content or ""
+    if not text.strip() and getattr(choice, "finish_reason", "stop") in (None, "stop"):
+        text = str(getattr(choice.message, "reasoning_content", None) or getattr(choice.message, "reasoning", None) or "")
+    return text
+
+
 def _record_call_usage(resp) -> None:
     """Record `resp.usage` on the shared per-episode ledger (agent_search.agent.backbone). The
     largest prompt of an episode, the whole conversation re-sent for the forcing call, must not
@@ -137,12 +148,12 @@ def call_prefill(client, model: str, messages: list, *, max_tokens: int = DEFAUL
             temperature=temperature, seed=seed, stop=(["</answer>"] if stop is None else stop) or None,
             extra_body={"add_generation_prompt": False, "continue_final_message": True}))
         _record_call_usage(resp)
-        if (resp.choices[0].message.content or "").strip():
+        if _turn_text(resp).strip():
             break
         # an empty continuation is re-asked the way the served backend re-asks an empty turn
         # (LLM_EMPTY_RETRIES, backoff); see agent_search/agent/backbone/openai_chat.py
         time.sleep(min(base * (2 ** attempt), 30.0))
-    return resp.choices[0].message.content or ""
+    return _turn_text(resp)
 
 
 def call_plain_ask(client, model: str, messages: list, *, max_tokens: int = DEFAULT_FALLBACK_MAX_TOKENS,
@@ -157,7 +168,7 @@ def call_plain_ask(client, model: str, messages: list, *, max_tokens: int = DEFA
     resp = _with_retries(lambda: client.chat.completions.create(
         model=model, messages=msgs, max_tokens=max_tokens, temperature=temperature, seed=seed))
     _record_call_usage(resp)
-    return resp.choices[0].message.content or ""
+    return _turn_text(resp)
 
 
 def elicit_final_answer(messages: list, client, model: str, *,

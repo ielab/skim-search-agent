@@ -221,3 +221,17 @@ def test_text_terminal_does_not_take_a_malformed_tool_call_as_the_answer():
                        domain="general", terminal="text")
     assert traj.steps[0].name == "none" and traj.steps[0].observation.startswith("ERROR")
     assert traj.final_answer == "The answer is X."
+
+
+def test_the_forced_answer_reads_the_reasoning_channel_when_the_content_is_empty(monkeypatch):
+    monkeypatch.setenv("LLM_EMPTY_RETRIES", "1")
+    monkeypatch.setenv("LLM_RETRY_BASE_S", "0")
+    monkeypatch.delenv("FORCED_ANSWER_PREFILL", raising=False)
+    n = {"calls": 0}
+
+    def create(**kw):
+        n["calls"] += 1
+        return SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content="", reasoning_content="Vitali Hakko."), finish_reason="stop")])
+    client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
+    answer, tag, _ = elicit_final_answer([{"role": "user", "content": "q"}], client, "m", terminal="text")
+    assert answer == "Vitali Hakko." and tag == "prefill" and n["calls"] == 1
