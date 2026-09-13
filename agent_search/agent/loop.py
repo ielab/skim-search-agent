@@ -290,8 +290,10 @@ def run_episode(policy: Policy, task: Task, workspace: WorkspaceLike,
                    and _THINK.sub("", raw or "").strip().upper() == "STOP")
         cut_off = (not call and getattr(policy, "last_finish_reason", None) == "length")
         plain_text = _THINK.sub("", raw or "").strip()
+        # a reply that still carries a tool-call block the parser could not read is a malformed
+        # call, not an answer (DIVER's client answers it with an invalid-JSON error)
         is_text_answer = (terminal == "text" and finals is None and not call and not is_stop
-                          and not cut_off and bool(plain_text))
+                          and not cut_off and bool(plain_text) and "<tool_call>" not in plain_text)
         if finals is not None or is_stop or is_text_answer:   # submit / <answer> / STOP / plain reply
             reason = "submit" if name == "submit" else ("stop" if is_stop else "answer")
             declared = finals or []

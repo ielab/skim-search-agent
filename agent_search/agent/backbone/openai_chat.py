@@ -88,6 +88,13 @@ def openai_compat_generate(model: str = DEFAULT_MODEL, *,
             msg = resp.choices[0].message
             if (msg.content or "").strip():
                 break
+            reasoning = getattr(msg, "reasoning_content", None) or getattr(msg, "reasoning", None) or ""
+            if str(reasoning).strip() and getattr(resp.choices[0], "finish_reason", None) == "stop":
+                # the turn is all in the reasoning channel: a reasoning parser that expects a
+                # closing think tag files a reply without one, tool call and all, as reasoning
+                # (vLLM's qwen3 parser on Qwen3.5). That reply is the turn.
+                msg.content = str(reasoning)
+                break
             # an empty turn: the model put everything into its reasoning channel, or produced
             # nothing. DIVER's Qwen3.5 client re-asks the same turn with backoff; so does this,
             # LLM_EMPTY_RETRIES times (10). Every attempt's usage is recorded above. The turn is
@@ -95,7 +102,6 @@ def openai_compat_generate(model: str = DEFAULT_MODEL, *,
             # shard log; when the call had thinking switched off, the retry alternates it back
             # on (a reasoning parser that expects a think block can file a think-less reply as
             # reasoning and leave the content empty).
-            reasoning = getattr(msg, "reasoning_content", None) or getattr(msg, "reasoning", None) or ""
             print(f"[backbone] empty turn {attempt + 1}: finish={getattr(resp.choices[0], 'finish_reason', None)} "
                   f"thinking={extra.get('chat_template_kwargs')} reasoning_len={len(str(reasoning))} "
                   f"reasoning_head={str(reasoning)[:160]!r}", file=sys.stderr, flush=True)

@@ -178,7 +178,7 @@ def test_an_empty_turn_with_thinking_off_is_retried_with_thinking_on(monkeypatch
     def create(**kw):
         seen.append(kw.get("extra_body", {}).get("chat_template_kwargs", {}).get("enable_thinking"))
         content = "" if len(seen) == 1 else '<tool_call>{"name":"search","arguments":{"query":"x"}}</tool_call>'
-        return SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content=content, reasoning_content="all of it"), finish_reason="stop")])
+        return SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content=content, reasoning_content=""), finish_reason="stop")])
     gen = OC.openai_compat_generate("m", client=SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create))))
     out = gen("q", thinking=False)
     assert out.startswith("<tool_call>") and seen == [False, True]
@@ -198,3 +198,26 @@ def test_text_terminal_forced_answer_falls_back_to_a_plain_ask_when_the_prefill_
     answer, tag, _ = elicit_final_answer([{"role": "user", "content": "q"}], client, "m", terminal="text")
     assert answer == "My final answer is Paris." and tag == "plain_ask_fallback"
     assert "extra_body" not in calls[1]
+
+
+def test_a_reply_filed_entirely_as_reasoning_is_the_turn(monkeypatch):
+    monkeypatch.setenv("LLM_EMPTY_RETRIES", "5")
+    monkeypatch.setenv("LLM_RETRY_BASE_S", "0")
+    n = {"calls": 0}
+
+    def create(**kw):
+        n["calls"] += 1
+        return SimpleNamespace(choices=[SimpleNamespace(
+            message=SimpleNamespace(content="", reasoning_content='Let me search.\n\n<tool_call>\n{"name": "search", "arguments": {"query": "x"}}\n</tool_call>'),
+            finish_reason="stop")])
+    gen = OC.openai_compat_generate("m", client=SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create))))
+    out = gen("q")
+    assert out.startswith("Let me search.") and out.rstrip().endswith("</tool_call>") and n["calls"] == 1
+
+
+def test_text_terminal_does_not_take_a_malformed_tool_call_as_the_answer():
+    gen = _gen(["<tool_call>\nsearch for Gugulethu schools please\n</tool_call>", "The answer is X."])
+    traj = run_episode(AgentPolicy(generate=gen, system=QWEN_SYSTEM), Task("t", "q"), _WS(), units=[], max_steps=5,
+                       domain="general", terminal="text")
+    assert traj.steps[0].name == "none" and traj.steps[0].observation.startswith("ERROR")
+    assert traj.final_answer == "The answer is X."
