@@ -106,7 +106,7 @@ def write() -> list[str]:
         if dataset in ("browsecomp_plus_structured", "hotpotqa_structured", "musique_structured"):
             t = _setk(t, "dataset", "limit", "20")
         if strategy in DENSE:
-            for k, v in [("dense_model", ITER), ("dense_dtype", "bfloat16"), ("dense_query_style", "i2"),
+            for k, v in [("dense_model", ITER), ("dense_dtype", "bfloat16"), ("dense_query_style", "i9"),
                          ("dense_pooling", "last_token")]:
                 t = _setk(t, "retrieval", k, v)
         t = re.sub(r"^env: \{\}", "env:\n  HF_HUB_OFFLINE: '1'", t, flags=re.M)
@@ -128,7 +128,7 @@ def write_floors() -> list[str]:
         for sec, k, v in [("dataset", "name", dataset), ("evaluation", "workers", "4"), ("output", "runs_dir", FLOOR_RUNS)]:
             t = _setk(t, sec, k, v)
         if dense_model == ITER:
-            for k, v in [("dense_model", ITER), ("dense_dtype", "bfloat16"), ("dense_query_style", "i2"),
+            for k, v in [("dense_model", ITER), ("dense_dtype", "bfloat16"), ("dense_query_style", "i9"),
                          ("dense_pooling", "last_token")]:
                 t = _setk(t, "retrieval", k, v)
         t = re.sub(r"^env: \{\}", "env:\n  HF_HUB_OFFLINE: '1'", t, flags=re.M)

@@ -204,6 +204,11 @@ class DenseRetriever(Retriever):
         # value, else `DENSE_SEQ_LENGTH` (retrieval.dense_seq_length), else 1024. ITER encodes at
         # 512, the length its checkpoints were trained on.
         self.max_seq_length = int(max_seq_length or os.environ.get("DENSE_SEQ_LENGTH") or 1024)
+        # queries may be longer than documents: the ITER checkpoints take 8192-token queries
+        # (`DENSE_QUERY_SEQ_LENGTH`, retrieval.dense_query_seq_length); unset = the document length
+        q = os.environ.get("DENSE_QUERY_SEQ_LENGTH")
+        if q:
+            self.query_max_len = int(q)
         self._model = encoder
         self._device = device
         self._batch = batch_size
@@ -322,6 +327,9 @@ class DenseRetriever(Retriever):
                 idx = load_index(cache_dir)
                 if idx is not None:
                     expected_ids = [u.doc_id for u in units]
+                    cached_rev = (idx.meta or {}).get("model_revision")
+                    if cached_rev and self.model_revision() and cached_rev != self.model_revision():
+                        raise ValueError(f"cache built from weights revision {cached_rev}, current {self.model_revision()}")
                     cached_fp = (idx.meta or {}).get("corpus_fingerprint")
                     fp_stale = cached_fp is not None and cached_fp != fp
                     if list(idx.doc_ids) != expected_ids or fp_stale:
@@ -357,6 +365,7 @@ class DenseRetriever(Retriever):
             print(f"  [dense] built {self._index.backend} index for {len(texts)} units", file=sys.stderr, flush=True)
         try:
             save_index(self._index, cache_dir, extra_meta={"corpus_fingerprint": fp, "dense_model": self.model_id,
+                                                          "model_revision": self.model_revision(),
                                                            "dense_dtype": self.dtype})
         except Exception:  # noqa: BLE001: best-effort persistence; the in-memory index still serves
             pass
@@ -369,6 +378,13 @@ class DenseRetriever(Retriever):
     def encode_query(self, query: str):
         """The query vector: the family's prefix, the shared encoder, the query-side length."""
         return encode_query(self._encoder(), self.query_prefix_for() + query, self.query_seq_length())
+
+    def model_revision(self) -> Optional[str]:
+        """The hub commit the local snapshot came from (its directory name), None for a local path."""
+        snap = local_snapshot(self.model_id)
+        if snap and "/snapshots/" in snap:
+            return os.path.basename(snap.rstrip("/"))
+        return None
 
     def _cache_dir(self, key: Optional[str]) -> str:
         model_key = re.sub(r"[^A-Za-z0-9_.@-]+", "__", self.model_id)

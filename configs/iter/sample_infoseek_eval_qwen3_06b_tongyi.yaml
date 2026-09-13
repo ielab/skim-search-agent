@@ -57,6 +57,7 @@ retrieval:
   dense_pooling: last_token              # pooling for a local checkpoint: last_token | mean | cls (null = serving note, else auto from config.json)
   dense_dtype: bfloat16                  # precision the dense encoder runs in: float32 | float16 | bfloat16 (null = the checkpoint's serving note, else float32)
   dense_seq_length: 512                   # encoder tokens a document or query is cut to (null = 1024; ITER encodes at 512)
+  dense_query_seq_length: 8192                  # encoder tokens a query is cut to (null = the document length; the ITER checkpoints take 8192)
   dense_index: null                      # prebuilt vector index to serve (this library's cache dir, or ITER's index.faiss + index.lookup.pkl); null = the per-corpus cache under index_root
   ann_ef_search: 0                       # HNSW efSearch for a prebuilt index (0 = as built)
   ann: auto                              # vector index backend: auto | flat | hnsw | ivfpq

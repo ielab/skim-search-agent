@@ -52,11 +52,12 @@ listing:
 # --- retrieval: engines and ranking
 retrieval:
   dense_model: ielabgroup/ITER-Qwen3-Embedding-0.6B # the ONE dense model for every dense arm (ranker, fallback, baselines); null = BAAI/bge-base-en-v1.5 for documents; a directory trained by skimsearchagent-train-retriever works too
-  dense_query_style: i2                  # how the dense query is written from the agent's history: plain | mem | docs | i1..i7 (must match the trained retriever)
+  dense_query_style: i9                  # the released ITER checkpoints' format: main question, pre-search reasoning, sub-query, previous sub-queries
   dense_query_instruction: null                # null = the checkpoint's serving note or the built-in table (i2's full instruction)
   dense_pooling: last_token              # pooling for a local checkpoint: last_token | mean | cls (null = serving note, else auto from config.json)
   dense_dtype: bfloat16                  # precision the dense encoder runs in: float32 | float16 | bfloat16 (null = the checkpoint's serving note, else float32)
   dense_seq_length: 512                   # encoder tokens a document or query is cut to (null = 1024; ITER encodes at 512)
+  dense_query_seq_length: 8192                  # encoder tokens a query is cut to (null = the document length; the ITER checkpoints take 8192)
   dense_index: indexes/external/iter06b_bcp_chunks # prebuilt vector index to serve (this library's cache dir, or ITER's index.faiss + index.lookup.pkl); null = the per-corpus cache under index_root
   ann_ef_search: 256                     # HNSW efSearch for a prebuilt index (0 = as built)
   ann: auto                              # vector index backend: auto | flat | hnsw | ivfpq

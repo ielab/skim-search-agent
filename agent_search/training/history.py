@@ -38,18 +38,21 @@ class QueryContext:
     interactions: list[dict] = field(default_factory=list)   # [{"query", "visits": [(id, text, reasoning)]}]
     _last_hits: list[str] = field(default_factory=list)
     _pending_reads: list[str] = field(default_factory=list)  # docs read at the previous step
+    current_reasoning: str = ""                              # the <think> of the turn now running
 
     def render(self, current: str) -> str:
         if self.style == "plain":
             return current
-        return render_query(self.style, self.question, current, self.interactions)
+        return render_query(self.style, self.question, current, self.interactions,
+                            pre_reasoning=self.current_reasoning)
 
     def note(self, raw_output: str) -> None:
         """Attach the model's latest generation as the note on the documents read at the
         previous step. Called before the next tool runs, so a search issued in this generation
         already sees the note (the same order `triples.py` uses when it builds training data)."""
+        self.current_reasoning = reasoning_text(raw_output or "")   # i9: the pre-search reasoning
         if self._pending_reads and self.interactions:
-            note = reasoning_text(raw_output or "")
+            note = self.current_reasoning
             visits = self.interactions[-1]["visits"]
             for k, (d, t, _) in enumerate(visits):
                 if d in self._pending_reads and not _:

@@ -69,8 +69,12 @@ left padding, the last position pooled, unit-length vectors, documents and queri
 tokens (`retrieval.dense_seq_length`). That is Tevatron's `--pooling eos` encoding, which is how
 ITER trained and indexed; it reproduces ITER's published vectors to 0.997 cosine. ITER encoded its
 corpora in bfloat16, so the shipped files set `retrieval.dense_dtype: bfloat16`. The query side is
-the pair `retrieval.dense_query_style` + `retrieval.dense_query_instruction`: `i2` with ITER's
-instruction for the trained models, `plain` for the baselines. Pull a released checkpoint once on a
+the pair `retrieval.dense_query_style` + `retrieval.dense_query_instruction`: `i9` for the released
+checkpoints (the model card's reasoning-augmented format: main question, the agent's pre-search
+reasoning on one line, the sub-query, the previous sub-queries; the paper calls it ITER-i7), with
+the built-in i9 instruction; `plain` for the baselines. Queries run to 8192 tokens
+(`retrieval.dense_query_seq_length`), documents to 512. The ITER-0.6B hub revision of 2026-09-11
+replaced the weights; a cache records the weights revision and is rebuilt when it changes. Pull a released checkpoint once on a
 node with internet (`hf download ielabgroup/ITER-Qwen3-Embedding-0.6B`). The runs themselves stay
 offline.
 
@@ -177,8 +181,8 @@ strategy: dedup_dense         # or dedup_bm25
 retrieval:
   dense_model: ielabgroup/ITER-Qwen3-Embedding-0.6B
   dense_dtype: bfloat16       # ITER encoded its corpora in bfloat16
-  dense_query_style: i2       # the query carries the earlier sub-queries, as the model was trained
-  dense_query_instruction: null   # the built-in i2 instruction: "Given the main question, the current sub-query, and the sub-queries already tried in previous interactions, retrieve documents relevant to the current sub-query that provide NEW information not yet found."
+  dense_query_style: i9       # main question, pre-search reasoning, sub-query, earlier sub-queries, as the released model was trained
+  dense_query_instruction: null   # the built-in i9 instruction: "Given the main question, the agent's reasoning and the current sub-query it led to, and the sub-queries already tried in previous interactions, retrieve documents relevant to the current sub-query that provide NEW information not yet found."
 ```
 
 A corpus that does not fit in memory, served from disk and searched through prebuilt indexes:

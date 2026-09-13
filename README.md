@@ -163,7 +163,7 @@ A hybrid is any retrievers fused by one method (`retrieval.hybrid_retrievers`,
 ```yaml
 retrieval:
   dense_model: models/my-retriever     # a hub id or a checkpoint trained below
-  dense_query_style: i2                # how the query is written from the agent's history
+  dense_query_style: i9                # how the query is written from the agent's history
 ```
 
 **The snippet**, what a listing shows under each hit. A tool takes a method from

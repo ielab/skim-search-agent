@@ -140,7 +140,7 @@ def test_trainer_command_and_config():
     cmd = R.build_command(cfg, python="python")
     assert cmd[:6] == ["python", "-m", "torch.distributed.run", "--nproc_per_node", "1", "-m"]
     assert "FlagEmbedding.finetune.embedder.decoder_only.base" in cmd
-    assert cmd[cmd.index("--query_instruction_for_retrieval") + 1] == Q.INSTRUCTIONS["i2"]
+    assert cmd[cmd.index("--query_instruction_for_retrieval") + 1] == Q.INSTRUCTIONS[Q.DEFAULT_STYLE]
     assert cmd[cmd.index("--neg_w_div") + 1] == "3.0" and cmd[cmd.index("--temperature") + 1] == "0.02"
     assert "--bf16" in cmd and "--gradient_checkpointing" in cmd
     text = R.template()
@@ -155,7 +155,7 @@ def test_training_file_round_trip_and_serving_note(tmp_path):
     cfg = R.load(str(f))
     note = R.write_serving_note(cfg, str(tmp_path / "ckpt"))
     data = json.loads(Path(note).read_text())
-    assert data["pooling"] == "last_token" and data["query_instruction"] == Q.INSTRUCTIONS["i2"]
+    assert data["pooling"] == "last_token" and data["query_instruction"] == Q.INSTRUCTIONS[Q.DEFAULT_STYLE]
     from agent_search.retrievers.dense import DenseRetriever
     assert (DenseRetriever(str(tmp_path / "ckpt"), encoder=object()).query_prefix_for()
             == Q.instruction_prefix(Q.INSTRUCTIONS["i2"]))
@@ -188,3 +188,23 @@ def test_build_triples_cli_on_the_fixture(tmp_path):
     # so no negatives can exist and the builder reports an empty (rc=1) but well-formed output
     assert rc in (0, 1)
     assert out.with_suffix(".summary.json").exists()
+
+
+def test_i9_renders_the_released_checkpoints_format():
+    """The released ITER checkpoints expect i9 (the paper's ITER-i7): i2's fields plus the agent's
+    pre-search reasoning on one line before the sub-query, `<empty>` when there is none."""
+    inter = [{"query": "treaty Florida", "visits": []}]
+    q = Q.render_query("i9", "Q?", "sub", inter, pre_reasoning="Results are\n not helpful.\n  Try the ship.")
+    assert q == ("Main Question: Q?\nCurrent Reasoning: Results are not helpful. Try the ship.\n"
+                 "Current Subquery: sub\nPrevious Interactions:\nPrevious SubQuery 1: treaty Florida")
+    assert Q.render_query("i9", "Q?", "sub", []) == ("Main Question: Q?\nCurrent Reasoning: <empty>\n"
+                                                      "Current Subquery: sub\nPrevious Interactions: <empty>")
+    assert Q.INSTRUCTIONS["i9"].startswith("Given the main question, the agent's reasoning")
+    assert Q.DEFAULT_STYLE == "i9"
+
+
+def test_query_context_carries_the_current_turns_reasoning():
+    from agent_search.training.history import QueryContext
+    ctx = QueryContext(question="Q?", text_of=lambda d: "", style="i9")
+    ctx.note('<think>\nSearch the ship.\n</think>\n<tool_call>{"name":"search","arguments":{"query":"ship"}}</tool_call>')
+    assert ctx.render("ship").splitlines()[1] == "Current Reasoning: Search the ship."

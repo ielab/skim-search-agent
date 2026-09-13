@@ -63,7 +63,8 @@ Query styles (ITER's names):
 | style | the retriever query contains |
 |---|---|
 | `plain` | the sub-query only |
-| `i2` | main question, current sub-query, previous sub-queries (default) |
+| `i2` | main question, current sub-query, previous sub-queries |
+| `i9` | `i2` plus the agent's pre-search reasoning on one line (the released ITER checkpoints; default) |
 | `i3` / `i6` | `i2` plus the documents visited under each previous sub-query |
 | `i4` / `i7` | `i3` plus the agent's cleaned notes on those documents |
 | `i5` | main question, sub-query, notes only |

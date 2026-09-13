@@ -27,8 +27,10 @@ from typing import Callable, Iterable, Optional, Sequence
 
 from agent_search.tokens import count_tokens, truncate_tokens
 
-STYLES = ("plain", "mem", "docs", "i0", "i1", "i2", "i3", "i4", "i5", "i6", "i7")
-DEFAULT_STYLE = "i2"
+STYLES = ("plain", "mem", "docs", "i0", "i1", "i2", "i3", "i4", "i5", "i6", "i7", "i9")
+# i9 (the paper's ITER-i7): i2's fields plus the agent's pre-search reasoning, one line, before the
+# sub-query. The released ielabgroup/ITER-Qwen3-Embedding checkpoints are trained on it (model card).
+DEFAULT_STYLE = "i9"
 
 # The instruction the trained model is served with. Training passes the same string as
 # FlagEmbedding's --query_instruction_for_retrieval; inference prefixes queries with
@@ -45,6 +47,7 @@ INSTRUCTIONS = {
     "i5": "Given the main question, the current sub-query, and previous interactions with notes taken on the documents already read, retrieve documents relevant to the current sub-query that provide NEW information beyond what the notes cover.",
     "i6": "Given the main question, the current sub-query, and previous interactions with the documents already visited, retrieve documents relevant to the current sub-query that provide NEW information beyond the visited documents.",
     "i7": "Given the main question, the current sub-query, and previous interactions with the documents already visited and notes taken on them, retrieve documents relevant to the current sub-query that provide NEW information beyond the visited documents.",
+    "i9": "Given the main question, the agent's reasoning and the current sub-query it led to, and the sub-queries already tried in previous interactions, retrieve documents relevant to the current sub-query that provide NEW information not yet found.",
 }
 
 # per-variant rendering for the structured template: (with_docs, with_notes, id_tags, doc_tokens)
@@ -55,6 +58,7 @@ _VARIANT_CFG = {
     "i5": (False, True, True, 128),
     "i6": (True, False, False, 64),
     "i7": (True, True, False, 64),
+    "i9": (False, False, True, 128),   # i2's fields plus the Current Reasoning line
 }
 
 
@@ -173,11 +177,20 @@ def prevdoc_query(question: str, current: str, interactions: Sequence[dict], *,
     return "\n".join(lines)
 
 
+def _oneline(text: str) -> str:
+    return " ".join((text or "").split())
+
+
 def structured_query(variant: str, question: str, current: str, interactions: Sequence[dict], *,
-                     per_note_tokens: int = 128) -> str:
+                     per_note_tokens: int = 128, pre_reasoning: str = "") -> str:
     if variant == "i0":
         return current
-    lines = [f"Main Question: {question}", f"Current Subquery: {current}"]
+    lines = [f"Main Question: {question}"]
+    if variant == "i9":
+        # the <think> of the turn that issued this search, one line, untruncated; "<empty>" when
+        # there is none (the model card's exact rule)
+        lines.append(f"Current Reasoning: {_oneline(pre_reasoning) or '<empty>'}")
+    lines.append(f"Current Subquery: {current}")
     if variant == "i1":
         return "\n".join(lines)
     with_docs, with_notes, tags, doc_cap = _VARIANT_CFG[variant]
@@ -205,11 +218,13 @@ def structured_query(variant: str, question: str, current: str, interactions: Se
     return "\n".join(lines)
 
 
-def render_query(style: str, question: str, current: str, interactions: Sequence[dict]) -> str:
+def render_query(style: str, question: str, current: str, interactions: Sequence[dict],
+                 pre_reasoning: str = "") -> str:
     """One entry point for every style.
 
     ``interactions`` are the searches BEFORE this one, oldest first:
     ``[{"query": sub_query, "visits": [(doc_id, doc_text, reasoning_after_reading), ...]}]``.
+    ``pre_reasoning`` is the agent's reasoning in the turn that issues this search (i9 only).
     """
     if style not in STYLES:
         raise ValueError(f"unknown query style {style!r}; choose from {STYLES}")
@@ -220,7 +235,7 @@ def render_query(style: str, question: str, current: str, interactions: Sequence
         return memory_query(question, current, notes)
     if style == "docs":
         return prevdoc_query(question, current, interactions)
-    return structured_query(style, question, current, interactions)
+    return structured_query(style, question, current, interactions, pre_reasoning=pre_reasoning)
 
 
 __all__ = ["STYLES", "DEFAULT_STYLE", "INSTRUCTIONS", "instruction_prefix", "render_query",
