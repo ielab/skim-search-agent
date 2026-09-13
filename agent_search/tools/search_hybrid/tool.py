@@ -1,5 +1,11 @@
 """`search_hybrid`: BM25 and dense rankings fused by Reciprocal Rank Fusion.
 
+The plain listing's declaration is deliberately short and takes only `query`. The earlier
+declaration spelled out the fusion (pool sizes, RRF constant) and offered a `k` argument the
+plain path never read; under that declaration Tongyi opened 20% of its turns with an empty
+<tool_call></tool_call> (39% of episodes at step 0). The short declaration brings that to 0.1%,
+the same as the BM25 and dense tools (A/B on 40 BrowseComp-Plus questions, 2026-09-13).
+
 Each engine is queried to a pool of `HYBRID_POOL` documents; the two pools are fused with RRF
 (constant `RRF_K`) and the top `k` are listed like `search_bm25`'s results. With
 `full_text=True` (AutoRead) every hit is rendered in full, capped at `MAX_VISIT_TOKENS`.
@@ -25,8 +31,8 @@ from agent_search.tools.common import _INTRO, _cap_tokens, _infobox, sections_fr
 
 class SearchHybrid(Tool):
     name = "hybrid_search"
-    description = "Hybrid keyword+semantic search over the document corpus: a canonical Lucene BM25 ranking and a dense-embedding (cosine similarity) ranking are each computed over a top-100 pool, then combined by Reciprocal Rank Fusion (RRF, k=60) into one ranked list. Returns ranked documents (title + a short opening snippet). `visit_h` a ranked doc for its full text — no other documents are reachable."
-    parameters = {"type": "object", "properties": {"query": {"type": "string", "description": "A keyword or natural-language query, for example: treaty that ended the Mexican-American War."}, "k": {"type": "integer", "description": "Max fused candidates to return (default 5)."}}, "required": ["query"]}
+    description = "Keyword and semantic search over the document corpus (BM25 and dense embeddings fused); returns ranked documents (title + a short opening snippet). `visit_h` a ranked doc for its full text — no other documents are reachable."
+    parameters = {"type": "object", "properties": {"query": {"type": "string", "description": "A keyword or natural-language query, for example: treaty that ended the Mexican-American War."}}, "required": ["query"]}
     engines = ("hybrid",)
 
     # the structure-listing text (`structure=True`).

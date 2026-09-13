@@ -190,7 +190,7 @@
  },
  "research_hybrid": {
   "domain": "general",
-  "sha": "4eac515210be4782",
+  "sha": "88dee4ef7c3b5351",
   "task": "research",
   "tools": [
    "hybrid_search",

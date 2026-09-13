@@ -15,11 +15,17 @@ _DENSE_READ = ("Semantic/dense retrieval search over the document corpus (dense 
                "returns the FULL TEXT of the top-ranked documents directly (not a listing to visit) — there is "
                "no separate visit or fetch tool in this condition, so everything you need from a hit is already "
                "in this response.")
+_HYBRID_READ = ("Keyword and semantic search over the document corpus (BM25 and dense embeddings fused); returns "
+                "the FULL TEXT of the top-ranked documents directly (not a listing to visit) — there is no separate "
+                "visit or fetch tool in this condition, so everything you need from a hit is already in this response.")
 _QUERY = {"type": "object", "properties": {"query": {"type": "string",
           "description": "A keyword query, for example: treaty that ended the Mexican-American War."}}, "required": ["query"]}
 _NL_QUERY = {"type": "object", "properties": {"query": {"type": "string",
              "description": "A natural-language query describing what you are looking for, for example: treaty that ended the Mexican-American War."}},
              "required": ["query"]}
+_ANY_QUERY = {"type": "object", "properties": {"query": {"type": "string",
+              "description": "A keyword or natural-language query, for example: treaty that ended the Mexican-American War."}},
+              "required": ["query"]}
 
 autoread = register_strategy(Strategy(
     name="autoread", toolset_name="bm25_autoread",
@@ -34,4 +40,4 @@ autoread_dense = register_strategy(Strategy(
 autoread_hybrid = register_strategy(Strategy(
     name="autoread_hybrid", toolset_name="hybrid_autoread",
     description="every hybrid search returns the full text of its top hits",
-    tools=(SearchHybrid(name="hybrid_read_search", full_text=True),)))
+    tools=(SearchHybrid(name="hybrid_read_search", full_text=True, description=_HYBRID_READ, parameters=_ANY_QUERY),)))
