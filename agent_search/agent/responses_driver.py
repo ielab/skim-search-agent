@@ -15,6 +15,9 @@ DIVER's client turn for turn:
   `function_call_output` item; a `mcp_call` item aimed at our functions is a function call the
   server mislabelled; a name with run-on header text is cut at the first `<`;
 - a turn that ends on a bare `reasoning` item (cut off mid-thought) is dropped and retried;
+- a request the server rejects (400: an item of the last turn does not re-parse when echoed
+  back) drops that turn and lets the model take it again, twice at most; any other failure
+  ends the episode with what it has (stopped reason `error`), as DIVER's client does;
 - on the second-to-last turn the model is told retrieval is complete, and the final turn is
   made with no tools at all, so it must answer;
 - the first turn without a function call ends the episode; the answer is that turn's message
@@ -76,6 +79,14 @@ def _clean_name(name: str, known) -> str:
     return name
 
 
+def _is_bad_request(e: Exception) -> bool:
+    """A 4xx the server answers with when it cannot parse the request (openai.BadRequestError, or
+    anything carrying a 400 status), as opposed to a transient failure."""
+    if type(e).__name__ == "BadRequestError":
+        return True
+    return getattr(e, "status_code", None) == 400 or "Error code: 400" in str(e)
+
+
 def _usage(resp) -> tuple:
     u = getattr(resp, "usage", None)
     if u is None:
@@ -122,6 +133,8 @@ def run_episode_responses(ws, question: str, *, model: str, instructions: str,
             except Exception:  # noqa: BLE001 - a spectator must never kill the episode
                 pass
 
+    turn_starts: list = []        # index into `messages` where each turn's output items begin
+    rejected = 0
     for i in range(max_turns):
         is_last_round = (i == max_turns - 2)
         request = {"model": model, "max_output_tokens": max_out, "input": list(messages),
@@ -130,7 +143,25 @@ def run_episode_responses(ws, question: str, *, model: str, instructions: str,
         if not force_text_only:
             request["tools"] = tools
         t0 = time.monotonic()
-        resp = _with_retries(lambda: client.responses.create(**request))
+        try:
+            resp = _with_retries(lambda: client.responses.create(**request))
+        except Exception as e:  # noqa: BLE001
+            if not _is_bad_request(e) or not turn_starts or rejected >= 2:
+                # a transient failure already went through the retry helper; anything else ends
+                # the episode with what it has, as DIVER's client does (status incomplete)
+                reason = "error"
+                _push(Step(name="none", args={}, observation=f"ERROR: the model call failed: {e}"[:400],
+                           raw_output="", t_llm=time.monotonic() - t0))
+                break
+            # the server rejected the transcript: an output item of the last turn does not
+            # re-parse when echoed back (a harmony header the model ran together, for one).
+            # Drop that turn's items and its tool outputs and let the model take the turn again.
+            rejected += 1
+            del messages[turn_starts.pop():]
+            _push(Step(name="none", args={},
+                       observation="ERROR: the server rejected the transcript; the last turn was dropped and taken again",
+                       raw_output=str(e)[:400], t_llm=time.monotonic() - t0))
+            continue
         t_llm = time.monotonic() - t0
         llm_calls += 1
         inp, out, cached, reasoning = _usage(resp)
@@ -142,10 +173,12 @@ def run_episode_responses(ws, question: str, *, model: str, instructions: str,
             if it.get("type") == "mcp_call" and it.get("server_label") == "functions":
                 it["type"] = "function_call"
                 it["call_id"] = it.pop("id", None) or it.get("call_id")
+        turn_starts.append(len(messages))
         messages.extend(items)
         if items and items[-1].get("type") == "reasoning" and not force_text_only:
             # cut off mid-thought with no message or call: drop the dangling item and retry
             messages.pop()
+            turn_starts.pop()
             _push(Step(name="none", args={}, observation="ERROR: the turn ended mid-thought; retried",
                        raw_output=_item_text(items[-1]), t_llm=t_llm, prompt_tokens=inp, completion_tokens=out))
             continue

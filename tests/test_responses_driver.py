@@ -133,3 +133,38 @@ def test_the_strong_task_carries_divers_user_template():
     u = t.user_template.format(question="Q?")
     assert u.startswith("You are a deep research agent") and "Question: Q?" in u
     assert "Exact Answer: {your succinct, final answer}" in u
+
+
+def test_a_rejected_transcript_drops_the_last_turn_and_takes_it_again():
+    class BadRequestError(Exception):
+        status_code = 400
+    ws = _WS()
+    turns = [_resp([_reasoning("bad header"), _call("search", {"query": "a"})]), "reject",
+             _resp([_call("search", {"query": "b"}, "c2")]), _resp([_message("done")])]
+    requests = []
+
+    def create(**kw):
+        requests.append(kw)
+        t = turns[len(requests) - 1]
+        if t == "reject":
+            raise BadRequestError("Error code: 400 - Unknown channel: analysis-to=functions.search")
+        return t
+    client = SimpleNamespace(responses=SimpleNamespace(create=create))
+    traj = run_episode_responses(ws, "q", model="m", instructions="i", client=client, max_turns=10)
+    assert [s.name for s in traj.steps] == ["search", "none", "search", "answer"]
+    assert "rejected the transcript" in traj.steps[1].observation
+    # the third request carries only the user turn: the rejected turn and its tool output are gone
+    assert [m.get("type") or m.get("role") for m in requests[2]["input"]] == ["user"]
+    assert ws.calls == [("search", {"query": "a"}), ("search", {"query": "b"})]
+    assert traj.final_answer == "done" and traj.stopped_reason == "answer"
+
+
+def test_a_persistent_failure_ends_the_episode_with_an_error_row_not_a_crash(monkeypatch):
+    monkeypatch.setenv("LLM_RETRY_ATTEMPTS", "1")
+    ws = _WS()
+
+    def create(**kw):
+        raise RuntimeError("connection reset")
+    traj = run_episode_responses(ws, "q", model="m", instructions="i",
+                                 client=SimpleNamespace(responses=SimpleNamespace(create=create)), max_turns=5)
+    assert traj.stopped_reason == "error" and traj.final_answer == "" and traj.steps[0].name == "none"
