@@ -310,7 +310,7 @@ JOB_NAME="shard-${CONDITION}-${DATASET}-${MODEL_TAG}"
 jid=$(sbatch --parsable --array=0-${n} --time="$JOB_TIME" \
   ${SLURM_ACCOUNT:+--account=$SLURM_ACCOUNT} \
   ${EXCLUDE_NODES:+--exclude=$EXCLUDE_NODES} \
-  --partition="$GPU_PARTITION" --qos="$QOS" --gres=gpu:1 \
+  --partition="$GPU_PARTITION" --qos="$QOS" --gres=gpu:"$TP" \
   --cpus-per-task="$JOB_CPUS" --mem="$JOB_MEM" \
   --job-name="$JOB_NAME" \
   --output="$LOGDIR/%x-%A_%a.out" --error="$LOGDIR/%x-%A_%a.err" \
