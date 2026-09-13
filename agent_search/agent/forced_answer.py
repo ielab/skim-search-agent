@@ -183,7 +183,13 @@ def elicit_final_answer(messages: list, client, model: str, *,
         raw = call_prefill(client, model, messages, max_tokens=prefill_max_tokens,
                            temperature=temperature, seed=seed, prefill=prefill, stop=[])
         answer = raw.split("<tool_call>")[0].strip()
-        return (answer, "prefill", raw) if answer else ("", "empty", raw)
+        if answer:
+            return answer, "prefill", raw
+        # the one fallback, as for the answer terminal: a plain ask; the reply is the answer
+        raw2 = call_plain_ask(client, model, messages, max_tokens=fallback_max_tokens,
+                              temperature=temperature, seed=seed)
+        answer2 = raw2.split("<tool_call>")[0].strip()
+        return answer2, ("plain_ask_fallback" if answer2 else "empty"), raw2
     raw = call_prefill(client, model, messages, max_tokens=prefill_max_tokens,
                        temperature=temperature, seed=seed, prefill=prefill)
     # belt-and-braces strip: vLLM's default include_stop_str_in_output=False already excludes the

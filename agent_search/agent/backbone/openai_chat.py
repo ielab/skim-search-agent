@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import sys
 import time
 from typing import Callable
 
@@ -84,11 +85,22 @@ def openai_compat_generate(model: str = DEFAULT_MODEL, *,
             if u is not None:
                 _record_usage(getattr(u, "prompt_tokens", 0), getattr(u, "completion_tokens", 0),
                               _cached_tokens(u), _reasoning_tokens(u))
-            if (resp.choices[0].message.content or "").strip():
+            msg = resp.choices[0].message
+            if (msg.content or "").strip():
                 break
             # an empty turn: the model put everything into its reasoning channel, or produced
             # nothing. DIVER's Qwen3.5 client re-asks the same turn with backoff; so does this,
-            # LLM_EMPTY_RETRIES times (10). Every attempt's usage is recorded above.
+            # LLM_EMPTY_RETRIES times (10). Every attempt's usage is recorded above. The turn is
+            # logged with what the reasoning channel held, so a systematic cause shows in the
+            # shard log; when the call had thinking switched off, the retry alternates it back
+            # on (a reasoning parser that expects a think block can file a think-less reply as
+            # reasoning and leave the content empty).
+            reasoning = getattr(msg, "reasoning_content", None) or getattr(msg, "reasoning", None) or ""
+            print(f"[backbone] empty turn {attempt + 1}: finish={getattr(resp.choices[0], 'finish_reason', None)} "
+                  f"thinking={extra.get('chat_template_kwargs')} reasoning_len={len(str(reasoning))} "
+                  f"reasoning_head={str(reasoning)[:160]!r}", file=sys.stderr, flush=True)
+            if "chat_template_kwargs" in extra:
+                extra["chat_template_kwargs"]["enable_thinking"] = not extra["chat_template_kwargs"]["enable_thinking"]
             time.sleep(min(_env_float("LLM_RETRY_BASE_S", 1.0) * (2 ** attempt), 30.0))
         generate.last_finish_reason = getattr(resp.choices[0], "finish_reason", None)
         return _truncate_at_tool_response(_repair_open_tag(resp.choices[0].message.content or ""))

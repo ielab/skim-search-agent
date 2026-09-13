@@ -168,3 +168,33 @@ def test_every_step_records_the_turns_finish_reason():
     traj = run_episode(AgentPolicy(generate=gen, system=QWEN_SYSTEM), Task("t", "q"), _WS(), units=[], max_steps=5,
                        domain="general", terminal="text")
     assert [s.finish_reason for s in traj.steps] == ["stop", "stop"]
+
+
+def test_an_empty_turn_with_thinking_off_is_retried_with_thinking_on(monkeypatch):
+    monkeypatch.setenv("LLM_RETRY_BASE_S", "0")
+    monkeypatch.setenv("LLM_EMPTY_RETRIES", "3")
+    seen = []
+
+    def create(**kw):
+        seen.append(kw.get("extra_body", {}).get("chat_template_kwargs", {}).get("enable_thinking"))
+        content = "" if len(seen) == 1 else '<tool_call>{"name":"search","arguments":{"query":"x"}}</tool_call>'
+        return SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content=content, reasoning_content="all of it"), finish_reason="stop")])
+    gen = OC.openai_compat_generate("m", client=SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create))))
+    out = gen("q", thinking=False)
+    assert out.startswith("<tool_call>") and seen == [False, True]
+
+
+def test_text_terminal_forced_answer_falls_back_to_a_plain_ask_when_the_prefill_is_empty(monkeypatch):
+    monkeypatch.setenv("LLM_EMPTY_RETRIES", "1")
+    monkeypatch.setenv("LLM_RETRY_BASE_S", "0")
+    monkeypatch.delenv("FORCED_ANSWER_PREFILL", raising=False)
+    replies = iter(["", "My final answer is Paris."])
+    calls = []
+
+    def create(**kw):
+        calls.append(kw)
+        return SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content=next(replies)))])
+    client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
+    answer, tag, _ = elicit_final_answer([{"role": "user", "content": "q"}], client, "m", terminal="text")
+    assert answer == "My final answer is Paris." and tag == "plain_ask_fallback"
+    assert "extra_body" not in calls[1]
