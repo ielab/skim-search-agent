@@ -208,3 +208,14 @@ def test_query_context_carries_the_current_turns_reasoning():
     ctx = QueryContext(question="Q?", text_of=lambda d: "", style="i9")
     ctx.note('<think>\nSearch the ship.\n</think>\n<tool_call>{"name":"search","arguments":{"query":"ship"}}</tool_call>')
     assert ctx.render("ship").splitlines()[1] == "Current Reasoning: Search the ship."
+
+
+def test_keyword_queries_keep_their_quotes_and_list_queries_use_the_first():
+    from agent_search.retrievers.dense.belief import _plain_text
+    from agent_search.training.history import QueryContext
+    from types import SimpleNamespace
+    assert _plain_text('"Belgian ship" "Copacabana" World War II') == '"Belgian ship" "Copacabana" World War II'
+    assert _plain_text("#combine(#1(bank management) treaty.title)") == "bank management treaty"
+    ctx = QueryContext(question="Q?", text_of=lambda d: "", style="i9")
+    ctx.observe(SimpleNamespace(name="search", args={"query": ['"a" b', "c"]}, raw_output=""), [])
+    assert ctx.render("next").endswith('Previous Interactions:\nPrevious SubQuery 1: "a" b')

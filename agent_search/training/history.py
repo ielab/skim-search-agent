@@ -70,7 +70,10 @@ class QueryContext:
         name = getattr(step, "name", "") or ""
         args = getattr(step, "args", {}) or {}
         if is_search_action(name):
-            q = str(args.get("query") or args.get("q") or args.get("pattern") or "")
+            q = args.get("query") or args.get("q") or args.get("pattern") or ""
+            if isinstance(q, (list, tuple)):                 # the tool ran the first query of a list
+                q = next((x for x in q if x not in (None, "")), "")
+            q = " ".join(str(q).split())
             self.interactions.append({"query": q, "visits": []})
             self._last_hits = list(last_hits)
         elif is_read_action(name):

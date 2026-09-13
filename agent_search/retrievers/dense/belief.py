@@ -40,8 +40,13 @@ def _plain_terms(query: str) -> list:
 
 
 def _plain_text(query: str) -> str:
-    """The text handed to the encoder: a query-language string is not a sentence it was trained on."""
-    return " ".join(_plain_terms(query))
+    """The text handed to the encoder. A query-language string (Indri operators, field suffixes)
+    is not a sentence the encoder was trained on, so its operators are stripped; a keyword query
+    is passed as the agent wrote it, quotes included, which is what ITER's training queries and
+    DIVER's runs carry ("Belgian ship" "Copacabana" World War II)."""
+    if _OP_TOKEN_RE.search(query or ""):
+        return " ".join(_plain_terms(query))
+    return " ".join((query or "").split())
 
 
 class DenseBelief:
