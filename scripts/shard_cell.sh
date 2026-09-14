@@ -134,13 +134,22 @@ MODEL_TAG="${MODEL##*/}"
 # (kind=agent, since CONDITION is an agent_* condition here): <RUNS_DIR>/agent/<DATASET>/<MODEL_TAG>/<CONDITION>
 CANONICAL_DIR="$RUNS_DIR/agent/$DATASET/$MODEL_TAG/$CONDITION"
 CANONICAL_ROWS="$CANONICAL_DIR/rows.jsonl"
-SHARD_ROOT="$RUNS_DIR/__shards/$CONDITION"
+# Shard id files are per dataset: <RUNS_DIR>/__shards/<DATASET>/<CONDITION>/. The older layout
+# without the dataset let two datasets of one condition in the same RUNS_DIR overwrite each
+# other's id files (2026-09-14: the hotpotqa cells ran on musique ids and finished with 0/0).
+# A worker whose new-layout file is missing falls back to the old one, so arrays submitted
+# before this change still find their shards.
+SHARD_ROOT="$RUNS_DIR/__shards/$DATASET/$CONDITION"
+SHARD_ROOT_OLD="$RUNS_DIR/__shards/$CONDITION"
 
 # =============================================================================
 # WORKER: SLURM sets SLURM_ARRAY_TASK_ID for each task of the array WE submit below.
 # =============================================================================
 if [ -n "${SLURM_ARRAY_TASK_ID:-}" ]; then
   i="$SLURM_ARRAY_TASK_ID"
+  if [ ! -f "$SHARD_ROOT/shard_${i}of${NUM_SHARDS}.txt" ] && [ -f "$SHARD_ROOT_OLD/shard_${i}of${NUM_SHARDS}.txt" ]; then
+    SHARD_ROOT="$SHARD_ROOT_OLD"      # an array submitted under the old layout
+  fi
   SHARD_FILE="$SHARD_ROOT/shard_${i}of${NUM_SHARDS}.txt"
   SHARD_RUNS_DIR="$SHARD_ROOT/shard_${i}of${NUM_SHARDS}"
   if [ ! -s "$SHARD_FILE" ]; then

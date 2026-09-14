@@ -2,7 +2,7 @@
 rows.jsonl.
 
 Companion to scripts/shard_cell.sh (INSTANCE-SHARDING): each shard task ran
-`run_eval --only-instances shard_<i>of<N>.txt --runs-dir <tier>/__shards/<CONDITION>/
+`run_eval --only-instances shard_<i>of<N>.txt --runs-dir <tier>/__shards/<DATASET>/<CONDITION>/
 shard_<i>of<N>`, a run-dir distinct from the canonical cell so its appends never
 collided with the canonical rows.jsonl or with other shards. This script folds those
 shard rows back into the canonical dir agent_search/evaluation/config.py:results_dir_for computes
@@ -81,7 +81,10 @@ def main() -> None:
     model_tag = _resolve_model_tag(args.runs_dir, args.dataset, args.condition, args.model)
     canonical_dir = os.path.join(args.runs_dir, "agent", args.dataset, model_tag, args.condition)
     canonical_rows_path = os.path.join(canonical_dir, "rows.jsonl")
-    shard_root = os.path.join(args.runs_dir, "__shards", args.condition)
+    shard_root = os.path.join(args.runs_dir, "__shards", args.dataset, args.condition)
+    if not os.path.isdir(shard_root):
+        # arrays submitted before 2026-09-14 kept their shard files without the dataset
+        shard_root = os.path.join(args.runs_dir, "__shards", args.condition)
 
     canonical_rows, done = _load_rows(canonical_rows_path)
     n_before = len(canonical_rows)
