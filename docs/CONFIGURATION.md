@@ -241,9 +241,9 @@ handles that for you.
 | `BM25_VISIT_TOPK` | 5 | results per search, `search_visit` (before import) | `agent_search/tools/budgets.py` |
 | `DENSE_VISIT_TOPK` | 5 | results per search, `search_visit_dense` (before import) | `agent_search/tools/budgets.py` |
 | `HYBRID_VISIT_TOPK` | 5 | results per search after fusion, `search_visit_hybrid` (before import) | `agent_search/tools/budgets.py` |
-| `BM25_FETCH_TOPK` | 10 | results per search, `search_fetch` (before import) | `agent_search/tools/budgets.py` |
-| `DENSE_FETCH_TOPK` | 10 | results per search, `search_fetch_dense` (before import) | `agent_search/tools/budgets.py` |
-| `HYBRID_FETCH_TOPK` | 10 | results per search after fusion, `search_fetch_hybrid` (before import) | `agent_search/tools/budgets.py` |
+| `BM25_FETCH_TOPK` | 5 | results per search, `search_fetch` (before import) | `agent_search/tools/budgets.py` |
+| `DENSE_FETCH_TOPK` | 5 | results per search, `search_fetch_dense` (before import) | `agent_search/tools/budgets.py` |
+| `HYBRID_FETCH_TOPK` | 5 | results per search after fusion, `search_fetch_hybrid` (before import) | `agent_search/tools/budgets.py` |
 | `HYBRID_POOL` | 100 | how deep each ranker is queried before RRF fusion (before import) | `agent_search/tools/budgets.py` |
 | `AUTOREAD_TOPK` | 5 | documents rendered in full per search, `autoread*` (before import) | `agent_search/tools/budgets.py` |
 | `BM25_DCI_TOPK` | 10 | documents staged per search, `bounded_dci` (before import) | `agent_search/tools/search_bm25_dci/tool.py` |

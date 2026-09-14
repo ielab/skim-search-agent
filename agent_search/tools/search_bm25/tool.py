@@ -44,7 +44,7 @@ class SearchBm25(Tool):
                                           "description": "A keyword query, for example: treaty "
                                                           "that ended the Mexican-American War."},
                                 "k": {"type": "integer",
-                                     "description": "Max ranked candidates to return (default 10)."}},
+                                     "description": "Max ranked candidates to return (default 5)."}},
                             "required": ["query"]}
 
     # options a strategy sets

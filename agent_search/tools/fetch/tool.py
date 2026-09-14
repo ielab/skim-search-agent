@@ -1,15 +1,32 @@
-"""`fetch`: a named section (or the infobox) of a document a previous search ranked.
+"""`fetch`: one named section (or the facts) of a document a previous search ranked.
 
-`specs` is a list of `[doc, section]` pairs. `doc` is a rank from the last search listing
-(for example an `agent_search.tools.search_bql.SearchBql` instance sharing the same episode
-state), or a document id. `section` is a heading name, `""`/omitted for the lead/opening
-content, or `"infobox"` for the infobox facts. A read is capped at `MAX_SECTION_TOKENS`
-tokens.
+The call is flat: `{"rank": 3, "section": "Career"}`. `rank` is a row number from the last
+search listing (a document id also works). `section` is a heading from that row's section
+list, `"infobox"` for the document's facts (infobox fields, or title, author and date when the
+corpus carries them), or `""` for the opening text. One section per call, capped at
+`MAX_SECTION_TOKENS` tokens. Never the whole document.
 
-Section text is derived from the same `##`-marker split (or the corpus's explicit matched
-sections) the search listing used, cached per document id in `state.listing`. This is the
-same cache a paired search tool populates, so a doc fetched right after being surfaced does
-not redo the split.
+The flat shape replaced the paper's `{"specs": [[rank, section]]}` list of pairs. Tongyi
+mis-closed that nested list in a quarter of Sieve's fetch calls and three quarters of
+Search-Fetch's, and 99.9% of the calls carried a single pair anyway. The old shape is still
+accepted, so recorded trajectories and older configs keep working.
+
+Requests that are not a section name on the referenced document are resolved instead of
+refused, because every refusal costs the agent a step and a third of all fetch calls in the
+BrowseComp-Plus cells were such refusals:
+  - a whole-document word (`body`, `full text`, `*`) returns the opening section and names
+    the other sections;
+  - a facts word (`infobox`, `author`, `date`, `title`) returns the document's facts;
+  - a name is matched case- and punctuation-insensitively, then by prefix, substring and
+    word overlap; a pasted list (`§[A·B·C]`) is read as its first section that exists;
+  - a section that is not on this document but is on exactly one other document of the
+    current listing (the agent misread a rank) is read from that document, and the reply
+    says so; the same for exactly one document of an earlier listing.
+The remaining error names every section the document has.
+
+Section text comes from the corpus's explicit sections or the same `##`-marker split the
+search listing used, cached per document in `state.listing`, so a fetch right after a search
+does not redo the split.
 """
 from __future__ import annotations
 
@@ -19,21 +36,52 @@ from agent_search.tools.base import Tool
 from agent_search.tools.budgets import MAX_SECTION_TOKENS
 from agent_search.tools.common import _INTRO, _cap_tokens, _infobox, sections_from_body
 
+# words that ask for the whole document; the read is the opening section plus the section list
+_WHOLE_WORDS = {"body", "text", "content", "contents", "full", "full text", "fulltext", "all",
+                "(all)", "*", "document", "doc", "page", "article", "whole", "everything",
+                "main", "main text", "summary"}
+_LINE_RANGE = re.compile(r"^l?\d+\s*-\s*l?\d+$", re.IGNORECASE)   # code-style `L1-40` on a document
+# words that ask for the document's facts
+_FACTS_WORDS = {"infobox", "info", "facts", "fact box", "metadata", "meta", "author", "authors",
+                "byline", "date", "published", "publication date", "title", "header", "details"}
+_INTRO_WORDS = {"intro", "introduction", "lead", "opening", "(intro)", "overview", "top", "start"}
+_FACT_FIELDS = ("title", "author", "date")
+
+
+def _norm(s: str) -> str:
+    return re.sub(r"[^a-z0-9]+", " ", (s or "").lower()).strip()
+
+
+def _facts(u) -> dict:
+    """The document's facts: title, author and date when the corpus carries them, then the
+    infobox fields. Empty values are left out."""
+    meta = u.metadata or {}
+    out: dict = {}
+    if u.title:
+        out["title"] = u.title
+    for key in _FACT_FIELDS[1:]:
+        val = str(meta.get(key) or "").strip()
+        if val:
+            out[key] = val
+    out.update(_infobox(u))
+    return out
+
 
 class Fetch(Tool):
     name = "fetch"
     aliases = ("fetch", "fetch_v2", "fetch_s", "fetch_bqlds", "fetch_bqldf", "fetch_bqldos")
-    description = ("Pull a specific part of a candidate a previous search ranked — code: a "
-                   "function/method name or a line range like L1-40; docs: a named section or the "
-                   "infobox. Never the whole file/document.")
+    description = ("Read one part of a document the last search ranked: a named section from its "
+                   "section list, \"infobox\" for its facts (title, author, date, infobox fields), "
+                   "or \"\" for the opening text. One section per call, never the whole document.")
     parameters = {"type": "object",
                   "properties": {
-                      "specs": {"type": "array",
-                                "description": "List of [rank, part] pairs referencing the last "
-                                               "search's numbering; part is a name from that "
-                                               "candidate's structure list (or an L-range for code).",
-                                "items": {"type": "array"}}},
-                  "required": ["specs"]}
+                      "rank": {"type": "integer",
+                               "description": "The row number of the document in the last search "
+                                              "listing (1 is the first row)."},
+                      "section": {"type": "string",
+                                  "description": "A section name from that row's list, \"infobox\" "
+                                                 "for the facts, or \"\" for the opening text."}},
+                  "required": ["rank", "section"]}
 
     # -- section/infobox cache, shared with a paired `search` tool via state.listing -----
 
@@ -60,7 +108,7 @@ class Fetch(Tool):
         entry["infobox"] = _infobox(u) if u is not None else {}
         return secs
 
-    # -- fetch: rank/doc_id + section name -> aggregated slices -------------------------
+    # -- resolving the document ---------------------------------------------------------
 
     def _resolve_doc(self, ref):
         last = self.state.last_hits
@@ -73,7 +121,7 @@ class Fetch(Tool):
             if str(ref).strip() in self.ubyid:
                 return self.ubyid[str(ref).strip()], None
             if not last:
-                return None, f"ERROR: no prior search — rank {rank} has nothing to refer to."
+                return None, f"ERROR: no prior search: rank {rank} has nothing to refer to."
             return None, (f"ERROR: rank {rank} out of range "
                           f"(last search had {len(last)} results).")
         ref = (ref or "").strip()
@@ -87,82 +135,189 @@ class Fetch(Tool):
         if cands:
             opts = ", ".join(f"{i} ({self.ubyid[i].title or self.ubyid[i].qualname})"
                              for i in cands[:5])
-            return None, f"ERROR: ambiguous doc {ref!r} — did you mean: {opts}"
-        return None, f"ERROR: no such doc {ref!r} — use a rank from the last search or a doc_id."
+            return None, f"ERROR: ambiguous doc {ref!r}. Did you mean: {opts}"
+        return None, f"ERROR: no such doc {ref!r}. Use a rank from the last search or a doc_id."
 
-    def _fetch_one(self, doc_ref, section_ref: str) -> tuple:
+    # -- resolving the section name -----------------------------------------------------
+
+    @staticmethod
+    def _match(names: list, want: str) -> list:
+        """The section names `want` resolves to on one document: exact (normalised), then
+        unique prefix, then substring either way, then word overlap of at least half. An
+        empty list means no match; more than one means ambiguous."""
+        w = _norm(want)
+        if not w:
+            return []
+        normed = [(n, _norm(n)) for n in names]
+        exact = [n for n, nn in normed if nn == w]
+        if exact:
+            return exact
+        pref = [n for n, nn in normed if nn.startswith(w)]
+        if pref:
+            return pref
+        sub = [n for n, nn in normed if w in nn or (len(nn) >= 4 and nn in w)]
+        if sub:
+            return sub
+        wt = set(w.split())
+        scored = []
+        for n, nn in normed:
+            nt = set(nn.split())
+            if not nt:
+                continue
+            j = len(wt & nt) / len(wt | nt)
+            if j >= 0.5:
+                scored.append((j, n))
+        if not scored:
+            return []
+        best = max(s for s, _ in scored)
+        return [n for s, n in scored if s == best]
+
+    @staticmethod
+    def _pieces(section: str) -> list:
+        """The candidate names in a request: markup stripped, a pasted `A·B·C` list split."""
+        s = (section or "").strip().strip("§").strip("[]{}()").strip("\"'`").strip()
+        if "·" in s:
+            return [p.strip().strip("§[]") for p in s.split("·") if p.strip()]
+        return [s]
+
+    def _render_section(self, u, name: str, note: str = "") -> tuple:
+        text = _cap_tokens(self._secs(u.doc_id)[name], MAX_SECTION_TOKENS,
+                           " ...(truncated; fetch a narrower section)")
+        return (f"{u.doc_id} §{name}{note}", text)
+
+    def _render_facts(self, u) -> tuple:
+        facts = _facts(u)
+        if not facts:
+            names = [n for n in self._secs(u.doc_id)]
+            return (f"{u.doc_id} §infobox",
+                    f"(no facts on this document: no infobox, author or date. Sections: {'·'.join(names)})")
+        return (f"{u.doc_id} §infobox", "; ".join(f"{k}={v}" for k, v in facts.items()))
+
+    def _render_opening(self, u, asked: str) -> tuple:
+        named = self._secs(u.doc_id)
+        names = list(named)
+        first = _INTRO if _INTRO in named else names[0]
+        others = [n for n in names if n != first]
+        label, text = self._render_section(u, first)
+        if others:
+            text += (f"\n(no whole-document read; this is the opening section. Named sections on "
+                     f"this document: {'·'.join(others)}. Fetch one by name.)")
+        return (label, text)
+
+    def _elsewhere(self, u, want: str) -> tuple:
+        """A section that is not on `u` but is on exactly one other listed document: the
+        current listing first (a misread rank), then earlier listings. Returns (doc, name,
+        note) or (None, candidates, None) when several documents have it, or (None, [], None)."""
+        def find(doc_ids):
+            hits = []
+            for d in doc_ids:
+                if d == u.doc_id or d not in self.ubyid:
+                    continue
+                m = self._match(list(self._secs(d)), want)
+                if len(m) == 1 and _norm(m[0]) == _norm(want):
+                    hits.append((d, m[0]))
+            return hits
+        current = find(self.state.last_hits)
+        if len(current) == 1:
+            d, name = current[0]
+            rank = self.state.last_hits.index(d) + 1
+            return self.ubyid[d], name, f" (read from rank {rank}, which has this section)"
+        if len(current) > 1:
+            return None, [f"rank {self.state.last_hits.index(d) + 1}" for d, _ in current], None
+        older = find([d for d in self.state.listing if d not in self.state.last_hits])
+        if len(older) == 1:
+            d, name = older[0]
+            return self.ubyid[d], name, f" (read from an earlier listing, doc {d})"
+        return None, [], None
+
+    def _fetch_one(self, doc_ref, section_ref) -> tuple:
         u, err = self._resolve_doc(doc_ref)
         if err:
             return (str(doc_ref), err)
         self.state.seen.add(u.doc_id)
         named = self._secs(u.doc_id)
-        infobox = _infobox(u)
-        avail = "·".join(list(named)[:12]) + (",infobox" if infobox else "")
-        s = (section_ref or "").strip()
-        if re.sub(r"[\s_-]", "", s.lower()) in ("infobox", "info", "facts"):
-            if not infobox:
-                return (f"{u.doc_id} §infobox", f"(no infobox — sections: {avail})")
-            body = "; ".join(f"{k}={v}" for k, v in infobox.items())
-            return (f"{u.doc_id} §infobox", body)
-        low = s.lower()
         names = list(named)
-        if not s:                            # no section named -> the lead/opening content
-            match = [_INTRO] if _INTRO in named else [names[0]] if names else []
-        elif len(names) == 1:
-            # A flat doc (no '##' markers) has exactly one section, always named '(intro)'.
-            # Any part name on a single-section doc means "the body", so honor it instead of
-            # erroring "no section 'body'".
-            match = names
-        else:
-            match = ([n for n in names if n.lower() == low]
-                     or [n for n in names if n.lower().startswith(low)]
-                     or [n for n in names if low in n.lower()])
-        if not match:
+        raw = "" if section_ref is None else str(section_ref)
+        pieces = self._pieces(raw)
+        s = pieces[0] if pieces else ""
+        low = s.lower().strip()
+        if not low or low in _INTRO_WORDS:
+            if _INTRO in named:
+                return self._render_section(u, _INTRO)
+            return self._render_section(u, names[0])
+        if low in _FACTS_WORDS:
+            return self._render_facts(u)
+        if len(names) == 1:
+            # A flat document has exactly one section; any name means its text.
+            return self._render_section(u, names[0])
+        if low in _WHOLE_WORDS or _LINE_RANGE.match(low) or len(pieces) >= 3:
+            return self._render_opening(u, s)
+        for piece in pieces:
+            match = self._match(names, piece)
+            if len(match) == 1:
+                return self._render_section(u, match[0])
+            if len(match) > 1:
+                return (f"{u.doc_id} §{piece}",
+                        f"ERROR: {piece!r} is ambiguous on {u.doc_id}: {'·'.join(match[:8])}. Name one.")
+        other, name_or_cands, note = self._elsewhere(u, s)
+        if other is not None:
+            return self._render_section(other, name_or_cands, note)
+        avail = "·".join(names) + (" and infobox" if _infobox(u) else "")
+        if name_or_cands:
             return (f"{u.doc_id} §{s}",
-                    f"ERROR: no section {s!r} on {u.doc_id}. Available: {avail}")
-        if len(match) > 1:
-            return (f"{u.doc_id} §{s}",
-                    f"ERROR: {s!r} is ambiguous: {'·'.join(match[:8])}")
-        text = _cap_tokens(named[match[0]], MAX_SECTION_TOKENS,
-                           " …(truncated — fetch a narrower section)")
-        return (f"{u.doc_id} §{match[0]}", text)
+                    f"ERROR: no section {s!r} on {u.doc_id}; {' and '.join(name_or_cands)} have it. "
+                    f"Fetch one by its rank. Sections here: {avail}")
+        return (f"{u.doc_id} §{s}", f"ERROR: no section {s!r} on {u.doc_id}. Sections here: {avail}")
 
-    def fetch(self, specs: list) -> str:
-        if not specs:
-            return "ERROR: fetch needs at least one (doc, section) pair."
-        # a single flat pair [rank, "section"] -> one spec (same recovery as the code arm)
+    # -- the call -------------------------------------------------------------------------
+
+    @staticmethod
+    def _requests(args: dict) -> list:
+        """The (doc, section) requests in a call: the flat shape, or the paper's `specs`
+        list of pairs (a single flat pair, or dicts, also accepted)."""
+        specs = args.get("specs") or args.get("parts")
+        if specs is None:
+            if any(k in args for k in ("rank", "doc", "id", "doc_id", "docid", "section", "part", "name", "heading")):
+                specs = [args]
+            else:
+                specs = []
+        if isinstance(specs, dict):
+            specs = [specs]
         if (isinstance(specs, (list, tuple)) and len(specs) == 2
-                and not isinstance(specs[0], (list, tuple))
-                and not isinstance(specs[1], (list, tuple))):
-            try:
-                int(specs[0])
-                specs = [specs]
-            except (TypeError, ValueError):
-                pass
+                and not isinstance(specs[0], (list, tuple, dict))
+                and not isinstance(specs[1], (list, tuple, dict))):
+            specs = [specs]                                  # one flat pair [rank, "section"]
+        out = []
+        for s in specs:
+            if isinstance(s, dict):
+                doc = next((s[k] for k in ("rank", "doc", "id", "doc_id", "docid") if s.get(k) not in (None, "")), None)
+                sec = next((s[k] for k in ("section", "part", "name", "heading") if s.get(k) is not None), "")
+                out.append((doc, sec) if doc is not None else (None, "missing rank"))
+            elif isinstance(s, (list, tuple)) and len(s) == 2:
+                out.append((s[0], s[1]))
+            elif isinstance(s, (list, tuple)) and len(s) == 1:
+                out.append((s[0], ""))
+            else:
+                out.append((None, f"bad spec {s!r}"))
+        return out
+
+    def fetch(self, specs) -> str:
+        """The paper's call shape: a list of [doc, section] pairs. Kept for recorded
+        trajectories and tests; `run` is the declared entry point."""
+        return self.run({"specs": specs})
+
+    def run(self, args: dict) -> str:
+        requests = self._requests(args)
+        if not requests:
+            return 'ERROR: fetch needs a rank and a section name, for example {"rank": 1, "section": "infobox"}.'
         lines = ["fetch:"]
-        for spec in specs:
-            if not (isinstance(spec, (list, tuple)) and len(spec) == 2):
-                lines.append(f"  ERROR: bad spec {spec!r} — expected [doc, section].")
+        for doc_ref, section_ref in requests:
+            if doc_ref is None:
+                lines.append(f"  ERROR: {section_ref}. Expected {{\"rank\": <row number>, \"section\": <name>}}.")
                 continue
-            doc_ref, section_ref = spec
             label, text = self._fetch_one(doc_ref, section_ref)
             lines.append(f"  [{label}]  {text}")
         return "\n".join(lines)
-
-    def run(self, args: dict) -> str:
-        specs = args.get("specs") or args.get("parts") or []
-        if not specs and ("doc" in args or "section" in args or "rank" in args):
-            specs = [args]
-        if isinstance(specs, dict):
-            specs = [specs]
-        norm = []
-        for s in specs:
-            if isinstance(s, dict):
-                norm.append((s.get("rank") or s.get("doc") or s.get("id"),
-                             s.get("section") or s.get("part") or s.get("name") or ""))
-            else:
-                norm.append(s)
-        return self.fetch(norm)
 
 
 __all__ = ["Fetch"]

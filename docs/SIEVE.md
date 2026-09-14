@@ -41,6 +41,11 @@ python -m agent_search.evaluation.run_eval --dataset browsecomp_plus_structured_
 Those three also have aliases on the `skimsearchagent` launcher: `sieve_bm25`, `sieve_dense`
 and `sieve`.
 
+The agent's fetch call is flat: `{"rank": 1, "section": "Career"}`, one section per call. The
+BrowseComp manual the agent reads (`agent_search/tools/search_bql/bql_browsecomp.md`) describes
+the sectioned corpus; the paper's original manual, which described an unsegmented build, runs
+as `agent_research_bql_dense_snip_papermanual`. REPRODUCING.md explains both departures.
+
 ## Ablation knobs
 
 | ablation | how | paper finding |

@@ -87,8 +87,8 @@ the top hit is probably the wrong document; pivot rather than fetch it.
 
 ## Fetch — reading the slice you found
 
-Same contract as the BQL arms: `fetch` takes `[rank, section]` pairs against `isearch`'s
-numbering (`{"specs": [[1, "infobox"]]}`). Fetch the ONE slice most likely to hold the fact
+Same contract as the BQL arms: `fetch` takes a rank and one section name against `isearch`'s
+numbering (`{"rank": 1, "section": "infobox"}`). Fetch the ONE slice most likely to hold the fact
 (an early section for what/who it is, `infobox` for a relational fact); if it lacks the fact,
 fetch a DIFFERENT named section or pivot to the next-ranked hit — never fill the gap from
 memory.

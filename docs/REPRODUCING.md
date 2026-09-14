@@ -168,6 +168,20 @@ the condition (`skimsearchagent --help` lists both):
 skimsearchagent dataset=browsecomp_plus_structured_full strategy=sieve runs_dir=runs/<tier>
 ```
 
+**Two departures from the paper's prompts (0.3.1).** Both apply to Sieve and to the Search-Fetch
+controls alike, so the comparison stays matched. First, `fetch` is declared flat,
+`{"rank": 1, "section": "Career"}`, in place of the paper's `{"specs": [[rank, section]]}`
+list of pairs: the backbone mis-closed the nested list in a quarter of Sieve's fetch calls and
+three quarters of Search-Fetch's, and 99.9% of the calls carried one pair. The tool also
+resolves requests the paper's tool refused (a whole-document word returns the opening section
+and the section names, `infobox` returns the document's facts, a section that sits on another
+row of the listing is read from there and the reply says so). Second, the BrowseComp Sieve
+manual describes the sectioned corpus. The paper's manual said the corpus had no sections and
+told the agent to fetch `body`, which the paper's appendix on instruction mismatches
+acknowledges; half of Sieve's failed fetches on BrowseComp-Plus were those `body` requests.
+The paper's manual is kept verbatim as the condition `agent_research_bql_dense_snip_papermanual`.
+`tests/test_prompt_fidelity.py` pins every condition's prompt after these two changes.
+
 Rows append to `runs/<tier>/agent/<dataset>/<model>/<condition>/rows.jsonl` as they finish, so
 re-running the same command resumes and skips the instance ids that already scored. The
 strict-Boolean ablation is the same Sieve condition with `BQL_SOFT_FALLBACK=0`. The dense-encoder
@@ -258,7 +272,7 @@ with the camera-ready. The figure scripts read through the identical loaders.
 
 | knob | paper value | where |
 |---|---|---|
-| results per search | 5 | the `listing:` knobs, e.g. `BM25_VISIT_TOPK` / `DENSE_VISIT_TOPK` (the Search-Fetch baselines default to 10 via `BM25_FETCH_TOPK` / `DENSE_FETCH_TOPK`) |
+| results per search | 5 | the `listing:` knobs, `BM25_VISIT_TOPK` / `DENSE_VISIT_TOPK` for the visit strategies and `BM25_FETCH_TOPK` / `DENSE_FETCH_TOPK` / `HYBRID_FETCH_TOPK` for the fetch strategies (all 5 by default since 0.3.1; the earlier fetch default of 10 is kept as the ablation `runs/bcp_s_fetch_k10`) |
 | rank-metric cutoffs | 1, 3, 5, 10 | `--k` (report cutoffs only; it does not change what the agent sees) |
 | read ceiling (visit and section) | 12,000 tokens | `MAX_VISIT_TOKENS` / `MAX_SECTION_TOKENS` |
 | step cap | 100 | `--max-steps` (a run_eval flag, `max_steps=` in the launcher; there's no environment variable for it, and the default is 50) |

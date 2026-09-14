@@ -19,10 +19,11 @@ BM25_VISIT_TOPK = int(os.environ.get("BM25_VISIT_TOPK", "5"))
 AUTOREAD_TOPK = int(os.environ.get("AUTOREAD_TOPK", "5"))
 # search_dense's search listing depth when structure=False and full_text=False (the search_visit_dense strategy)
 DENSE_VISIT_TOPK = int(os.environ.get("DENSE_VISIT_TOPK", "5"))
-# search_bm25's retrieval pool size when structure=True (the search_fetch strategy)
-BM25_FETCH_TOPK = int(os.environ.get("BM25_FETCH_TOPK", "10"))
+# search_bm25's listing depth when structure=True (the search_fetch strategy); the Sieve paper's k=5
+# for every search call (its Sec. 4.4), the same as the visit strategies
+BM25_FETCH_TOPK = int(os.environ.get("BM25_FETCH_TOPK", "5"))
 # search_dense's retrieval pool size when structure=True (the search_fetch_dense strategy)
-DENSE_FETCH_TOPK = int(os.environ.get("DENSE_FETCH_TOPK", "10"))
+DENSE_FETCH_TOPK = int(os.environ.get("DENSE_FETCH_TOPK", "5"))
 
 # Reciprocal Rank Fusion constant (Cormack, Clarke and Buettcher 2009); read by
 # agent_search.retrievers.fusion.rrf, kept here so the run record lists it with the other knobs
@@ -32,8 +33,8 @@ HYBRID_POOL = int(os.environ.get("HYBRID_POOL", "100"))
 # search_hybrid's post-fusion search listing depth when structure=False and full_text=False (the search_visit_hybrid strategy)
 HYBRID_VISIT_TOPK = int(os.environ.get("HYBRID_VISIT_TOPK", "5"))
 # search_hybrid's post-fusion retrieval pool size when structure=True (the search_fetch_hybrid strategy)
-HYBRID_FETCH_TOPK = int(os.environ.get("HYBRID_FETCH_TOPK", "10"))
+HYBRID_FETCH_TOPK = int(os.environ.get("HYBRID_FETCH_TOPK", "5"))
 RERANK_VISIT_TOPK = int(os.environ.get("RERANK_VISIT_TOPK", "5"))
-RERANK_FETCH_TOPK = int(os.environ.get("RERANK_FETCH_TOPK", "10"))
+RERANK_FETCH_TOPK = int(os.environ.get("RERANK_FETCH_TOPK", "5"))
 # ITER's listing: each hit shows the passage cut to this many model tokens (ITER's runs: 64)
 DEDUP_SNIPPET_TOKENS = int(os.environ.get("DEDUP_SNIPPET_TOKENS", "64"))

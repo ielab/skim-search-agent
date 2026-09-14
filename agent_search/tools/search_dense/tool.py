@@ -46,7 +46,7 @@ class SearchDense(Tool):
                                                           "example: treaty that ended the "
                                                           "Mexican-American War."},
                                 "k": {"type": "integer",
-                                     "description": "Max ranked candidates to return (default 10)."}},
+                                     "description": "Max ranked candidates to return (default 5)."}},
                             "required": ["query"]}
 
     aliases = ("search", "dense_search", "dense_read_search")

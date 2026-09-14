@@ -1,7 +1,7 @@
 {
  "codefix": {
   "domain": "code",
-  "sha": "388aa8afb2899fec",
+  "sha": "4b651157dd94d6a7",
   "task": "taskfix",
   "tools": [
    "search",
@@ -21,7 +21,7 @@
  },
  "codefix_patch": {
   "domain": "code",
-  "sha": "46c582f6cbea2008",
+  "sha": "867ab92fb499729d",
   "task": "taskfix_patch",
   "tools": [
    "search",
@@ -61,7 +61,7 @@
  },
  "research_bm25_fetch_snip": {
   "domain": "general",
-  "sha": "10f01435a7f773dd",
+  "sha": "cf1daca9a9293b9e",
   "task": "research",
   "tools": [
    "bm25_search_snip",
@@ -71,7 +71,7 @@
  },
  "research_bql_dense_fetch": {
   "domain": "general",
-  "sha": "b8c828ce95072273",
+  "sha": "1d5dfd09afddcc50",
   "task": "research",
   "tools": [
    "search_bqldf",
@@ -81,7 +81,7 @@
  },
  "research_bql_dense_snip": {
   "domain": "general",
-  "sha": "03b6d514e44c0002",
+  "sha": "2d6ba16b3fb1d21a",
   "task": "research",
   "tools": [
    "search_bqlds",
@@ -90,20 +90,37 @@
   "toolset": "bql_dense_snip"
  },
  "research_bql_dense_snip@browsecomp": {
-  "sha": "ad69f699648c1604"
+  "sha": "942f54e979d20cc3"
  },
  "research_bql_dense_snip@wiki": {
-  "sha": "03b6d514e44c0002"
+  "sha": "2d6ba16b3fb1d21a"
+ },
+ "research_bql_dense_snip_fill": {
+  "sha": "2d6ba16b3fb1d21a",
+  "tools": [
+   "search_bqlds",
+   "fetch_bqlds"
+  ]
+ },
+ "research_bql_dense_snip_papermanual@browsecomp": {
+  "sha": "753b63b5664acb8e"
  },
  "research_bql_donly_snip": {
   "domain": "general",
-  "sha": "162ae473dfd58a02",
+  "sha": "eac294c0c38551e4",
   "task": "research",
   "tools": [
    "search_bqldos",
    "fetch_bqldos"
   ],
   "toolset": "bql_donly_snip"
+ },
+ "research_bql_donly_snip_fill": {
+  "sha": "eac294c0c38551e4",
+  "tools": [
+   "search_bqldos",
+   "fetch_bqldos"
+  ]
  },
  "research_dci": {
   "domain": "general",
@@ -126,6 +143,13 @@
   "toolset": "dedup_bm25",
   "note": "DIVER's Tongyi evaluation prompt (SYSTEM_PROMPT_SEARCH_ONLY + DEDUP_NOTICE), pinned 2026-09-12"
  },
+ "research_dedup_bm25_qwen": {
+  "sha": "47735fbdde1e77f4",
+  "tools": [
+   "bm25_search",
+   "get_document"
+  ]
+ },
  "research_dedup_bm25_strong": {
   "domain": "general",
   "sha": "e4e81bcf4a02ad4b",
@@ -147,6 +171,13 @@
   ],
   "toolset": "dedup_dense",
   "note": "DIVER's Tongyi evaluation prompt (SYSTEM_PROMPT_SEARCH_ONLY + DEDUP_NOTICE), pinned 2026-09-12"
+ },
+ "research_dedup_dense_qwen": {
+  "sha": "e253370612e87348",
+  "tools": [
+   "search",
+   "get_document"
+  ]
  },
  "research_dedup_dense_strong": {
   "domain": "general",
@@ -180,7 +211,7 @@
  },
  "research_dense_fetch": {
   "domain": "general",
-  "sha": "1fa2e1b403d9ba53",
+  "sha": "c0b7594302f1bf20",
   "task": "research",
   "tools": [
    "dense_search_f",
@@ -200,7 +231,7 @@
  },
  "research_hybrid_fetch_snip": {
   "domain": "general",
-  "sha": "5730222ac885b204",
+  "sha": "bf38ad0cc8bef825",
   "task": "research",
   "tools": [
    "hybrid_search_snip",
@@ -210,7 +241,7 @@
  },
  "research_indri_snip": {
   "domain": "general",
-  "sha": "e7a5af0837b2841d",
+  "sha": "b3224d018e763905",
   "task": "research",
   "tools": [
    "isearch_s",
@@ -218,31 +249,8 @@
   ],
   "toolset": "indri_snip"
  },
- "research_snip": {
-  "domain": "general",
-  "sha": "9b61845e5c810125",
-  "task": "research",
-  "tools": [
-   "search_s",
-   "fetch_s"
-  ],
-  "toolset": "search_fetch_s"
- },
- "research_snip@browsecomp": {
-  "sha": "7e3b1e2c387805a5"
- },
- "research_snip@wiki": {
-  "sha": "9b61845e5c810125"
- },
- "research_dedup_dense_qwen": {
-  "sha": "e253370612e87348",
-  "tools": [
-   "search",
-   "get_document"
-  ]
- },
- "research_dedup_bm25_qwen": {
-  "sha": "47735fbdde1e77f4",
+ "research_iter_bm25": {
+  "sha": "b72300ef768adc12",
   "tools": [
    "bm25_search",
    "get_document"
@@ -255,32 +263,27 @@
    "get_document"
   ]
  },
- "research_iter_bm25": {
-  "sha": "b72300ef768adc12",
-  "tools": [
-   "bm25_search",
-   "get_document"
-  ]
- },
- "research_bql_dense_snip_fill": {
-  "sha": "03b6d514e44c0002",
-  "tools": [
-   "search_bqlds",
-   "fetch_bqlds"
-  ]
- },
- "research_snip_fill": {
-  "sha": "9b61845e5c810125",
+ "research_snip": {
+  "domain": "general",
+  "sha": "7109ff8ea6d05f7f",
+  "task": "research",
   "tools": [
    "search_s",
    "fetch_s"
-  ]
+  ],
+  "toolset": "search_fetch_s"
  },
- "research_bql_donly_snip_fill": {
-  "sha": "162ae473dfd58a02",
+ "research_snip@browsecomp": {
+  "sha": "ca7b97a1d11e63a7"
+ },
+ "research_snip@wiki": {
+  "sha": "7109ff8ea6d05f7f"
+ },
+ "research_snip_fill": {
+  "sha": "7109ff8ea6d05f7f",
   "tools": [
-   "search_bqldos",
-   "fetch_bqldos"
+   "search_s",
+   "fetch_s"
   ]
  }
 }

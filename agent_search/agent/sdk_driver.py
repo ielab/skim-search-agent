@@ -175,10 +175,10 @@ def _tools_for(ws):
         out.append(search_v2)
     if "fetch_v2" in names:
         @function_tool
-        def fetch_v2(specs: list) -> str:
+        def fetch_v2(rank: int, section: str) -> str:
             """Fetch ONE named section (or 'infobox') of a single document; returns only that
-            section's text. `doc` = rank from the last search or a doc_id; `section` = a heading."""
-            return record("fetch_v2", {"specs": specs})
+            section's text. `rank` = row in the last search listing; `section` = a heading."""
+            return record("fetch_v2", {"rank": rank, "section": section})
         out.append(fetch_v2)
     if "search_s" in names:
         @function_tool
@@ -191,10 +191,10 @@ def _tools_for(ws):
         out.append(search_s)
     if "fetch_s" in names:
         @function_tool
-        def fetch_s(specs: list) -> str:
+        def fetch_s(rank: int, section: str) -> str:
             """Fetch ONE named section (or 'infobox') of a single document; returns only that
-            section's text. `doc` = rank from the last search or a doc_id; `section` = a heading."""
-            return record("fetch_s", {"specs": specs})
+            section's text. `rank` = row in the last search listing; `section` = a heading."""
+            return record("fetch_s", {"rank": rank, "section": section})
         out.append(fetch_s)
     if "isearch" in names:
         @function_tool
@@ -345,10 +345,10 @@ def _tools_for(ws):
         out.append(grep)
     if "fetch" in names:
         @function_tool
-        def fetch(doc: str, section: str) -> str:
+        def fetch(rank: int, section: str) -> str:
             """Fetch ONE named section (or 'infobox') of a single document; returns only that
-            section's text. `doc` = rank from the last search or a doc_id; `section` = a heading."""
-            return record("fetch", {"specs": [[doc, section]]})
+            section's text. `rank` = row in the last search listing; `section` = a heading."""
+            return record("fetch", {"rank": rank, "section": section})
         out.append(fetch)
     if "visit" in names:
         @function_tool

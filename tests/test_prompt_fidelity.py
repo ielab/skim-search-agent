@@ -1,8 +1,10 @@
-"""Every paper condition renders the exact system prompt it rendered before the restructuring.
+"""Every paper condition renders exactly the system prompt pinned in prompt_pins.json.
 
-The pins in prompt_pins.json were taken from the pre-0.3 YAML-backed loader (removed at
-commit 9dfa5b2, after a parity check against it). The task, tool and strategy packages
-(`agent_search.strategies.CONDITIONS`) must reproduce them byte for byte."""
+The pins were first taken from the pre-0.3 YAML-backed loader (removed at commit 9dfa5b2 after a
+parity check) and matched the paper's prompts byte for byte. Two deliberate changes moved the
+fetch-based conditions since: the `fetch` declaration is flat (`rank` + `section`, no nested
+list) and the BrowseComp manual describes the sectioned corpus. `research_bql_dense_snip_papermanual`
+pins the paper's stale BrowseComp manual. Any other change to what the model sees fails here."""
 from __future__ import annotations
 
 import json

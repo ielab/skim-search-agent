@@ -66,10 +66,10 @@ any token starting with it. `term[f1,f2]` matches if EITHER field has it. Combin
 ## Fetch — reading the slice you found
 
 `search` lists each doc's section names as `§[History·Career·Legacy]` and infobox keys as
-`ib[Born·Spouse]`. `fetch` takes `[rank, section]` pairs against that numbering:
+`ib[Born·Spouse]`. `fetch` takes the hit's rank and one section name from that numbering:
 
 ```
-{"specs": [[1, "infobox"]]}
+{"rank": 1, "section": "infobox"}
 ```
 
 - Fetch the ONE slice the fact lives in — the section names already told you where: `infobox`
@@ -101,7 +101,7 @@ asked-for unit, not a compound (the state alone, not "City, State").
 - `festival[title] AND film[body]` — which same-named hit is the film (a work), not the event.
 - `studio[body]` — nothing is titled for it; find the pages that mention it (reverse link).
 - `munoz[title] OR "muñoz"[title]` — accent/spelling variants in one search.
-- fetch `{"specs": [[1, "infobox"]]}` — read result 1's facts, then chain or answer.
+- fetch `{"rank": 1, "section": "infobox"}` — read result 1's facts, then chain or answer.
 
 ## Common mistakes
 

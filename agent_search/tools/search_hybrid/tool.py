@@ -50,7 +50,7 @@ class SearchHybrid(Tool):
                                                           "for example: treaty that ended the "
                                                           "Mexican-American War."},
                                 "k": {"type": "integer",
-                                     "description": "Max fused candidates to return (default 10)."}},
+                                     "description": "Max fused candidates to return (default 5)."}},
                             "required": ["query"]}
 
     aliases = ("search", "hybrid_search", "hybrid_read_search")

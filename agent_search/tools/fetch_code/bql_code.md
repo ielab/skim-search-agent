@@ -76,7 +76,7 @@ group: `(open[def] OR connect[def]) AND socket[file]`.
 `[rank, part]` pairs against that numbering:
 
 ```
-{"specs": [[1, "Report.render"]]}
+{"rank": 1, "part": "Report.render"}
 ```
 
 - `part` is a bare name copied verbatim from that file's `defs:[...]` list (`Report.render`,
@@ -110,7 +110,7 @@ traps waste the turns you needed for the fix:
 - `seri*[def]` — `serialize`/`serializer`, spelling unsure.
 - `Logger[call] NOT test[file]` — non-test files that use it.
 - `"could not convert to float"[string]` — the exact error text.
-- fetch `{"specs": [[1, "Report.render"]]}` — read result 1's method, then fix it.
+- fetch `{"rank": 1, "part": "Report.render"}` — read result 1's method, then fix it.
 
 ## Common mistakes
 

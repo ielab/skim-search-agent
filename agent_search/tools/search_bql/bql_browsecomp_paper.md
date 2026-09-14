@@ -1,4 +1,10 @@
-# Structured document search v2: field-tagged `term[field]` Boolean + typed date ranges + fetch (web/news documents)
+# Structured document search: field-tagged `term[field]` Boolean + fetch (web/news documents)
+
+<!-- The Sieve paper's BrowseComp manual, kept verbatim for reproduction runs (manual_set="paper").
+     It describes an earlier unsegmented build: it says the corpus has no sections, which is
+     wrong for the evaluated corpus (the paper's Appendix "Instruction and Index Mismatches").
+     Only the fetch call examples were changed to the flat shape. The corrected manual is
+     bql_browsecomp.md. -->
 
 Search the corpus with a Boolean query language: one expression selects the documents whose
 named fields contain your words. It matches words, not meaning — no embeddings, so exact
@@ -11,20 +17,6 @@ pulls the one slice that should hold the fact. Terms are case-insensitive. Two m
    terms matched (`title`/`author`/`date`/`body`) — numbered for `fetch`.
 2. **fetch** the body of a numbered doc (there are no named sections or an infobox on this
    corpus — every doc is one slice) to read its title, byline, date, and text.
-
-## RULE: dates are metadata, never a keyword
-
-Any year, decade, or "as of &lt;date&gt;" clue in the question MUST become a `date[...]` range —
-never a bare keyword or a `[tiab]`/`[body]` token. Writing `2018` as a plain term searches for
-those DIGITS as text; `date[...]` filters by the document's actual publication-date metadata,
-which is what the question almost always means.
-
-| clue in the question | write |
-|---|---|
-| "in the 1980s" | `date[1980..1989]` |
-| "as of December 2023" | `date[<=2023-12]` |
-| "founded 2002" | `date[2002]` |
-| "since 2019" | `date[>=2019]` |
 
 ## How to search
 
@@ -126,39 +118,3 @@ asked-for unit, not a compound (the year alone, not "March 2009").
   LITERAL name bare first; only widen if that 0-hits.
 - Assuming a 0-hit `[author]` means the fact is missing — it may just mean the doc is
   unbylined; look for the SAME fact in `[body]` before giving up on the document.
-
-## Typed date ranges (v2)
-
-`date[RANGE]` lowers to a REAL date-range filter over each document's publication date
-metadata (not a token match) — reach for it whenever the question gives a year, decade, or an
-"as of" bound instead of an exact date string:
-
-- `date[1980..1989]` — "in the 1980s" (inclusive on both ends).
-- `date[2002]` — a bare year = that whole year (2002-01-01..2002-12-31).
-- `date[<2023-12]` / `date[<=2023-12]` — "before"/"as of" December 2023.
-- `date[>=2019]` / `date[>2019-06]` — "since"/"after" a bound.
-- `date[2019-06..2021]` — a mixed-precision range (month..year).
-
-Combine it like any other field: `harbor[title] AND date[1980..1989]`. A document with a
-missing or malformed date never matches any `date[RANGE]` — that's a genuine miss, not a bug;
-the old exact `1980s[date]` token form still works too, but a typed range is more precise.
-
-## Reading constraint-coverage feedback (v2)
-
-A hard multi-clause `AND` that used to just report "0 matches" now, on a 0-exact-hit AND with
-2+ clauses, shows the CLOSEST documents by how many of your clauses they satisfy:
-
-```
-search: ... -> AND(foo[title], bar[author], date[1980..1989])   (0 exact matches — closest by
-CONSTRAINT COVERAGE; 'miss' names the unmatched constraint):
-  1  docA  'Some Title'  §[]  ib[]  matched: ...  cov=2/3 miss=[date[1980..1989]]
-  2  docB  ...                                    cov=1/3 miss=[bar[author], date[1980..1989]]
-```
-
-`cov=2/3` on the top hit means it satisfies 2 of your 3 AND clauses; `miss=[...]` names EXACTLY
-which clause(s) failed. Fix or DROP that one clause — don't rewrite the whole query. `miss`
-naming a `date[RANGE]` clause usually means the entity is right but your date bound is off
-(widen it, or drop it and confirm the date by fetching instead). `miss` naming a `[title]`/
-`[author]` clause means that field-scope was too tight — loosen to `[body]`/`[tiab]` or drop
-it. Never second-guess a partial-coverage hit's OTHER (matched) clauses — only the ones `miss`
-names actually failed.

@@ -15,7 +15,7 @@ Options:
   ranking     -- which engine this tool binds to: "bm25" (plain BQL, engine kind `bql`),
                  "fused" (BM25+dense RRF, engine kind `bql_fused`), "dense" (dense-only
                  ordering, engine kind `bql_dense`). Sets `self.engines` accordingly.
-  manual_set  -- "v1" or "v2" manual files. The run's field profile (general, wiki,
+  manual_set  -- "v1", "v2" or "paper" manual files. The run's field profile (general, wiki,
                  browsecomp, code) picks which file of the set the agent reads.
 """
 from __future__ import annotations
@@ -135,6 +135,10 @@ class SearchBql(Tool):
                "code": "bql_code.md"},
         "v2": {"general": "bql_doc_v2.md", "wiki": "bql_doc_v2.md", "browsecomp": "bql_browsecomp_v2.md",
                "code": "bql_code.md"},
+        # the Sieve paper's manuals verbatim (only the fetch examples carry the flat call shape);
+        # the BrowseComp one describes an unsegmented corpus and understates section access
+        "paper": {"general": "bql_doc.md", "wiki": "bql_doc.md", "browsecomp": "bql_browsecomp_paper.md",
+                  "code": "bql_code.md"},
     }
 
     # options a strategy sets
@@ -142,7 +146,7 @@ class SearchBql(Tool):
     coverage: bool = False
     date_nudge: bool = False
     ranking: str = "bm25"          # bm25 | fused | dense -- selects self.engines
-    manual_set: str = "v1"         # v1 | v2 -- which manual files the profiles map to
+    manual_set: str = "v1"         # v1 | v2 | paper -- which manual files the profiles map to
     # fill=True: a listing always has k rows. The exact Boolean matches come first, in the
     # ranker's order; when the filter admits fewer than k documents the remaining rows are the
     # ranker's closest documents over the query's own terms (the same ranking the zero-hit

@@ -10,11 +10,10 @@ Two tools:
                             each file's matched function names (its "structure"), no
                             bodies. Numbered for `FetchCode` reference (`state.last_hits`
                             holds file paths, not doc_ids).
-  `FetchCode` (name "fetch")    -- `specs` is a list of (rank, part) pairs referencing the
-                            last search's numbered files: `part` is a function/class
-                            qualname ("Command.handle") or a line range ("L810-840") in
-                            that file. Never the whole file. Returns those parts' source,
-                            aggregated across specs, capped at about 40 lines per part.
+  `FetchCode` (name "fetch")    -- `rank` references the last search's numbered files and
+                            `part` is a function/class qualname ("Command.handle") or a
+                            line range ("L810-840") in that file. Never the whole file.
+                            Returns that part's source, capped at about 40 lines.
 
 Neither tool tracks `state.seen`: the `codefix` and `codefix_grep` strategies are scored by
 fix correctness, not by a retrieval ranking metric, so `state.seen`/`surfaced` stay
@@ -134,22 +133,22 @@ class SearchCode(Tool):
 
 
 class FetchCode(Tool):
-    """fetch(specs) -- specs = [(rank, "Qualname"), (rank, "L810-840"), ...], `rank`
-    referencing `state.last_hits` (file paths from the last `SearchCode` call). Reads the
-    raw repository files for line-range specs and for the on-demand AST class slice."""
+    """fetch(rank, part): `rank` references `state.last_hits` (file paths from the last
+    `SearchCode` call); `part` is a function/class qualname ("Command.handle") or a line range
+    ("L810-840") in that file. Reads the raw repository files for line-range parts and for the
+    on-demand AST class slice. The paper's `specs` list of pairs is still accepted."""
 
     name = "fetch"
-    description = ("Pull a specific part of a candidate a previous search ranked — code: a "
-                   "function/method name or a line range like L1-40; docs: a named section or the "
-                   "infobox. Never the whole file/document.")
+    description = ("Read one part of a file the last search ranked: a function or method name "
+                   "from its defs list, or a line range like L1-40. One part per call, never the "
+                   "whole file.")
     parameters = {"type": "object",
                   "properties": {
-                      "specs": {"type": "array",
-                                "description": "List of [rank, part] pairs referencing the last "
-                                               "search's numbering; part is a name from that "
-                                               "candidate's structure list (or an L-range for code).",
-                                "items": {"type": "array"}}},
-                  "required": ["specs"]}
+                      "rank": {"type": "integer",
+                               "description": "The row number of the file in the last search listing (1 is the first row)."},
+                      "part": {"type": "string",
+                               "description": "A function or class name from that row's defs list, or a line range like L810-840."}},
+                  "required": ["rank", "part"]}
     needs_files = True
 
     def on_bind(self) -> None:

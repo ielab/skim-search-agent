@@ -53,3 +53,6 @@ for _name, _s in list(_ALL.items()):
 condition("research_bql_dense_snip_fill", "research_paper", "sieve_fill")
 condition("research_snip_fill", "research_paper", "sieve_bm25_fill")
 condition("research_bql_donly_snip_fill", "research_paper", "sieve_dense_fill")
+
+# the headline Sieve under the paper's stale BrowseComp manual (a reproduction of the paper's prompt)
+condition("research_bql_dense_snip_papermanual", "research_paper", "sieve_paper_manual")

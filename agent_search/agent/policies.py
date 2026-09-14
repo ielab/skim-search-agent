@@ -216,7 +216,7 @@ class KeywordPolicy:
                 self.last_raw = _tool_call(visit_tool, rank=1)
             elif fetch_tool:
                 part = _first_fetch_part(history[-1].observation) or "(intro)"
-                self.last_raw = _tool_call(fetch_tool, specs=[[1, part]])
+                self.last_raw = _tool_call(fetch_tool, rank=1, section=part)
             elif "grep" in ts and "read" in ts:
                 path = _first_grep_hit_path(history[-1].observation)
                 self.last_raw = _tool_call("read", path=path) if path else "<answer></answer>"

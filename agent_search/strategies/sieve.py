@@ -24,6 +24,13 @@ sieve = register_strategy(Strategy(
     description="Sieve: Boolean search with snippets (BM25 and dense fused) then fetch a section",
     tools=(SearchBql(name="search_bqlds", ranking="fused", snippet=TermWindow()), Fetch(name="fetch_bqlds"))))
 
+# the headline Sieve with the paper's BrowseComp manual verbatim (it describes an unsegmented
+# corpus: no sections, fetch the body); the default manual above describes the sectioned corpus
+sieve_paper_manual = register_strategy(Strategy(
+    name="sieve_paper_manual", toolset_name="bql_dense_snip",
+    description="Sieve (BM25 and dense fused) with the paper's BrowseComp manual verbatim",
+    tools=(SearchBql(name="search_bqlds", ranking="fused", snippet=TermWindow(), manual_set="paper"), Fetch(name="fetch_bqlds"))))
+
 # dense-only ranking inside the Boolean filter
 sieve_dense = register_strategy(Strategy(
     name="sieve_dense", toolset_name="bql_donly_snip",
