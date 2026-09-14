@@ -25,6 +25,8 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import time
+import sys
 import re
 from pathlib import Path
 from typing import Callable, Optional
@@ -210,7 +212,11 @@ def make_judge(model: str = "gpt-4o-mini", *, api_base: Optional[str] = None,
                   temperature=0.0, max_tokens=max_tokens)
         if not json_mode:                               # a free-text judge (DIVER's thinking judge)
             resp = client.chat.completions.create(**kw)
-            return resp.choices[0].message.content or ""
+            msg = resp.choices[0].message
+            text = msg.content or ""
+            if not text.strip():                        # a reasoning parser may hold the whole reply
+                text = str(getattr(msg, "reasoning_content", None) or getattr(msg, "reasoning", None) or "")
+            return text
         try:                                            # JSON mode (OpenAI + vLLM guided decoding)
             resp = client.chat.completions.create(response_format={"type": "json_object"}, **kw)
         except Exception:                               # noqa: BLE001 - server without JSON mode: plain call
@@ -274,6 +280,7 @@ def judge_run_dir(results_dir: str, generate: Callable[[str], str], *,
 
         def _flush() -> None:
             nonlocal n_new, n_graded, n_correct, n_errored
+            t0 = time.monotonic()
             todo = [i for i, r in enumerate(pending) if "gold_answer" in r and (force or r.get(key) is None)]
             if todo:
                 if workers > 1:
@@ -292,6 +299,10 @@ def judge_run_dir(results_dir: str, generate: Callable[[str], str], *,
                 elif err_key in r:
                     n_errored += 1
                 dst.write(json.dumps(r, ensure_ascii=False) + "\n")
+            dst.flush()
+            if todo:
+                print(f"[judge] {n_graded} graded so far ({n_correct} correct, {n_errored} errors); "
+                      f"chunk of {len(todo)} took {time.monotonic() - t0:.0f}s", file=sys.stderr, flush=True)
             pending.clear()
 
         for line in src:
