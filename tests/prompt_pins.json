@@ -61,7 +61,7 @@
  },
  "research_bm25_fetch_snip": {
   "domain": "general",
-  "sha": "cf1daca9a9293b9e",
+  "sha": "af8d80ffa13c7e9f",
   "task": "research",
   "tools": [
    "bm25_search_snip",
@@ -71,7 +71,7 @@
  },
  "research_bql_dense_fetch": {
   "domain": "general",
-  "sha": "1d5dfd09afddcc50",
+  "sha": "6228a9166eda1f1a",
   "task": "research",
   "tools": [
    "search_bqldf",
@@ -81,7 +81,7 @@
  },
  "research_bql_dense_snip": {
   "domain": "general",
-  "sha": "2d6ba16b3fb1d21a",
+  "sha": "63ac9f4a900a1041",
   "task": "research",
   "tools": [
    "search_bqlds",
@@ -90,24 +90,24 @@
   "toolset": "bql_dense_snip"
  },
  "research_bql_dense_snip@browsecomp": {
-  "sha": "942f54e979d20cc3"
+  "sha": "9124deab3ea1446d"
  },
  "research_bql_dense_snip@wiki": {
-  "sha": "2d6ba16b3fb1d21a"
+  "sha": "63ac9f4a900a1041"
  },
  "research_bql_dense_snip_fill": {
-  "sha": "2d6ba16b3fb1d21a",
+  "sha": "63ac9f4a900a1041",
   "tools": [
    "search_bqlds",
    "fetch_bqlds"
   ]
  },
  "research_bql_dense_snip_papermanual@browsecomp": {
-  "sha": "753b63b5664acb8e"
+  "sha": "7723b5601b74e7eb"
  },
  "research_bql_donly_snip": {
   "domain": "general",
-  "sha": "eac294c0c38551e4",
+  "sha": "f3c8ae3c23efe96b",
   "task": "research",
   "tools": [
    "search_bqldos",
@@ -116,7 +116,7 @@
   "toolset": "bql_donly_snip"
  },
  "research_bql_donly_snip_fill": {
-  "sha": "eac294c0c38551e4",
+  "sha": "f3c8ae3c23efe96b",
   "tools": [
    "search_bqldos",
    "fetch_bqldos"
@@ -211,7 +211,7 @@
  },
  "research_dense_fetch": {
   "domain": "general",
-  "sha": "c0b7594302f1bf20",
+  "sha": "be52eaf149b1ab57",
   "task": "research",
   "tools": [
    "dense_search_f",
@@ -231,7 +231,7 @@
  },
  "research_hybrid_fetch_snip": {
   "domain": "general",
-  "sha": "bf38ad0cc8bef825",
+  "sha": "30b748cca671a14c",
   "task": "research",
   "tools": [
    "hybrid_search_snip",
@@ -241,7 +241,7 @@
  },
  "research_indri_snip": {
   "domain": "general",
-  "sha": "b3224d018e763905",
+  "sha": "d63a4f0591024ad2",
   "task": "research",
   "tools": [
    "isearch_s",
@@ -265,7 +265,7 @@
  },
  "research_snip": {
   "domain": "general",
-  "sha": "7109ff8ea6d05f7f",
+  "sha": "c88ab69a88792e9a",
   "task": "research",
   "tools": [
    "search_s",
@@ -274,13 +274,13 @@
   "toolset": "search_fetch_s"
  },
  "research_snip@browsecomp": {
-  "sha": "ca7b97a1d11e63a7"
+  "sha": "53da0106128819db"
  },
  "research_snip@wiki": {
-  "sha": "7109ff8ea6d05f7f"
+  "sha": "c88ab69a88792e9a"
  },
  "research_snip_fill": {
-  "sha": "7109ff8ea6d05f7f",
+  "sha": "c88ab69a88792e9a",
   "tools": [
    "search_s",
    "fetch_s"

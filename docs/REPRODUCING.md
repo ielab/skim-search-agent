@@ -173,9 +173,9 @@ controls alike, so the comparison stays matched. First, `fetch` is declared flat
 `{"rank": 1, "section": "Career"}`, in place of the paper's `{"specs": [[rank, section]]}`
 list of pairs: the backbone mis-closed the nested list in a quarter of Sieve's fetch calls and
 three quarters of Search-Fetch's, and 99.9% of the calls carried one pair. The tool also
-resolves requests the paper's tool refused (a whole-document word returns the opening section
-and the section names, `infobox` returns the document's facts, a section that sits on another
-row of the listing is read from there and the reply says so). Second, the BrowseComp Sieve
+resolves requests the paper's tool refused (`body` returns the whole document under the same
+12,000-token cap as a visit, `infobox` returns the document's facts, a section that sits on
+another row of the listing is read from there and the reply says so). Second, the BrowseComp Sieve
 manual describes the sectioned corpus. The paper's manual said the corpus had no sections and
 told the agent to fetch `body`, which the paper's appendix on instruction mismatches
 acknowledges; half of Sieve's failed fetches on BrowseComp-Plus were those `body` requests.

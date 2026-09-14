@@ -60,10 +60,11 @@ hit (`,…` means there are more). `fetch` takes the hit's rank and ONE section 
 {"rank": 1, "section": "Career"}
 ```
 
-- `section` is a name from that hit's `§[...]` list. Two special names: `""` reads the opening
-  text and `infobox` reads the document's facts (title, author, date). There is no
-  whole-document read: asking for `body` returns the opening section and the list of section
-  names, so name the section you want instead.
+- `section` is a name from that hit's `§[...]` list. Three special names: `""` reads the
+  opening text, `infobox` reads the document's facts (title, author, date), and `body` reads the
+  whole page, every section in order. `body` costs as much as visiting the page (up to the
+  12,000-token cap), so use it only when the listing gives no section to aim at; a named section
+  is the cheap read.
 - Fetch the ONE section the fact should live in; the section names already tell you where. A
   results table sits under a "Results" or "Final" heading, a biography fact under "Early life"
   or "Career", a byline or date under `infobox`.
@@ -106,7 +107,8 @@ asked-for unit, not a compound (the year alone, not "March 2009").
   they never share ONE document, so it 0-hits. Hop instead: search A, fetch, then search what
   you found. A tight `AND` is for ONE entity's own distinctive words (`telescope AND 1893`).
 - Searching the question's framing words (described, mentioned) instead of an entity NAME.
-- Fetching `body` or `full text`: there is no whole-document read. Name a section from the list.
+- Fetching `body` when the listing already names the section that holds the fact: the whole page
+  costs many times the tokens of one section.
 - Fetching a section name from a different row, or from an earlier listing: check the rank.
 - Fetching section after section on one document: the listing already named which section
   should hold the fact; if two named sections lack it, move to a different document.

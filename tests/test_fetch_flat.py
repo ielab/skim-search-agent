@@ -74,19 +74,19 @@ def test_rank_as_string_and_doc_id():
     assert "Ann beat Cy" in box.run("fetch", {"rank": "d2", "section": "Results"})
 
 
-def test_whole_document_word_returns_opening_and_names_sections():
+def test_whole_document_word_returns_the_whole_page():
     box, _, _ = _box(["d1"])
     for word in ("body", "full text", "*", "L1-200"):
         out = box.run("fetch", {"rank": 1, "section": word})
-        assert "[d1 §(intro)]" in out and "Ann Example is a swimmer." in out, word
-        assert "Named sections on this document: History·Career" in out, word
+        assert "[d1 §body]" in out and "Ann Example is a swimmer." in out, word
+        assert "## History\nAnn started early." in out and "## Career\nAnn won twice." in out, word
         assert "ERROR" not in out, word
 
 
 def test_empty_section_reads_opening():
     box, _, _ = _box(["d1"])
     out = box.run("fetch", {"rank": 1, "section": ""})
-    assert "[d1 §(intro)]" in out and "swimmer" in out and "Named sections" not in out
+    assert "[d1 §(intro)]" in out and "swimmer" in out and "## History" not in out
 
 
 def test_facts_words_return_title_author_date():
@@ -117,7 +117,7 @@ def test_pasted_list_reads_its_first_existing_section():
 def test_pasted_whole_list_is_a_whole_document_request():
     box, _, _ = _box(["d2"])
     out = box.run("fetch", {"rank": 1, "section": "§[(intro)·Results·Prize fund]"})
-    assert "[d2 §(intro)]" in out and "Named sections on this document" in out
+    assert "[d2 §body]" in out and "## Results" in out and "## Prize fund" in out
 
 
 def test_section_on_another_listed_document_is_read_from_there():

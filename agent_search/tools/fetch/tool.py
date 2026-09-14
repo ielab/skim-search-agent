@@ -14,8 +14,8 @@ accepted, so recorded trajectories and older configs keep working.
 Requests that are not a section name on the referenced document are resolved instead of
 refused, because every refusal costs the agent a step and a third of all fetch calls in the
 BrowseComp-Plus cells were such refusals:
-  - a whole-document word (`body`, `full text`, `*`) returns the opening section and names
-    the other sections;
+  - a whole-document word (`body`, `full text`, `*`) returns the whole document, sections in
+    order under their headings, capped like a visit;
   - a facts word (`infobox`, `author`, `date`, `title`) returns the document's facts;
   - a name is matched case- and punctuation-insensitively, then by prefix, substring and
     word overlap; a pasted list (`§[A·B·C]`) is read as its first section that exists;
@@ -33,10 +33,10 @@ from __future__ import annotations
 import re
 
 from agent_search.tools.base import Tool
-from agent_search.tools.budgets import MAX_SECTION_TOKENS
+from agent_search.tools.budgets import MAX_SECTION_TOKENS, MAX_VISIT_TOKENS
 from agent_search.tools.common import _INTRO, _cap_tokens, _infobox, sections_from_body
 
-# words that ask for the whole document; the read is the opening section plus the section list
+# words that ask for the whole document: every section in order, capped like a visit
 _WHOLE_WORDS = {"body", "text", "content", "contents", "full", "full text", "fulltext", "all",
                 "(all)", "*", "document", "doc", "page", "article", "whole", "everything",
                 "main", "main text", "summary"}
@@ -71,9 +71,10 @@ def _facts(u) -> dict:
 class Fetch(Tool):
     name = "fetch"
     aliases = ("fetch", "fetch_v2", "fetch_s", "fetch_bqlds", "fetch_bqldf", "fetch_bqldos")
-    description = ("Read one part of a document the last search ranked: a named section from its "
-                   "section list, \"infobox\" for its facts (title, author, date, infobox fields), "
-                   "or \"\" for the opening text. One section per call, never the whole document.")
+    description = ("Read a document the last search ranked: a named section from its section list "
+                   "(preferred), \"infobox\" for its facts (title, author, date, infobox fields), "
+                   "\"\" for the opening text, or \"body\" for the whole document (costs as much as a "
+                   "visit). One read per call.")
     parameters = {"type": "object",
                   "properties": {
                       "rank": {"type": "integer",
@@ -81,7 +82,8 @@ class Fetch(Tool):
                                               "listing (1 is the first row)."},
                       "section": {"type": "string",
                                   "description": "A section name from that row's list, \"infobox\" "
-                                                 "for the facts, or \"\" for the opening text."}},
+                                                 "for the facts, \"\" for the opening text, or \"body\" "
+                                                 "for the whole document."}},
                   "required": ["rank", "section"]}
 
     # -- section/infobox cache, shared with a paired `search` tool via state.listing -----
@@ -194,16 +196,15 @@ class Fetch(Tool):
                     f"(no facts on this document: no infobox, author or date. Sections: {'·'.join(names)})")
         return (f"{u.doc_id} §infobox", "; ".join(f"{k}={v}" for k, v in facts.items()))
 
-    def _render_opening(self, u, asked: str) -> tuple:
+    def _render_whole(self, u) -> tuple:
+        """The whole document: every section in order under its heading, capped like a visit."""
         named = self._secs(u.doc_id)
-        names = list(named)
-        first = _INTRO if _INTRO in named else names[0]
-        others = [n for n in names if n != first]
-        label, text = self._render_section(u, first)
-        if others:
-            text += (f"\n(no whole-document read; this is the opening section. Named sections on "
-                     f"this document: {'·'.join(others)}. Fetch one by name.)")
-        return (label, text)
+        parts = []
+        for name, text in named.items():
+            parts.append(text if name == _INTRO else f"## {name}\n{text}")
+        body = _cap_tokens("\n\n".join(parts), MAX_VISIT_TOKENS,
+                           " ...(truncated at the whole-document cap; fetch a named section for the rest)")
+        return (f"{u.doc_id} §body", body)
 
     def _elsewhere(self, u, want: str) -> tuple:
         """A section that is not on `u` but is on exactly one other listed document: the
@@ -247,7 +248,7 @@ class Fetch(Tool):
                 return self._render_section(u, _INTRO)
             return self._render_section(u, names[0])
         if len(pieces) >= 3 and len(names) > 1:
-            return self._render_opening(u, s)             # a pasted section list: the whole document
+            return self._render_whole(u)                  # a pasted section list: the whole document
         # a name the document really has wins over every special word ("Details" may be a section)
         exact = [n for n in names if _norm(n) == _norm(s)]
         if len(exact) == 1:
@@ -258,7 +259,7 @@ class Fetch(Tool):
             # A flat document has exactly one section; any name means its text.
             return self._render_section(u, names[0])
         if low in _WHOLE_WORDS or _LINE_RANGE.match(low):
-            return self._render_opening(u, s)
+            return self._render_whole(u)
         for piece in pieces:
             match = self._match(names, piece)
             if len(match) == 1:
