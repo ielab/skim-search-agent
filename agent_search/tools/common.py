@@ -63,6 +63,19 @@ def _infobox(u: CodeUnit) -> "dict[str, str]":
     return facts
 
 
+def structure_str(named: Sequence[str], keys: Sequence[str]) -> "tuple[str, str]":
+    """The `§[...]` and `ib[...]` lists of one result card: the section names and infobox
+    keys, cut at `LISTING_SECTIONS` / `LISTING_INFOBOX_KEYS` (0 = all) with `,…` marking
+    a cut. Every search tool's card uses this, so a knob moves every strategy alike."""
+    from agent_search.tools.budgets import LISTING_INFOBOX_KEYS, LISTING_SECTIONS
+    named, keys = list(named), list(keys)
+    ns = len(named) if LISTING_SECTIONS <= 0 else LISTING_SECTIONS
+    nk = len(keys) if LISTING_INFOBOX_KEYS <= 0 else LISTING_INFOBOX_KEYS
+    sec_str = "·".join(named[:ns]) + (",…" if len(named) > ns else "")
+    ib_str = "·".join(keys[:nk]) + (",…" if len(keys) > nk else "")
+    return sec_str, ib_str
+
+
 class _SeenMixin:
     """Adds a `surfaced` property, the first-seen-order list from an `OrderedSeen` held in
     `self.seen` (`agent_search.tools.seen`). Current tools get `surfaced` from `EpisodeState`

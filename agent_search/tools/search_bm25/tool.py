@@ -18,7 +18,7 @@ from __future__ import annotations
 from typing import Optional
 
 from agent_search.tools.budgets import AUTOREAD_TOPK, BM25_FETCH_TOPK, BM25_VISIT_TOPK, MAX_VISIT_TOKENS
-from agent_search.tools.common import _INTRO, _cap_tokens, _infobox, sections_from_body
+from agent_search.tools.common import _cap_tokens, _infobox, _INTRO, sections_from_body, structure_str
 from agent_search.corpus.units import code_tokenize
 from agent_search.snippets import NoSnippet, OpeningLine, Snippet
 from agent_search.tools.base import Tool, query_text
@@ -116,9 +116,7 @@ class SearchBm25(Tool):
                 continue
             state.seen.add(i)
             named = [s for s in self._secs(i) if s != _INTRO] or list(self._secs(i))
-            sec_str = "·".join(named[:8]) + (",…" if len(named) > 8 else "")
-            keys = list(_infobox(u))
-            ib_str = "·".join(keys[:6]) + (",…" if len(keys) > 6 else "")
+            sec_str, ib_str = structure_str(named, list(_infobox(u)))
             title = u.title or u.qualname or i
             line = f"  {rank}  {i}  {title!r}  §[{sec_str}]  ib[{ib_str}]"
             snip = self.snippet.render(u, terms)

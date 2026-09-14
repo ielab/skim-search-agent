@@ -8,6 +8,11 @@ import os
 
 # listing-snippet width, in model tokens (agent_search/snippets)
 SNIPPET_TOKENS = int(os.environ.get("SNIPPET_TOKENS", "32"))
+# how many section names and infobox keys a result card shows per hit (0 = all). The paper's
+# cards showed 8 and 6; on BrowseComp-Plus structured 52% of the documents have more than 8
+# named sections, so a hidden section cannot be fetched by name
+LISTING_SECTIONS = int(os.environ.get("LISTING_SECTIONS", "8"))
+LISTING_INFOBOX_KEYS = int(os.environ.get("LISTING_INFOBOX_KEYS", "6"))
 # whole-doc visit/autoread read cap, in tokens
 MAX_VISIT_TOKENS = int(os.environ.get("MAX_VISIT_TOKENS", "12000"))
 # per-section fetch read cap, in tokens; tracks MAX_VISIT_TOKENS unless set on its own

@@ -225,6 +225,8 @@ handles that for you.
 | `SNIPPET_TOKENS` | 32 | width of a result card's snippet, and of the opening excerpt in search-visit listings (before import) | `agent_search/tools/budgets.py` |
 | `MAX_VISIT_TOKENS` | 12000 | how much of a whole document a read returns (`visit`, `get_document`, autoread) (before import) | `agent_search/tools/budgets.py` |
 | `MAX_SECTION_TOKENS` | same as `MAX_VISIT_TOKENS` | how much of a section a `fetch` returns (before import) | `agent_search/tools/budgets.py` |
+| `LISTING_SECTIONS` | 8 | section names shown per result card, every search tool; 0 = all (before import) | `agent_search/tools/budgets.py` |
+| `LISTING_INFOBOX_KEYS` | 6 | infobox keys shown per result card; 0 = all (before import) | `agent_search/tools/budgets.py` |
 | `BASH_MAX_TOKENS` | 12000 | the tail of a DCI shell command's output that is kept (before import) | `agent_search/tools/bash/tool.py` |
 | `READ_MAX_LINE_TOKENS` | 400 | per-line cap in the DCI `read` tool (before import) | `agent_search/tools/read/tool.py` |
 | `GREP_LINE_TOKENS` | 24 | per-line cap on a `grep` hit (before import) | `agent_search/tools/grep/tool.py` |

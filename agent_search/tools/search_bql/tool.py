@@ -34,7 +34,7 @@ from agent_search.retrievers.bql.surface import to_bql
 from agent_search.tools.base import Tool, query_text
 from agent_search.tools.budgets import SNIPPET_TOKENS
 from agent_search.snippets import NoSnippet, Snippet
-from agent_search.tools.common import _INTRO, _infobox, sections_from_body
+from agent_search.tools.common import _infobox, _INTRO, sections_from_body, structure_str
 
 _DATE_RANGE_PREFIX = "__daterange__"
 
@@ -234,9 +234,7 @@ class SearchBql(Tool):
                 continue
             self.state.seen.add(doc_id)
             named = [s for s in self._secs(doc_id) if s != _INTRO] or list(self._secs(doc_id))
-            sec_str = "·".join(named[:8]) + (",…" if len(named) > 8 else "")
-            keys = list(_infobox(u))
-            ib_str = "·".join(keys[:6]) + (",…" if len(keys) > 6 else "")
+            sec_str, ib_str = structure_str(named, list(_infobox(u)))
             title = u.title or u.qualname or doc_id
             matched = self._matched_fields(u, leaf_toks)
             line = (f"  {rank}{'~' if doc_id in filled else ' '} {doc_id}  {title!r}  "
