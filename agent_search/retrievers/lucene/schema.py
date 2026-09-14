@@ -86,13 +86,17 @@ F_ID = "id"
 F_BODY = "body"
 # Bumped when the analyzers or fields change; the index directory carries it, so an old index
 # stays readable by running jobs while a new one is built next to it.
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 F_BODY_EXACT = "body_exact"
 F_TITLE = "title"
 F_TITLE_EXACT = "title_exact"
 F_SECTION = "section"
 F_SECTION_EXACT = "section_exact"
+# the infobox facts ("key: value; key: value" in unit.metadata), schema 3; the wiki manuals
+# advertise x[infobox] as the reverse link, which schema 2 could not answer
+F_INFOBOX = "infobox"
+F_INFOBOX_EXACT = "infobox_exact"
 F_DATE = "date"
 F_AUTHOR = "author"
 F_AUTHOR_TEXT = "author_text"
@@ -106,11 +110,12 @@ SCORED_FIELD_MAP = {
     "body": (F_BODY, F_BODY_EXACT),
     "title": (F_TITLE, F_TITLE_EXACT),
     "section": (F_SECTION, F_SECTION_EXACT),
+    "infobox": (F_INFOBOX, F_INFOBOX_EXACT),
 }
 
 # Every stemmed-scored field (used to build the default `#combine` disjunction when
 # no field restriction is given, and to construct PerFieldAnalyzerWrapper).
-STEMMED_FIELDS = (F_BODY, F_TITLE, F_SECTION)
-EXACT_FIELDS = (F_BODY_EXACT, F_TITLE_EXACT, F_SECTION_EXACT)
+STEMMED_FIELDS = (F_BODY, F_TITLE, F_SECTION, F_INFOBOX)
+EXACT_FIELDS = (F_BODY_EXACT, F_TITLE_EXACT, F_SECTION_EXACT, F_INFOBOX_EXACT)
 DEFAULT_SCORED_FIELD = F_BODY
 DEFAULT_EXACT_FIELD = F_BODY_EXACT

@@ -33,7 +33,7 @@ from agent_search.retrievers.indri.fields import field_text
 from agent_search.retrievers.lucene import jni_utils as J
 from agent_search.retrievers.lucene.schema import (
     F_AUTHOR, F_AUTHOR_TEXT, F_BODY, F_BODY_EXACT, F_DATE, F_DATE_TEXT, F_ID,
-    F_SECTION, F_SECTION_EXACT, F_TITLE, F_TITLE_EXACT,
+    F_INFOBOX, F_INFOBOX_EXACT, F_SECTION, F_SECTION_EXACT, F_TITLE, F_TITLE_EXACT,
 )
 
 # meta.json: a sidecar written at build time, alongside (never inside) the Lucene segment
@@ -146,9 +146,9 @@ def _per_field_analyzer():
     HashMap = J.J("HashMap")()
     stemmed = J.stemmed_analyzer()
     exact = J.exact_analyzer()
-    for f in (F_BODY, F_TITLE, F_SECTION):
+    for f in (F_BODY, F_TITLE, F_SECTION, F_INFOBOX):
         HashMap.put(f, stemmed)
-    for f in (F_BODY_EXACT, F_TITLE_EXACT, F_SECTION_EXACT, F_AUTHOR_TEXT, F_DATE_TEXT):
+    for f in (F_BODY_EXACT, F_TITLE_EXACT, F_SECTION_EXACT, F_INFOBOX_EXACT, F_AUTHOR_TEXT, F_DATE_TEXT):
         HashMap.put(f, exact)
     PerFieldAnalyzerWrapper = J.J("PerFieldAnalyzerWrapper")
     return PerFieldAnalyzerWrapper(stemmed, HashMap)
@@ -199,7 +199,7 @@ def _build_document(u: CodeUnit):
     Lean index: only `id` is stored (`FieldStore.YES`). Every other field is
     indexed (tokenized and positioned, for matching and scoring) but not stored:
     the caller already holds the live `CodeUnit`/corpus mapping doc_id -> unit and
-    reads title, section, date, author and body from there, not from the index, so
+    reads title, section, infobox, date, author and body from there, not from the index, so
     storing them a second time here would only bloat the index on disk for data
     the tool layer never reads back through this engine."""
     Document = J.J("Document")
@@ -220,6 +220,10 @@ def _build_document(u: CodeUnit):
     doc.add(TextField(F_TITLE_EXACT, title_text, FieldStore.NO))
     doc.add(TextField(F_SECTION, section_text, FieldStore.NO))
     doc.add(TextField(F_SECTION_EXACT, section_text, FieldStore.NO))
+    infobox_text = field_text(u, "infobox")
+    if infobox_text:
+        doc.add(TextField(F_INFOBOX, infobox_text, FieldStore.NO))
+        doc.add(TextField(F_INFOBOX_EXACT, infobox_text, FieldStore.NO))
     # date/author: omit the StringField entirely when empty or missing, rather than
     # indexing an empty-string value. This matters for correctness, not just
     # leanness: an empty string sorts lexicographically before every real ISO

@@ -4,13 +4,14 @@ and the Indri compiler scores them.
 
 Fields: "body" (the default field: `u.body` or `u.code`), "title" (`u.title`), "section"
 (`u.section`, or its headings joined if the unit ships `sections` but no flat `section`
-string), "author" and "date" (`unit.metadata`).
+string), "infobox" (the "key: value; key: value" facts), "author" and "date" (all three from
+`unit.metadata`).
 """
 from __future__ import annotations
 
 from agent_search.corpus.units import CodeUnit
 
-FIELDS = ("body", "title", "section", "author", "date")
+FIELDS = ("body", "title", "section", "infobox", "author", "date")
 
 
 def field_text(u: CodeUnit, field: str) -> str:
@@ -27,6 +28,8 @@ def field_text(u: CodeUnit, field: str) -> str:
             return " ".join(h for h, _ in u.sections if h)
         return ""
     meta = u.metadata or {}
+    if field == "infobox":
+        return str(meta.get("infobox") or "")
     if field == "author":
         return str(meta.get("author") or "")
     if field == "date":

@@ -49,7 +49,8 @@ _FACT_FIELDS = ("title", "author", "date")
 
 
 def _norm(s: str) -> str:
-    return re.sub(r"[^a-z0-9]+", " ", (s or "").lower()).strip()
+    """Lower-cased words of any script (section names are often not Latin), punctuation dropped."""
+    return re.sub(r"[\W_]+", " ", (s or "").lower()).strip()
 
 
 def _facts(u) -> dict:
@@ -245,12 +246,18 @@ class Fetch(Tool):
             if _INTRO in named:
                 return self._render_section(u, _INTRO)
             return self._render_section(u, names[0])
+        if len(pieces) >= 3 and len(names) > 1:
+            return self._render_opening(u, s)             # a pasted section list: the whole document
+        # a name the document really has wins over every special word ("Details" may be a section)
+        exact = [n for n in names if _norm(n) == _norm(s)]
+        if len(exact) == 1:
+            return self._render_section(u, exact[0])
         if low in _FACTS_WORDS:
             return self._render_facts(u)
         if len(names) == 1:
             # A flat document has exactly one section; any name means its text.
             return self._render_section(u, names[0])
-        if low in _WHOLE_WORDS or _LINE_RANGE.match(low) or len(pieces) >= 3:
+        if low in _WHOLE_WORDS or _LINE_RANGE.match(low):
             return self._render_opening(u, s)
         for piece in pieces:
             match = self._match(names, piece)

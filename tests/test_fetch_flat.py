@@ -25,6 +25,10 @@ DOCS = [
      "sections": [{"heading": "(intro)", "text": "The 2015 final."},
                   {"heading": "Results", "text": "Cy beat Ann 6-4."}]},
     {"_id": "d4", "title": "Flat Note", "text": "One flat paragraph about Ann."},
+    {"_id": "d5", "title": "رحلة علمية", "text": "x", "author": "", "date": "2022-11-03",
+     "sections": [{"heading": "(intro)", "text": "مقدمة"},
+                  {"heading": "تفاصيل الرحلة العلمية", "text": "تفاصيل الرحلة"},
+                  {"heading": "Details", "text": "the details section"}]},
     {"_id": "d9", "title": "Old Listing Doc", "text": "x",
      "sections": [{"heading": "(intro)", "text": "old"},
                   {"heading": "Unique Nine", "text": "only here"}]},
@@ -161,3 +165,17 @@ def test_fetch_marks_the_document_seen():
     box, state, _ = _box(["d1", "d2"])
     box.run("fetch", {"rank": 2, "section": "Results"})
     assert "d2" in state.seen
+
+
+
+def test_non_latin_section_names_match():
+    box, _, _ = _box(["d5"])
+    out = box.run("fetch", {"rank": 1, "section": "تفاصيل الرحلة العلمية"})
+    assert "[d5 §تفاصيل الرحلة العلمية]" in out and "تفاصيل الرحلة" in out and "ERROR" not in out
+
+
+def test_a_real_section_named_like_a_special_word_wins():
+    box, _, _ = _box(["d5"])
+    out = box.run("fetch", {"rank": 1, "section": "Details"})
+    assert "[d5 §Details]" in out and "the details section" in out
+    assert "date=2022-11-03" in box.run("fetch", {"rank": 1, "section": "infobox"})

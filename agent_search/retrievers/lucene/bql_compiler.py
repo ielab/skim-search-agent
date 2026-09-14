@@ -7,10 +7,10 @@ match set, plus `Occur.SHOULD` clauses give a BM25-style ranking signal, run und
 ## Scope
 
 This compiler covers the document-corpus regions this package's Lucene schema
-actually indexes (`TITLE`/`BODY`/`SECTION`/`AUTHOR`/`DATE`/`DOC`) and `And`/`Or`/
+actually indexes (`TITLE`/`BODY`/`SECTION`/`INFOBOX`/`AUTHOR`/`DATE`/`DOC`) and `And`/`Or`/
 `Not`/`Near`/`In` composition over `Term`/`Phrase`/`Prefix`/`Expand` leaves. It
-does not implement the code-AST regions (`DEF`/`CALL`/`SIG`/`COMMENT`/`STRING`),
-`Region.INFOBOX`, or `Region.FILE`: those need either a real AST-role index (code
+does not implement the code-AST regions (`DEF`/`CALL`/`SIG`/`COMMENT`/`STRING`)
+or `Region.FILE`: those need either a real AST-role index (code
 regions) or a cross-document join (FILE, siblings of one path) that this
 backend's one-Lucene-doc-per-corpus-doc schema (`schema.py`) doesn't carry. Each
 raises a clear `LuceneCompileError` rather than silently returning wrong results.
@@ -43,7 +43,8 @@ out of scope for this compiler.
 | `AUTHOR`                   | `author_text` (tokenized)               | see `schema.py`'s `author_text`/`date_text` deviation note |
 | `DATE` (plain token)       | `date_text` (tokenized)                 | |
 | `DATE` (`__daterange__LO__HI` encoded term, from `surface.py`'s `date[RANGE]`) | `TermRangeQuery` on the ISO `date` StringField | exact |
-| `INFOBOX`/`COMMENT`/`STRING`/`DEF`/`CALL`/`SIG`/`FILE` | -- | unsupported, `LuceneCompileError` |
+| `INFOBOX`                 | `infobox_exact`                          | the "key: value; ..." facts, schema 3 |
+| `COMMENT`/`STRING`/`DEF`/`CALL`/`SIG`/`FILE` | -- | unsupported, `LuceneCompileError` |
 
 Ranking (`_score_leaves`) always scores against `body`+`title` (stemmed, SHOULD-
 unioned) regardless of any enclosing `IN(region, ...)`. This matches the Python
@@ -64,7 +65,7 @@ from agent_search.retrievers.bql.ast import (
 )
 from agent_search.retrievers.lucene import jni_utils as J
 from agent_search.retrievers.lucene.schema import (
-    F_AUTHOR_TEXT, F_BODY, F_BODY_EXACT, F_DATE, F_DATE_TEXT, F_SECTION_EXACT,
+    F_AUTHOR_TEXT, F_BODY, F_BODY_EXACT, F_DATE, F_DATE_TEXT, F_INFOBOX_EXACT, F_SECTION_EXACT,
     F_TITLE, F_TITLE_EXACT,
 )
 
@@ -88,9 +89,9 @@ _REGION_EXACT_FIELD = {
     Region.BODY: F_BODY_EXACT,
     Region.TITLE: F_TITLE_EXACT,
     Region.SECTION: F_SECTION_EXACT,
+    Region.INFOBOX: F_INFOBOX_EXACT,
 }
 _UNSUPPORTED_REGIONS = {
-    Region.INFOBOX: "no infobox index in this document-only Lucene schema",
     Region.COMMENT: "code-AST regions are not indexed by this backend (document corpora only)",
     Region.STRING: "code-AST regions are not indexed by this backend (document corpora only)",
     Region.DEF: "code-AST regions are not indexed by this backend (document corpora only)",
