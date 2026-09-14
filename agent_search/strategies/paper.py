@@ -20,6 +20,8 @@ alias("research_dedup_bm25", "research_dedup", "dedup_bm25")
 alias("research_dedup_dense", "research_dedup", "dedup_dense")
 condition("research_dedup_bm25_strong", "research_dedup_strong", "dedup_bm25")     # DIVER --strong, general backbones
 condition("research_dedup_dense_strong", "research_dedup_strong", "dedup_dense")
+condition("research_iter_dense", "research_tongyi", "iter_dense")            # the ITER paper's evaluation setting (Table 1): no dedup
+condition("research_iter_bm25", "research_tongyi", "iter_bm25")
 condition("research_dedup_bm25_qwen", "research_dedup_qwen", "dedup_bm25")        # DIVER on Qwen3.5 / WebExplorer: no answer tags
 condition("research_dedup_dense_qwen", "research_dedup_qwen", "dedup_dense")
 alias("codefix", "codefix", "codefix")

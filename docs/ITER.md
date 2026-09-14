@@ -15,34 +15,38 @@ in) is in [TRAINING.md](TRAINING.md). This page covers the ITER-specific part.
 
 ## Strategy
 
-ITER's agent has two tools: `search(query)` and `get_document(docid)`. A search over-fetches a
-pool of 100, drops every document an earlier search already surfaced in this episode, and shows
-the top 10 of the rest, each as its passage text cut to 64 model tokens (ITER's runs passed
-`--snippet-max-tokens 64`; ITER cuts with the served model's tokenizer, the library on its own
-token ruler, so the counts are close, not identical). Documents that would have ranked but were shown
-before are listed under "Already-seen" so the agent can reopen them. That is `strategy=dedup_dense`
-(the run's dense model behind `search`) or `dedup_bm25`.
+ITER's agent has two tools: `search(query)` and `get_document(docid)`. A search returns the top 10
+documents, each as its DocID, title and passage text cut to 64 model tokens (ITER cuts with the
+served model's tokenizer, the library on its own token ruler, so the counts are close, not
+identical). `get_document` returns one document by its DocID, at most 512 model tokens. The paper
+evaluates every retriever this way, with unfiltered, non-de-duplicated rankings (Sec. 5.3): that
+is `strategy=agent_research_iter_dense` (the run's dense model behind `search`) or
+`agent_research_iter_bm25`, under the task `research_tongyi`: Tongyi's deep-research system prompt
+with DIVER's strict tool rules (`agent_search/tasks/research_tongyi/prompt.md`).
 
-The prompt is the one DIVER evaluated Tongyi-DeepResearch with: Tongyi's deep-research system
-prompt, DIVER's strict tool rules, and its dedup notice (`agent_search/tasks/research_dedup/prompt.md`,
-condition `agent_research_dedup_dense`). DIVER's `--strong` prompt for general backbones, a
-meticulous multi-constraint research agent, is the task `research_dedup_strong` (condition
-`agent_research_dedup_dense_strong`). DIVER capped an episode at 50 LLM calls (`MAX_LLM_CALL_PER_RUN`),
-so ITER cells run with `max_steps: 50`, not the 100 of the Sieve experiments. DIVER's Tongyi client
-also budgets each turn (4,096 generation tokens on the first turn, 2,048 on the second, 1,024
-after; a turn cut off mid-thought is discarded and the next runs with thinking off) and forces the
-answer once the conversation passes 90,000 tokens with "Retrieval complete. You are forbidden to
-call any tools now. ..."; the ITER files carry all of that (`model.max_tokens_schedule`,
-`model.thinking`, `agent.ctx_window`, `agent.forced_answer_nudge`). At the cap DIVER
-forces the answer with a 10,000-token generation budget (`agent.forced_answer_tokens`; the ITER files
-set it, the library default is 2,000); its search tool runs the first query when the backbone passes a list, as the library's
-tools do. Its BrowseComp-Plus runs use the full 100,195-document corpus (`browsecomp_plus_structured`
-here), not a chunked one.
+The paper collected its training trajectories in a de-duplicated setting (Sec. 4.2.1): a search
+over-fetches a pool of 100, drops every document an earlier search already surfaced in the
+episode, shows the top 10 of the rest, and lists the hidden documents under "Already-seen" so the
+agent can reopen them. That is `strategy=dedup_dense` (or `dedup_bm25`) under the task
+`research_dedup`, the same prompt plus DIVER's dedup notice. DIVER's `--strong` prompt for general
+backbones is the task `research_dedup_strong`.
 
-Listing knobs: `listing.dedup_topk` (10), `listing.dedup_pool_k` (100) and
-`listing.dedup_snippet_tokens` (64). `get_document` returns at most 512 model tokens in ITER
-(`budgets.max_visit_tokens: 512`, cut on the same ruler). The wiki chunks are already 512
-tokens, so both limits only matter on a corpus with longer documents.
+DIVER's Tongyi client caps an episode at 50 LLM calls (`MAX_LLM_CALL_PER_RUN`), so ITER cells run
+with `max_steps: 50`, not the 100 of the Sieve experiments. It also budgets each turn (4,096
+generation tokens on the first turn, 2,048 on the second, 1,024 after; a turn cut off mid-thought
+is discarded and the next runs with thinking off) and forces the answer once the conversation
+passes 90,000 tokens with "Retrieval complete. You are forbidden to call any tools now. ...", with
+a 10,000-token budget and an `<answer>` prefill (`model.max_tokens_schedule`, `model.thinking`,
+`agent.ctx_window`, `agent.forced_answer_nudge`, `agent.forced_answer_tokens`); the ITER files
+carry all of that. Its search tool runs the first query when the backbone passes a list, as the
+library's tools do. The paper's BrowseComp-Plus corpus is the official 100,195-document collection
+(`browsecomp_plus_structured_full`, Sec. 5.1); `browsecomp_plus_structured` is the 67,707-document
+pooled version.
+
+Listing knobs: `listing.dedup_topk` (10), `listing.dedup_pool_k` (100, the dedup setting only) and
+`listing.dedup_snippet_tokens` (64). `get_document` returns at most 512 model tokens
+(`budgets.max_visit_tokens: 512`, cut on the same ruler). The wiki chunks are already 512 tokens,
+so both limits only matter on a corpus with longer documents.
 
 ## Backbones
 

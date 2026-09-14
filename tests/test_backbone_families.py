@@ -248,3 +248,27 @@ def test_the_budget_nudge_is_configurable_and_the_cut_off_message_names_the_term
     gen2 = _gen(["<think>too long", '<tool_call>{"name":"search","arguments":{"query":"a"}}</tool_call>', "<answer>x</answer>"], finish=["length", "stop", "stop"])
     traj2 = run_episode(AgentPolicy(generate=gen2, system=QWEN_SYSTEM), Task("t", "q"), _WS(), units=[], max_steps=6, domain="general")
     assert traj2.steps[0].observation.endswith("directly provide the <tool_call> or <answer>.")
+
+
+def test_iter_evaluation_search_lists_the_plain_top_k_without_dedup():
+    """The ITER paper evaluates with unfiltered, non-de-duplicated top-k rankings (Sec. 5.3)."""
+    from agent_search.tools.base import EpisodeState
+    from agent_search.tools.search_dedup.tool import SearchDedup
+
+    class _Engine:
+        calls = []
+
+        def top_k_doc_ids(self, q, k):
+            self.calls.append(k)
+            return ["1", "2", "3", "4"][:k]
+    units = {i: SimpleNamespace(title=f"T{i}", qualname="", body=f"body {i} " * 20, code=None, sections=None) for i in "1234"}
+    for dedup in (True, False):
+        t = SearchDedup(name="search", ranking="dense", dedup=dedup, top_k=3, pool_k=100)
+        t.state, t.ubyid, t.engine = EpisodeState(question="q"), units, {"dense": _Engine()}
+        _Engine.calls = []
+        first = t.search("a"); second = t.search("b")
+        if dedup:
+            assert _Engine.calls == [100, 100] and "Already-seen" in second
+        else:
+            assert _Engine.calls == [3, 3] and "Already-seen" not in second
+            assert second.count("DocID:") == 3 and "dedup_searched" not in t.state.scratch

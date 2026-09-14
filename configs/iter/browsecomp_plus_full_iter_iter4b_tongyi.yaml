@@ -3,12 +3,12 @@
 # Validate: skimsearchagent validate <this file>
 # Every key that changes what runs or how it is measured is listed; unknown keys are errors.
 schema: 1
-name: iter_bcp_tongyi
-strategy: dedup_dense   # DIVER's de-duplicated search setting (how ITER's training trajectories were collected); the paper's evaluation setting is browsecomp_plus_full_iter_*_tongyi.yaml
+name: iter_paper_bcp_full_iter4b_tongyi
+strategy: agent_research_iter_dense   # the ITER paper's evaluation setting: standard top-10 search (no dedup), Tongyi prompt without the dedup notice
 
 # --- dataset: what is searched and asked
 dataset:
-  name: browsecomp_plus_structured       # registered dataset (`skimsearchagent-eval --help` lists them)
+  name: browsecomp_plus_structured_full  # the official 100,195-document BrowseComp-Plus corpus, as the paper evaluates (Sec. 5.1)
   limit: null                            # cap the number of questions (null = all)
   corpus_limit: null                     # cap the shared corpus (null = all; queries whose gold docs fall outside are dropped with a warning)
   only_instances: null                   # path to a file of instance ids to run (null = all)
@@ -59,7 +59,7 @@ listing:
 
 # --- retrieval: engines and ranking
 retrieval:
-  dense_model: ielabgroup/ITER-Qwen3-Embedding-0.6B # the ONE dense model for every dense arm (ranker, fallback, baselines); null = BAAI/bge-base-en-v1.5 for documents; a directory trained by skimsearchagent-train-retriever works too
+  dense_model: ielabgroup/ITER-Qwen3-Embedding-4B # the released ITER checkpoint (i9 query format, see the model card)
   dense_query_style: i9                  # the released ITER checkpoints' format: main question, pre-search reasoning, sub-query, previous sub-queries
   dense_query_instruction: null                # null = the checkpoint's serving note or the built-in table (i2's full instruction)
   dense_pooling: last_token              # pooling for a local checkpoint: last_token | mean | cls (null = serving note, else auto from config.json)
@@ -84,7 +84,7 @@ evaluation:
 
 # --- output: where the run record goes
 output:
-  runs_dir: runs/iter                    # root of the run record (runs_dir/<kind>/<dataset>/<model>/<retriever>)
+  runs_dir: runs/iter_paper                    # root of the run record (runs_dir/<kind>/<dataset>/<model>/<retriever>)
   results_dir: null                      # explicit run directory (overrides runs_dir layout)
   index_root: indexes                    # where persistent indexes and embedding caches live
   rebuild: false                         # rebuild persistent indexes

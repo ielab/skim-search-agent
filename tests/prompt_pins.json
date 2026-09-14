@@ -247,5 +247,19 @@
    "bm25_search",
    "get_document"
   ]
+ },
+ "research_iter_dense": {
+  "sha": "149fc27c36bc9737",
+  "tools": [
+   "search",
+   "get_document"
+  ]
+ },
+ "research_iter_bm25": {
+  "sha": "b72300ef768adc12",
+  "tools": [
+   "bm25_search",
+   "get_document"
+  ]
  }
 }

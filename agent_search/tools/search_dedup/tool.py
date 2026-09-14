@@ -41,6 +41,11 @@ class SearchDedup(Tool):
     ranking: str = "dense"        # "dense" -> engines ("dense",); "bm25" -> engines ("bm25",)
     pool_k: int = DEDUP_POOL_K
     top_k: int = DEDUP_TOPK
+    # dedup=False is the standard top-k listing in ITER's result format (DocID, title, 64-token
+    # snippet), with no over-fetch and no "already-seen" section: the ITER paper evaluates every
+    # retriever this way (Sec. 5.3, "unfiltered, non-de-duplicated top-k rankings"); the
+    # de-duplicated setting is how its training trajectories were collected.
+    dedup: bool = True
 
     # what the `bm25_search` name showed in the ITER-with-BM25 prompt (the shared BM25 text)
     BM25_DESCRIPTION = ("Keyword search over the document corpus (BM25); returns ranked documents (with "
@@ -78,18 +83,23 @@ class SearchDedup(Tool):
         if not query:
             return "empty query"
         state = self.state
-        pool = [str(d) for d in self._retrieve(query, max(self.top_k, self.pool_k))]
-        searched = state.scratch.setdefault("dedup_searched", [])
-        seen_pool = set(searched)
-        hidden = [d for d in pool[: self.top_k] if d in seen_pool]
-        results = [d for d in pool if d not in seen_pool][: self.top_k]
+        if not self.dedup:
+            pool = [str(d) for d in self._retrieve(query, self.top_k)]
+            searched, seen_pool, hidden, results = [], set(), [], pool[: self.top_k]
+        else:
+            pool = [str(d) for d in self._retrieve(query, max(self.top_k, self.pool_k))]
+            searched = state.scratch.setdefault("dedup_searched", [])
+            seen_pool = set(searched)
+            hidden = [d for d in pool[: self.top_k] if d in seen_pool]
+            results = [d for d in pool if d not in seen_pool][: self.top_k]
         state.previous_queries.append(query)
         if not results:
             state.last_hits = []
             return f"No results found for '{query}'. Try with a more general query."
-        for d in results:
-            if d not in seen_pool:
-                searched.append(d)
+        if self.dedup:
+            for d in results:
+                if d not in seen_pool:
+                    searched.append(d)
         state.last_hits = list(results)
         state.seen.update(results)
         blocks = []
