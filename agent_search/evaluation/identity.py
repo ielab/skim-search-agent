@@ -167,6 +167,8 @@ def _resolve_env_knobs() -> dict:
     knobs["DENSE_QUERY_STYLE"] = _os.environ.get("DENSE_QUERY_STYLE", "plain")
     knobs["DENSE_POOLING"] = _os.environ.get("DENSE_POOLING")
     knobs["DENSE_DTYPE"] = _os.environ.get("DENSE_DTYPE")
+    knobs["DENSE_SEQ_LENGTH"] = _os.environ.get("DENSE_SEQ_LENGTH")
+    knobs["DENSE_QUERY_SEQ_LENGTH"] = _os.environ.get("DENSE_QUERY_SEQ_LENGTH")
     knobs["DENSE_INDEX_PATH"] = _os.environ.get("DENSE_INDEX_PATH")
     knobs["BM25_INDEX_PATH"] = _os.environ.get("BM25_INDEX_PATH")
     knobs["AGENT_SEARCH_ANN_EF_SEARCH"] = int(_os.environ.get("AGENT_SEARCH_ANN_EF_SEARCH", "0") or 0)
