@@ -30,7 +30,10 @@ export HF_HOME="${HF_HOME:-$HOME/.cache/huggingface}"
 export HF_HUB_OFFLINE=1
 EMBED_MODEL="${EMBED_MODEL:?set EMBED_MODEL, e.g. Qwen/Qwen3-Embedding-0.6B}"
 echo ">> building dense cache: $EMBED_MODEL over browsecomp_plus_structured_full"
-PYTHONPATH=. ./envs/bin/python -m agent_search.evaluation.build_indexes \
+# the project env when submitted from the main checkout; otherwise the python on PATH (a worktree
+# has no envs/; the cluster env exported into the job carries torch and transformers)
+PY=./envs/bin/python; [ -x "$PY" ] || PY="$(command -v python)"
+PYTHONPATH=. "$PY" -m agent_search.evaluation.build_indexes \
   --dataset browsecomp_plus_structured_full --retriever dense \
   --index-root indexes --model "$EMBED_MODEL"
 echo ">> done"
