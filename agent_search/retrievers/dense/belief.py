@@ -55,7 +55,11 @@ class DenseBelief:
 
     def __init__(self, model: Optional[str] = None, index_root: str = "indexes",
                  encoder=None, device: Optional[str] = None,
-                 max_seq_length: int = 1024, top_k: int = DEFAULT_TOP_K):
+                 max_seq_length: Optional[int] = None, top_k: int = DEFAULT_TOP_K):
+        # max_seq_length None: DenseRetriever's rule (DENSE_SEQ_LENGTH, else 1024), so the belief
+        # reads the same cache the `dense` retriever and the probe in engines.py resolve. A literal
+        # 1024 here used to override the environment and send every agent run to a 1024-token
+        # cache while the probe had checked the 512-token one.
         self._retriever = DenseRetriever(
             model=model or default_model(), index_root=index_root, encoder=encoder, device=device,
             max_seq_length=max_seq_length)

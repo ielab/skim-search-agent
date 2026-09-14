@@ -37,3 +37,15 @@ def test_decoder_encoder_matches_tevatron_style_encoding():
     with torch.no_grad():
         ref = torch.nn.functional.normalize(model(**batch).last_hidden_state[:, -1], dim=-1).numpy()
     assert float((ours * ref).sum(1).min()) > 0.99
+
+
+def test_dense_belief_reads_the_same_cache_the_probe_checks(monkeypatch, tmp_path):
+    """DENSE_SEQ_LENGTH decides the cache directory for the belief exactly as for the probe."""
+    from agent_search.retrievers.dense import DenseBelief, DenseRetriever
+    monkeypatch.setenv("DENSE_SEQ_LENGTH", "512")
+    probe = DenseRetriever(model="ielabgroup/ITER-Qwen3-Embedding-0.6B", index_root=str(tmp_path), encoder=object())
+    belief = DenseBelief(model="ielabgroup/ITER-Qwen3-Embedding-0.6B", index_root=str(tmp_path), encoder=object())
+    assert belief._retriever._cache_dir("k") == probe._cache_dir("k")
+    assert "-sl512" in belief._retriever._cache_dir("k")
+    monkeypatch.delenv("DENSE_SEQ_LENGTH")
+    assert "-sl1024" in DenseBelief(model="ielabgroup/ITER-Qwen3-Embedding-0.6B", index_root=str(tmp_path), encoder=object())._retriever._cache_dir("k")
