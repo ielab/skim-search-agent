@@ -143,6 +143,13 @@ class SearchBql(Tool):
     date_nudge: bool = False
     ranking: str = "bm25"          # bm25 | fused | dense -- selects self.engines
     manual_set: str = "v1"         # v1 | v2 -- which manual files the profiles map to
+    # fill=True: a listing always has k rows. The exact Boolean matches come first, in the
+    # ranker's order; when the filter admits fewer than k documents the remaining rows are the
+    # ranker's closest documents over the query's own terms (the same ranking the zero-hit
+    # fallback uses), marked `~` so the agent knows they did not pass the filter. The paper's
+    # Sieve (fill=False) shows only the exact matches, so a tight filter leaves the agent one
+    # or two candidates where a baseline lists five.
+    fill: bool = False
     manual = _MANUALS["v1"]
 
     def __init__(self, name: Optional[str] = None, **options):
@@ -210,11 +217,13 @@ class SearchBql(Tool):
         """The excerpt under one hit: the strategy's snippet method over the query's leaf tokens."""
         return self.snippet.render(u, leaf_toks, width=width)
 
-    def _render_hits(self, hit_ids: list, leaf_toks: list, header: str) -> str:
+    def _render_hits(self, hit_ids: list, leaf_toks: list, header: str, filled=()) -> str:
         """Render the structure table (rank, doc_id, title, §section names, ib[infobox
         keys], matched fields) for `hit_ids` under `header`. Marks every listed doc surfaced:
-        the gold-doc-coverage metric must count a fallback hit exactly like an exact hit."""
+        the gold-doc-coverage metric must count a fallback hit exactly like an exact hit.
+        `filled` names the rows that did not pass the Boolean filter (the fill-to-k rows)."""
         lines = [header]
+        filled = set(filled or ())
         for rank, doc_id in enumerate(hit_ids, start=1):
             u = self.ubyid.get(doc_id)
             if u is None:
@@ -226,7 +235,7 @@ class SearchBql(Tool):
             ib_str = "·".join(keys[:6]) + (",…" if len(keys) > 6 else "")
             title = u.title or u.qualname or doc_id
             matched = self._matched_fields(u, leaf_toks)
-            line = (f"  {rank}  {doc_id}  {title!r}  "
+            line = (f"  {rank}{'~' if doc_id in filled else ' '} {doc_id}  {title!r}  "
                    f"§[{sec_str}]  ib[{ib_str}]  matched: {matched}")
             if self.snippet.shows_excerpt:
                 snip = self._best_line(u, leaf_toks)
@@ -327,14 +336,28 @@ class SearchBql(Tool):
             return (f"search: {query}  ->  {bql}   (0 matches){prior}"
                     "\nhint: loosen the query — fewer/shorter terms, drop a field "
                     "scope, or OR name variants.")
-        self.state.last_hits = [h.doc_id for h in obs.hits[:k]]
+        exact = [h.doc_id for h in obs.hits[:k]]
         try:
             leaf_toks = [t.lower() for t in _rank_leaves(bql_parse(bql).expr)]
         except Exception:  # noqa: BLE001
             leaf_toks = []
-        header = (f"search: {query}  ->  {bql}   "
-                  f"({obs.n_hits} matches, top {len(self.state.last_hits)}):")
-        return self._render_hits(self.state.last_hits, leaf_toks, header)
+        filled: list = []
+        if (self.fill and len(exact) < k and leaf_toks
+                and os.environ.get("BQL_SOFT_FALLBACK", "1") not in ("0", "false", "no")):
+            try:
+                soft = self.ex.soft_topk(leaf_toks, k=k + len(exact) + 5)
+            except Exception:  # noqa: BLE001, a ranker failure leaves the exact rows alone
+                soft = []
+            have = set(exact)
+            filled = [d for d, _ in soft if d not in have][: k - len(exact)]
+        self.state.last_hits = exact + filled
+        if filled:
+            header = (f"search: {query}  ->  {bql}   ({obs.n_hits} matches, top {len(exact)}; "
+                      f"rows marked ~ did not pass the filter and are the closest by relevance):")
+        else:
+            header = (f"search: {query}  ->  {bql}   "
+                      f"({obs.n_hits} matches, top {len(exact)}):")
+        return self._render_hits(self.state.last_hits, leaf_toks, header, filled=filled)
 
     def run(self, args: dict) -> str:
         query = query_text(args)

@@ -48,3 +48,8 @@ from agent_search.strategies.conditions import CONDITIONS as _CONDS, condition a
 for _name, _s in list(_ALL.items()):
     if _name not in _CONDS and _s.domain in (None, "general"):
         _condition(_name, "research", _name)
+
+# Sieve with the listing filled to k, under the paper's prompt (a like-for-like variant of the three Sieve cells)
+condition("research_bql_dense_snip_fill", "research_paper", "sieve_fill")
+condition("research_snip_fill", "research_paper", "sieve_bm25_fill")
+condition("research_bql_donly_snip_fill", "research_paper", "sieve_dense_fill")

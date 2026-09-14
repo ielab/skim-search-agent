@@ -261,5 +261,26 @@
    "bm25_search",
    "get_document"
   ]
+ },
+ "research_bql_dense_snip_fill": {
+  "sha": "03b6d514e44c0002",
+  "tools": [
+   "search_bqlds",
+   "fetch_bqlds"
+  ]
+ },
+ "research_snip_fill": {
+  "sha": "9b61845e5c810125",
+  "tools": [
+   "search_s",
+   "fetch_s"
+  ]
+ },
+ "research_bql_donly_snip_fill": {
+  "sha": "162ae473dfd58a02",
+  "tools": [
+   "search_bqldos",
+   "fetch_bqldos"
+  ]
  }
 }

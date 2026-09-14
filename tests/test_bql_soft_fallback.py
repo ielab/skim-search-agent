@@ -115,3 +115,38 @@ def test_exact_hit_path_renders_sections_and_infobox_like_before():
     out = box.run("search", {"query": "alpha[title]"})
     assert "History" in out and "Career" in out
     assert "matched:" in out
+
+
+# --- SearchBql(fill=True): the listing always has k rows ----------------------------------------
+
+def test_fill_to_k_keeps_the_ranked_exact_matches_first_and_marks_the_rest():
+    units = _units()
+    ubyid = {u.doc_id: u for u in units}
+    ex = _ex()
+    for fill in (False, True):
+        state = EpisodeState(question="q")
+        search = SearchBql(name="search", fill=fill).bind(state, units, ubyid, {"bql": ex})
+        out = search.run({"query": "alpha AND report"})     # every title has Report, only d1 has alpha: one exact match
+        rows = [l for l in out.splitlines() if l.startswith("  ")]
+        if not fill:
+            assert len(rows) == 1 and " d1 " in rows[0] and "~" not in rows[0]
+            assert state.last_hits == ["d1"]
+        else:
+            assert len(rows) == 5, out
+            assert " d1 " in rows[0] and "~" not in rows[0]              # the exact match keeps rank 1
+            assert all("~" in r for r in rows[1:])                        # the fills are marked
+            assert "did not pass the filter" in out
+            assert state.last_hits[0] == "d1" and len(state.last_hits) == 5
+            assert set(state.last_hits) <= set(ubyid) and len(set(state.last_hits)) == 5
+            # the fills are the ranker's closest documents over the query's terms: every fill
+            # shares "report" with the query, so each is a real candidate, never a blank pick
+            assert all("Report" in ubyid[d].title for d in state.last_hits[1:])
+
+
+def test_fill_to_k_is_off_with_the_fallback_knob(monkeypatch):
+    monkeypatch.setenv("BQL_SOFT_FALLBACK", "0")
+    units = _units(); ubyid = {u.doc_id: u for u in units}
+    state = EpisodeState(question="q")
+    search = SearchBql(name="search", fill=True).bind(state, units, ubyid, {"bql": _ex()})
+    out = search.run({"query": "alpha AND report"})
+    assert len([l for l in out.splitlines() if l.startswith("  ")]) == 1

@@ -62,3 +62,20 @@ sieve_visit_dense = register_strategy(Strategy(
     name="sieve_visit_dense", toolset_name="bql_donly_visit",
     description="Boolean search (dense ranking only) then read whole documents",
     tools=(SearchBql(name="search_bqldo", ranking="dense"), Visit(name="visit_bqldo"))))
+
+# Sieve with the listing filled to k: exact matches first, then the ranker's closest documents
+# over the query's terms (marked ~), so a tight filter never leaves the agent short of candidates
+sieve_fill = register_strategy(Strategy(
+    name="sieve_fill", toolset_name="bql_dense_snip_fill",
+    description="Sieve, listing filled to k (BM25 and dense fused): exact Boolean matches first, then the closest documents",
+    tools=(SearchBql(name="search_bqlds", ranking="fused", snippet=TermWindow(), fill=True), Fetch(name="fetch_bqlds"))))
+
+sieve_bm25_fill = register_strategy(Strategy(
+    name="sieve_bm25_fill", toolset_name="search_fetch_s_fill",
+    description="Sieve, listing filled to k (BM25 ranking): exact Boolean matches first, then the closest documents",
+    tools=(SearchBql(name="search_s", snippet=TermWindow(), fill=True), Fetch(name="fetch_s"))))
+
+sieve_dense_fill = register_strategy(Strategy(
+    name="sieve_dense_fill", toolset_name="bql_donly_snip_fill",
+    description="Sieve, listing filled to k (dense ranking only): exact Boolean matches first, then the closest documents",
+    tools=(SearchBql(name="search_bqldos", ranking="dense", snippet=TermWindow(), fill=True), Fetch(name="fetch_bqldos"))))
