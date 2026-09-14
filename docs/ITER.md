@@ -167,79 +167,11 @@ is reachable: `skimsearchagent-judge --results-dir runs/iter_sample/... --judge-
 
 ## Results on BrowseComp-Plus
 
-The cells below are NOT the paper's evaluation setting. They ran DIVER's de-duplicated search
-setting (the one the paper collected training trajectories in) on the 67,707-document pooled
-corpus, with a flat 4,000-token turn budget and gpt-4o-mini as the judge; the paper evaluates with
-unfiltered top-10 rankings on the official 100,195-document corpus, with DIVER's turn schedule,
-and judges with Qwen3-30B-A3B-Thinking-2507 (Table 1: ITER-0.6B 49.2, ITER-4B 51.2, Base 32.4).
-Cells in the paper's setting are running and replace this section when they land. What holds
-regardless: the retriever, the query format (i9), the encoder serving, the tools' result format,
-50 calls, 64-token snippets and 512-token reads are the paper's.
-
-The setting here: DIVER's Tongyi prompt with the dedup notice, 50 LLM calls, dedup on (pool 100,
-top 10), 64-model-token snippets, 512-token reads, i9 queries at 8,192 tokens, the encoder served as
-trained (end token kept, last position pooled, bfloat16), the forced answer at 10,000 tokens, seed
-42, temperature 0.6. 830 questions. The paper column is the paper's Table 1 under its own judge and
-setting, so it is a reference point, not a like-for-like number.
-
-| retriever and prompt | accuracy % (our judge) | paper (DIVER's judge) | steps | tokens once (k) | at the 50-call cap | runs dir |
-|---|---|---|---|---|---|---|
-| ITER-Qwen3-Embedding-0.6B, DIVER prompt | 41.2 | 44.8 | 44.7 | 49.3 | 521 | `bcp_s_iter` |
-| ITER-Qwen3-Embedding-4B, DIVER prompt | 40.7 | 45.7 | 44.4 | 47.6 | 538 | `bcp_s_iter_4b` |
-| Qwen3-Embedding-0.6B (untrained), DIVER prompt | 34.3 | 40.6 | 45.7 | 52.4 | 582 | `bcp_s_iter_qwen06b` |
-| ITER-0.6B, combined prompt | 35.3 | - | 45.4 | 48.0 | 593 | `bcp_s_prompt` |
-| ITER-0.6B, paper prompt | 34.0 | - | 43.7 | 45.6 | 451 | `bcp_s_prompt` |
-
-The three retrievers keep the paper's order. Inside the
-trajectories the trained retriever is the difference: final recall@10 is 0.278 for ITER-0.6B,
-0.361 for ITER-4B and 0.104 for the untrained Qwen3-Embedding-0.6B; gold documents first surface
-at the second search with ITER and at the fifth with Qwen, and a quarter of the Qwen episodes never
-surface one (8% with ITER-0.6B). The 4B retriever finds more yet the judged accuracy is the same
-within noise (standard error 1.7 points): Tongyi compensates for the weaker 0.6B retriever.
-
-The prompt matters in the other direction from the Sieve tools. On ITER's `search` and
-`get_document`, DIVER's own prompt beats the library's combined prompt by six points and the Sieve
-paper's prompt by seven, with identical retrieval in all three cells; on the Sieve tools the
-combined prompt beats the paper prompt by eight. That is why the ITER task keeps DIVER's prompt
-and the other research strategies use the combined one.
-
-DIVER's prompt is not the same for every backbone. Tongyi gets the deep-research persona, the
-answer tags and the strict tool rules; Qwen3.5 and WebExplorer get "You are a helpful assistant."
-plus the tools block; gpt-oss gets a one-line system prompt with the tools passed as native
-function definitions. The library carries all three (the Backbones section above), and the table
-below runs them on the same retriever.
-
-### Backbones on the ITER protocol
-
-Same protocol and retriever as above (ITER-Qwen3-Embedding-0.6B, i9 queries, dedup on, 50 calls),
-each backbone under the task and driver DIVER used for it. Our judge is gpt-4o-mini; the paper
-column is DIVER's own backbone table, which scores a different retriever (DIVER, or LRAT) with
-string-match accuracy, so it shows the order the paper found, not a like-for-like number.
-
-| backbone | task, driver | accuracy % (our judge) | DIVER paper (DIVER / LRAT retriever, string match) | steps | tokens once (k) | at the 50-call cap |
-|---|---|---|---|---|---|---|
-| Tongyi-DeepResearch-30B-A3B | research_dedup (Tongyi prompt), loop | 41.2 | 44.8 (ITER paper) | 44.7 | 49.3 | 521 |
-| Qwen3.5-27B | research_dedup_qwen, loop | 33.5 | 48.3 / 42.2 | 29.2 | 25.4 | 142 |
-| Qwen3.5-9B | research_dedup_qwen, loop | 37.7 | 32.4 / 32.8 | 27.0 | 33.3 | 41 |
-| Qwen3.5-4B | research_dedup_qwen, loop | 25.1 | 24.6 / 26.7 | 26.9 | 30.0 | 71 |
-| gpt-oss-120b | research_dedup_strong, responses | 39.4 | 37.5 / 32.0 | 17.9 | 21.4 | 1 |
-| gpt-oss-20b | research_dedup_strong, responses | 29.2 | 21.6 / 22.2 | 29.5 | 37.8 | 0 |
-
-Tongyi stays first on its own retriever. gpt-oss-120b is second with the fewest calls and tokens
-of any backbone by a wide margin, and the 4B model trails, as in the paper. The one departure from
-the paper's order is Qwen3.5-27B, which the paper ranks first and which lands third here. Its
-trajectories show why: under DIVER's turn budgets (4096, 2048, then 1024 generation tokens) the
-27B model keeps reasoning in the open after its thinking is switched off, so a turn is cut before
-it reaches a tool call 1,188 times in 830 episodes, 17% of its episodes run out of calls against 5%
-for the 9B, and its gold coverage ends below the 4B's. The behaviour is the protocol's, not a
-serving fault: the chat template honours the thinking switch (the follow-up turns carry no think
-block) and the budgets are DIVER's.
-
-Every backbone family needed one serving detail to run at all: Tongyi's text protocol needed the
-tool-call repairs described on the [reproduction page](REPRODUCING.md), Qwen3.5 needed the reasoning channel read as the reply
-when vLLM's Qwen3 parser filed a reply without a closing think tag as reasoning, and gpt-oss needed
-a turn the server refused to re-parse dropped and taken again. Those are library behaviour now, not
-per-run patches.
+Not published yet. The cells run so far used DIVER's de-duplicated search setting on the pooled
+corpus with 1,024-token document embeddings, which is not the paper's evaluation setting (Sec. 5.3:
+unfiltered top-10 rankings; Sec. 5.1: the official 100,195-document corpus; documents encoded at 512
+tokens; the Qwen3-30B-A3B-Thinking-2507 judge). Cells in the paper's setting are running; the table
+returns here in one piece when they and the backbone cells under the same setting are judged.
 
 The earlier smoke pipeline, sample runs, training check and held-out check ran end to end on
 SLURM with the launchers in `scripts/slurm/`; their 20-question numbers are not reported.

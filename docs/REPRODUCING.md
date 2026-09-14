@@ -145,56 +145,11 @@ empty, since a floor has no agent; the 0.6B checkpoint more than doubles bge-bas
 4B checkpoint adds half again. Fusing BM25 into ITER by reciprocal rank lowers recall: BM25 is far weaker here and its
 votes dilute the dense ranking.
 
-### Full-set results on BrowseComp-Plus structured
+### Full-set results
 
-Every paper condition was run again on this code (branch `dev`) so the table below is what a
-fresh clone reproduces, not the paper's numbers. Setup: the 830 BrowseComp-Plus questions on the
-67,707-document structured corpus, `Alibaba-NLP/Tongyi-DeepResearch-30B-A3B` served by vLLM at a
-98,304-token window, the paper's prompt (`research_paper`), 100 steps, 5 results per search,
-32-model-token snippets, 12,000-token reads, temperature 0.6, seed 42, 20 shards of 2 workers.
-Accuracy is the gpt-4o-mini judge of Appendix F. Steps and tokens are means per question; tokens
-are the paper's count-once total (every prompt token counted once, plus every generated token).
-The last column is how many of the 830 episodes ran out of steps and answered through the forced
-final call.
-
-| strategy | retriever | accuracy % | steps | tokens once (k) | at step cap | condition |
-|---|---|---|---|---|---|---|
-| Search-Visit | BM25 | 36.4 | 54.4 | 57.3 | 211 | `agent_research_bm25` |
-| Search-Visit | bge-base | 36.5 | 63.9 | 48.9 | 292 | `agent_research_dense` |
-| Search-Visit | BM25+bge (RRF) | 43.1 | 55.5 | 52.4 | 219 | `agent_research_hybrid` |
-| Search-AutoRead | BM25 | 15.4 | 73.3 | 115.6 | 299 | `agent_research_bm25_autoread` |
-| Search-AutoRead | bge-base | 15.8 | 38.7 | 99.6 | 169 | `agent_research_dense_autoread` |
-| DCI | grep over the corpus | 20.0 | 34.8 | 86.1 | 75 | `agent_research_dci` |
-| BM25-bounded DCI | BM25 | 32.4 | 52.8 | 65.5 | 195 | `agent_research_bm25_dci` |
-| Search-Fetch | BM25 | 38.9 | 70.9 | 50.9 | 382 | `agent_research_bm25_fetch_snip` |
-| Search-Fetch | bge-base | 36.4 | 69.5 | 48.6 | 332 | `agent_research_dense_fetch` |
-| Search-Fetch | BM25+bge (RRF) | 43.9 | 62.8 | 45.7 | 265 | `agent_research_hybrid_fetch_snip` |
-| Sieve | Boolean BM25 | 33.6 | 60.2 | 45.6 | 215 | `agent_research_snip` |
-| Sieve | Boolean dense | 34.9 | 59.2 | 42.9 | 208 | `agent_research_bql_donly_snip` |
-| Sieve | Boolean BM25+dense | 38.1 | 62.0 | 41.2 | 250 | `agent_research_bql_dense_snip` |
-| Sieve without snippets | Boolean BM25+dense | 31.2 | 64.2 | 45.2 | 237 | `agent_research_bql_dense_fetch` |
-| Indri executor | Boolean BM25 | 33.1 | 65.9 | 42.4 | 265 | `agent_research_indri_snip` |
-| One-shot RAG | BM25 | 2.3 | 1.0 | 85.0 | 0 | `agent_rag_bm25` |
-| One-shot RAG | bge-base | 7.6 | 1.0 | 18.9 | 0 | `agent_rag_dense` |
-
-Three things differ from the paper's code and move the numbers. The tool-call parser repairs the
-small JSON slips Tongyi makes (a missing bracket in a fetch call, a dropped colon); the paper's
-parser rejected them, which cost Search-Fetch a quarter of its search turns. Snippets are cut in
-model tokens, not whitespace words. And two tool declarations were shortened after Tongyi answered
-one turn in five with an empty tool call under the long wording (hybrid Search-Visit, dense
-AutoRead); on the short wording that rate is 1%, the same as every other tool. Everything else is
-the paper's setting. The Sieve, Indri and Boolean cells run on the second version of the
-structured index, which keeps numbers in exact-match fields and compiles one-word proximity
-windows; the first version lost both and cost Indri three points.
-
-Read the table against the paper's claim, Sieve at fewer tokens than Search-Visit: fused Sieve
-answers 38.1% at 41k tokens where BM25 Search-Visit answers 36.4% at 57k. The hybrid cells are the
-strongest here (Search-Fetch 43.9, Search-Visit 43.1); the paper did not report hybrid Search-Fetch.
-The one-shot RAG rows are the floor: one ranking, one answer, no agent.
-
-The judged rows, the per-cell `judge_summary.json` and every trajectory are under
-`runs/bcp_s_fix/` on the cluster this was run on. The ITER protocol cells are on the
-[ITER page](ITER.md#results-on-browsecomp-plus).
+The full-set results table is being redone and is not in this page yet. Every paper condition is
+rerun on one code version with the paper's result depth (k=5 on every search) before the table
+returns here in one piece; partial or mixed-protocol numbers are not published.
 
 To run one cell locally:
 
