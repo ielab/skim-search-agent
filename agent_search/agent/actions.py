@@ -68,6 +68,43 @@ def _fix_missing_colons(text: str) -> str:
     return _MISSING_COLON.sub(r"\1\2: \3", text)
 
 
+# A call whose one string argument holds unescaped quotes: {"name":"bm25_search","arguments":
+# {"query":""coordinator" "research group" founded"}}. OpenResearcher writes these on a quarter
+# of its turns; strict JSON rejects them. The value is everything between the opening quote
+# after the key and the closing `"}}` (an optional simple extra argument such as ,"k":5 allowed).
+_ONE_STRING_ARG = re.compile(
+    r'^(\{\s*"name"\s*:\s*"[^"]*"\s*,\s*"arguments"\s*:\s*\{\s*"[^"]+"\s*:\s*")'
+    r'(.*?)'
+    r'("\s*(?:,\s*"[^"]+"\s*:\s*[^"{}\[\],]+)?\s*\}\s*\})\s*$', re.DOTALL)
+
+
+# The same call with the value left unquoted: {"name":"bm25_search","arguments":{"query":2009
+# research group literature}} (OpenResearcher, "let's try again without quotes").
+_ONE_BARE_ARG = re.compile(
+    r'^(\{\s*"name"\s*:\s*"[^"]*"\s*,\s*"arguments"\s*:\s*\{\s*"[^"]+"\s*:\s*)'
+    r'([^"\{\}\[\]][^\{\}]*?)'
+    r'(\s*\}\s*\})\s*$', re.DOTALL)
+
+
+def _fix_unescaped_quotes(text: str) -> str:
+    """Quote or re-escape the one string argument of a near-valid call."""
+    stripped = text.strip()
+    m = _ONE_STRING_ARG.match(stripped)
+    if m:
+        value = m.group(2).replace('\\"', '"').replace('"', '\\"')
+        return f"{m.group(1)}{value}{m.group(3)}"
+    m = _ONE_BARE_ARG.match(stripped)
+    if m:
+        value = m.group(2).strip()
+        try:
+            json.loads(value)                       # a number or literal is already valid JSON
+            return text
+        except json.JSONDecodeError:
+            pass
+        return f"{m.group(1)}{json.dumps(value, ensure_ascii=False)}{m.group(3)}"
+    return text
+
+
 def _repair_load(raw: str | None) -> dict | None:
     """Best-effort repair of a near-valid, truncated JSON object: string-literal-aware
     (brackets/commas inside string values are never touched, backslash-escapes are
@@ -191,6 +228,13 @@ def parse_tool_call(text: str | None) -> tuple[str, dict] | None:
                 # re-validate - the primary fix for the ~20% of steps a strict parser
                 # drops as "none".
                 data = _repair_load(raw)
+            if data is None:
+                fixed = _fix_unescaped_quotes(raw)
+                if fixed != raw:
+                    try:
+                        data = json.loads(fixed)
+                    except json.JSONDecodeError:
+                        data = _repair_load(fixed)
             if not isinstance(data, dict):
                 return None
     if not isinstance(data, dict):

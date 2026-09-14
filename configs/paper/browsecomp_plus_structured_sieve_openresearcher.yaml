@@ -1,0 +1,95 @@
+# SkimSearchAgent experiment file (schema 1). ONE file = ONE complete setting.
+# Run:      skimsearchagent run <this file> [section.key=value ...]
+# Validate: skimsearchagent validate <this file>
+# Every key that changes what runs or how it is measured is listed; unknown keys are errors.
+schema: 1
+name: paper-browsecomp_plus_structured-sieve-openresearcher
+strategy: research_bql_dense_snip   # the paper's Sieve (BQL-filtered BM25+Dense) under the paper's prompt (research_paper); backbone transfer, Sieve paper Table 4
+
+# --- dataset: what is searched and asked
+dataset:
+  name: browsecomp_plus_structured  # registered dataset (the paper's pooled BCP-S corpus) (`skimsearchagent-eval --help` lists them)
+  limit: null                            # cap the number of questions (null = all)
+  corpus_limit: null                     # cap the shared corpus (null = all; queries whose gold docs fall outside are dropped with a warning)
+  only_instances: null                   # path to a file of instance ids to run (null = all)
+
+# --- model: the language model driving the agent
+model:
+  name: OpenResearcher/OpenResearcher-30B-A3B # a Nemotron-H hybrid whose config carries an auto_map: serve with VLLM_ARGS="--trust-remote-code". model id: gpt-* / gemini-* route to their APIs; anything else is served (backend api) or in-process (backend vllm); null = the scripted stub policy
+  policy: null                           # llm | stub; null = llm when a model is named, else stub
+  backend: api                           # api (an OpenAI-compatible server at api_base) | vllm (in-process)
+  api_base: http://localhost:8000/v1     # OpenAI-compatible endpoint for backend=api
+  tp: 1                                  # tensor parallelism for backend=vllm
+  temperature: 0.6                       # sampling temperature
+  seed: 42                               # sampling seed (fixed for reproducibility)
+  seeds: null                            # variance band: a list such as [0, 1, 2] -> one seed=N run directory per seed (overrides seed)
+  driver: null                           # loop | sdk; null = loop, or sdk when openai-agents is installed and the model is API-served
+  reasoning_effort: low                  # OpenAI reasoning models only
+  top_p: 0.95                            # nucleus sampling for a served or in-process model
+  top_k: null                            # top-k sampling for a served model (null = the server's default; DIVER's Qwen3.5 runs use 20)
+  presence_penalty: 1.1                  # presence penalty (DIVER's Qwen3.5 runs use 1.5)
+  max_tokens: 4000                       # generation budget per turn
+  max_tokens_schedule: null              # per-turn budgets, comma separated, the last repeating (DIVER's Qwen3.5 runs: 4096,2048,1024); null = max_tokens every turn
+  thinking: null                         # chat-template thinking switch for a served model (true | false; null = the template's default)
+  timeout_s: 600                         # per-request timeout for API clients
+  retry_attempts: 5                      # retries on rate limits / transient errors
+
+# --- agent: the episode loop
+agent:
+  max_steps: 100                         # tool calls before the forced final answer (paper: 100)
+  forced_answer_tokens: 2000                 # generation budget of the forced final answer at the step cap (stops at </answer>; ITER files: DIVER's 10000)
+  forced_answer_prefill: null            # text the forced final answer continues from (null = an open <answer> tag, or DIVER's sentence for a text-terminal task)
+  forced_answer_nudge: null              # the reserved final turn's message (null = the library's STEP BUDGET REACHED text)
+  prompt_profile: null                   # override the condition's prompt (a condition name or a .md path); null = the strategy's own
+  ctx_tokens: 86000                      # history budget in model tokens kept in the prompt (the same budget every Tongyi cell runs with)
+  ctx_window: 98304                      # the serving window (MAX_MODEL_LEN); the same for every backbone so the token budget is matched
+  ctx_stop_frac: 0.9                     # force the answer once the observed prompt exceeds this fraction of ctx_window (>= 1 disables)
+
+# --- budgets: length limits — all in TOKENS (there are no character limits anywhere)
+budgets:
+  snippet_tokens: 32                     # query-biased snippet width shown per result (whitespace tokens)
+  max_section_tokens: 12000              # named-section read cap (the paper setting)
+  closer_evidence_arg_tokens: 32         # SDK driver: per-call argument excerpt in the forced-answer evidence
+  closer_evidence_obs_tokens: 160        # SDK driver: per-observation excerpt in the forced-answer evidence
+
+# --- retrieval: engines and ranking
+retrieval:
+  dense_model: null                      # the ONE dense model for every dense arm (ranker, fallback, baselines); null = BAAI/bge-base-en-v1.5 for documents; a directory trained by skimsearchagent-train-retriever works too
+  dense_query_style: plain               # how the dense query is written from the agent's history: plain | mem | docs | i1..i7 (must match the trained retriever)
+  dense_query_instruction: null          # override the query instruction prefix (null = the checkpoint's serving note or the built-in table)
+  dense_pooling: null                    # pooling for a local checkpoint: last_token | mean | cls (null = serving note, else auto from config.json)
+  dense_dtype: null                      # precision the dense encoder runs in: float32 | float16 | bfloat16 (null = the checkpoint's serving note, else float32)
+  dense_seq_length: null                  # encoder tokens a document or query is cut to (null = 1024; ITER encodes at 512)
+  dense_query_seq_length: null                  # encoder tokens a query is cut to (null = the document length; the ITER checkpoints take 8192)
+  dense_index: null                      # prebuilt vector index to serve (this library's cache dir, or ITER's index.faiss + index.lookup.pkl); null = the per-corpus cache under index_root
+  ann_ef_search: 0                       # HNSW efSearch for a prebuilt index (0 = as built)
+  bql_soft_fallback: true                # rank the closest docs (same ranker) when a Boolean query matches nothing; false = strict-Boolean ablation
+  bql_soft_pool: 100                     # size of that fallback pool
+  bql_date_range: true                   # typed date[RANGE] scopes in BQL
+  bql_dense_rrf_k: 60                    # RRF constant for BQL dense fusion
+  ann: auto                              # vector index backend: auto | flat | hnsw | ivfpq
+  ann_min: 1000000                       # corpus size above which an ANN index is used
+  ann_pq_min: 8000000                    # corpus size above which IVF-PQ is used
+  dense_device: null                     # device for the dense encoder (null = auto)
+
+# --- evaluation: scoring
+evaluation:
+  level: function                        # function | file (code arm only; documents ignore it)
+  k: [1, 3, 5, 10]                       # rank cutoffs for @k metrics
+  workers: 8                             # concurrent episodes (use with a served model)
+  judge_model: gpt-4o-mini               # LLM judge for document answers (null = off)
+  judge_api_base: null                   # endpoint for a served judge
+  rejudge: false                         # re-grade rows that already carry a verdict
+
+# --- output: where the run record goes
+output:
+  runs_dir: runs/bcp_s_backbones         # root of the run record (runs_dir/<kind>/<dataset>/<model>/<retriever>)
+  results_dir: null                      # explicit run directory (overrides runs_dir layout)
+  index_root: indexes                    # where persistent indexes and embedding caches live
+  rebuild: false                         # rebuild persistent indexes
+  allow_config_drift: false              # resume even if the directory holds a different experiment
+
+# --- env: any other environment knob, verbatim (escape hatch; recorded in config.json)
+env:
+  VLLM_ARGS: "--trust-remote-code"   # read by scripts/shard_cell.sh and scripts/run.sh when they start vLLM
+

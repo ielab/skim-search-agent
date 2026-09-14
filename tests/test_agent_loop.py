@@ -559,3 +559,23 @@ def test_a_call_to_a_pseudo_tool_named_answer_is_the_final_answer():
                          system=RESEARCH_SNIP_SYSTEM)
     traj = run_episode(policy, Task("t", "when?"), _AnyToolWS(), units=[], max_steps=3, domain="general")
     assert traj.stopped_reason == "submit" and traj.final_answer == "1848" and len(traj.steps) == 1
+
+
+def test_run_episode_accepts_a_labelled_exact_answer_without_tags():
+    """OpenResearcher writes BrowseComp's own answer format instead of the <answer> tag; a reply
+    with no tool call and an "Exact Answer:" line ends the episode with that span."""
+    calls = {"n": 0}
+
+    def fake_generate(messages):
+        calls["n"] += 1
+        if calls["n"] < 2:
+            return '<tool_call>{"name":"search","arguments":{"query":"x"}}</tool_call>'
+        return ("Explanation: The interview names the secretary as the longest-serving employee [93372].\n\n"
+                "Exact Answer: She is the school's secretary.  \nConfidence: 95%")
+
+    policy = AgentPolicy(generate=fake_generate, system=RESEARCH_SNIP_SYSTEM)
+    traj = run_episode(policy, Task("t", "role of the longest-serving employee?"), _AnyToolWS(), units=[],
+                       max_steps=10, domain="general")
+    assert traj.stopped_reason == "answer"
+    assert traj.final_answer == "She is the school's secretary."
+    assert calls["n"] == 2

@@ -23,6 +23,11 @@ from agent_search.corpus.units import CodeUnit
 from agent_search.agent.actions import parse_tool_call
 
 _ANSWER = re.compile(r"<answer>(.*?)</answer>", re.DOTALL | re.IGNORECASE)
+# BrowseComp's own answer format ("Explanation: ... Exact Answer: X  Confidence: 95%"), which
+# some backbones (OpenResearcher) write instead of the <answer> tag: a reply with no tool call
+# and such a line is the final answer, not a turn to nudge
+_LABELLED_ANSWER = re.compile(r"^\s*\**\s*(?:Exact|Final)\s+Answer\s*\**\s*:\s*\**\s*(.+?)\s*$",
+                              re.IGNORECASE | re.MULTILINE)
 _THINK = re.compile(r"<think>.*?</think>", re.DOTALL | re.IGNORECASE)
 _FIX = re.compile(r"<fix>(.*?)</fix>", re.DOTALL | re.IGNORECASE)
 
@@ -301,7 +306,10 @@ def run_episode(policy: Policy, task: Task, workspace: WorkspaceLike,
         # call, not an answer (DIVER's client answers it with an invalid-JSON error)
         is_text_answer = (terminal == "text" and finals is None and not call and not is_stop
                           and not cut_off and bool(plain_text) and "<tool_call>" not in plain_text)
-        if finals is not None or is_stop or is_text_answer:   # submit / <answer> / STOP / plain reply
+        labelled = (_LABELLED_ANSWER.search(plain_text)
+                    if (terminal != "text" and finals is None and not call and not is_stop
+                        and not cut_off and "<tool_call>" not in plain_text) else None)
+        if finals is not None or is_stop or is_text_answer or labelled:   # submit / <answer> / STOP / plain reply / "Exact Answer:"
             reason = "submit" if name == "submit" else ("stop" if is_stop else "answer")
             declared = finals or []
             if name == "submit":
@@ -310,6 +318,8 @@ def run_episode(policy: Policy, task: Task, workspace: WorkspaceLike,
                 final_answer = ""
             elif is_text_answer:                    # the reply itself, ignoring <think>
                 final_answer = plain_text
+            elif labelled:                          # "Exact Answer: X" without the tag
+                final_answer = labelled.group(1).strip().strip("*").strip()
             else:                                   # <answer>...</answer>, ignoring <think>
                 final_answer = _extract_answer(_THINK.sub("", raw or ""))
             _push(Step(name=reason, args=args, observation="(episode ended)",
