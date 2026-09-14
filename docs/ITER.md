@@ -167,13 +167,20 @@ is reachable: `skimsearchagent-judge --results-dir runs/iter_sample/... --judge-
 
 ## Results on BrowseComp-Plus
 
-The ITER protocol cells ran on this code with Tongyi-DeepResearch-30B-A3B as the backbone: DIVER's
-Tongyi prompt with the dedup notice, 50 LLM calls, dedup on (pool 100, top 10), 64-model-token
-snippets, 512-token reads, i9 queries at 8,192 tokens, the encoder served as trained (end token
-kept, last position pooled, bfloat16), the forced answer at 10,000 tokens, seed 42, temperature 0.6.
-830 questions, the 67,707-document structured corpus. Accuracy is our gpt-4o-mini judge. The paper
-column is DIVER's own judge; that judge scored DIVER's released answers 5.6 points higher than ours
-on the same trajectories, so read the two columns with that gap in mind.
+The cells below are NOT the paper's evaluation setting. They ran DIVER's de-duplicated search
+setting (the one the paper collected training trajectories in) on the 67,707-document pooled
+corpus, with a flat 4,000-token turn budget and gpt-4o-mini as the judge; the paper evaluates with
+unfiltered top-10 rankings on the official 100,195-document corpus, with DIVER's turn schedule,
+and judges with Qwen3-30B-A3B-Thinking-2507 (Table 1: ITER-0.6B 49.2, ITER-4B 51.2, Base 32.4).
+Cells in the paper's setting are running and replace this section when they land. What holds
+regardless: the retriever, the query format (i9), the encoder serving, the tools' result format,
+50 calls, 64-token snippets and 512-token reads are the paper's.
+
+The setting here: DIVER's Tongyi prompt with the dedup notice, 50 LLM calls, dedup on (pool 100,
+top 10), 64-model-token snippets, 512-token reads, i9 queries at 8,192 tokens, the encoder served as
+trained (end token kept, last position pooled, bfloat16), the forced answer at 10,000 tokens, seed
+42, temperature 0.6. 830 questions. The paper column is the paper's Table 1 under its own judge and
+setting, so it is a reference point, not a like-for-like number.
 
 | retriever and prompt | accuracy % (our judge) | paper (DIVER's judge) | steps | tokens once (k) | at the 50-call cap | runs dir |
 |---|---|---|---|---|---|---|
@@ -183,7 +190,7 @@ on the same trajectories, so read the two columns with that gap in mind.
 | ITER-0.6B, combined prompt | 35.3 | - | 45.4 | 48.0 | 593 | `bcp_s_prompt` |
 | ITER-0.6B, paper prompt | 34.0 | - | 43.7 | 45.6 | 451 | `bcp_s_prompt` |
 
-The three retrievers land where the paper puts them once the judge gap is applied. Inside the
+The three retrievers keep the paper's order. Inside the
 trajectories the trained retriever is the difference: final recall@10 is 0.278 for ITER-0.6B,
 0.361 for ITER-4B and 0.104 for the untrained Qwen3-Embedding-0.6B; gold documents first surface
 at the second search with ITER and at the fifth with Qwen, and a quarter of the Qwen episodes never
