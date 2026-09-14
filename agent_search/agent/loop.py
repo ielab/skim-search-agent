@@ -47,6 +47,17 @@ _FIX = re.compile(r"<fix>(.*?)</fix>", re.DOTALL | re.IGNORECASE)
 DEFAULT_CTX_WINDOW = 131072
 DEFAULT_CTX_STOP_FRAC = 0.90
 
+# The reserved final turn's message. FORCED_ANSWER_NUDGE (agent.forced_answer_nudge) replaces it;
+# the ITER files carry DIVER's "Retrieval complete. You are forbidden to call any tools now. ..."
+DEFAULT_BUDGET_NUDGE = ("STEP BUDGET REACHED — this is your FINAL turn. Do NOT search or fetch again. Give your "
+                        "single best-effort answer NOW based on everything you have seen, as <answer>your "
+                        "answer</answer>. If unsure, commit your most likely answer — a best guess scores "
+                        "better than an empty answer.")
+
+
+def budget_nudge() -> str:
+    return os.environ.get("FORCED_ANSWER_NUDGE") or DEFAULT_BUDGET_NUDGE
+
 
 def _last_prompt_tokens(usage_fn: Optional[Callable[[], list]]) -> int:
     """The most recently observed prompt_tokens: the size of the last real generate() call's
@@ -239,11 +250,7 @@ def run_episode(policy: Policy, task: Task, workspace: WorkspaceLike,
         if force_answer and is_forced_final_turn and steps and not nudge_injected:
             _push(Step(
                 name="budget", args={},
-                observation=("<tool_response>STEP BUDGET REACHED — this is your FINAL turn. Do NOT "
-                             "search or fetch again. Give your single best-effort answer NOW based on "
-                             "everything you have seen, as <answer>your answer</answer>. If unsure, "
-                             "commit your most likely answer — a best guess scores better than an "
-                             "empty answer.</tool_response>"),
+                observation=f"<tool_response>{budget_nudge()}</tool_response>",
                 raw_output="", t_llm=0.0))
             nudge_injected = True
             nudge_reason = "ctx_budget" if ctx_budget_hit else "max_steps"
@@ -315,7 +322,8 @@ def run_episode(policy: Policy, task: Task, workspace: WorkspaceLike,
             # DIVER's Qwen3.5 client: a turn cut off mid-thought is discarded, and the next turn
             # runs with thinking off so the model gets to the call
             obs = ("ERROR: Your previous thought was too long and has been discarded. Now, skip all "
-                   "reasoning and directly provide the <tool_call> or final answer.")
+                   "reasoning and directly provide the <tool_call> or "
+                   + ("final answer." if terminal == "text" else "<answer>."))
             if hasattr(policy, "suppress_thinking_once"):
                 policy.suppress_thinking_once = True
         elif not call:

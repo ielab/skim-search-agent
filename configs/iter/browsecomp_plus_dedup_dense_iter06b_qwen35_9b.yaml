@@ -39,6 +39,7 @@ agent:
   max_steps: 50                          # tool calls before the forced final answer (ITER's MAX_LLM_CALL_PER_RUN = 50)
   forced_answer_tokens: 6000             # DIVER's Qwen3.5 client: the forced final answer's budget
   forced_answer_prefill: null            # null = DIVER's "Based on all the information gathered so far, my final answer is: " for this text-terminal task
+  forced_answer_nudge: null              # the reserved final turn's message (null = the library's STEP BUDGET REACHED text)
   prompt_profile: null                   # override the condition's prompt (a condition name or a .md path); null = the strategy's own
   ctx_tokens: 26000                      # DIVER's Qwen3.5 client forces the answer once the conversation passes 26,000 tokens
   ctx_window: 131072                     # DIVER served Qwen3.5 at 131072

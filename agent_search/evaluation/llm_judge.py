@@ -85,11 +85,53 @@ def _norm_exact(s: str) -> str:
 
 # Default judge model: a cheap OpenAI model is sufficient (yes/no equivalence check, not
 # generation). Configurable via the `model` param of `judge_answer` or this env var.
+# DIVER's judge template (DIVER/scripts_evaluation/evaluate.py JUDGE_TEMPLATE, verbatim). It is the
+# Appendix F prompt with two differences: the [correct_answer] line sits after the response, and the
+# reasoning clause allows string variations and a more precise or verbose answer. DIVER grades with
+# a served Qwen3-30B-A3B-Thinking-2507 at temperature 0 and reads the verdict off a "correct: yes/no"
+# line after the think block (`parse_judge_result`), so this prompt is paired with `_parse_verdict_line`.
+DIVER_JUDGE_PROMPT = """Judge whether the following [response] to [question] is correct or not based on the precise and unambiguous [correct_answer] below.
+
+[question]: {question}
+
+[response]: {response}
+
+[correct_answer]: {correct_answer}
+
+Your judgement must be in the format and criteria specified below:
+
+extracted_final_answer: The final exact answer extracted from the [response]. 
+
+[correct_answer]: Repeat the [correct_answer] given above.
+
+reasoning: Explain why the extracted_final_answer is correct or incorrect based on [correct_answer], in the context of this [question]. You should judge whether the extracted_final_answer is semantically equivalent to [correct_answer], allowing the extracted_final_answer to be string variations of [correct_answer]. You should also allow the extracted_final_answer to be more precise or verbose than [correct_answer], as long as its additional details are correct. Do not comment on any background to the problem, do not attempt to solve the problem, do not argue for any answer different than [correct_answer], focus only on whether the answers are semantically equivalent.
+
+correct: Answer 'yes' if extracted_final_answer matches the [correct_answer] given above, or is within a small margin of error for numerical problems. Answer 'no' otherwise, i.e. if there if there is any inconsistency, ambiguity, non-equivalency, or if the extracted answer is incorrect.
+
+
+confidence: The extracted confidence score between 0|\%| and 100|\%| from [response]. Put 100 if there is no confidence score available."""
+
+JUDGE_PROMPTS = {"bcp": None, "diver": DIVER_JUDGE_PROMPT}   # None = BCP_JUDGE_PROMPT below
+
+
+def _parse_verdict_line(raw: str) -> Optional[dict]:
+    """The verdict of a free-text judge reply: the last `correct: yes|no` after any think block."""
+    text = re.sub(r"<think>.*?</think>", "", raw or "", flags=re.DOTALL)
+    m = list(re.finditer(r"correct:\s*\**\s*(yes|no)", text, re.IGNORECASE))
+    if not m:
+        return None
+    ex = re.search(r"extracted_final_answer:\s*(.*)", text)
+    reason = re.search(r"reasoning:\s*(.*)", text)
+    return {"correct": m[-1].group(1).lower(), "extracted_final_answer": (ex.group(1).strip() if ex else "None"),
+            "reasoning": (reason.group(1).strip() if reason else "")}
+
+
 DEFAULT_JUDGE_MODEL = os.environ.get("LLM_JUDGE_MODEL", "gpt-4o-mini")
 
 
 def judge_answer_detail(question: str, gold_answer: str, response: str,
-                        generate: Callable[[str], str], *, short_circuit: bool = True) -> dict:
+                        generate: Callable[[str], str], *, short_circuit: bool = True,
+                        prompt: str = "bcp") -> dict:
     """Grade one (question, gold, response) triple the BrowseComp-Plus way, with full judge detail.
 
     `generate(prompt) -> str` returns the judge's JSON text; it is injectable for tests and
@@ -102,10 +144,10 @@ def judge_answer_detail(question: str, gold_answer: str, response: str,
     if short_circuit and gold_answer and _norm_exact(resp) == _norm_exact(gold_answer):
         return {"judge_correct": True, "judge_extracted": resp,
                 "judge_reasoning": "exact match after normalization (no judge call)"}
-    prompt = BCP_JUDGE_PROMPT.format(question=question or "", response=resp,
-                                     correct_answer=gold_answer or "")
-    raw = generate(prompt)
-    data = _parse_judge_json(raw)
+    template = JUDGE_PROMPTS.get(prompt) or BCP_JUDGE_PROMPT
+    text = template.format(question=question or "", response=resp, correct_answer=gold_answer or "")
+    raw = generate(text)
+    data = _parse_judge_json(raw) if prompt == "bcp" else _parse_verdict_line(raw)
     if not data or "correct" not in data:
         # An unparseable judge reply is an error, not a "no": recording it as wrong would
         # silently deflate accuracy. The row keeps the raw reply so it can be re-judged.
@@ -134,7 +176,7 @@ def judge_answer(question: str, gold_answer: str, response: str, *,
 
 
 def make_judge(model: str = "gpt-4o-mini", *, api_base: Optional[str] = None,
-               client=None) -> Callable[[str], str]:
+               client=None, max_tokens: int = 512, json_mode: bool = True) -> Callable[[str], str]:
     """A judge `generate(prompt) -> str` (JSON object, temperature 0) that auto-routes by model
     name, the same way the agent backend does (`agent_search.agent.backbone.make_generate`). There is no
     separate "gpt-based vs vLLM-based" setting: the model name decides the endpoint.
@@ -165,7 +207,10 @@ def make_judge(model: str = "gpt-4o-mini", *, api_base: Optional[str] = None,
 
     def generate(prompt: str) -> str:
         kw = dict(model=model, messages=[{"role": "user", "content": prompt}],
-                  temperature=0.0, max_tokens=512)
+                  temperature=0.0, max_tokens=max_tokens)
+        if not json_mode:                               # a free-text judge (DIVER's thinking judge)
+            resp = client.chat.completions.create(**kw)
+            return resp.choices[0].message.content or ""
         try:                                            # JSON mode (OpenAI + vLLM guided decoding)
             resp = client.chat.completions.create(response_format={"type": "json_object"}, **kw)
         except Exception:                               # noqa: BLE001 - server without JSON mode: plain call
@@ -185,7 +230,8 @@ def _questions_from_dataset(dataset: Optional[str]) -> dict:
 
 def judge_run_dir(results_dir: str, generate: Callable[[str], str], *,
                   judge_model: str = "gpt-4o-mini", dataset: Optional[str] = None,
-                  force: bool = False, unfinished_ok: bool = False) -> dict:
+                  force: bool = False, unfinished_ok: bool = False,
+                  prompt: str = "bcp", tag: str = "", workers: int = 1) -> dict:
     """Grade every answered doc row in <results_dir>/rows.jsonl (add `judge_correct` in place, write
     judge_summary.json, return the summary). The question comes from the row (`question`) or, for
     older rows that lack it, from `dataset` by instance_id. Rows with no `gold_answer` (e.g. the code
@@ -195,7 +241,12 @@ def judge_run_dir(results_dir: str, generate: Callable[[str], str], *,
     re-judged unless ``force=True``; rows whose earlier judge reply was unparseable
     (`judge_correct` is None) are retried. Rows stream through one at a time, so memory stays
     flat however large the trajectories are. rows.jsonl is rewritten atomically (temp file +
-    rename) so an interrupt can never truncate the run's only durable artifact."""
+    rename) so an interrupt can never truncate the run's only durable artifact.
+
+    `prompt` picks the judge template (`bcp`, the default, or `diver`); `tag` keeps a second judge's
+    verdicts next to the first (fields `judge_correct_<tag>` and friends, summary
+    `judge_summary_<tag>.json`); `workers` grades that many rows at once, in chunks, so a slow
+    served judge is not called one row at a time."""
     rd = Path(results_dir)
     rows_path = rd / "rows.jsonl"
     if not (rd / "results.json").exists() and not unfinished_ok:
@@ -207,34 +258,62 @@ def judge_run_dir(results_dir: str, generate: Callable[[str], str], *,
     # One row at a time: a run that reads whole documents (autoread, DCI) keeps every read in its
     # trajectory, and its rows.jsonl runs to tens of gigabytes. Loading it whole would take the
     # judge host down, so rows stream from the file into a temp file that replaces it at the end.
+    sfx = f"_{tag}" if tag else ""
+    key, err_key = f"judge_correct{sfx}", f"judge_error{sfx}"
+
+    def _grade(r: dict) -> dict:
+        question = r.get("question") or q_by_id.get(r.get("instance_id"), "")
+        d = judge_answer_detail(question, r.get("gold_answer", ""), r.get("final_answer", ""), generate, prompt=prompt)
+        return {k + sfx: v for k, v in d.items()} if sfx else d
+
     n_new = n_graded = n_correct = n_errored = 0
     tmp = rows_path.with_suffix(f".jsonl.tmp.{os.getpid()}")
+    chunk = max(1, int(workers)) * 4
     with open(rows_path, encoding="utf-8") as src, open(tmp, "w", encoding="utf-8") as dst:
+        pending: list = []
+
+        def _flush() -> None:
+            nonlocal n_new, n_graded, n_correct, n_errored
+            todo = [i for i, r in enumerate(pending) if "gold_answer" in r and (force or r.get(key) is None)]
+            if todo:
+                if workers > 1:
+                    from concurrent.futures import ThreadPoolExecutor
+                    with ThreadPoolExecutor(max_workers=int(workers)) as ex:
+                        results = list(ex.map(lambda i: _grade(pending[i]), todo))
+                else:
+                    results = [_grade(pending[i]) for i in todo]
+                for i, d in zip(todo, results):
+                    pending[i].update(d)
+                n_new += len(todo)
+            for r in pending:
+                if r.get(key) is not None:
+                    n_graded += 1
+                    n_correct += bool(r.get(key))
+                elif err_key in r:
+                    n_errored += 1
+                dst.write(json.dumps(r, ensure_ascii=False) + "\n")
+            pending.clear()
+
         for line in src:
             if not line.strip():
                 continue
-            r = json.loads(line)
-            if "gold_answer" in r and (force or r.get("judge_correct") is None):
-                question = r.get("question") or q_by_id.get(r.get("instance_id"), "")
-                r.update(judge_answer_detail(question, r.get("gold_answer", ""), r.get("final_answer", ""), generate))
-                n_new += 1
-            if r.get("judge_correct") is not None:
-                n_graded += 1
-                n_correct += bool(r.get("judge_correct"))
-            elif "judge_error" in r:
-                n_errored += 1
-            dst.write(json.dumps(r, ensure_ascii=False) + "\n")
+            pending.append(json.loads(line))
+            if len(pending) >= chunk:
+                _flush()
+        _flush()
     if n_new:
         os.replace(tmp, rows_path)
     else:
         os.remove(tmp)
-    summary = {"judge_model": judge_model, "judge_prompt": "BrowseComp Appendix F (verbatim)",
+    summary = {"judge_model": judge_model,
+               "judge_prompt": ("BrowseComp Appendix F (verbatim)" if prompt == "bcp" else "DIVER evaluate.py JUDGE_TEMPLATE (verbatim)"),
                "n_judged": n_graded, "n_correct": n_correct, "n_judge_errors": n_errored,
                "n_newly_judged": n_new,
                "judge_accuracy": (n_correct / n_graded) if n_graded else 0.0}
-    tmp = (rd / "judge_summary.json").with_suffix(f".json.tmp.{os.getpid()}")
+    out = rd / f"judge_summary{sfx}.json"
+    tmp = out.with_suffix(f".json.tmp.{os.getpid()}")
     tmp.write_text(json.dumps(summary, indent=2))
-    os.replace(tmp, rd / "judge_summary.json")
+    os.replace(tmp, out)
     return summary
 
 
@@ -247,13 +326,22 @@ def main() -> None:
                          "for a served vLLM on the cluster (default: the OpenAI API via OPENAI_API_KEY)")
     ap.add_argument("--dataset", default=None,
                     help="load questions from this dataset for rows that lack a `question` field")
+    ap.add_argument("--judge-prompt", default="bcp", choices=sorted(JUDGE_PROMPTS),
+                    help="bcp = BrowseComp Appendix F, JSON verdict (default); diver = DIVER's template, verdict line")
+    ap.add_argument("--tag", default="", help="keep these verdicts next to the default judge's: judge_correct_<tag>, judge_summary_<tag>.json")
+    ap.add_argument("--workers", type=int, default=1, help="rows graded at once")
+    ap.add_argument("--max-tokens", type=int, default=None,
+                    help="judge generation budget (default 512; a thinking judge needs 8192, DIVER's setting)")
     ap.add_argument("--unfinished-ok", action="store_true",
                     help="judge a run directory that has no results.json yet (the run is still writing or was cut off)")
     a = ap.parse_args()
-    gen = make_judge(a.judge_model, api_base=a.judge_api_base)
-    s = judge_run_dir(a.results_dir, gen, judge_model=a.judge_model, dataset=a.dataset, unfinished_ok=a.unfinished_ok)
+    gen = make_judge(a.judge_model, api_base=a.judge_api_base,
+                     max_tokens=a.max_tokens or (8192 if a.judge_prompt == "diver" else 512),
+                     json_mode=(a.judge_prompt == "bcp"))
+    s = judge_run_dir(a.results_dir, gen, judge_model=a.judge_model, dataset=a.dataset, unfinished_ok=a.unfinished_ok,
+                      prompt=a.judge_prompt, tag=a.tag, workers=a.workers)
     print(f"judge={a.judge_model}  accuracy {s['judge_accuracy'] * 100:.1f}% "
-          f"({s['n_correct']}/{s['n_judged']})  ->  {a.results_dir}/judge_summary.json")
+          f"({s['n_correct']}/{s['n_judged']})  ->  {a.results_dir}/judge_summary{('_' + a.tag) if a.tag else ''}.json")
 
 
 if __name__ == "__main__":

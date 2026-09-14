@@ -235,3 +235,16 @@ def test_the_forced_answer_reads_the_reasoning_channel_when_the_content_is_empty
     client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
     answer, tag, _ = elicit_final_answer([{"role": "user", "content": "q"}], client, "m", terminal="text")
     assert answer == "Vitali Hakko." and tag == "prefill" and n["calls"] == 1
+
+
+def test_the_budget_nudge_is_configurable_and_the_cut_off_message_names_the_terminal(monkeypatch):
+    from agent_search.agent.loop import budget_nudge
+    monkeypatch.delenv("FORCED_ANSWER_NUDGE", raising=False)
+    assert budget_nudge().startswith("STEP BUDGET REACHED")
+    monkeypatch.setenv("FORCED_ANSWER_NUDGE", "Retrieval complete. You are forbidden to call any tools now.")
+    gen = _gen(['<tool_call>{"name":"search","arguments":{"query":"a"}}</tool_call>', "<answer>x</answer>"])
+    traj = run_episode(AgentPolicy(generate=gen, system=QWEN_SYSTEM), Task("t", "q"), _WS(), units=[], max_steps=2, domain="general")
+    assert any("Retrieval complete" in s.observation for s in traj.steps if s.name == "budget")
+    gen2 = _gen(["<think>too long", '<tool_call>{"name":"search","arguments":{"query":"a"}}</tool_call>', "<answer>x</answer>"], finish=["length", "stop", "stop"])
+    traj2 = run_episode(AgentPolicy(generate=gen2, system=QWEN_SYSTEM), Task("t", "q"), _WS(), units=[], max_steps=6, domain="general")
+    assert traj2.steps[0].observation.endswith("directly provide the <tool_call> or <answer>.")

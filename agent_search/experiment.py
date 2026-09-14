@@ -68,6 +68,7 @@ SCHEMA: dict[str, dict[str, Key]] = {
     },
     "agent": {
         "max_steps": Key(50, "flag", "--max-steps", "tool calls before the forced final answer (paper: 100)"),
+        "forced_answer_nudge": Key(None, "env", "FORCED_ANSWER_NUDGE", "the reserved final turn's message (null = the library's STEP BUDGET REACHED text; the ITER files carry DIVER's 'Retrieval complete. You are forbidden to call any tools now. ...')"),
         "forced_answer_prefill": Key(None, "env", "FORCED_ANSWER_PREFILL", "text the forced final answer continues from (null = the task's: an open <answer> tag, or for a text-terminal task DIVER's \"Based on all the information gathered so far, my final answer is: \")"),
         "forced_answer_tokens": Key(2000, "env", "FORCED_ANSWER_TOKENS", "generation budget of the forced final answer at the step cap (stops at </answer>; the ITER files use DIVER's 10000)"),
         "prompt_profile": Key(None, "flag", "--prompt-profile", "override the condition's prompt (a condition name or a .md path); null = the strategy's own"),
@@ -236,7 +237,7 @@ APPLIES: dict[str, set] = {
     "model.api_base": _MODEL_USERS, "model.tp": _MODEL_USERS, "model.temperature": _MODEL_USERS, "model.top_p": _MODEL_USERS, "model.top_k": _MODEL_USERS, "model.presence_penalty": _MODEL_USERS, "model.max_tokens": _MODEL_USERS, "model.max_tokens_schedule": _MODEL_USERS, "model.thinking": _MODEL_USERS,
     "model.seed": _MODEL_USERS, "model.seeds": _MODEL_USERS, "model.driver": _AGENTS,
     "model.reasoning_effort": _MODEL_USERS, "model.timeout_s": _MODEL_USERS, "model.retry_attempts": _MODEL_USERS,
-    "agent.max_steps": _AGENTS, "agent.forced_answer_tokens": _AGENTS, "agent.forced_answer_prefill": _AGENTS, "agent.prompt_profile": _AGENTS, "agent.ctx_tokens": _AGENTS | _RAG,
+    "agent.max_steps": _AGENTS, "agent.forced_answer_tokens": _AGENTS, "agent.forced_answer_prefill": _AGENTS, "agent.forced_answer_nudge": _AGENTS, "agent.prompt_profile": _AGENTS, "agent.ctx_tokens": _AGENTS | _RAG,
     "agent.ctx_window": _AGENTS, "agent.ctx_stop_frac": _AGENTS,
     "budgets.snippet_tokens": _DOC_AGENTS - {"dci", "dedup_bm25", "dedup_dense"},
     "budgets.max_visit_tokens": _VISIT,

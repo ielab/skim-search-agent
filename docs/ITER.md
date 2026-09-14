@@ -28,7 +28,12 @@ prompt, DIVER's strict tool rules, and its dedup notice (`agent_search/tasks/res
 condition `agent_research_dedup_dense`). DIVER's `--strong` prompt for general backbones, a
 meticulous multi-constraint research agent, is the task `research_dedup_strong` (condition
 `agent_research_dedup_dense_strong`). DIVER capped an episode at 50 LLM calls (`MAX_LLM_CALL_PER_RUN`),
-so ITER cells run with `max_steps: 50`, not the 100 of the Sieve experiments. At the cap DIVER
+so ITER cells run with `max_steps: 50`, not the 100 of the Sieve experiments. DIVER's Tongyi client
+also budgets each turn (4,096 generation tokens on the first turn, 2,048 on the second, 1,024
+after; a turn cut off mid-thought is discarded and the next runs with thinking off) and forces the
+answer once the conversation passes 90,000 tokens with "Retrieval complete. You are forbidden to
+call any tools now. ..."; the ITER files carry all of that (`model.max_tokens_schedule`,
+`model.thinking`, `agent.ctx_window`, `agent.forced_answer_nudge`). At the cap DIVER
 forces the answer with a 10,000-token generation budget (`agent.forced_answer_tokens`; the ITER files
 set it, the library default is 2,000); its search tool runs the first query when the backbone passes a list, as the library's
 tools do. Its BrowseComp-Plus runs use the full 100,195-document corpus (`browsecomp_plus_structured`

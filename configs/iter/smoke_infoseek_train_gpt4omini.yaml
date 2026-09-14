@@ -39,6 +39,7 @@ agent:
   max_steps: 50                          # tool calls before the forced final answer (ITER's MAX_LLM_CALL_PER_RUN = 50)
   forced_answer_tokens: 10000                # generation budget of the forced final answer at the step cap (stops at </answer>; ITER files: DIVER's 10000)
   forced_answer_prefill: null            # text the forced final answer continues from (null = an open <answer> tag, or DIVER's sentence for a text-terminal task)
+  forced_answer_nudge: null              # the reserved final turn's message (null = the library's STEP BUDGET REACHED text)
   prompt_profile: null                   # override the condition's prompt (a condition name or a .md path); null = the strategy's own
   ctx_tokens: 115000                     # history budget in model tokens kept in the prompt
   ctx_window: 131072                     # the serving model's context window (tokens)
