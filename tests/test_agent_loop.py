@@ -579,3 +579,27 @@ def test_run_episode_accepts_a_labelled_exact_answer_without_tags():
     assert traj.stopped_reason == "answer"
     assert traj.final_answer == "She is the school's secretary."
     assert calls["n"] == 2
+
+
+
+def test_run_episode_empty_tool_call_gets_a_filled_skeleton_and_one_turn_without_thinking():
+    """An empty <tool_call></tool_call> (Tongyi's opening move on the Indri toolset) is answered
+    with a one-line skeleton naming the first tool, and the next turn runs without thinking."""
+    seen = {"n": 0, "suppressed": []}
+
+    def fake_generate(messages, **kw):
+        seen["n"] += 1
+        seen["suppressed"].append(policy.suppress_thinking_once)
+        if seen["n"] == 1:
+            return "<think>Let's search.</think>\n\n<tool_call></tool_call>"
+        if seen["n"] == 2:
+            return '<tool_call>{"name":"search","arguments":{"query":"x"}}</tool_call>'
+        return "<answer>Paris</answer>"
+
+    policy = AgentPolicy(generate=fake_generate, system=RESEARCH_SNIP_SYSTEM)
+    traj = run_episode(policy, Task("t", "capital of France?"), _AnyToolWS(), units=[],
+                       max_steps=5, domain="general")
+    first = traj.steps[0]
+    assert first.name == "none" and "was empty" in first.observation
+    assert '{"name":"search","arguments":{"query":"<your query>"}}' in first.observation or "<tool>" in first.observation
+    assert traj.final_answer == "Paris"

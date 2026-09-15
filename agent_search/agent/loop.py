@@ -23,6 +23,7 @@ from agent_search.corpus.units import CodeUnit
 from agent_search.agent.actions import parse_tool_call
 
 _ANSWER = re.compile(r"<answer>(.*?)</answer>", re.DOTALL | re.IGNORECASE)
+_EMPTY_CALL = re.compile(r"<tool_call>\s*</tool_call>", re.IGNORECASE)
 # BrowseComp's own answer format ("Explanation: ... Exact Answer: X  Confidence: 95%"), which
 # some backbones (OpenResearcher) write instead of the <answer> tag: a reply with no tool call
 # and such a line is the final answer, not a turn to nudge
@@ -339,13 +340,26 @@ def run_episode(policy: Policy, task: Task, workspace: WorkspaceLike,
         elif not call:
             # name the tools: a backbone that knows other names (Tongyi's own are search and
             # visit) otherwise loops on an empty <tool_call></tool_call>
-            names = ", ".join(getattr(workspace, "tools", ()) or ())
-            malformed = "<tool_call>" in (raw or "")
-            obs = (('ERROR: the JSON inside your <tool_call> did not parse (check the colon after each '
-                    'key and the quotes around the value). ' if malformed else 'ERROR: no tool call found. ')
-                   + 'Emit ONE <tool_call>{"name":"<tool>","arguments":{"<arg>":"<value>"}}</tool_call>'
-                   + (f" using one of these tools: {names}" if names else "")
-                   + ', or submit your answer.')
+            tool_names = list(getattr(workspace, "tools", ()) or ())
+            names = ", ".join(tool_names)
+            empty = bool(_EMPTY_CALL.search(raw or ""))
+            malformed = "<tool_call>" in (raw or "") and not empty
+            if empty:
+                # Tongyi opens the Indri episodes with an empty block and repeats it for a median
+                # of four turns (16% of that cell's steps). A filled one-line skeleton for the
+                # first tool plus one turn without thinking gets it to the call.
+                first = tool_names[0] if tool_names else "<tool>"
+                obs = ('ERROR: your <tool_call> block was empty. Write the call on one line, for example '
+                       f'<tool_call>{{"name":"{first}","arguments":{{"query":"<your query>"}}}}</tool_call>'
+                       + (f" (tools: {names})" if names else "") + ', or submit your answer.')
+                if hasattr(policy, "suppress_thinking_once"):
+                    policy.suppress_thinking_once = True
+            else:
+                obs = (('ERROR: the JSON inside your <tool_call> did not parse (check the colon after each '
+                        'key and the quotes around the value). ' if malformed else 'ERROR: no tool call found. ')
+                       + 'Emit ONE <tool_call>{"name":"<tool>","arguments":{"<arg>":"<value>"}}</tool_call>'
+                       + (f" using one of these tools: {names}" if names else "")
+                       + ', or submit your answer.')
         else:
             if before_tool is not None:
                 # what the model said before this call (its notes on the last read) must be

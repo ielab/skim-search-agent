@@ -58,3 +58,11 @@ def test_unquoted_string_value_is_quoted():
     raw = '<tool_call>{"name":"visit","arguments":{"rank":3}}</tool_call>'
     assert parse_tool_call(raw) == ("visit", {"rank": 3})           # a bare number stays a number
 
+
+
+
+def test_stray_quote_before_the_closers_is_dropped():
+    # Indri queries from Tongyi: escaped inner quotes, then one stray quote before )}}
+    raw = ('<tool_call>{"name":"isearch_s","arguments":{"query":"#combine(\\"24 Hours of Spa\\" '
+           '\\"French\\" \\"winners\\"")}}</tool_call>')
+    assert parse_tool_call(raw) == ("isearch_s", {"query": '#combine("24 Hours of Spa" "French" "winners")'})

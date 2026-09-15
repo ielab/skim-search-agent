@@ -86,6 +86,14 @@ _ONE_BARE_ARG = re.compile(
     r'(\s*\}\s*\})\s*$', re.DOTALL)
 
 
+# The same shape when the value's own quotes are escaped but a stray quote precedes the closers:
+# {"name":"isearch_s","arguments":{"query":"#combine(\"24 Hours of Spa\" \"French\"")}}
+_ONE_STRING_ARG_LOOSE = re.compile(
+    r'^(\{\s*"name"\s*:\s*"[^"]*"\s*,\s*"arguments"\s*:\s*\{\s*"[^"]+"\s*:\s*")'
+    r'(.*?)'
+    r'(\s*\}\s*\})\s*$', re.DOTALL)
+
+
 def _fix_unescaped_quotes(text: str) -> str:
     """Quote or re-escape the one string argument of a near-valid call."""
     stripped = text.strip()
@@ -102,6 +110,18 @@ def _fix_unescaped_quotes(text: str) -> str:
         except json.JSONDecodeError:
             pass
         return f"{m.group(1)}{json.dumps(value, ensure_ascii=False)}{m.group(3)}"
+    m = _ONE_STRING_ARG_LOOSE.match(stripped)
+    if m:
+        # the value ends with a stray quote before the closers: #combine(\"a\" \"b\"")}} ->
+        # take everything up to the closers, drop one trailing quote, and re-escape
+        value = m.group(2).rstrip()
+        if value.endswith('"'):
+            value = value[:-1]                      # the string's own closing quote
+        value = value.replace('\\"', '"')
+        if value.count('"') % 2 == 1:               # one quote too many: the stray one, last
+            i = value.rfind('"')
+            value = value[:i] + value[i + 1:]
+        return f'{m.group(1)}{json.dumps(value, ensure_ascii=False)[1:-1]}"{m.group(3)}'
     return text
 
 
