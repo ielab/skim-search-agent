@@ -1,12 +1,12 @@
 """`fetch`: one named section (or the facts) of a document a previous search ranked.
 
-The call is flat: `{"rank": 3, "section": "Career"}`. `rank` is a row number from the last
+The call names a rank and a section: `{"rank": 3, "section": "Career"}`. `rank` is a row number from the last
 search listing (a document id also works). `section` is a heading from that row's section
 list, `"infobox"` for the document's facts (infobox fields, or title, author and date when the
 corpus carries them), or `""` for the opening text. One section per call, capped at
 `MAX_SECTION_TOKENS` tokens. Never the whole document.
 
-The flat shape replaced the paper's `{"specs": [[rank, section]]}` list of pairs. Tongyi
+This rank-and-section call replaced the paper's `{"specs": [[rank, section]]}` list of pairs. Tongyi
 mis-closed that nested list in a quarter of Sieve's fetch calls and three quarters of
 Search-Fetch's, and 99.9% of the calls carried a single pair anyway. The old shape is still
 accepted, so recorded trajectories and older configs keep working.
@@ -281,8 +281,8 @@ class Fetch(Tool):
 
     @staticmethod
     def _requests(args: dict) -> list:
-        """The (doc, section) requests in a call: the flat shape, or the paper's `specs`
-        list of pairs (a single flat pair, or dicts, also accepted)."""
+        """The (doc, section) requests in a call: the rank-and-section call, or the paper's `specs`
+        list of pairs (a single pair, or dicts, also accepted)."""
         specs = args.get("specs") or args.get("parts")
         if specs is None:
             if any(k in args for k in ("rank", "doc", "id", "doc_id", "docid", "section", "part", "name", "heading")):
@@ -294,7 +294,7 @@ class Fetch(Tool):
         if (isinstance(specs, (list, tuple)) and len(specs) == 2
                 and not isinstance(specs[0], (list, tuple, dict))
                 and not isinstance(specs[1], (list, tuple, dict))):
-            specs = [specs]                                  # one flat pair [rank, "section"]
+            specs = [specs]                                  # a single pair [rank, "section"]
         out = []
         for s in specs:
             if isinstance(s, dict):

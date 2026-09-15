@@ -203,7 +203,7 @@ prompts the model once or returns the ranking as is.
 
 The paper's task templates and manuals are files. Each tool carries the declaration text the
 paper prompts showed under each exposed name, with two deliberate departures: the `fetch`
-declaration is flat (`rank` and `section`, no nested list) and the BrowseComp Sieve manual
+declaration names a rank and a section (no nested list) and the BrowseComp Sieve manual
 describes the sectioned corpus (see REPRODUCING.md, "Two departures from the paper's prompts").
 `tests/test_prompt_fidelity.py` pins the rendered system prompt of every paper condition to its
 hash and fails if any other change moves it.

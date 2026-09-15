@@ -1,4 +1,4 @@
-"""The fetch tool's flat call shape and its recoveries (agent_search/tools/fetch/tool.py).
+"""The fetch tool's rank-and-section call and its recoveries (agent_search/tools/fetch/tool.py).
 
 The paper's `{"specs": [[rank, section]]}` list of pairs is still accepted; the declared shape
 is `{"rank": 1, "section": "Career"}`. A request that is not a section name on the referenced
@@ -44,7 +44,7 @@ def _box(last_hits):
     return ToolBox([fetch], state), state, fetch
 
 
-def test_declaration_is_flat():
+def test_declaration_names_rank_and_section():
     f = Fetch()
     assert set(f.parameters["properties"]) == {"rank", "section"}
     assert f.parameters["properties"]["rank"]["type"] == "integer"
@@ -52,7 +52,7 @@ def test_declaration_is_flat():
     assert render_tool_rules([f.declaration()]) == '- fetch: {"rank": <integer>, "section": <string>}'
 
 
-def test_flat_call_reads_one_section():
+def test_rank_and_section_call_reads_one_section():
     box, _, _ = _box(["d1", "d2"])
     out = box.run("fetch", {"rank": 1, "section": "Career"})
     assert "[d1 §Career]" in out and "Ann won twice." in out
@@ -148,7 +148,7 @@ def test_unknown_section_error_lists_every_section():
     assert "ERROR: no section 'Zzz' on d1. Sections here: (intro)·History·Career" in out
 
 
-def test_flat_document_returns_its_text_for_any_name():
+def test_single_section_document_returns_its_text_for_any_name():
     box, _, _ = _box(["d4"])
     assert "One flat paragraph" in box.run("fetch", {"rank": 1, "section": "History"})
     assert "One flat paragraph" in box.run("fetch", {"rank": 1, "section": "body"})

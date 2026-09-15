@@ -169,7 +169,7 @@ skimsearchagent dataset=browsecomp_plus_structured_full strategy=sieve runs_dir=
 ```
 
 **Two departures from the paper's prompts (0.3.1).** Both apply to Sieve and to the Search-Fetch
-controls alike, so the comparison stays matched. First, `fetch` is declared flat,
+controls alike, so the comparison stays matched. First, `fetch` is declared as a rank and a section,
 `{"rank": 1, "section": "Career"}`, in place of the paper's `{"specs": [[rank, section]]}`
 list of pairs: the backbone mis-closed the nested list in a quarter of Sieve's fetch calls and
 three quarters of Search-Fetch's, and 99.9% of the calls carried one pair. The tool also

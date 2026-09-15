@@ -3,7 +3,7 @@
 <!-- The Sieve paper's BrowseComp manual, kept verbatim for reproduction runs (manual_set="paper").
      It describes an earlier unsegmented build: it says the corpus has no sections, which is
      wrong for the evaluated corpus (the paper's Appendix "Instruction and Index Mismatches").
-     Only the fetch call examples were changed to the flat shape. The corrected manual is
+     Only the fetch call examples were changed to the rank-and-section call. The corrected manual is
      bql_browsecomp.md. -->
 
 Search the corpus with a Boolean query language: one expression selects the documents whose

@@ -135,7 +135,7 @@ class SearchBql(Tool):
                "code": "bql_code.md"},
         "v2": {"general": "bql_doc_v2.md", "wiki": "bql_doc_v2.md", "browsecomp": "bql_browsecomp_v2.md",
                "code": "bql_code.md"},
-        # the Sieve paper's manuals verbatim (only the fetch examples carry the flat call shape);
+        # the Sieve paper's manuals verbatim (only the fetch examples carry the rank-and-section call);
         # the BrowseComp one describes an unsegmented corpus and understates section access
         "paper": {"general": "bql_doc.md", "wiki": "bql_doc.md", "browsecomp": "bql_browsecomp_paper.md",
                   "code": "bql_code.md"},
