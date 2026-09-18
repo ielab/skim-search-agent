@@ -37,9 +37,9 @@ model:
 # --- agent: the episode loop
 agent:
   max_steps: 100                         # tool calls before the forced final answer (paper: 100)
-  forced_answer_tokens: 2000                 # generation budget of the forced final answer at the step cap (stops at </answer>; ITER files: DIVER's 10000)
-  forced_answer_prefill: null            # text the forced final answer continues from (null = an open <answer> tag, or DIVER's sentence for a text-terminal task)
   forced_answer_nudge: null              # the reserved final turn's message (null = the library's STEP BUDGET REACHED text)
+  forced_answer_prefill: null            # text the forced final answer continues from (null = an open <answer> tag, or DIVER's sentence for a text-terminal task)
+  forced_answer_tokens: 2000                 # generation budget of the forced final answer at the step cap (stops at </answer>; ITER files: DIVER's 10000)
   prompt_profile: null                   # override the condition's prompt (a condition name or a .md path); null = the strategy's own
   ctx_tokens: 86000                      # history budget in model tokens kept in the prompt (the same budget every Tongyi cell runs with)
   ctx_window: 98304                      # the serving window (MAX_MODEL_LEN); the same for every backbone so the token budget is matched
@@ -48,17 +48,35 @@ agent:
 # --- budgets: length limits — all in TOKENS (there are no character limits anywhere)
 budgets:
   snippet_tokens: 32                     # query-biased snippet width shown per result (model tokens)
-  max_visit_tokens: 12000                # whole-document read cap (the paper setting)
+  max_section_tokens: 12000              # named-section read cap (the paper setting)
   closer_evidence_arg_tokens: 32         # SDK driver: per-call argument excerpt in the forced-answer evidence
   closer_evidence_obs_tokens: 160        # SDK driver: per-observation excerpt in the forced-answer evidence
 
 # --- listing: how many results a search shows
 listing:
   hybrid_fetch_topk: 5                   # results per search, search->fetch hybrid arm
+  hybrid_pool: 100                       # candidates each engine contributes before fusion
 
 # --- retrieval: engines and ranking
 retrieval:
+  dense_model: null                      # the ONE dense model for every dense arm (ranker, fallback, baselines); null = BAAI/bge-base-en-v1.5 for documents; a directory trained by skimsearchagent-train-retriever works too
+  dense_query_style: plain               # how the dense query is written from the agent's history: plain | mem | docs | i1..i7 (must match the trained retriever)
+  dense_query_instruction: null          # override the query instruction prefix (null = the checkpoint's serving note or the built-in table)
+  dense_pooling: null                    # pooling for a local checkpoint: last_token | mean | cls (null = serving note, else auto from config.json)
+  dense_query_seq_length: null                  # encoder tokens a query is cut to (null = the document length; the ITER checkpoints take 8192)
+  dense_seq_length: null                  # encoder tokens a document or query is cut to (null = 1024; ITER encodes at 512)
+  dense_dtype: null                      # precision the dense encoder runs in: float32 | float16 | bfloat16 (null = the checkpoint's serving note, else float32)
+  dense_index: null                      # prebuilt vector index to serve (this library's cache dir, or ITER's index.faiss + index.lookup.pkl); null = the per-corpus cache under index_root
+  ann_ef_search: 0                       # HNSW efSearch for a prebuilt index (0 = as built)
   bm25_index: null                       # prebuilt Lucene index directory for the pyserini backend; null = built under index_root
+  rrf_k: 60
+  hybrid_retrievers: bm25,dense
+  hybrid_fusion: rrf
+  hybrid_weights: ""
+  ann: auto                              # vector index backend: auto | flat | hnsw | ivfpq
+  ann_min: 1000000                       # corpus size above which an ANN index is used
+  ann_pq_min: 8000000                    # corpus size above which IVF-PQ is used
+  dense_device: null                     # device for the dense encoder (null = auto)
 
 # --- evaluation: scoring
 evaluation:
@@ -80,4 +98,3 @@ output:
 # --- env: any other environment knob, verbatim (escape hatch; recorded in config.json)
 env:
   VLLM_ARGS: "--gdn-prefill-backend triton"   # read by scripts/shard_cell.sh and scripts/run.sh when they start vLLM
-
