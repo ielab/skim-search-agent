@@ -361,12 +361,12 @@ def test_run_episode_inline_elicitation_shrinks_on_context_overflow_then_recover
 
 
 def test_run_episode_inline_elicitation_all_shrinks_still_overflow_stays_prefill_failed():
-    """A pathological episode whose final-turn prompt is still too big after all 3 shrinks
+    """A pathological episode whose final-turn prompt is still too big after all 6 shrinks
     degrades to "prefill_failed" (exactly the pre-existing degrade path) rather than crashing —
-    but only after genuinely trying 4 progressively smaller prompts, never 4 identical ones."""
+    but only after genuinely trying 7 progressively smaller prompts, never 7 identical ones."""
     def fake_generate(messages):
         return '<tool_call>{"name":"search","arguments":{"query":"x"}}</tool_call>'
-    # threshold far below anything 3 shrinks of a 20_000 budget can reach (20000 * 0.85**3 ≈ 12282).
+    # threshold far below anything 6 shrinks of a 20_000 budget can reach (20000 * 0.7**6 ≈ 2353).
     client = _fake_overflow_client(overflow_above=1_000)
     fake_generate.client = client
     fake_generate.model = "m"
@@ -377,11 +377,13 @@ def test_run_episode_inline_elicitation_all_shrinks_still_overflow_stays_prefill
 
     assert traj.final_answer == ""
     assert traj.elicitation == "prefill_failed"       # degrades cleanly, never raises
-    assert len(client._calls) == 4                    # 1 + 3 shrinks, matching propose()'s cap
+    assert len(client._calls) == 7                    # 1 + 6 shrinks
     sizes = [sum(count_tokens(m["content"]) for m in c["messages"] if m["role"] != "system")
              for c in client._calls]
     assert sizes == sorted(sizes, reverse=True)
-    assert len(set(sizes)) == 4                        # every attempt strictly smaller — not 4 retries of the same prompt
+    # the prompts shrink until the history floors at its one truncated step; the point is that
+    # the loop never retries the same full prompt, so several attempts must be strictly smaller
+    assert len(set(sizes)) >= 4 and sizes[0] > sizes[-1]
 
 
 # --- proactive context-budget early stop (AGENT_CTX_WINDOW / AGENT_CTX_STOP_FRAC) --------------
@@ -603,3 +605,26 @@ def test_run_episode_empty_tool_call_gets_a_filled_skeleton_and_one_turn_without
     assert first.name == "none" and "was empty" in first.observation
     assert '{"name":"search","arguments":{"query":"<your query>"}}' in first.observation or "<tool>" in first.observation
     assert traj.final_answer == "Paris"
+
+
+def test_run_episode_context_window_rejection_forces_an_answer_instead_of_dropping():
+    """When the server rejects the prompt with "maximum context length" even after the policy's
+    own shrink-and-retry, the episode ends as a context-budget stop with an elicited answer
+    (the loop never raises, so the runner never drops the question)."""
+    calls = {"n": 0}
+
+    def fake_generate(messages, **kw):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            return '<tool_call>{"name":"search","arguments":{"query":"x"}}</tool_call>'
+        raise RuntimeError("Error code: 400 - This model's maximum context length is 98304 tokens.")
+    fake_generate.client = _fake_client(["Paris"])
+    fake_generate.model = "m"
+
+    policy = AgentPolicy(generate=fake_generate, system=RESEARCH_SNIP_SYSTEM)
+    traj = run_episode(policy, Task("t", "capital of France?"), _AnyToolWS(), units=[],
+                       max_steps=10, domain="general")
+    assert traj.stopped_reason == "ctx_budget"
+    assert traj.final_answer == "Paris"
+    assert traj.elicitation == "prefill_inline"
+    assert [s.name for s in traj.steps][-1] == "budget"

@@ -261,7 +261,22 @@ def run_episode(policy: Policy, task: Task, workspace: WorkspaceLike,
             nudge_injected = True
             nudge_reason = "ctx_budget" if ctx_budget_hit else "max_steps"
         t0 = time.monotonic()
-        raw = policy.propose(task, steps)
+        try:
+            raw = policy.propose(task, steps)
+        except Exception as e:  # noqa: BLE001 - only the context-window rejection is handled here
+            if "maximum context length" not in str(e) or not force_answer or nudge_injected:
+                raise
+            # The server rejected the prompt even after the policy's shrink-and-retry (the
+            # measurement ruler undercounted a dense history). Treat it as the context budget
+            # being hit: stop here and elicit the final answer from a shrunk history below,
+            # instead of dropping the question.
+            llm_calls += 1
+            _push(Step(name="budget", args={},
+                       observation=f"<tool_response>{budget_nudge()}</tool_response>",
+                       raw_output="", t_llm=time.monotonic() - t0))
+            nudge_injected = True
+            nudge_reason = "ctx_budget"
+            break
         t_llm = time.monotonic() - t0
         llm_calls += 1
         call = parse_tool_call(raw)
@@ -462,16 +477,18 @@ def _elicit_inline(policy, task: Task, steps: List[Step], terminal: str = "answe
         from agent_search.agent.forced_answer import FORCE_MSG, elicit_final_answer
         from agent_search.agent.policies import default_ctx_tokens
         ctx = getattr(policy, "ctx_tokens", None) or default_ctx_tokens()
-        for shrink in range(4):
+        # the history shrinks by 30% per rejected request, down to about a tenth of the budget:
+        # a forced answer from a short history beats a dropped question
+        for shrink in range(7):
             messages = build_messages(task, steps, ctx_tokens=ctx)
             messages.append({"role": "user", "content": f"<tool_response>\n{FORCE_MSG}\n</tool_response>"})
             try:
                 answer, _method_tag, _raw = elicit_final_answer(messages, client, model, terminal=terminal)
                 return (answer, "prefill_inline") if answer else ("", "prefill_failed")
             except Exception as e:
-                if "maximum context length" not in str(e) or shrink == 3:
+                if "maximum context length" not in str(e) or shrink == 6:
                     raise
-                ctx = int(ctx * 0.85)
+                ctx = int(ctx * 0.7)
     except Exception:  # noqa: BLE001 - the extra call must never crash an otherwise-complete episode
         return "", "prefill_failed"
 

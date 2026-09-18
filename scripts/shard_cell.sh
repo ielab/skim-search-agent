@@ -189,6 +189,13 @@ if [ -n "${SLURM_ARRAY_TASK_ID:-}" ]; then
     echo ">> shard ${i} already complete — nothing to run."
     exit 0
   fi
+  # every cap and budget must be on the model-token ruler: refuse to run on the whitespace fallback
+  export AGENT_SEARCH_REQUIRE_TIKTOKEN="${AGENT_SEARCH_REQUIRE_TIKTOKEN:-1}"
+  export TIKTOKEN_CACHE_DIR="${TIKTOKEN_CACHE_DIR:-$PWD/${INDEX_ROOT:-indexes}/tiktoken_cache}"
+  if ! "$PYTHON" -c "from agent_search.tokens import ruler_name; assert ruler_name().startswith('tiktoken'), ruler_name()"; then
+    echo "ERROR: the model-token ruler is unavailable on this node (tiktoken o200k_base missing at $TIKTOKEN_CACHE_DIR). Seed it with: python -m agent_search.tokens --seed" >&2
+    exit 1
+  fi
   if ! command -v vllm >/dev/null 2>&1; then
     echo "ERROR: vllm is not on PATH. Activate the cluster env before running agent_* retrievers." >&2
     exit 127

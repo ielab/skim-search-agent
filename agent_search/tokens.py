@@ -19,12 +19,21 @@ kind of hidden confound a research harness must not carry.
 """
 from __future__ import annotations
 
+import os
+import sys
 from typing import Optional
 
 TRUNCATED = " …(truncated)"
 
 _ENC = None          # tiktoken encoding, resolved lazily once per process
 _ENC_TRIED = False
+# tiktoken fetches the o200k_base file over the network on first use and caches it under the
+# process's temp directory. A compute node has an empty temp directory and no network, so the
+# fetch fails and, before 2026-09-18, the library fell back to whitespace tokens without a
+# word: every cap in such a run was words, not model tokens. The cache now lives at a shared
+# path (INDEX_ROOT/tiktoken_cache, seeded by `python -m agent_search.tokens --seed`), and a run
+# that must be on the model-token ruler sets AGENT_SEARCH_REQUIRE_TIKTOKEN=1 to fail instead.
+_CACHE_DIR = os.path.join(os.environ.get("INDEX_ROOT", "indexes"), "tiktoken_cache")
 
 
 def ws_tokens(text: Optional[str]) -> list[str]:
@@ -49,15 +58,25 @@ def cap_tokens(text: Optional[str], n: int, tail: str = TRUNCATED) -> str:
 
 
 def _encoding():
-    """tiktoken ``o200k_base`` if importable, else ``None`` (resolved once)."""
+    """tiktoken ``o200k_base`` if importable and its file is available, else ``None`` (resolved
+    once). The shared cache directory is used when it holds the file; a failure is printed
+    once, and raises when AGENT_SEARCH_REQUIRE_TIKTOKEN=1."""
     global _ENC, _ENC_TRIED
     if not _ENC_TRIED:
         _ENC_TRIED = True
+        if "TIKTOKEN_CACHE_DIR" not in os.environ and os.path.isdir(_CACHE_DIR):
+            os.environ["TIKTOKEN_CACHE_DIR"] = os.path.abspath(_CACHE_DIR)
         try:
             import tiktoken
             _ENC = tiktoken.get_encoding("o200k_base")
-        except Exception:  # noqa: BLE001 - optional dependency; whitespace ruler is the fallback
+        except Exception as e:  # noqa: BLE001 - optional dependency; whitespace ruler is the fallback
             _ENC = None
+            msg = (f"[tokens] the model-token ruler is unavailable ({type(e).__name__}: {str(e)[:120]}); "
+                   f"falling back to WHITESPACE tokens. Seed the cache with `python -m agent_search.tokens "
+                   f"--seed` on a node with network access (cache dir {_CACHE_DIR}).")
+            if os.environ.get("AGENT_SEARCH_REQUIRE_TIKTOKEN", "").strip() not in ("", "0"):
+                raise RuntimeError(msg) from e
+            print(msg, file=sys.stderr, flush=True)
     return _ENC
 
 
@@ -95,5 +114,33 @@ def ruler_name() -> str:
     return "tiktoken:o200k_base" if _encoding() is not None else "whitespace"
 
 
+def seed_cache(cache_dir: Optional[str] = None) -> str:
+    """Copy tiktoken's o200k_base file into the shared cache directory (needs network access
+    the first time, or an existing per-user cache). Returns the directory."""
+    import shutil
+    import tiktoken
+    target = os.path.abspath(cache_dir or _CACHE_DIR)
+    os.makedirs(target, exist_ok=True)
+    tiktoken.get_encoding("o200k_base")                 # fetches into the process's cache dir
+    src_dir = os.environ.get("TIKTOKEN_CACHE_DIR") or os.environ.get("DATA_GYM_CACHE_DIR")
+    if not src_dir:
+        import tempfile
+        src_dir = os.path.join(tempfile.gettempdir(), "data-gym-cache")
+    if os.path.abspath(src_dir) != target:
+        for name in os.listdir(src_dir):
+            shutil.copy2(os.path.join(src_dir, name), os.path.join(target, name))
+    return target
+
+
+if __name__ == "__main__":
+    import argparse
+    ap = argparse.ArgumentParser(description="the token ruler: report it, or seed the shared tiktoken cache")
+    ap.add_argument("--seed", action="store_true", help="copy the o200k_base file into the shared cache dir")
+    a = ap.parse_args()
+    if a.seed:
+        print(f"seeded {seed_cache()}")
+    print(f"ruler: {ruler_name()}")
+
+
 __all__ = ["TRUNCATED", "ws_tokens", "count_ws_tokens", "cap_tokens", "count_tokens",
-           "truncate_tokens", "ruler_name"]
+           "truncate_tokens", "ruler_name", "seed_cache"]

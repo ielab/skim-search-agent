@@ -56,6 +56,20 @@ python -m pytest tests/
 That covers the BQL parser, the executor and the scoring units. Once the Pyserini JVM starts it
 swallows pytest's terminal output, so pass `--junitxml=report.xml` to read the results.
 
+**The token ruler.** Every cap in the library is a model-token count on tiktoken's `o200k_base`
+(see CONFIGURATION.md). tiktoken downloads that encoding once and caches it in the process's
+temp directory, which on a compute node is empty and offline. Seed the shared cache once from
+a node with network access:
+
+```bash
+python -m agent_search.tokens --seed     # copies the file into indexes/tiktoken_cache/
+```
+
+Every shard refuses to start on the whitespace fallback (`AGENT_SEARCH_REQUIRE_TIKTOKEN=1`,
+set by `scripts/shard_cell.sh`), and each run record names the ruler it used (`token_ruler`
+in `config.json`). A cell whose record says `whitespace` was cut in words, not tokens, and is
+not comparable to the others.
+
 ## 2. Data
 
 The paper's corpora are published on Hugging Face as `wshuai190/browsecomp-plus-structured-full`,
