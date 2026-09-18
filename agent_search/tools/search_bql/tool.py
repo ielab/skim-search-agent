@@ -154,6 +154,10 @@ class SearchBql(Tool):
         # leave-one-section-out cuts of the corrected manuals, derived by
         # scripts/derive_manual_cuts.py (each drops one `## ` section: How to search, The fields,
         # Fetch, Hops, Worked examples, Common mistakes)
+        # the reference-only manual plus one advice section added back (same generator)
+        **{f"ref{part}": {"general": f"bql_doc_ref{part}.md", "wiki": f"bql_doc_ref{part}.md",
+                          "browsecomp": f"bql_browsecomp_ref{part}.md", "code": "bql_code.md"}
+           for part in ("howto", "hops", "mistakes")},
         **{f"no{part}": {"general": f"bql_doc_no{part}.md", "wiki": f"bql_doc_no{part}.md",
                          "browsecomp": f"bql_browsecomp_no{part}.md", "code": "bql_code.md"}
            for part in ("howto", "fields", "fetch", "hops", "examples", "mistakes")},

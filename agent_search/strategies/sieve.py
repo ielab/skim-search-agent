@@ -65,6 +65,16 @@ sieve_manual_cuts = {
         tools=(SearchBql(name="search_bqlds", ranking="fused", snippet=TermWindow(), manual_set=ms), Fetch(name="fetch_bqlds"))))
     for ms, heading in _CUTS.items()}
 
+# the reference-only manual plus one advice section added back: which advice helps on top of
+# the reference (the mirror of the cuts, starting from the best manual of the ablation)
+_ADDS = {"refhowto": "How to search", "refhops": "Hops", "refmistakes": "Common mistakes"}
+sieve_manual_adds = {
+    ms: register_strategy(Strategy(
+        name=f"sieve_{ms}", toolset_name="bql_dense_snip",
+        description=f"Sieve (BM25 and dense fused) with the reference manual plus its '{heading}' section",
+        tools=(SearchBql(name="search_bqlds", ranking="fused", snippet=TermWindow(), manual_set=ms), Fetch(name="fetch_bqlds"))))
+    for ms, heading in _ADDS.items()}
+
 # dense-only ranking inside the Boolean filter
 sieve_dense = register_strategy(Strategy(
     name="sieve_dense", toolset_name="bql_donly_snip",

@@ -2,7 +2,8 @@
 
 The full manuals are `agent_search/tools/search_bql/bql_browsecomp.md` (BrowseComp profile) and
 `bql_doc.md` (general and wiki profiles). Each cut drops exactly one `## ` section and keeps the
-preamble and every other section unchanged. The derived files are committed next to the full
+preamble and every other section unchanged. Each add-back keeps the preamble, the three
+reference sections (The fields, Fetch, Worked examples) and exactly one advice section. The derived files are committed next to the full
 manuals; `tests/test_manual_cuts.py` checks they still match this derivation, so edit the full
 manual and rerun this script rather than editing a derived file.
 
@@ -24,6 +25,14 @@ CUTS = {
     "noexamples": "Worked examples",
     "nomistakes": "Common mistakes",
 }
+# manual-set suffix -> the one advice section added back on top of the reference-only manual
+# (The fields, Fetch, Worked examples); the mirror of CUTS, starting from the best manual
+ADDS = {
+    "refhowto": "How to search",
+    "refhops": "Hops",
+    "refmistakes": "Common mistakes",
+}
+REFERENCE = ("The fields", "Fetch", "Worked examples")
 FULL = {"bql_browsecomp": "bql_browsecomp.md", "bql_doc": "bql_doc.md"}
 
 
@@ -45,13 +54,25 @@ def cut(text: str, heading_prefix: str) -> str:
     return preamble + "".join(h + "\n" + b for h, b in kept)
 
 
+def keep(text: str, heading_prefixes) -> str:
+    """The preamble plus only the sections whose heading starts with one of the prefixes, in
+    the full manual's order."""
+    preamble, sections = split_sections(text)
+    kept = [(h, b) for h, b in sections if any(h[3:].startswith(p) for p in heading_prefixes)]
+    if len(kept) != len(heading_prefixes):
+        raise ValueError(f"expected exactly one section for each of {heading_prefixes!r}")
+    return preamble + "".join(h + "\n" + b for h, b in kept)
+
+
 def derived_files():
-    """{derived path: content} for every (full manual, cut)."""
+    """{derived path: content} for every (full manual, cut) and (full manual, add-back)."""
     out = {}
     for stem, name in FULL.items():
         text = (MANUAL_DIR / name).read_text()
         for suffix, heading in CUTS.items():
             out[MANUAL_DIR / f"{stem}_{suffix}.md"] = cut(text, heading)
+        for suffix, heading in ADDS.items():
+            out[MANUAL_DIR / f"{stem}_{suffix}.md"] = keep(text, REFERENCE + (heading,))
     return out
 
 

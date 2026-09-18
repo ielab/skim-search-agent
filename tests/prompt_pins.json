@@ -195,6 +195,36 @@
  "research_bql_dense_snip_papermanual@browsecomp": {
   "sha": "6ec68cd87446a1a5"
  },
+ "research_bql_dense_snip_refhops": {
+  "sha": "62afcf5ebcaf34eb",
+  "tools": [
+   "search_bqlds",
+   "fetch_bqlds"
+  ]
+ },
+ "research_bql_dense_snip_refhops@browsecomp": {
+  "sha": "4096e0c58dd0f564"
+ },
+ "research_bql_dense_snip_refhowto": {
+  "sha": "c086e3f74af297e8",
+  "tools": [
+   "search_bqlds",
+   "fetch_bqlds"
+  ]
+ },
+ "research_bql_dense_snip_refhowto@browsecomp": {
+  "sha": "46bec43d54397870"
+ },
+ "research_bql_dense_snip_refmistakes": {
+  "sha": "699feaa87aa1fab2",
+  "tools": [
+   "search_bqlds",
+   "fetch_bqlds"
+  ]
+ },
+ "research_bql_dense_snip_refmistakes@browsecomp": {
+  "sha": "e4cabaa1366980aa"
+ },
  "research_bql_dense_snip_syntax": {
   "sha": "64d9fbd0347afe41",
   "tools": [

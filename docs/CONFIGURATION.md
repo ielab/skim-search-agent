@@ -133,6 +133,9 @@ same source as this page.
 | `sieve_nohops` | `agent_sieve_nohops` | yes | Sieve with the manual minus its "Hops" section (scripts/derive_manual_cuts.py) |
 | `sieve_noexamples` | `agent_sieve_noexamples` | yes | Sieve with the manual minus its "Worked examples" section (scripts/derive_manual_cuts.py) |
 | `sieve_nomistakes` | `agent_sieve_nomistakes` | yes | Sieve with the manual minus its "Common mistakes" section (scripts/derive_manual_cuts.py) |
+| `sieve_refhowto` | `agent_sieve_refhowto` | yes | Sieve with the reference manual plus its "How to search" section |
+| `sieve_refhops` | `agent_sieve_refhops` | yes | Sieve with the reference manual plus its "Hops" section |
+| `sieve_refmistakes` | `agent_sieve_refmistakes` | yes | Sieve with the reference manual plus its "Common mistakes" section |
 | `indri` | `agent_indri` | no | Indri query language, cards and sections |
 | `dedup_bm25` | `agent_research_dedup_bm25` | no | ITER's tools: search that hides documents shown before, `get_document` by id; BM25 |
 | `dedup_dense` | `agent_research_dedup_dense` | yes | the same with the run's dense model |

@@ -46,6 +46,25 @@ def test_each_cut_drops_exactly_its_section():
             assert got == expect and len(got) == len(full) - 1, (stem, ms)
 
 
+ADDS = {"refhowto": "How to search", "refhops": "Hops", "refmistakes": "Common mistakes"}
+
+
+def test_each_add_back_is_the_reference_plus_one_section():
+    gen = _generator()
+    for stem in ("bql_browsecomp", "bql_doc"):
+        for ms, heading in ADDS.items():
+            got = _headings((gen.MANUAL_DIR / f"{stem}_{ms}.md").read_text())
+            assert len(got) == 4 and any(h.startswith(heading) for h in got), (stem, ms, got)
+            for ref in ("The fields", "Fetch", "Worked examples"):
+                assert any(h.startswith(ref) for h in got), (stem, ms, ref)
+    for profile in ("browsecomp", "wiki"):
+        full = CONDITIONS[FULL].render(profile)
+        for ms in ADDS:
+            c = CONDITIONS[f"research_bql_dense_snip_{ms}"]
+            assert _before_manual(c.render(profile)) == _before_manual(full), (profile, ms)
+            assert list(c.tool_names) == ["search_bqlds", "fetch_bqlds"]
+
+
 def test_only_the_manual_differs_from_the_headline():
     for profile in ("browsecomp", "wiki"):
         full = CONDITIONS[FULL].render(profile)
