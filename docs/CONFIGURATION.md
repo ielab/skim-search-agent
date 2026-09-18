@@ -124,6 +124,7 @@ same source as this page.
 | `sieve_dense` | `agent_sieve_dense` | yes | Sieve with dense ranking only |
 | `sieve_nosnip` | `agent_sieve_nosnip` | yes | Sieve without listing snippets |
 | `sieve_nomanual` | `agent_sieve_nomanual` | yes | Sieve with no manual, the tool declarations only |
+| `sieve_card` | `agent_sieve_card` | yes | Sieve with a card: the query language, fields and fetch call in about a hundred words |
 | `sieve_syntax` | `agent_sieve_syntax` | yes | Sieve with the reference part of the manual only (mechanics, fields, fetch, worked examples) |
 | `sieve_noconstruct` | `agent_sieve_noconstruct` | yes | Sieve with the manual minus its query-construction advice |
 | `sieve_nohowto` | `agent_sieve_nohowto` | yes | Sieve with the manual minus its "How to search" section (scripts/derive_manual_cuts.py) |

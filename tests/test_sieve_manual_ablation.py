@@ -5,7 +5,7 @@ from agent_search.strategies import CONDITIONS, paper  # noqa: F401  (registrati
 from agent_search.tools.search_bql.tool import SearchBql
 
 FULL = "research_bql_dense_snip"
-ABLATIONS = ("research_bql_dense_snip_nomanual", "research_bql_dense_snip_syntax",
+ABLATIONS = ("research_bql_dense_snip_nomanual", "research_bql_dense_snip_card", "research_bql_dense_snip_syntax",
              "research_bql_dense_snip_noconstruct")
 
 
@@ -27,6 +27,16 @@ def test_nomanual_is_the_stub():
     assert "## The fields" not in s and "## How to search" not in s
 
 
+def test_card_is_short_and_names_the_language_fields_and_fetch():
+    for profile in ("browsecomp", "wiki"):
+        s = CONDITIONS["research_bql_dense_snip_card"].render(profile)
+        card = s[s.find("# Structured document search"):]
+        assert len(card.split()) < 200, profile
+        for want in ("`term[field]`", "`title`", "`body`", "{\"rank\": 1, \"section\": \"Career\"}"):
+            assert want in card, (profile, want)
+        assert "## " not in card
+
+
 def test_syntax_keeps_the_reference_and_drops_the_advice():
     for profile in ("browsecomp", "wiki"):
         s = CONDITIONS["research_bql_dense_snip_syntax"].render(profile)
@@ -45,7 +55,7 @@ def test_noconstruct_keeps_the_sections_but_not_the_construction_advice():
 
 
 def test_manual_sets_resolve_to_files():
-    for ms in ("nomanual", "syntax", "noconstruct"):
+    for ms in ("nomanual", "card", "syntax", "noconstruct"):
         t = SearchBql(name="search_bqlds", ranking="fused", manual_set=ms)
         for profile in ("browsecomp", "wiki", "general", "code"):
             assert t.manual_path(profile).endswith(".md"), (ms, profile)

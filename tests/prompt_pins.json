@@ -95,6 +95,16 @@
  "research_bql_dense_snip@wiki": {
   "sha": "63ac9f4a900a1041"
  },
+ "research_bql_dense_snip_card": {
+  "sha": "eaafa61b9850472a",
+  "tools": [
+   "search_bqlds",
+   "fetch_bqlds"
+  ]
+ },
+ "research_bql_dense_snip_card@browsecomp": {
+  "sha": "cfdcabfc17120b91"
+ },
  "research_bql_dense_snip_fill": {
   "sha": "63ac9f4a900a1041",
   "tools": [

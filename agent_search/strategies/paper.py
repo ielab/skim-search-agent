@@ -59,6 +59,7 @@ condition("research_bql_dense_snip_papermanual", "research_paper", "sieve_paper_
 
 # the manual ablation on the headline Sieve under the paper's prompt
 condition("research_bql_dense_snip_nomanual", "research_paper", "sieve_nomanual")
+condition("research_bql_dense_snip_card", "research_paper", "sieve_card")
 condition("research_bql_dense_snip_syntax", "research_paper", "sieve_syntax")
 condition("research_bql_dense_snip_noconstruct", "research_paper", "sieve_noconstruct")
 # leave-one-section-out cuts of the manual on the headline Sieve (scripts/derive_manual_cuts.py)

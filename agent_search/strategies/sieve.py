@@ -39,6 +39,11 @@ sieve_nomanual = register_strategy(Strategy(
     description="Sieve (BM25 and dense fused) with no manual, the tool declarations only",
     tools=(SearchBql(name="search_bqlds", ranking="fused", snippet=TermWindow(), manual_set="nomanual"), Fetch(name="fetch_bqlds"))))
 
+sieve_card = register_strategy(Strategy(
+    name="sieve_card", toolset_name="bql_dense_snip",
+    description="Sieve (BM25 and dense fused) with a card: the query language, fields and fetch call only",
+    tools=(SearchBql(name="search_bqlds", ranking="fused", snippet=TermWindow(), manual_set="card"), Fetch(name="fetch_bqlds"))))
+
 sieve_syntax = register_strategy(Strategy(
     name="sieve_syntax", toolset_name="bql_dense_snip",
     description="Sieve (BM25 and dense fused) with the reference part of the manual only",
