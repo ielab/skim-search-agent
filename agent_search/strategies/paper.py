@@ -61,3 +61,6 @@ condition("research_bql_dense_snip_papermanual", "research_paper", "sieve_paper_
 condition("research_bql_dense_snip_nomanual", "research_paper", "sieve_nomanual")
 condition("research_bql_dense_snip_syntax", "research_paper", "sieve_syntax")
 condition("research_bql_dense_snip_noconstruct", "research_paper", "sieve_noconstruct")
+# leave-one-section-out cuts of the manual on the headline Sieve (scripts/derive_manual_cuts.py)
+for _part in ("howto", "fields", "fetch", "hops", "examples", "mistakes"):
+    condition(f"research_bql_dense_snip_no{_part}", "research_paper", f"sieve_no{_part}")

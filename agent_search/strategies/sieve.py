@@ -49,6 +49,17 @@ sieve_noconstruct = register_strategy(Strategy(
     description="Sieve (BM25 and dense fused) with the manual minus its query-construction advice",
     tools=(SearchBql(name="search_bqlds", ranking="fused", snippet=TermWindow(), manual_set="noconstruct"), Fetch(name="fetch_bqlds"))))
 
+# leave-one-section-out cuts of the corrected manual (scripts/derive_manual_cuts.py): which part
+# of the manual carries the effect. Each strategy drops exactly one `## ` section.
+_CUTS = {"nohowto": "How to search", "nofields": "The fields", "nofetch": "Fetch",
+         "nohops": "Hops", "noexamples": "Worked examples", "nomistakes": "Common mistakes"}
+sieve_manual_cuts = {
+    ms: register_strategy(Strategy(
+        name=f"sieve_{ms}", toolset_name="bql_dense_snip",
+        description=f"Sieve (BM25 and dense fused) with the manual minus its '{heading}' section",
+        tools=(SearchBql(name="search_bqlds", ranking="fused", snippet=TermWindow(), manual_set=ms), Fetch(name="fetch_bqlds"))))
+    for ms, heading in _CUTS.items()}
+
 # dense-only ranking inside the Boolean filter
 sieve_dense = register_strategy(Strategy(
     name="sieve_dense", toolset_name="bql_donly_snip",

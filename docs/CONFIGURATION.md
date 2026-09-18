@@ -126,6 +126,12 @@ same source as this page.
 | `sieve_nomanual` | `agent_sieve_nomanual` | yes | Sieve with no manual, the tool declarations only |
 | `sieve_syntax` | `agent_sieve_syntax` | yes | Sieve with the reference part of the manual only (mechanics, fields, fetch, worked examples) |
 | `sieve_noconstruct` | `agent_sieve_noconstruct` | yes | Sieve with the manual minus its query-construction advice |
+| `sieve_nohowto` | `agent_sieve_nohowto` | yes | Sieve with the manual minus its "How to search" section (scripts/derive_manual_cuts.py) |
+| `sieve_nofields` | `agent_sieve_nofields` | yes | Sieve with the manual minus its "The fields" section (scripts/derive_manual_cuts.py) |
+| `sieve_nofetch` | `agent_sieve_nofetch` | yes | Sieve with the manual minus its "Fetch" section (scripts/derive_manual_cuts.py) |
+| `sieve_nohops` | `agent_sieve_nohops` | yes | Sieve with the manual minus its "Hops" section (scripts/derive_manual_cuts.py) |
+| `sieve_noexamples` | `agent_sieve_noexamples` | yes | Sieve with the manual minus its "Worked examples" section (scripts/derive_manual_cuts.py) |
+| `sieve_nomistakes` | `agent_sieve_nomistakes` | yes | Sieve with the manual minus its "Common mistakes" section (scripts/derive_manual_cuts.py) |
 | `indri` | `agent_indri` | no | Indri query language, cards and sections |
 | `dedup_bm25` | `agent_research_dedup_bm25` | no | ITER's tools: search that hides documents shown before, `get_document` by id; BM25 |
 | `dedup_dense` | `agent_research_dedup_dense` | yes | the same with the run's dense model |

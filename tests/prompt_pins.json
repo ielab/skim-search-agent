@@ -112,6 +112,56 @@
  "research_bql_dense_snip_noconstruct@browsecomp": {
   "sha": "25a9d7cc52557ea3"
  },
+ "research_bql_dense_snip_noexamples": {
+  "sha": "c2bcb0e3bdaa04f0",
+  "tools": [
+   "search_bqlds",
+   "fetch_bqlds"
+  ]
+ },
+ "research_bql_dense_snip_noexamples@browsecomp": {
+  "sha": "19c8aa17bd4fd9d6"
+ },
+ "research_bql_dense_snip_nofetch": {
+  "sha": "e642934a1bec9461",
+  "tools": [
+   "search_bqlds",
+   "fetch_bqlds"
+  ]
+ },
+ "research_bql_dense_snip_nofetch@browsecomp": {
+  "sha": "c22fb47aeda77bf6"
+ },
+ "research_bql_dense_snip_nofields": {
+  "sha": "7b9ead2f61e10408",
+  "tools": [
+   "search_bqlds",
+   "fetch_bqlds"
+  ]
+ },
+ "research_bql_dense_snip_nofields@browsecomp": {
+  "sha": "1b2af74ad722925b"
+ },
+ "research_bql_dense_snip_nohops": {
+  "sha": "9dc239adc30fa16c",
+  "tools": [
+   "search_bqlds",
+   "fetch_bqlds"
+  ]
+ },
+ "research_bql_dense_snip_nohops@browsecomp": {
+  "sha": "2bd7c131e7179a13"
+ },
+ "research_bql_dense_snip_nohowto": {
+  "sha": "ec26b79ecf030ca7",
+  "tools": [
+   "search_bqlds",
+   "fetch_bqlds"
+  ]
+ },
+ "research_bql_dense_snip_nohowto@browsecomp": {
+  "sha": "39684e29d5d43374"
+ },
  "research_bql_dense_snip_nomanual": {
   "sha": "218a687135988fec",
   "tools": [
@@ -121,6 +171,16 @@
  },
  "research_bql_dense_snip_nomanual@browsecomp": {
   "sha": "218a687135988fec"
+ },
+ "research_bql_dense_snip_nomistakes": {
+  "sha": "61d091ca0e06f232",
+  "tools": [
+   "search_bqlds",
+   "fetch_bqlds"
+  ]
+ },
+ "research_bql_dense_snip_nomistakes@browsecomp": {
+  "sha": "062e894903086081"
  },
  "research_bql_dense_snip_papermanual@browsecomp": {
   "sha": "6ec68cd87446a1a5"

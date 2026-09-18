@@ -148,6 +148,12 @@ class SearchBql(Tool):
                    "browsecomp": "bql_browsecomp_syntax.md", "code": "bql_code.md"},
         "noconstruct": {"general": "bql_doc_noconstruct.md", "wiki": "bql_doc_noconstruct.md",
                         "browsecomp": "bql_browsecomp_noconstruct.md", "code": "bql_code.md"},
+        # leave-one-section-out cuts of the corrected manuals, derived by
+        # scripts/derive_manual_cuts.py (each drops one `## ` section: How to search, The fields,
+        # Fetch, Hops, Worked examples, Common mistakes)
+        **{f"no{part}": {"general": f"bql_doc_no{part}.md", "wiki": f"bql_doc_no{part}.md",
+                         "browsecomp": f"bql_browsecomp_no{part}.md", "code": "bql_code.md"}
+           for part in ("howto", "fields", "fetch", "hops", "examples", "mistakes")},
     }
 
     # options a strategy sets
@@ -155,7 +161,7 @@ class SearchBql(Tool):
     coverage: bool = False
     date_nudge: bool = False
     ranking: str = "bm25"          # bm25 | fused | dense -- selects self.engines
-    manual_set: str = "v1"         # v1 | v2 | paper | nomanual | syntax | noconstruct -- which manual files the profiles map to
+    manual_set: str = "v1"         # v1 | v2 | paper | nomanual | syntax | noconstruct | no{howto,fields,fetch,hops,examples,mistakes}
     # fill=True: a listing always has k rows. The exact Boolean matches come first, in the
     # ranker's order; when the filter admits fewer than k documents the remaining rows are the
     # ranker's closest documents over the query's own terms (the same ranking the zero-hit

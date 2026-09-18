@@ -270,7 +270,7 @@ agent.search(question, k=10)
 | Search–AutoRead | `autoread`, `autoread_dense`, `autoread_hybrid` | every search returns full text |
 | Direct corpus interaction | `dci`, `bounded_dci` | shell commands over exported files, optionally within a BM25 working set |
 | Search–Fetch | `search_fetch`, `search_fetch_dense`, `search_fetch_hybrid`, `search_fetch_bm25_plain`, `search_fetch_dense_plain` | result cards with snippets (or, for the plain arms, without), then named sections |
-| **Sieve** | `sieve`, `sieve_bm25`, `sieve_dense`, `sieve_nosnip`, `sieve_nomanual`, `sieve_syntax`, `sieve_noconstruct`, `sieve_plain`, `sieve_v2`, `sieve_visit`, `sieve_visit_fused`, `sieve_visit_dense` | BQL candidate filtering, one ranking model, result cards, section fetch (or whole documents) |
+| **Sieve** | `sieve`, `sieve_bm25`, `sieve_dense`, `sieve_nosnip`, `sieve_nomanual`, `sieve_syntax`, `sieve_noconstruct`, `sieve_nohowto`, `sieve_nofields`, `sieve_nofetch`, `sieve_nohops`, `sieve_noexamples`, `sieve_nomistakes`, `sieve_plain`, `sieve_v2`, `sieve_visit`, `sieve_visit_fused`, `sieve_visit_dense` | BQL candidate filtering, one ranking model, result cards, section fetch (or whole documents) |
 | Structured control | `indri`, `indri_plain`, `indri_visit` | Indri-QL retrieval with cards and section fetch (or whole documents) |
 | Code localization | `codefix`, `codefix_grep`, `codefix_patch` | search or grep a repository, read functions, propose a fix (`dataset=code_fixture`) |
 | ITER search | `dedup_bm25`, `dedup_dense` | ITER's tool setup; see [docs/ITER.md](docs/ITER.md) |
