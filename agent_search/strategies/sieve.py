@@ -31,6 +31,24 @@ sieve_paper_manual = register_strategy(Strategy(
     description="Sieve (BM25 and dense fused) with the paper's BrowseComp manual verbatim",
     tools=(SearchBql(name="search_bqlds", ranking="fused", snippet=TermWindow(), manual_set="paper"), Fetch(name="fetch_bqlds"))))
 
+# the manual ablation on the headline Sieve: what the agent is told about the query language.
+# nomanual: a 21-word stub; syntax: the reference only (mechanics, fields, fetch, worked examples);
+# noconstruct: the full manual without its query-construction advice
+sieve_nomanual = register_strategy(Strategy(
+    name="sieve_nomanual", toolset_name="bql_dense_snip",
+    description="Sieve (BM25 and dense fused) with no manual, the tool declarations only",
+    tools=(SearchBql(name="search_bqlds", ranking="fused", snippet=TermWindow(), manual_set="nomanual"), Fetch(name="fetch_bqlds"))))
+
+sieve_syntax = register_strategy(Strategy(
+    name="sieve_syntax", toolset_name="bql_dense_snip",
+    description="Sieve (BM25 and dense fused) with the reference part of the manual only",
+    tools=(SearchBql(name="search_bqlds", ranking="fused", snippet=TermWindow(), manual_set="syntax"), Fetch(name="fetch_bqlds"))))
+
+sieve_noconstruct = register_strategy(Strategy(
+    name="sieve_noconstruct", toolset_name="bql_dense_snip",
+    description="Sieve (BM25 and dense fused) with the manual minus its query-construction advice",
+    tools=(SearchBql(name="search_bqlds", ranking="fused", snippet=TermWindow(), manual_set="noconstruct"), Fetch(name="fetch_bqlds"))))
+
 # dense-only ranking inside the Boolean filter
 sieve_dense = register_strategy(Strategy(
     name="sieve_dense", toolset_name="bql_donly_snip",

@@ -103,7 +103,7 @@ without a loop. One file per family under `strategies/`:
 | `search_visit.py` | `search_visit`, `search_visit_dense`, `search_visit_hybrid`, `search_visit_reranked`, `search_visit_snippets` | a search that lists documents, then `visit` (whole document) |
 | `autoread.py` | `autoread`, `autoread_dense`, `autoread_hybrid` | one search that returns the full text of its hits |
 | `search_fetch.py` | `search_fetch`, `search_fetch_dense`, `search_fetch_hybrid`, `search_fetch_bm25_plain`, `search_fetch_dense_plain` | a search that lists structure, then `fetch` (one section); the `_plain` arms drop the excerpt from the listing |
-| `sieve.py` | `sieve_bm25`, `sieve`, `sieve_dense`, `sieve_nosnip`, `sieve_plain`, `sieve_v2`, `sieve_visit`, `sieve_visit_fused`, `sieve_visit_dense` | `search_bql` (snippets, ranking model, manual set) then `fetch` or `visit` |
+| `sieve.py` | `sieve_bm25`, `sieve`, `sieve_dense`, `sieve_nosnip`, `sieve_nomanual`, `sieve_syntax`, `sieve_noconstruct`, `sieve_paper_manual`, `sieve_plain`, `sieve_v2`, `sieve_visit`, `sieve_visit_fused`, `sieve_visit_dense` | `search_bql` (snippets, ranking model, manual set) then `fetch` or `visit` |
 | `indri.py` | `indri`, `indri_plain`, `indri_visit` | `search_indri` then `fetch` or `visit` |
 | `dci.py` | `dci`, `bounded_dci` | `bash` and `read` over the exported corpus; `bounded_dci` adds `bm25_search` |
 | `dedup.py` | `dedup_dense`, `dedup_bm25` | ITER's `search` that drops already-listed documents, then `get_document` |

@@ -123,6 +123,9 @@ same source as this page.
 | `sieve_bm25` | `agent_sieve_bm25` | no | Sieve with BM25 ranking only (the default strategy) |
 | `sieve_dense` | `agent_sieve_dense` | yes | Sieve with dense ranking only |
 | `sieve_nosnip` | `agent_sieve_nosnip` | yes | Sieve without listing snippets |
+| `sieve_nomanual` | `agent_sieve_nomanual` | yes | Sieve with no manual, the tool declarations only |
+| `sieve_syntax` | `agent_sieve_syntax` | yes | Sieve with the reference part of the manual only (mechanics, fields, fetch, worked examples) |
+| `sieve_noconstruct` | `agent_sieve_noconstruct` | yes | Sieve with the manual minus its query-construction advice |
 | `indri` | `agent_indri` | no | Indri query language, cards and sections |
 | `dedup_bm25` | `agent_research_dedup_bm25` | no | ITER's tools: search that hides documents shown before, `get_document` by id; BM25 |
 | `dedup_dense` | `agent_research_dedup_dense` | yes | the same with the run's dense model |

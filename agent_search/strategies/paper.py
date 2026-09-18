@@ -56,3 +56,8 @@ condition("research_bql_donly_snip_fill", "research_paper", "sieve_dense_fill")
 
 # the headline Sieve under the paper's stale BrowseComp manual (a reproduction of the paper's prompt)
 condition("research_bql_dense_snip_papermanual", "research_paper", "sieve_paper_manual")
+
+# the manual ablation on the headline Sieve under the paper's prompt
+condition("research_bql_dense_snip_nomanual", "research_paper", "sieve_nomanual")
+condition("research_bql_dense_snip_syntax", "research_paper", "sieve_syntax")
+condition("research_bql_dense_snip_noconstruct", "research_paper", "sieve_noconstruct")

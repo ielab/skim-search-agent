@@ -102,8 +102,38 @@
    "fetch_bqlds"
   ]
  },
+ "research_bql_dense_snip_noconstruct": {
+  "sha": "17d338cb70b44272",
+  "tools": [
+   "search_bqlds",
+   "fetch_bqlds"
+  ]
+ },
+ "research_bql_dense_snip_noconstruct@browsecomp": {
+  "sha": "25a9d7cc52557ea3"
+ },
+ "research_bql_dense_snip_nomanual": {
+  "sha": "218a687135988fec",
+  "tools": [
+   "search_bqlds",
+   "fetch_bqlds"
+  ]
+ },
+ "research_bql_dense_snip_nomanual@browsecomp": {
+  "sha": "218a687135988fec"
+ },
  "research_bql_dense_snip_papermanual@browsecomp": {
   "sha": "6ec68cd87446a1a5"
+ },
+ "research_bql_dense_snip_syntax": {
+  "sha": "64d9fbd0347afe41",
+  "tools": [
+   "search_bqlds",
+   "fetch_bqlds"
+  ]
+ },
+ "research_bql_dense_snip_syntax@browsecomp": {
+  "sha": "0eb24d2729b84088"
  },
  "research_bql_donly_snip": {
   "domain": "general",
