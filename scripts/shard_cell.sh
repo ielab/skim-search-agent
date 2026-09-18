@@ -43,6 +43,17 @@
 #                 landing together is exactly the case express's per-user cap punishes)
 #   JOB_TIME=24:00:00 · GPU_PARTITION=h24gpu · JOB_CPUS=4 · JOB_MEM=<domain default>
 #
+# Sizing WORKERS (concurrent episodes per shard). One shard is one GPU and one vLLM server.
+# Tongyi-30B-A3B in bf16 leaves about 264k tokens of KV cache on an 80 GB H100 at a 98,304
+# window; the live context per step is what the pages fill it with, so size by dataset and
+# tool family, measured 2026-09-18 on 24-question express smokes (questions per GPU-hour
+# relative to 2 workers): wiki Search-Fetch/Sieve/bounded DCI, mean 15k live -> 12 workers
+# (2.1x); wiki Search-Visit, 24k -> 12 (2.2x); wiki AutoRead/DCI, 35-75k -> 6 (1.3x);
+# BrowseComp Search/Fetch/Sieve, 25k -> 8; one-shot RAG -> 6 (one call, no gain). Decode is
+# not the bottleneck at these counts; prefill is, because the 40-turn history window
+# (agent_search/agent/policies.py, max_history) makes every step past 40 recompute its prompt.
+# Prefix caching is vLLM's default; pass VLLM_ARGS=--enable-prefix-caching to record it.
+#
 # NOTE on LIMIT: --limit governs which instances COUNT as this cell's universe (must
 # match whatever LIMIT the canonical cell itself was originally run with, if any) — it
 # is used ONLY here, to compute `remaining` correctly. It is deliberately NEVER passed
