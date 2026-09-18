@@ -239,7 +239,7 @@ handles that for you.
 | `MAX_VISIT_TOKENS` | 12000 | how much of a whole document a read returns (`visit`, `get_document`, autoread) (before import) | `agent_search/tools/budgets.py` |
 | `MAX_SECTION_TOKENS` | same as `MAX_VISIT_TOKENS` | how much of a section a `fetch` returns (before import) | `agent_search/tools/budgets.py` |
 | `AGENT_SEARCH_REQUIRE_TIKTOKEN` | unset (1 in shard jobs) | fail instead of falling back to whitespace tokens when the tiktoken encoding cannot load | `agent_search/tokens.py` |
-| `TIKTOKEN_CACHE_DIR` | `<INDEX_ROOT>/tiktoken_cache` when it exists | where tiktoken finds its cached encoding file (`python -m agent_search.tokens --seed`) | `agent_search/tokens.py` |
+| `TIKTOKEN_CACHE_DIR` (and `TIKTOKEN_ENCODINGS_BASE`, the plain `o200k_base.tiktoken` gpt-oss serving reads) | `<INDEX_ROOT>/tiktoken_cache` when it exists | where tiktoken finds its cached encoding file (`python -m agent_search.tokens --seed`) | `agent_search/tokens.py` |
 | `LISTING_SECTIONS` | 8 | section names shown per result card, every search tool; 0 = all (before import) | `agent_search/tools/budgets.py` |
 | `LISTING_INFOBOX_KEYS` | 6 | infobox keys shown per result card; 0 = all (before import) | `agent_search/tools/budgets.py` |
 | `BASH_MAX_TOKENS` | 12000 | the tail of a DCI shell command's output that is kept (before import) | `agent_search/tools/bash/tool.py` |

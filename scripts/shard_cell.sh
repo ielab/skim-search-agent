@@ -203,6 +203,10 @@ if [ -n "${SLURM_ARRAY_TASK_ID:-}" ]; then
   # every cap and budget must be on the model-token ruler: refuse to run on the whitespace fallback
   export AGENT_SEARCH_REQUIRE_TIKTOKEN="${AGENT_SEARCH_REQUIRE_TIKTOKEN:-1}"
   export TIKTOKEN_CACHE_DIR="${TIKTOKEN_CACHE_DIR:-$PWD/${INDEX_ROOT:-indexes}/tiktoken_cache}"
+  # openai_harmony (gpt-oss serving) loads o200k_base.tiktoken from TIKTOKEN_ENCODINGS_BASE; compute
+  # nodes are offline, so point it at the same vocab file under a plain name (python -m
+  # agent_search.tokens --seed writes both)
+  export TIKTOKEN_ENCODINGS_BASE="${TIKTOKEN_ENCODINGS_BASE:-$PWD/${INDEX_ROOT:-indexes}/tiktoken_encodings}"
   if ! "$PYTHON" -c "from agent_search.tokens import ruler_name; assert ruler_name().startswith('tiktoken'), ruler_name()"; then
     echo "ERROR: the model-token ruler is unavailable on this node (tiktoken o200k_base missing at $TIKTOKEN_CACHE_DIR). Seed it with: python -m agent_search.tokens --seed" >&2
     exit 1

@@ -129,6 +129,15 @@ def seed_cache(cache_dir: Optional[str] = None) -> str:
     if os.path.abspath(src_dir) != target:
         for name in os.listdir(src_dir):
             shutil.copy2(os.path.join(src_dir, name), os.path.join(target, name))
+    # openai_harmony (gpt-oss serving) wants the same vocab as a plain o200k_base.tiktoken under
+    # TIKTOKEN_ENCODINGS_BASE; write it next to the cache so offline nodes can serve gpt-oss
+    enc_dir = os.path.join(os.path.dirname(target), "tiktoken_encodings")
+    os.makedirs(enc_dir, exist_ok=True)
+    for name in os.listdir(target):
+        with open(os.path.join(target, name), "rb") as fh:
+            head = fh.read(8)
+        if head.startswith(b"IQ== 0"):                      # o200k_base's first line
+            shutil.copy2(os.path.join(target, name), os.path.join(enc_dir, "o200k_base.tiktoken"))
     return target
 
 
