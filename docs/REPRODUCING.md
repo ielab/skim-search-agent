@@ -120,10 +120,9 @@ Five more backbones have experiment files under `configs/paper/` for the two bas
 (`browsecomp_plus_structured_search_visit_*.yaml`, `..._search_fetch_*.yaml`): Qwen3.5 4B, 9B
 and 27B (thinking on, `--tool-call-parser qwen3_xml --reasoning-parser qwen3`) and gpt-oss 20b
 and 120b (native function calling through the Responses driver, `--tool-call-parser openai
---reasoning-parser openai_gptoss`, `GPU_UTIL=0.8`, two GPUs for 120b). They are smoke-tested
-only: six questions each answered through the tools with the paper prompt; no full cell has
-been run. gpt-oss serving reads its vocabulary from `TIKTOKEN_ENCODINGS_BASE`, which the shard
-script sets and `python -m agent_search.tokens --seed` fills.
+--reasoning-parser openai_gptoss`, `GPU_UTIL=0.8`, two GPUs for 120b). gpt-oss serving reads its
+vocabulary from `TIKTOKEN_ENCODINGS_BASE`, which the shard script sets and `python -m
+agent_search.tokens --seed` fills.
 
 `scripts/run.sh` and `scripts/shard_cell.sh` start their own server per job on a distinct port, so
 no manual server management is needed. For interactive work, any OpenAI-compatible endpoint works:
