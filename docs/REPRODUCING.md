@@ -110,8 +110,20 @@ The alternative encoders for the sensitivity study go through `scripts/embed_ful
 ## 4. Serving the backbone
 
 Every paper run serves its model locally with vLLM. The primary backbone is
-`Alibaba-NLP/Tongyi-DeepResearch-30B-A3B` at a 131,072-token context window. The transfer
-backbones (`Qwen-AgentWorld-35B-A3B`, `OpenResearcher/OpenResearcher-30B-A3B`) serve at 262,144.
+`Alibaba-NLP/Tongyi-DeepResearch-30B-A3B`. The transfer backbones are `Qwen-AgentWorld-35B-A3B`
+(serve with `--gdn-prefill-backend triton`) and `OpenResearcher/OpenResearcher-30B-A3B`
+(`--trust-remote-code`). Every backbone runs the paper prompt unchanged, the same 98,304-token
+serving window and the same 86,000-token history budget, so the backbone is the only thing that
+changes between rows.
+
+Five more backbones have experiment files under `configs/paper/` for the two baselines
+(`browsecomp_plus_structured_search_visit_*.yaml`, `..._search_fetch_*.yaml`): Qwen3.5 4B, 9B
+and 27B (thinking on, `--tool-call-parser qwen3_xml --reasoning-parser qwen3`) and gpt-oss 20b
+and 120b (native function calling through the Responses driver, `--tool-call-parser openai
+--reasoning-parser openai_gptoss`, `GPU_UTIL=0.8`, two GPUs for 120b). They are smoke-tested
+only: six questions each answered through the tools with the paper prompt; no full cell has
+been run. gpt-oss serving reads its vocabulary from `TIKTOKEN_ENCODINGS_BASE`, which the shard
+script sets and `python -m agent_search.tokens --seed` fills.
 
 `scripts/run.sh` and `scripts/shard_cell.sh` start their own server per job on a distinct port, so
 no manual server management is needed. For interactive work, any OpenAI-compatible endpoint works:
