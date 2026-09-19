@@ -48,7 +48,8 @@
 # window; the live context per step is what the pages fill it with, so size by dataset and
 # tool family, measured 2026-09-18 on 24-question express smokes (questions per GPU-hour
 # relative to 2 workers): wiki Search-Fetch/Sieve/bounded DCI, mean 15k live -> 12 workers
-# (2.1x); wiki Search-Visit, 24k -> 12 (2.2x); DCI, 35-45k -> 6; AutoRead, 60-75k live context -> 2
+# (2.1x); wiki Search-Visit, 24k -> 12 (2.2x); DCI, 35-45k live, 81k at p90 -> 4 (measured 3/4/6/8:
+# 8:46/8:09/16:47/8:26 for 24 questions); AutoRead, 60-75k live context -> 2
 # (measured 2026-09-19: 2 workers beat 4 by a wide margin, 4 evicts cached prefixes from the KV cache);
 # BrowseComp Search/Fetch/Sieve, 25k -> 8; one-shot RAG -> 6 (one call, no gain). Decode is
 # not the bottleneck at these counts; prefill is, because the 40-turn history window
