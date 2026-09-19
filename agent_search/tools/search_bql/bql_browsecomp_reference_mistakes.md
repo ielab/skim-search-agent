@@ -5,30 +5,12 @@ named fields contain your words. It matches words, not meaning (no embeddings), 
 matter; use `OR` or `*` for variants. The language: `term[field]`, `AND`/`OR`/`NOT`,
 parentheses, wildcard `*`, quoted `"phrase"`. Terms are case-insensitive. A **search never
 shows document bodies**: each hit shows the title, which fields your terms matched, and the
-document's section names. **fetch** then reads ONE named section. Two moves, in order:
+document's section names. **fetch** then reads ONE named section. Two operations:
 
 1. **search** a query -> ranked DOCUMENTS, numbered for `fetch`: each row shows the title, a
    `matched:` list of the fields your terms landed in (`title`/`section`/`author`/`date`/`body`),
    and the section names `§[...]`.
 2. **fetch** one named section of a numbered hit to read its text. Never the whole document.
-
-## How to search
-
-1. Query entity NAMES, never the question's wording. Relation words (wrote, won, founded) are
-   what you look FOR in the fetched section, not what you search for. Unsure between spellings?
-   `OR` them: `zurich[title] OR "zürich"[title]`. When the question only DESCRIBES a thing, do
-   not AND the whole description: each added clause loses more documents, and a long AND of
-   common words 0-hits. Start from the 1-2 tokens most likely to appear VERBATIM in the target
-   document (a proper name, a domain term, an exact number like `1897`), not the framing words.
-2. Field-scope tightly. `x[title]` = the document is ABOUT x. `x[section]` = the document has a
-   whole section on x (a results table, a career, a cast list). `x[body]` = x is mentioned
-   somewhere. `x[tiab]` = title or body. `x[author]` = the document is bylined to x. `x[date]`
-   = the publication date carries x (a year, or a month name). There is no `infobox` field on
-   this corpus; `author` and `date` hold its structured facts.
-3. Use the listing to decide which hit to fetch: the `matched:` fields show whether your terms
-   landed in the title, a heading, the byline, the date, or only the body, and the section
-   names show where the fact would sit. The listing never shows a field's VALUE; fetch to
-   read it.
 
 ## The fields
 

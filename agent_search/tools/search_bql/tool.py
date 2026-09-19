@@ -15,8 +15,11 @@ Options:
   ranking     -- which engine this tool binds to: "bm25" (plain BQL, engine kind `bql`),
                  "fused" (BM25+dense RRF, engine kind `bql_fused`), "dense" (dense-only
                  ordering, engine kind `bql_dense`). Sets `self.engines` accordingly.
-  manual_set  -- "v1", "v2", "paper", "nomanual", "syntax" or "noconstruct" manual files. The run's field profile (general, wiki,
-                 browsecomp, code) picks which file of the set the agent reads.
+  manual_set  -- which manual files the agent reads: "reference" (the default: query language,
+                 fields, fetch call, worked examples), "card", "nomanual", the reference plus advice
+                 sections ("reference_howto", "reference_hops", "reference_mistakes",
+                 "reference_howto_hops_mistakes", "..._noconstruct"), or "v2". The run's field
+                 profile (general, wiki, browsecomp, code) picks the file of the set.
 """
 from __future__ import annotations
 
@@ -131,36 +134,25 @@ class SearchBql(Tool):
     _RANKING_TO_ENGINE = {"bm25": "bql", "fused": "bql_fused", "dense": "bql_dense"}
     # the manual per field profile (the run's dataset profile picks one; `code` has its own)
     _MANUALS = {
-        "v1": {"general": "bql_doc.md", "wiki": "bql_doc.md", "browsecomp": "bql_browsecomp.md",
-               "code": "bql_code.md"},
-        "v2": {"general": "bql_doc_v2.md", "wiki": "bql_doc_v2.md", "browsecomp": "bql_browsecomp_v2.md",
-               "code": "bql_code.md"},
-        # the Sieve paper's manuals verbatim (only the fetch examples carry the rank-and-section call);
-        # the BrowseComp one describes an unsegmented corpus and understates section access
-        "paper": {"general": "bql_doc.md", "wiki": "bql_doc.md", "browsecomp": "bql_browsecomp_paper.md",
-                  "code": "bql_code.md"},
-        # the manual ablation (BoolAgent's control grid, 2026-09-18), each cut applied to this
-        # library's corrected manuals: no manual (a 21-word stub), the reference only (mechanics,
-        # fields, fetch, worked examples), and the full manual without the query-construction advice
-        "nomanual": {"general": "bql_browsecomp_nomanual.md", "wiki": "bql_browsecomp_nomanual.md",
-                     "browsecomp": "bql_browsecomp_nomanual.md", "code": "bql_code.md"},
-        "syntax": {"general": "bql_doc_syntax.md", "wiki": "bql_doc_syntax.md",
-                   "browsecomp": "bql_browsecomp_syntax.md", "code": "bql_code.md"},
-        "noconstruct": {"general": "bql_doc_noconstruct.md", "wiki": "bql_doc_noconstruct.md",
-                        "browsecomp": "bql_browsecomp_noconstruct.md", "code": "bql_code.md"},
-        # a card: the query language, the fields and the fetch call in about a hundred words
+        # the default: the reference manual (the query language, the fields, the fetch call,
+        # worked examples). The BrowseComp profile has its own file; wiki and general share one.
+        "reference": {"general": "bql_doc.md", "wiki": "bql_doc.md", "browsecomp": "bql_browsecomp.md",
+                      "code": "bql_code.md"},
+        # the ablation on the manual (all fused Sieve, BrowseComp-Plus, 2026-09-19): a hundred-word
+        # card, a 21-word stub, and the reference plus advice sections composed by
+        # scripts/compose_manuals.py; reference_howto_hops_mistakes is the full manual the
+        # ablation started from, and its _noconstruct variant drops the query-construction advice
         "card": {"general": "bql_doc_card.md", "wiki": "bql_doc_card.md",
                  "browsecomp": "bql_browsecomp_card.md", "code": "bql_code.md"},
-        # leave-one-section-out cuts of the corrected manuals, derived by
-        # scripts/derive_manual_cuts.py (each drops one `## ` section: How to search, The fields,
-        # Fetch, Hops, Worked examples, Common mistakes)
-        # the reference-only manual plus one advice section added back (same generator)
-        **{f"ref{part}": {"general": f"bql_doc_ref{part}.md", "wiki": f"bql_doc_ref{part}.md",
-                          "browsecomp": f"bql_browsecomp_ref{part}.md", "code": "bql_code.md"}
-           for part in ("howto", "hops", "mistakes")},
-        **{f"no{part}": {"general": f"bql_doc_no{part}.md", "wiki": f"bql_doc_no{part}.md",
-                         "browsecomp": f"bql_browsecomp_no{part}.md", "code": "bql_code.md"}
-           for part in ("howto", "fields", "fetch", "hops", "examples", "mistakes")},
+        "nomanual": {"general": "bql_browsecomp_nomanual.md", "wiki": "bql_browsecomp_nomanual.md",
+                     "browsecomp": "bql_browsecomp_nomanual.md", "code": "bql_code.md"},
+        **{v: {"general": f"bql_doc_{v}.md", "wiki": f"bql_doc_{v}.md",
+               "browsecomp": f"bql_browsecomp_{v}.md", "code": "bql_code.md"}
+           for v in ("reference_howto", "reference_hops", "reference_mistakes",
+                     "reference_howto_hops_mistakes", "reference_howto_hops_mistakes_noconstruct")},
+        # the v2 manual belongs to the coverage-tiered search (sieve_v2); it predates the sectioned corpus
+        "v2": {"general": "bql_doc_v2.md", "wiki": "bql_doc_v2.md", "browsecomp": "bql_browsecomp_v2.md",
+               "code": "bql_code.md"},
     }
 
     # options a strategy sets
@@ -168,7 +160,7 @@ class SearchBql(Tool):
     coverage: bool = False
     date_nudge: bool = False
     ranking: str = "bm25"          # bm25 | fused | dense -- selects self.engines
-    manual_set: str = "v1"         # v1 | v2 | paper | nomanual | card | syntax | noconstruct | no{howto,fields,fetch,hops,examples,mistakes}
+    manual_set: str = "reference"  # reference (default) | card | nomanual | reference_howto | reference_hops | reference_mistakes | reference_howto_hops_mistakes | reference_howto_hops_mistakes_noconstruct | v2
     # fill=True: a listing always has k rows. The exact Boolean matches come first, in the
     # ranker's order; when the filter admits fewer than k documents the remaining rows are the
     # ranker's closest documents over the query's own terms (the same ranking the zero-hit
@@ -176,7 +168,7 @@ class SearchBql(Tool):
     # Sieve (fill=False) shows only the exact matches, so a tight filter leaves the agent one
     # or two candidates where a baseline lists five.
     fill: bool = False
-    manual = _MANUALS["v1"]
+    manual = _MANUALS["reference"]
 
     def __init__(self, name: Optional[str] = None, **options):
         super().__init__(name, **options)
@@ -184,7 +176,7 @@ class SearchBql(Tool):
         if kind is None:
             raise ValueError(f"unknown ranking {self.ranking!r} — choose bm25, fused or dense.")
         self.engines = (kind,)
-        self.manual = self._MANUALS.get(self.manual_set, self._MANUALS["v1"])
+        self.manual = self._MANUALS.get(self.manual_set, self._MANUALS["reference"])
         self.description = self.DESCRIPTION + (self.SNIPPET_SENTENCE if self.snippet.shows_excerpt else "")
         self._date_nudge_emitted = 0
 

@@ -5,7 +5,7 @@ named fields contain your words. It matches words, not meaning (no embeddings), 
 matter; use `OR` or `*` for variants. The language: `term[field]`, `AND`/`OR`/`NOT`,
 parentheses, wildcard `*`, quoted `"phrase"`. Terms are case-insensitive. A **search never
 shows document bodies**: each hit shows the title, which fields your terms matched, and the
-document's section names. **fetch** then reads ONE named section. Two moves, in order:
+document's section names. **fetch** then reads ONE named section. Two operations:
 
 1. **search** a query -> ranked DOCUMENTS, numbered for `fetch`: each row shows the title, a
    `matched:` list of the fields your terms landed in (`title`/`section`/`author`/`date`/`body`),
@@ -73,20 +73,6 @@ hit (`,…` means there are more). `fetch` takes the hit's rank and ONE section 
   document or fill the gap from memory.
 - The rank refers to the LAST listing. A new search renumbers the rows, so fetch from the
   listing you are looking at, or search again.
-
-## Hops: chaining across searches
-
-Each hop is its own search + fetch, not a bigger query. The fetched section names the next
-entity: search THAT. No document of its own? Flip direction: search it as `[tiab]` instead of
-`[title]`; the fact usually sits on a page that mentions it. 0 hits means your SURFACE is
-wrong, not that the document is absent. Recover in ONE move: drop a long name to its 1-2 most
-distinctive words, try `word*`, or move `[title]` to `[tiab]`. Two loosenings of the SAME
-entity both 0-hit? PIVOT to a different entity the question names; never answer from memory.
-
-Before you stop: check the fact is the ASKED-FOR TYPE, not just the next entity in the chain.
-Once a section shows a fact of the right type, ANSWER; do not re-search to confirm. The answer
-is the shortest span COPIED VERBATIM from the section: exact spelling and accents, and just the
-asked-for unit, not a compound (the year alone, not "March 2009").
 
 ## Worked examples
 

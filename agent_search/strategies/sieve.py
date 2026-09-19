@@ -4,7 +4,7 @@ One `search_bql` and one `fetch` per variant. The search lists each candidate's 
 names and infobox keys (no bodies); the fetch pulls one named section. Options on the search
 decide the ranking model behind the Boolean filter (`bm25`, `fused` = BM25 and the dense
 model by RRF, `dense` only), whether a query-biased snippet is shown per candidate, and the
-manual the agent reads. The tool names are the ones the paper prompts used.
+manual the agent reads (the reference manual by default). The tool names are the ones the paper prompts used.
 """
 from agent_search.snippets import TermWindow
 from agent_search.strategies.base import Strategy, register_strategy
@@ -24,56 +24,24 @@ sieve = register_strategy(Strategy(
     description="Sieve: Boolean search with snippets (BM25 and dense fused) then fetch a section",
     tools=(SearchBql(name="search_bqlds", ranking="fused", snippet=TermWindow()), Fetch(name="fetch_bqlds"))))
 
-# the headline Sieve with the paper's BrowseComp manual verbatim (it describes an unsegmented
-# corpus: no sections, fetch the body); the default manual above describes the sectioned corpus
-sieve_paper_manual = register_strategy(Strategy(
-    name="sieve_paper_manual", toolset_name="bql_dense_snip",
-    description="Sieve (BM25 and dense fused) with the paper's BrowseComp manual verbatim",
-    tools=(SearchBql(name="search_bqlds", ranking="fused", snippet=TermWindow(), manual_set="paper"), Fetch(name="fetch_bqlds"))))
-
-# the manual ablation on the headline Sieve: what the agent is told about the query language.
-# nomanual: a 21-word stub; syntax: the reference only (mechanics, fields, fetch, worked examples);
-# noconstruct: the full manual without its query-construction advice
-sieve_nomanual = register_strategy(Strategy(
-    name="sieve_nomanual", toolset_name="bql_dense_snip",
-    description="Sieve (BM25 and dense fused) with no manual, the tool declarations only",
-    tools=(SearchBql(name="search_bqlds", ranking="fused", snippet=TermWindow(), manual_set="nomanual"), Fetch(name="fetch_bqlds"))))
-
-sieve_card = register_strategy(Strategy(
-    name="sieve_card", toolset_name="bql_dense_snip",
-    description="Sieve (BM25 and dense fused) with a card: the query language, fields and fetch call only",
-    tools=(SearchBql(name="search_bqlds", ranking="fused", snippet=TermWindow(), manual_set="card"), Fetch(name="fetch_bqlds"))))
-
-sieve_syntax = register_strategy(Strategy(
-    name="sieve_syntax", toolset_name="bql_dense_snip",
-    description="Sieve (BM25 and dense fused) with the reference part of the manual only",
-    tools=(SearchBql(name="search_bqlds", ranking="fused", snippet=TermWindow(), manual_set="syntax"), Fetch(name="fetch_bqlds"))))
-
-sieve_noconstruct = register_strategy(Strategy(
-    name="sieve_noconstruct", toolset_name="bql_dense_snip",
-    description="Sieve (BM25 and dense fused) with the manual minus its query-construction advice",
-    tools=(SearchBql(name="search_bqlds", ranking="fused", snippet=TermWindow(), manual_set="noconstruct"), Fetch(name="fetch_bqlds"))))
-
-# leave-one-section-out cuts of the corrected manual (scripts/derive_manual_cuts.py): which part
-# of the manual carries the effect. Each strategy drops exactly one `## ` section.
-_CUTS = {"nohowto": "How to search", "nofields": "The fields", "nofetch": "Fetch",
-         "nohops": "Hops", "noexamples": "Worked examples", "nomistakes": "Common mistakes"}
-sieve_manual_cuts = {
+# the manual ablation on the headline Sieve. The default `sieve` reads the reference manual (the
+# query language, the fields, the fetch call, worked examples); each variant below swaps only the
+# manual block of the prompt. Names list the parts the manual is made of.
+_MANUAL_VARIANTS = {
+    "card": "a hundred-word card: the query language, the fields and the fetch call",
+    "nomanual": "no manual, the tool declarations only",
+    "reference_howto": "the reference manual plus the 'How to search' section",
+    "reference_hops": "the reference manual plus the 'Hops' section",
+    "reference_mistakes": "the reference manual plus the 'Common mistakes' section",
+    "reference_howto_hops_mistakes": "the reference manual plus all three advice sections (the full manual)",
+    "reference_howto_hops_mistakes_noconstruct": "the full manual without its query-construction advice",
+}
+sieve_manual_variants = {
     ms: register_strategy(Strategy(
         name=f"sieve_{ms}", toolset_name="bql_dense_snip",
-        description=f"Sieve (BM25 and dense fused) with the manual minus its '{heading}' section",
+        description=f"Sieve (BM25 and dense fused) with {what}",
         tools=(SearchBql(name="search_bqlds", ranking="fused", snippet=TermWindow(), manual_set=ms), Fetch(name="fetch_bqlds"))))
-    for ms, heading in _CUTS.items()}
-
-# the reference-only manual plus one advice section added back: which advice helps on top of
-# the reference (the mirror of the cuts, starting from the best manual of the ablation)
-_ADDS = {"refhowto": "How to search", "refhops": "Hops", "refmistakes": "Common mistakes"}
-sieve_manual_adds = {
-    ms: register_strategy(Strategy(
-        name=f"sieve_{ms}", toolset_name="bql_dense_snip",
-        description=f"Sieve (BM25 and dense fused) with the reference manual plus its '{heading}' section",
-        tools=(SearchBql(name="search_bqlds", ranking="fused", snippet=TermWindow(), manual_set=ms), Fetch(name="fetch_bqlds"))))
-    for ms, heading in _ADDS.items()}
+    for ms, what in _MANUAL_VARIANTS.items()}
 
 # dense-only ranking inside the Boolean filter
 sieve_dense = register_strategy(Strategy(

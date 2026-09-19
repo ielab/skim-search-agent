@@ -5,7 +5,7 @@ named fields contain your words. It matches words, not meaning (no embeddings), 
 matter; use `OR` or `*` for variants. The language: `term[field]`, `AND`/`OR`/`NOT`,
 parentheses, wildcard `*`, quoted `"phrase"`. Terms are case-insensitive. A **search never
 shows document bodies**: each hit shows the title, which fields your terms matched, and the
-document's section names. **fetch** then reads ONE named section. Two moves, in order:
+document's section names. **fetch** then reads ONE named section. Two operations:
 
 1. **search** a query -> ranked DOCUMENTS, numbered for `fetch`: each row shows the title, a
    `matched:` list of the fields your terms landed in (`title`/`section`/`author`/`date`/`body`),
@@ -50,6 +50,29 @@ adjacent PHRASE, which 0-hits unless truly contiguous (a quoted headline). `word
 token starting with it. `term[f1,f2]` matches if EITHER field has it. Combine: `A OR B`
 (either), `A AND B` (both; use sparingly, 3+ clauses usually over-specify and 0-hit),
 `A NOT B`. Parentheses group as expected.
+
+## Fetch: reading the section you found
+
+Every document is split into named sections. The listing shows up to eight section names per
+hit (`,…` means there are more). `fetch` takes the hit's rank and ONE section name:
+
+```
+{"rank": 1, "section": "Career"}
+```
+
+- `section` is a name from that hit's `§[...]` list. Three special names: `""` reads the
+  opening text, `infobox` reads the document's facts (title, author, date), and `body` reads the
+  whole page, every section in order. `body` costs as much as visiting the page (up to the
+  12,000-token cap), so use it only when the listing gives no section to aim at; a named section
+  is the cheap read.
+- Fetch the ONE section the fact should live in; the section names already tell you where. A
+  results table sits under a "Results" or "Final" heading, a biography fact under "Early life"
+  or "Career", a byline or date under `infobox`.
+- If that section truncates or lacks the fact, fetch a DIFFERENT named section that would hold
+  it, not the same one again. An unopened named section is a lead; never abandon a retrieved
+  document or fill the gap from memory.
+- The rank refers to the LAST listing. A new search renumbers the rows, so fetch from the
+  listing you are looking at, or search again.
 
 ## Hops: chaining across searches
 

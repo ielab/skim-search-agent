@@ -119,23 +119,17 @@ same source as this page.
 | `search_fetch` | `agent_search_fetch` | no | result cards with snippets, then named sections; BM25 |
 | `search_fetch_dense` | `agent_search_fetch_dense` | yes | the same with a dense ranker |
 | `search_fetch_hybrid` | `agent_search_fetch_hybrid` | yes | the same with RRF fusion |
-| `sieve` | `agent_sieve` | yes | the paper's method: BQL filter, BM25 and dense fused, cards, sections |
+| `sieve` | `agent_sieve` | yes | the method: BQL filter, BM25 and dense fused, cards, sections; the agent reads the reference manual (query language, fields, fetch call, worked examples) |
 | `sieve_bm25` | `agent_sieve_bm25` | no | Sieve with BM25 ranking only (the default strategy) |
 | `sieve_dense` | `agent_sieve_dense` | yes | Sieve with dense ranking only |
 | `sieve_nosnip` | `agent_sieve_nosnip` | yes | Sieve without listing snippets |
+| `sieve_card` | `agent_sieve_card` | yes | Sieve with a hundred-word card: the query language, the fields and the fetch call |
 | `sieve_nomanual` | `agent_sieve_nomanual` | yes | Sieve with no manual, the tool declarations only |
-| `sieve_card` | `agent_sieve_card` | yes | Sieve with a card: the query language, fields and fetch call in about a hundred words |
-| `sieve_syntax` | `agent_sieve_syntax` | yes | Sieve with the reference part of the manual only (mechanics, fields, fetch, worked examples) |
-| `sieve_noconstruct` | `agent_sieve_noconstruct` | yes | Sieve with the manual minus its query-construction advice |
-| `sieve_nohowto` | `agent_sieve_nohowto` | yes | Sieve with the manual minus its "How to search" section (scripts/derive_manual_cuts.py) |
-| `sieve_nofields` | `agent_sieve_nofields` | yes | Sieve with the manual minus its "The fields" section (scripts/derive_manual_cuts.py) |
-| `sieve_nofetch` | `agent_sieve_nofetch` | yes | Sieve with the manual minus its "Fetch" section (scripts/derive_manual_cuts.py) |
-| `sieve_nohops` | `agent_sieve_nohops` | yes | Sieve with the manual minus its "Hops" section (scripts/derive_manual_cuts.py) |
-| `sieve_noexamples` | `agent_sieve_noexamples` | yes | Sieve with the manual minus its "Worked examples" section (scripts/derive_manual_cuts.py) |
-| `sieve_nomistakes` | `agent_sieve_nomistakes` | yes | Sieve with the manual minus its "Common mistakes" section (scripts/derive_manual_cuts.py) |
-| `sieve_refhowto` | `agent_sieve_refhowto` | yes | Sieve with the reference manual plus its "How to search" section |
-| `sieve_refhops` | `agent_sieve_refhops` | yes | Sieve with the reference manual plus its "Hops" section |
-| `sieve_refmistakes` | `agent_sieve_refmistakes` | yes | Sieve with the reference manual plus its "Common mistakes" section |
+| `sieve_reference_howto` | `agent_sieve_reference_howto` | yes | Sieve with the reference manual plus the "How to search" section |
+| `sieve_reference_hops` | `agent_sieve_reference_hops` | yes | Sieve with the reference manual plus the "Hops" section |
+| `sieve_reference_mistakes` | `agent_sieve_reference_mistakes` | yes | Sieve with the reference manual plus the "Common mistakes" section |
+| `sieve_reference_howto_hops_mistakes` | `agent_sieve_reference_howto_hops_mistakes` | yes | Sieve with the full manual: the reference plus all three advice sections |
+| `sieve_reference_howto_hops_mistakes_noconstruct` | `agent_sieve_reference_howto_hops_mistakes_noconstruct` | yes | the full manual without its query-construction advice |
 | `indri` | `agent_indri` | no | Indri query language, cards and sections |
 | `dedup_bm25` | `agent_research_dedup_bm25` | no | ITER's tools: search that hides documents shown before, `get_document` by id; BM25 |
 | `dedup_dense` | `agent_research_dedup_dense` | yes | the same with the run's dense model |

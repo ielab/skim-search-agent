@@ -200,11 +200,14 @@ list of pairs: the backbone mis-closed the nested list in a quarter of Sieve's f
 three quarters of Search-Fetch's, and 99.9% of the calls carried one pair. The tool also
 resolves requests the paper's tool refused (`body` returns the whole document under the same
 12,000-token cap as a visit, `infobox` returns the document's facts, a section that sits on
-another row of the listing is read from there and the reply says so). Second, the BrowseComp Sieve
-manual describes the sectioned corpus. The paper's manual said the corpus had no sections and
-told the agent to fetch `body`, which the paper's appendix on instruction mismatches
-acknowledges; half of Sieve's failed fetches on BrowseComp-Plus were those `body` requests.
-The paper's manual is kept verbatim as the condition `agent_research_bql_dense_snip_papermanual`.
+another row of the listing is read from there and the reply says so). Second, the Sieve manual is
+the reference manual: the query language, the fields, the fetch call and worked examples. The
+paper's manual described an unsegmented corpus (it said there were no sections and told the agent
+to fetch `body`, which the paper's appendix on instruction mismatches acknowledges) and carried
+three advice sections on how to search, hop and avoid mistakes. A manual ablation on
+BrowseComp-Plus (eight variants, all else matched) found every cut of that manual scoring above
+it and the reference alone scoring highest, so the reference is the default and the advice
+sections are ablation variants (`scripts/compose_manuals.py`, `docs/SIEVE.md`).
 `tests/test_prompt_fidelity.py` pins every condition's prompt after these two changes.
 
 Rows append to `runs/<tier>/agent/<dataset>/<model>/<condition>/rows.jsonl` as they finish, so

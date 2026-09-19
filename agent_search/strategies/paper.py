@@ -54,17 +54,7 @@ condition("research_bql_dense_snip_fill", "research_paper", "sieve_fill")
 condition("research_snip_fill", "research_paper", "sieve_bm25_fill")
 condition("research_bql_donly_snip_fill", "research_paper", "sieve_dense_fill")
 
-# the headline Sieve under the paper's stale BrowseComp manual (a reproduction of the paper's prompt)
-condition("research_bql_dense_snip_papermanual", "research_paper", "sieve_paper_manual")
-
-# the manual ablation on the headline Sieve under the paper's prompt
-condition("research_bql_dense_snip_nomanual", "research_paper", "sieve_nomanual")
-condition("research_bql_dense_snip_card", "research_paper", "sieve_card")
-condition("research_bql_dense_snip_syntax", "research_paper", "sieve_syntax")
-condition("research_bql_dense_snip_noconstruct", "research_paper", "sieve_noconstruct")
-# leave-one-section-out cuts of the manual on the headline Sieve (scripts/derive_manual_cuts.py)
-for _part in ("howto", "fields", "fetch", "hops", "examples", "mistakes"):
-    condition(f"research_bql_dense_snip_no{_part}", "research_paper", f"sieve_no{_part}")
-# the reference-only manual plus one advice section added back
-for _part in ("howto", "hops", "mistakes"):
-    condition(f"research_bql_dense_snip_ref{_part}", "research_paper", f"sieve_ref{_part}")
+# the manual ablation on the headline Sieve (the default reads the reference manual)
+for _ms in ("card", "nomanual", "reference_howto", "reference_hops", "reference_mistakes",
+            "reference_howto_hops_mistakes", "reference_howto_hops_mistakes_noconstruct"):
+    condition(f"research_bql_dense_snip_{_ms}", "research_paper", f"sieve_{_ms}")

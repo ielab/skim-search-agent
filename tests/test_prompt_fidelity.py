@@ -3,8 +3,10 @@
 The pins were first taken from the pre-0.3 YAML-backed loader (removed at commit 9dfa5b2 after a
 parity check) and matched the paper's prompts byte for byte. Two deliberate changes moved the
 fetch-based conditions since: the `fetch` declaration names a rank and a section (no nested
-list) and the BrowseComp manual describes the sectioned corpus. `research_bql_dense_snip_papermanual`
-pins the paper's stale BrowseComp manual. Any other change to what the model sees fails here."""
+list) and the Sieve manual is the reference manual (query language, fields, fetch call, worked
+examples) that the 2026-09-19 ablation found best; the paper's full manual is the variant
+`research_bql_dense_snip_reference_howto_hops_mistakes`. Any other change to what the model sees
+fails here."""
 from __future__ import annotations
 
 import json

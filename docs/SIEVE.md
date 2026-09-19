@@ -42,9 +42,12 @@ Those three also have aliases on the `skimsearchagent` launcher: `sieve_bm25`, `
 and `sieve`.
 
 The agent's fetch call names a rank and a section: `{"rank": 1, "section": "Career"}`, one section per call. The
-BrowseComp manual the agent reads (`agent_search/tools/search_bql/bql_browsecomp.md`) describes
-the sectioned corpus; the paper's original manual, which described an unsegmented build, runs
-as `agent_research_bql_dense_snip_papermanual`. REPRODUCING.md explains both departures.
+manual the agent reads (`agent_search/tools/search_bql/bql_browsecomp.md` for BrowseComp-Plus,
+`bql_doc.md` for the wiki collections) is the reference manual: the query language, the fields,
+the fetch call and worked examples, about 680 words. The manual ablation below found it the best
+of eight variants; the paper's longer manual, which added search, hop and mistake advice, is the
+variant `agent_research_bql_dense_snip_reference_howto_hops_mistakes`. REPRODUCING.md explains
+the departures from the paper's prompts.
 
 ## Ablation knobs
 
@@ -52,7 +55,7 @@ as `agent_research_bql_dense_snip_papermanual`. REPRODUCING.md explains both dep
 |---|---|---|
 | Strict Boolean (no fallback) | `BQL_SOFT_FALLBACK=0` | accuracy drops well below the Search-Visit baseline, so the fallback is load-bearing |
 | Without snippets | condition `agent_research_bql_dense_fetch` | 2.9 to 6.8 accuracy points lost, with everything else matched |
-| Manual ablation | conditions `agent_research_bql_dense_snip_nomanual` (no manual), `_card` (a hundred-word card), `_syntax` (reference only), `_noconstruct` (no query-construction advice), and six leave-one-section-out cuts `_nohowto`, `_nofields`, `_nofetch`, `_nohops`, `_noexamples`, `_nomistakes` and three add-backs `_refhowto`, `_refhops`, `_refmistakes` (the reference manual plus one advice section; all derived by `scripts/derive_manual_cuts.py`); paper prompt, everything else matched | not in the paper; a control grid on the paper's harness found the manual costing Sieve 4.6 to 7.0 points |
+| Manual ablation | conditions `agent_research_bql_dense_snip_card` (a hundred-word card), `_nomanual` (a 21-word stub), `_reference_howto`, `_reference_hops`, `_reference_mistakes` (the reference plus one advice section), `_reference_howto_hops_mistakes` (the full manual) and `_reference_howto_hops_mistakes_noconstruct`; composed by `scripts/compose_manuals.py`; paper prompt, everything else matched | not in the paper; on BrowseComp-Plus every cut of the full manual scores above it and the reference alone scores highest, so the reference is the default |
 | Snippet width sweep | `snippet_tokens=32 / 64 / 128 / 256 / 512` on the `skimsearchagent` launcher, or `SNIPPET_TOKENS=` in the environment. Default 32. It governs BOTH arms' listing snippets, Sieve's query-biased window, and the visit baselines' opening window. A sweep moves the whole comparison, not just one side of it | not yet run; listing size grows roughly linearly with the window |
 | Dense encoder sweep | `DENSE_MODEL=<hf-id>` (bge-small/base/large, Qwen3-Embedding 0.6B/4B/8B) | token saving holds from 33M to 8B; accuracy moves within about 3 points |
 | Ranker swap | the three conditions above | fusion wins on BrowseComp-Plus, dense wins on HotpotQA |

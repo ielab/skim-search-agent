@@ -5,7 +5,7 @@ named fields contain your words. It matches words, not meaning — no embeddings
 terms matter (`OR` or `*` for variants). The language: `term[field]`, `AND`/`OR`/`NOT`,
 parentheses, wildcard `*`, quoted `"phrase"`. A **search never shows document bodies** — only
 structure (title, matched fields, section names, infobox keys). **fetch** then pulls the one
-slice that should hold the fact. Terms are case-insensitive. Two moves, in order:
+slice that should hold the fact. Terms are case-insensitive. Two operations:
 
 1. **search** a query → ranked DOCUMENTS: each hit shows the title, the fields your terms
    matched, the doc's section names, and its infobox keys — numbered for `fetch`.
@@ -74,16 +74,3 @@ any token starting with it. `term[f1,f2]` matches if EITHER field has it. Combin
 - `munoz[title] OR "muñoz"[title]` — accent/spelling variants in one search.
 - fetch `{"rank": 1, "section": "infobox"}` — read result 1's facts, then chain or answer.
 
-## Common mistakes
-
-- A comma or "and" meant loosely — write real `AND`/`OR`; `AND` requires ALL clauses.
-- `A AND B` to CONNECT two entities from different hops (a person `AND` their team's founder)
-  — they never share ONE document, so it 0-hits. Hop instead: search A, fetch, then search
-  what you found. A tight `AND` is for ONE entity's own distinctive words (`telescope AND 1893`).
-- Searching the question's framing words (described, mentioned) instead of an entity NAME.
-- Fetching section after section — the listing already named which slice to open.
-- Re-searching to confirm a fact a slice already shows, or hunting a title equal to the answer
-  — just answer from the slice you already have.
-- Answering the intermediate entity, or a compound, instead of the TYPE actually asked for.
-- Swapping in a more familiar entity that merely sounds like the question's name — search the
-  LITERAL name bare first; only widen if that 0-hits.
