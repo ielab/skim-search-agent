@@ -84,7 +84,7 @@ evaluation:
 
 # --- output: where the run record goes
 output:
-  runs_dir: runs/iter_paper                    # root of the run record (runs_dir/<kind>/<dataset>/<model>/<retriever>)
+  runs_dir: runs/iter/iter_paper                    # root of the run record (runs_dir/<kind>/<dataset>/<model>/<retriever>)
   results_dir: null                      # explicit run directory (overrides runs_dir layout)
   index_root: indexes                    # where persistent indexes and embedding caches live
   rebuild: false                         # rebuild persistent indexes
