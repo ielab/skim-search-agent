@@ -127,9 +127,11 @@ def test_research_snip_condition_loads_with_doc_skill_coaching():
     snip = get_condition("research_snip")
     assert snip.strategy.toolset_name == "search_fetch_s"
     assert snip.tool_names == ("search_s", "fetch_s")
-    # a distinctive sentence from bql_doc.md present in the composed system prompt.
-    sentinel = "Query entity NAMES, never the question's wording"
-    assert sentinel in snip.render()
+    # the reference manual (bql_doc.md) is in the composed system prompt: its field table and
+    # fetch call, and none of the advice sections the ablation moved out of the default
+    rendered = snip.render()
+    assert "## The fields" in rendered and "## Worked examples" in rendered
+    assert "## How to search" not in rendered
 
 
 # --- 5. run() aliases: search_s/fetch_s behave exactly like search/fetch --------------------
