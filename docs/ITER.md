@@ -163,7 +163,7 @@ sbatch --account=ACCT --qos=express --export=ALL,VLLM_PYTHON=/path/to/vllm-env/b
 
 The job indexes both samples with the released ITER retriever, serves Tongyi, and runs
 `configs/iter/sample_*_iter06b_tongyi.yaml`. Judge the answer-only set afterwards where the API
-is reachable: `skimsearchagent-judge --results-dir runs/iter/iter_sample/... --judge-model gpt-4o-mini`.
+is reachable: `skimsearchagent-judge --results-dir runs/iter/sample_runs/... --judge-model gpt-4o-mini`.
 
 ## Results on BrowseComp-Plus
 
@@ -194,7 +194,7 @@ The three launchers under `scripts/slurm/` are the pipeline this repository was 
 
 ```bash
 sbatch --account=ACCT --export=ALL scripts/slurm/iter_smoke_traj.sbatch            # trajectories: configs/iter/smoke_infoseek_train_gpt4omini.yaml
-sbatch --account=ACCT --export=ALL,RUNS=runs/iter/iter_smoke/agent/infoseek_train/... scripts/slurm/iter_smoke_train.sbatch   # triples + fine-tune
+sbatch --account=ACCT --export=ALL,RUNS=runs/iter/smoke/agent/infoseek_train/... scripts/slurm/iter_smoke_train.sbatch   # triples + fine-tune
 sbatch --account=ACCT --export=ALL scripts/slurm/iter_smoke_eval.sbatch            # trained vs base retriever on the triples
 ```
 
