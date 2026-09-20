@@ -42,6 +42,8 @@
 #                 here, not that script's split/auto scheduling logic, since N GPU jobs
 #                 landing together is exactly the case express's per-user cap punishes)
 #   JOB_TIME=24:00:00 · GPU_PARTITION=h24gpu · JOB_CPUS=4 · JOB_MEM=<domain default>
+#   ARRAY_SPEC=3-9 (or 3,5,8): submit only those shard indices, for resubmitting the unstarted
+#   shards of a cancelled array under a different QOS or time limit; NUM_SHARDS stays the same
 #
 # Sizing WORKERS (concurrent episodes per shard). One shard is one GPU and one vLLM server.
 # Tongyi-30B-A3B in bf16 leaves about 264k tokens of KV cache on an 80 GB H100 at a 98,304
@@ -342,7 +344,7 @@ fi
 LOGDIR="slurm_logs/agent_runs/$DATASET"; mkdir -p "$LOGDIR"
 n=$(( NUM_SHARDS - 1 ))
 JOB_NAME="shard-${CONDITION}-${DATASET}-${MODEL_TAG}"
-jid=$(sbatch --parsable --array=0-${n} --time="$JOB_TIME" \
+jid=$(sbatch --parsable --array="${ARRAY_SPEC:-0-${n}}" --time="$JOB_TIME" \
   ${SLURM_ACCOUNT:+--account=$SLURM_ACCOUNT} \
   ${EXCLUDE_NODES:+--exclude=$EXCLUDE_NODES} \
   --partition="$GPU_PARTITION" --qos="$QOS" --gres=gpu:"$TP" \
@@ -352,7 +354,7 @@ jid=$(sbatch --parsable --array=0-${n} --time="$JOB_TIME" \
   --export=ALL,MAX_VISIT_TOKENS=$MAX_VISIT_TOKENS,MAX_SECTION_TOKENS=$MAX_SECTION_TOKENS,SNIPPET_TOKENS=${SNIPPET_TOKENS:-32},DEDUP_SNIPPET_TOKENS=${DEDUP_SNIPPET_TOKENS:-64},DATASET=$DATASET,RUNS_DIR=$RUNS_DIR,CONDITION=$CONDITION,NUM_SHARDS=$NUM_SHARDS,MODEL=$MODEL,DENSE_MODEL=$DENSE_MODEL,TP=$TP,WORKERS=$WORKERS,LEVEL=$LEVEL,REPO_CACHE=$REPO_CACHE,INDEX_ROOT=$INDEX_ROOT,MAX_STEPS=$MAX_STEPS,SEEDS="$SEEDS",SEED=${SEED:-},TEMPERATURE=$TEMPERATURE,CORPUS_LIMIT=$CORPUS_LIMIT,PREBUILD=${PREBUILD:-1} \
   scripts/shard_cell.sh)
 
-echo ">> submitted array ${jid}_[0-${n}] (qos=$QOS, ${JOB_MEM} mem, ${WORKERS} workers/shard)"
+echo ">> submitted array ${jid}_[${ARRAY_SPEC:-0-${n}}] (qos=$QOS, ${JOB_MEM} mem, ${WORKERS} workers/shard)"
 for i in $(seq 0 $n); do
   echo ">>   ${jid}_${i} -> $SHARD_ROOT/shard_${i}of${NUM_SHARDS}.txt (vLLM on :$((8101 + i)))"
 done
