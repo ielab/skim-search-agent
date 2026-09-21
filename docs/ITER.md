@@ -167,14 +167,30 @@ is reachable: `skimsearchagent-judge --results-dir runs/iter/sample_runs/... --j
 
 ## Results on BrowseComp-Plus
 
-Not published yet. The cells run so far used DIVER's de-duplicated search setting on the pooled
-corpus with 1,024-token document embeddings, which is not the paper's evaluation setting (Sec. 5.3:
-unfiltered top-10 rankings; Sec. 5.1: the official 100,195-document corpus; documents encoded at 512
-tokens; the Qwen3-30B-A3B-Thinking-2507 judge). Cells in the paper's setting are running; the table
-returns here in one piece when they and the backbone cells under the same setting are judged.
+Two cells in the paper's evaluation setting: the official 100,195-document corpus, documents encoded
+at 512 tokens, unfiltered top-10 rankings, 50 search calls, de-duplication on, Tongyi-DeepResearch-30B
+as the backbone, all 830 questions. Each one is scored twice, by the paper's judge and by ours, because
+the judge choice moves the number by about four points.
 
-The earlier smoke pipeline, sample runs, training check and held-out check ran end to end on
-SLURM with the launchers in `scripts/slurm/`; their 20-question numbers are not reported.
+| retriever | paper's judge | gpt-4o-mini | steps | tokens | paper |
+|---|---|---|---|---|---|
+| ITER-Qwen3-Embedding-0.6B | 46.1 | 42.0 | 41.4 | 44.1k | 49.2 |
+| ITER-Qwen3-Embedding-4B | 51.1 | 47.7 | 40.4 | 43.0k | 51.2 |
+
+The 4B cell reproduces the paper on the paper's own judge, 51.1 against 51.2. The 0.6B cell lands 3.1
+below. The gap between the two retrievers is wider here than in the paper, 5.0 points against 2.0, so
+the bigger encoder does more work in this implementation than in theirs.
+
+Use the judge column that matches what you're comparing against. DIVER's own released answers for the
+i2 setting score 38.9 under gpt-4o-mini against the 44.5 they report, a 5.6-point gap in the same
+direction, so a number judged by gpt-4o-mini reads low next to any published ITER figure.
+`runs/iter/diver_i2_rescored/` holds that reference so you can re-check it.
+
+The backbone cells (Qwen3.5 at 4B, 9B and 27B, gpt-oss at 20B and 120B) ran under DIVER's de-duplicated
+setting with documents encoded at 1,024 tokens, which a later fix corrected to 512. Those runs were
+deleted and the numbers retracted rather than published on a superseded setting. Rerunning them in the
+setting above is open work. The smoke pipeline, sample runs, training check and held-out check ran end
+to end on SLURM with the launchers in `scripts/slurm/`; their 20-question numbers aren't reported.
 
 ## Evaluate a retriever without an agent
 
