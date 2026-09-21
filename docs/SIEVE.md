@@ -22,32 +22,9 @@ stages on top of the shared agent loop.
    no character cap). The agent selects what to read before spending any reading budget.
 4. **Fetch.** The agent reads one named section, not the whole document.
 
-The fetch call names a rank and a section, `{"rank": 1, "section": "Career"}`, one section per
-call. The manual the agent reads is the reference manual: the query language, the fields, the
-fetch call and worked examples, about 680 words. It lives at
-`agent_search/tools/search_bql/bql_browsecomp.md` for BrowseComp-Plus and `bql_doc.md` for the
-wiki collections. The manual ablation below found it the best of eight variants; the paper's
-longer manual, which added search, hop and mistake advice, is the variant
-`agent_research_bql_dense_snip_reference_howto_hops_mistakes`. The next section explains both
-changes.
-
-### Two departures from the paper's prompts (0.3.1)
-
-Both apply to Sieve and to the Search-Fetch controls alike, so the comparison stays matched. First,
-`fetch` is declared as a rank and a section, `{"rank": 1, "section": "Career"}`, in place of the
-paper's `{"specs": [[rank, section]]}` list of pairs: the backbone mis-closed the nested list in a
-quarter of Sieve's fetch calls and three quarters of Search-Fetch's, and 99.9% of the calls
-carried one pair. The tool also resolves requests the paper's tool refused (`body` returns the
-whole document under the same 12,000-token cap as a visit, `infobox` returns the document's facts,
-a section that sits on another row of the listing is read from there and the reply says so).
-Second, the Sieve manual is the reference manual: the query language, the fields, the fetch call
-and worked examples. The paper's manual described an unsegmented corpus (it said there were no
-sections and told the agent to fetch `body`, which the paper's appendix on instruction mismatches
-acknowledges) and carried three advice sections on how to search, hop and avoid mistakes. A manual
-ablation on BrowseComp-Plus (eight variants, all else matched) found every cut of that manual
-scoring above it and the reference alone scoring highest, so the reference is the default and the
-advice sections are ablation variants (`scripts/compose_manuals.py`, the ablation table below).
-`tests/test_prompt_fidelity.py` pins every condition's prompt after these two changes.
+The fetch call names a rank and a section, `{"rank": 1, "section": "Career"}`. The manual the
+agent reads is `agent_search/tools/search_bql/bql_browsecomp.md` for BrowseComp-Plus and
+`bql_doc.md` for the wiki collections.
 
 ## Reproduce it
 
