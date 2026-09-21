@@ -172,9 +172,34 @@ votes dilute the dense ranking.
 
 ### Full-set results
 
-The full-set results table is being redone and is not in this page yet. Every paper condition is
-rerun on one code version with the paper's result depth (k=5 on every search) before the table
-returns here in one piece; partial or mixed-protocol numbers are not published.
+Every cell below is a full collection on one code version: 830 questions for BrowseComp-Plus
+structured, 2,409 for MuSiQue, 7,343 for HotpotQA. The backbone is Tongyi-DeepResearch-30B-A3B
+throughout. BrowseComp-Plus is scored by gpt-4o-mini with the BrowseComp Appendix F prompt, and the
+two wiki collections by exact match. Steps are the mean trajectory length. Tokens are the episode
+total counted once, so a prompt that gets resent on the next turn isn't counted twice.
+
+| method | BCP acc | steps | tokens | MuSiQue EM | steps | tokens | HotpotQA EM | steps | tokens |
+|---|---|---|---|---|---|---|---|---|---|
+| Search-Visit, BM25 | 36.4 | 54.4 | 57.3k | 25.0 | 41.4 | 42.5k | 43.9 | 22.5 | 20.6k |
+| Search-Visit, dense | 36.5 | 63.9 | 48.9k | 24.6 | 44.9 | 38.9k | 43.2 | 24.4 | 19.9k |
+| Search-Visit, hybrid | 43.1 | 55.5 | 52.4k | 26.0 | 43.5 | 41.0k | 43.3 | 23.2 | 19.8k |
+| Search-Fetch, BM25 | 39.2 | 59.2 | 48.7k | 26.7 | 42.4 | 32.2k | 42.9 | 25.1 | 16.1k |
+| Search-Fetch, dense | 37.3 | 63.9 | 44.7k | 25.8 | 45.0 | 30.2k | 42.1 | 26.4 | 16.0k |
+| Search-Fetch, hybrid | 45.1 | 56.0 | 45.3k | 26.2 | 43.5 | 30.6k | 43.8 | 25.6 | 15.9k |
+| DCI | 20.0 | 34.8 | 86.1k | 27.0 | 28.1 | 58.1k | 43.8 | 16.7 | 32.5k |
+| BM25-bounded DCI | 32.4 | 52.8 | 65.5k | 27.1 | 34.7 | 44.8k | 43.5 | 20.6 | 20.8k |
+| Sieve, BM25 | 45.8 | 58.6 | 45.3k | 27.2 | 44.1 | 30.8k | 44.2 | 26.1 | 15.6k |
+| Sieve, dense | 46.5 | 57.2 | 45.6k | 28.3 | 43.3 | 31.1k | 44.6 | 25.8 | 15.7k |
+| Sieve, fused | 48.8 | 58.0 | 45.6k | 27.6 | 43.8 | 31.5k | 44.6 | 26.8 | 16.2k |
+
+Read it by column. On BrowseComp-Plus the best Sieve beats the best baseline by 3.7 points at the
+same token cost. On MuSiQue the margin is 1.2 points over bounded DCI, and it's dense Sieve rather
+than the fused one that gets there. On HotpotQA every method lands between 42 and 45, so what
+separates Sieve is the 15.6k tokens it spends against Search-Visit's 20.6k.
+
+Which ranker wins depends on the collection. Fusion is worth 2.3 points over dense alone on
+BrowseComp-Plus, and it's worth nothing on the two wiki collections, where dense alone ties or
+wins. Run the ranker you can afford: on HotpotQA plain BM25 Sieve is within 0.4 of the fused one.
 
 To run one cell locally:
 

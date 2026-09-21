@@ -51,14 +51,14 @@ the departures from the paper's prompts.
 
 ## Ablation knobs
 
-| ablation | how | paper finding |
+| ablation | how | what this library measured |
 |---|---|---|
-| Strict Boolean (no fallback) | `BQL_SOFT_FALLBACK=0` | accuracy drops well below the Search-Visit baseline, so the fallback is load-bearing |
-| Without snippets | condition `agent_research_bql_dense_fetch` | 2.9 to 6.8 accuracy points lost, with everything else matched |
+| Strict Boolean (no fallback) | `BQL_SOFT_FALLBACK=0` | 44.2 against 48.8 on BrowseComp-Plus, and steps rise from 58 to 62, so the fallback is load-bearing |
+| Without snippets | condition `agent_research_bql_dense_fetch` | 43.4 against 48.8 on BrowseComp-Plus, the largest single component |
 | Manual ablation | conditions `agent_research_bql_dense_snip_card` (a hundred-word card), `_nomanual` (a 21-word stub), `_reference_howto`, `_reference_hops`, `_reference_mistakes` (the reference plus one advice section), `_reference_howto_hops_mistakes` (the full manual) and `_reference_howto_hops_mistakes_noconstruct`; composed by `scripts/compose_manuals.py`; paper prompt, everything else matched | not in the paper; on BrowseComp-Plus every cut of the full manual scores above it and the reference alone scores highest, so the reference is the default |
 | Snippet width sweep | `snippet_tokens=32 / 64 / 128 / 256 / 512` on the `skimsearchagent` launcher, or `SNIPPET_TOKENS=` in the environment. Default 32. It governs BOTH arms' listing snippets, Sieve's query-biased window, and the visit baselines' opening window. A sweep moves the whole comparison, not just one side of it | not yet run; listing size grows roughly linearly with the window |
-| Dense encoder sweep | `DENSE_MODEL=<hf-id>` (bge-small/base/large, Qwen3-Embedding 0.6B/4B/8B) | token saving holds from 33M to 8B; accuracy moves within about 3 points |
-| Ranker swap | the three conditions above | fusion wins on BrowseComp-Plus, dense wins on HotpotQA |
+| Dense encoder sweep | `DENSE_MODEL=<hf-id>` (bge-small/base/large, Qwen3-Embedding 0.6B/4B/8B) | 33M to 8B moves accuracy by 3.5 points with no trend by size, and tokens not at all. Sweep dense-only Sieve, not the fused ranker, or the fusion hides the encoder |
+| Ranker swap | the three conditions above | fusion wins on BrowseComp-Plus by 2.3 points over dense; on MuSiQue and HotpotQA dense alone ties or wins |
 | Engine swap | `agent_research_indri_snip` | Indri-QL executor comparison |
 
 ## Results
@@ -76,18 +76,29 @@ accuracy/cost Pareto front.</em></p>
 
 ## Headline results
 
-Against the BM25 Search-Visit baseline under identical budgets (5 results per search,
-12,000-token reads, 32-token listing snippets on both arms, 100 steps):
+Every number here comes from this library on full collections, with the same budget on both arms:
+5 results per search, 12,000-token reads, 32-token listing snippets, 100 steps, seed 42. The
+backbone is Tongyi-DeepResearch-30B-A3B. BrowseComp-Plus is judged by gpt-4o-mini, the wiki
+collections by exact match. The Sieve column is the best of the three rankers, named in brackets.
 
-| collection | accuracy (baseline → Sieve) | tokens/episode |
-|---|---|---|
-| HotpotQA (7,343) | 43.7 → 45.3 EM | 19.9k → 13.9k (−30.4%) |
-| MuSiQue (2,409) | 26.1 → 29.2 EM | 43.0k → 21.3k (−50.6%) |
-| BrowseComp-Plus full (830) | 34.7 → 37.2 judge | 68.1k → 46.0k (−32.4%) |
+| collection | BM25 Search-Visit | best Search-Fetch | Sieve | tokens, Search-Visit to Sieve |
+|---|---|---|---|---|
+| BrowseComp-Plus (830) | 36.4 | 45.1 | **48.8** (fused) | 57.3k to 45.6k |
+| MuSiQue (2,409) | 25.0 | 26.7 | **28.3** (dense) | 42.5k to 31.1k |
+| HotpotQA (7,343) | 43.9 | 43.8 | **44.6** (dense) | 20.6k to 15.7k |
 
-The effect carries across agent backbones (Qwen-AgentWorld, OpenResearcher), and the token savings
-are largest where the baseline uses the most context. For the full tables, ablations and
-statistics, see the paper. To regenerate them, see [`REPRODUCING.md`](REPRODUCING.md).
+Sieve wins all three, and it costs less context everywhere. The margin isn't the same size in each
+column. BrowseComp-Plus is where the Boolean filter earns its keep, because the questions name
+entities and dates that make good filter terms. HotpotQA is the hard case for the claim: everything
+lands within a point, so the accuracy result there rests on the token saving, not the score.
+
+The effect carries across agent backbones. With Qwen-AgentWorld, Sieve is 40.4 against 24.8 for BM25
+Search-Visit on BrowseComp-Plus, and 29.8 against 28.4 on MuSiQue. With OpenResearcher it's 27.5
+against 20.7, and 23.8 against 21.0. The weaker the backbone is at writing searches, the more the
+structured listing helps it.
+
+The per-component ablations, the manual ablation and the encoder sweep live in the CHANGELOG. To
+regenerate any of it, see [`REPRODUCING.md`](REPRODUCING.md).
 
 ## Ranking invariant: Boolean filters, one model ranks
 
