@@ -8,12 +8,13 @@ ITER trains a dense retriever from the trajectories of a search agent and evalua
 agent loop: the retriever is conditioned on what the agent already searched, and it's trained to
 return documents the agent has not read yet. This page maps that setup onto this library. The
 generic training recipe (triples from run records, the trainer, plugging a checkpoint back in) is
-in [TRAINING.md](TRAINING.md). The install, the judge and the result layout are in
-[REPRODUCING.md](REPRODUCING.md).
+in [TRAINING.md](TRAINING.md). The install notes, SLURM sharding and the run-directory layout are shared with the Sieve paper
+and spelled out in [SIEVE.md](SIEVE.md#reproduce-it).
 
-## Run it end to end
+## Reproduce it
 
-Five steps from a fresh clone to an ITER number on BrowseComp-Plus.
+Six steps from a fresh clone to the published ITER numbers on BrowseComp-Plus. Step 5 is the exact
+command that produced the table in [Results](#results-on-browsecomp-plus).
 
 **1. Install.** Needs JDK 21 on `JAVA_HOME` and a GPU for serving.
 
@@ -22,7 +23,7 @@ python -m pip install -e ".[retrieval,api,eval,serve]"
 python -m agent_search.tokens --seed
 ```
 
-**2. Pull the retriever checkpoint and the corpus.** Do this on a node with internet; the runs
+**2. Pull the retriever checkpoint and the corpus.** Do this on a node with internet. The runs
 themselves stay offline.
 
 ```bash
@@ -31,9 +32,9 @@ huggingface-cli download wshuai190/browsecomp-plus-structured-full --repo-type d
 cp -r data/_hf/bcp/structured data/browsecomp_plus_structured_full
 ```
 
-**3. Build the dense cache with the ITER checkpoint.** Documents encode at 512 tokens in
-bfloat16, which is how ITER trained and indexed. The cache path carries the encoder, the sequence
-length and the precision, so it never collides with the bge-base cache.
+**3. Build the dense cache with the ITER checkpoint.** Documents encode at 512 tokens in bfloat16
+with last-token pooling, which is how ITER trained and indexed. The cache directory name carries the
+encoder, the length and the precision, so it can't collide with another cache.
 
 ```bash
 DENSE_SEQ_LENGTH=512 DENSE_DTYPE=bfloat16 DENSE_POOLING=last_token \
@@ -43,43 +44,94 @@ skimsearchagent-build-indexes \
   --index-root indexes
 ```
 
-**4. Serve the backbone.** Tongyi-DeepResearch-30B is the paper's backbone.
+Check it: `indexes/dense/ielabgroup__ITER-Qwen3-Embedding-0.6B-sl512-eos-bfloat16/browsecomp_plus_structured_full/meta.json`
+must say `"n": 100195`.
+
+**4. Serve the backbone.**
 
 ```bash
 export VLLM_USE_FLASHINFER_MOE_FP16=0
 vllm serve Alibaba-NLP/Tongyi-DeepResearch-30B-A3B \
   --tensor-parallel-size 1 --port 8000 --gpu-memory-utilization 0.9 \
-  --max-model-len 100000 --compilation-config '{"cudagraph_mode":"PIECEWISE"}'
+  --max-model-len 131072 --compilation-config '{"cudagraph_mode":"PIECEWISE"}' \
+  --enable-prefix-caching
 ```
 
-`--max-model-len` matches the experiment file's `agent.ctx_window`, which is 100000 for the ITER
-files.
-
-**5. Run the cell.**
+**5. Run the cell.** These are the settings the published cells ran with. The strategy is
+`agent_research_iter_dense`: ten unfiltered results per search, no de-duplication, then
+`get_document`. The dense encoder runs on CPU so it doesn't compete with vLLM for the GPU.
 
 ```bash
-skimsearchagent validate configs/iter/browsecomp_plus_full_iter_iter06b_tongyi.yaml
-skimsearchagent run configs/iter/browsecomp_plus_full_iter_iter06b_tongyi.yaml \
-  model.api_base=http://127.0.0.1:8000/v1
+export MAX_VISIT_TOKENS=512 MAX_SECTION_TOKENS=12000 SNIPPET_TOKENS=32 \
+       DENSE_QUERY_STYLE=i9 DENSE_POOLING=last_token DENSE_DTYPE=bfloat16 \
+       DENSE_SEQ_LENGTH=512 DENSE_QUERY_SEQ_LENGTH=8192 \
+       AGENT_CTX_WINDOW=100000 AGENT_CTX_TOKENS=95000 \
+       DEDUP_TOPK=10 DEDUP_POOL_K=100 AGENT_SEARCH_DENSE_DEVICE=cpu \
+       OPENAI_API_KEY=dummy
+
+skimsearchagent-eval \
+  --dataset browsecomp_plus_structured_full \
+  --retriever agent_research_iter_dense \
+  --dense-model ielabgroup/ITER-Qwen3-Embedding-0.6B \
+  --policy llm --backend api --api-base http://127.0.0.1:8000/v1 \
+  --model Alibaba-NLP/Tongyi-DeepResearch-30B-A3B \
+  --max-steps 50 --temperature 0.6 --seed 42 --workers 2 \
+  --k 1 3 5 10 --runs-dir runs/iter/paper_setting_iter06b
 ```
 
-Swap `iter06b` for `iter4b` to run the 4B checkpoint. Judge afterwards from a node that can reach
-the API:
+For the 4B checkpoint, change `--dense-model` to `ielabgroup/ITER-Qwen3-Embedding-4B` and
+`--runs-dir` to `runs/iter/paper_setting_iter4b`, after building its cache in step 3.
+
+On SLURM the same run takes ten shards with one GPU each, about an hour per shard. Export the same
+knobs plus the ones below, then submit. `scripts/shard_cell.sh` serves vLLM on each node itself.
 
 ```bash
-export OPENAI_API_KEY=...
-skimsearchagent-judge --results-dir runs/iter/paper_setting_iter06b/agent/browsecomp_plus_structured_full/Tongyi-DeepResearch-30B-A3B/agent_research_iter_dense \
-  --judge-model gpt-4o-mini --workers 16
+export DATASET=browsecomp_plus_structured_full CONDITION=agent_research_iter_dense \
+       MODEL=Alibaba-NLP/Tongyi-DeepResearch-30B-A3B DENSE_MODEL=ielabgroup/ITER-Qwen3-Embedding-0.6B \
+       RUNS_DIR=runs/iter/paper_setting_iter06b NUM_SHARDS=10 WORKERS=2 MAX_STEPS=50 \
+       MAX_MODEL_LEN=131072 JOB_TIME=04:00:00 PREBUILD=0 SLURM_ACCOUNT=YOUR_ACCOUNT \
+       VLLM_ARGS="--enable-prefix-caching"
+bash scripts/shard_cell.sh
+# when every shard has finished:
+python scripts/merge_shards.py --runs-dir runs/iter/paper_setting_iter06b \
+  --dataset browsecomp_plus_structured_full --condition agent_research_iter_dense \
+  --num-shards 10 --model Alibaba-NLP/Tongyi-DeepResearch-30B-A3B
 ```
 
-**As one SLURM job.** `serve_and_run.sbatch` starts vLLM on the node, runs the file and stops the
-server on the way out.
+The experiment file `configs/iter/browsecomp_plus_full_iter_iter06b_tongyi.yaml` is not the
+published setting. It adds DIVER's client behaviour: per-turn budgets of 4096, 2048 and 1024 tokens,
+thinking on, DIVER's final-turn nudge and a 10,000-token forced answer. The published cells ran
+with the library defaults instead: a flat 4,000-token turn budget, the template's thinking default,
+the library's nudge and a 2,000-token forced answer.
+
+**6. Judge it, twice.** Each cell carries two scores. gpt-4o-mini with the BrowseComp Appendix F
+prompt is this library's judge:
 
 ```bash
-sbatch --account=YOUR_ACCOUNT --partition=h24gpu --gres=gpu:1 --mem=200g --cpus-per-task=16 \
-  --export=ALL,EXPERIMENT=configs/iter/browsecomp_plus_full_iter_iter06b_tongyi.yaml,MODEL=Alibaba-NLP/Tongyi-DeepResearch-30B-A3B,TP=1,MAX_MODEL_LEN=100000,VLLM_PYTHON=/path/to/vllm-env/bin/python \
-  scripts/slurm/serve_and_run.sbatch
+D=runs/iter/paper_setting_iter06b/agent/browsecomp_plus_structured_full/Tongyi-DeepResearch-30B-A3B/agent_research_iter_dense
+export OPENAI_API_KEY=sk-...
+skimsearchagent-judge --results-dir $D --judge-model gpt-4o-mini --workers 16
 ```
+
+The paper's judge is Qwen3-30B-A3B-Thinking-2507 with DIVER's template, served locally. It writes
+`judge_summary_diver.json` next to the first summary.
+
+```bash
+vllm serve Qwen/Qwen3-30B-A3B-Thinking-2507 --port 8103 \
+  --gpu-memory-utilization 0.9 --max-model-len 32768 --max-num-seqs 64 &
+OPENAI_API_KEY=EMPTY python -m agent_search.evaluation.llm_judge --results-dir $D \
+  --judge-model Qwen/Qwen3-30B-A3B-Thinking-2507 --judge-api-base http://127.0.0.1:8103/v1 \
+  --judge-prompt diver --tag diver --workers 64 --max-tokens 8192 --unfinished-ok
+```
+
+Read both numbers:
+
+```bash
+python -c "import json; [print(f, round(100*json.load(open(f'$D/'+f))['judge_accuracy'],1)) for f in ('judge_summary.json','judge_summary_diver.json')]"
+```
+
+Expect about 44.7 and 48.6 for ITER-0.6B. A second run of the same setup gave 44.3 and 48.2, so a
+result within half a point of these matches.
 
 ### The ITER experiment files
 
@@ -334,18 +386,24 @@ BrowseComp-Plus counterpart.
 ## Results on BrowseComp-Plus
 
 Two cells in the paper's evaluation setting: the official 100,195-document corpus, documents encoded
-at 512 tokens, unfiltered top-10 rankings, 50 search calls, de-duplication on, Tongyi-DeepResearch-30B
-as the backbone, all 830 questions. Each one is scored twice, by the paper's judge and by ours, because
-the judge choice moves the number by about four points.
+at 512 tokens, unfiltered top-10 rankings with no de-duplication, 50 search calls,
+Tongyi-DeepResearch-30B as the backbone, all 830 questions. Each one is scored twice, by the paper's
+judge and by ours, because the judge choice moves the number by about four points.
 
 | retriever | paper's judge | gpt-4o-mini | steps | tokens | paper |
 |---|---|---|---|---|---|
-| ITER-Qwen3-Embedding-0.6B | 46.1 | 42.0 | 41.4 | 44.1k | 49.2 |
+| ITER-Qwen3-Embedding-0.6B | 48.6 | 44.7 | 43.9 | 46.5k | 49.2 |
 | ITER-Qwen3-Embedding-4B | 51.1 | 47.7 | 40.4 | 43.0k | 51.2 |
 
-The 4B cell reproduces the paper on the paper's own judge, 51.1 against 51.2. The 0.6B cell lands 3.1
-below. The gap between the two retrievers is wider here than in the paper, 5.0 points against 2.0, so
-the bigger encoder does more work in this implementation than in theirs.
+Both cells land within a point of the paper on the paper's own judge: 48.6 against 49.2, and 51.1
+against 51.2. A second run of the 0.6B cell with the same setup scored 48.2, so run-to-run noise is
+about half a point.
+
+The two rows come from different code. The 0.6B cell ran on 21 September. The 4B cell ran on 14
+September, before three fixes to the agent loop: repairs for malformed tool calls, a filled skeleton
+for an empty tool call, and a forced answer when the context window fills instead of a dropped
+question. On the 0.6B cell those fixes were worth 2.5 points under either judge, so read the 4B row as
+a lower bound for the current code.
 
 Use the judge column that matches what you're comparing against. DIVER's own released answers for the
 i2 setting score 38.9 under gpt-4o-mini against the 44.5 they report, a 5.6-point gap in the same

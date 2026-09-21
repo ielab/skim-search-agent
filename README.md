@@ -342,9 +342,8 @@ session storage and is sent per request to OpenAI; the server does not store or 
 | [docs/CONFIGURATION.md](docs/CONFIGURATION.md) | the experiment-file schema, every flag and knob |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | modules, contracts, one episode end to end |
 | [docs/TRAINING.md](docs/TRAINING.md) | retriever training from run records |
-| [docs/SIEVE.md](docs/SIEVE.md) | the Sieve paper: the method and its ablations |
-| [docs/REPRODUCING.md](docs/REPRODUCING.md) | the paper from a fresh clone: environment, data, indexes, cells, sharded runs, judging |
-| [docs/ITER.md](docs/ITER.md) | the ITER paper: its search tools, backbones, retrievers, datasets, training and the verified runs |
+| [docs/SIEVE.md](docs/SIEVE.md) | the Sieve paper: the method, step-by-step reproduction from a fresh clone, and every result |
+| [docs/ITER.md](docs/ITER.md) | the ITER paper: step-by-step reproduction, its search tools, retrievers, datasets, training and results |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | development setup and how to add components |
 
 ## Papers

@@ -141,7 +141,7 @@ same source as this page.
 The document strategies above run under the library's default prompt, the task `research`. The
 paper's conditions keep the paper's prompt (`research_paper`) and are selectable by their own
 names (`research_snip`, `research_bql_dense_snip`, `research_bm25`, ...; see
-[REPRODUCING.md](REPRODUCING.md)); the shipped `configs/paper/*.yaml` name them.
+[SIEVE.md](SIEVE.md#5-run-one-cell)); the shipped `configs/paper/*.yaml` name them.
 
 "Needs a dense cache" means the corpus must be embedded once
 (`skimsearchagent-build-indexes --dataset <name> --retriever dense --model <model>`) or a
