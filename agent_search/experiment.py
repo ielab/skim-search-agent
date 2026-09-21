@@ -209,7 +209,7 @@ _DOC_AGENTS = {"search_visit", "search_visit_dense", "search_visit_hybrid", "sea
                "search_fetch_bm25_plain", "search_fetch_dense_plain",
                "sieve", "sieve_bm25", "sieve_dense", "sieve_nosnip", "sieve_plain", "sieve_v2",
                "sieve_visit", "sieve_visit_fused", "sieve_visit_dense",
-               "indri", "indri_plain", "indri_visit", "dedup_bm25", "dedup_dense",
+               "indri", "indri_plain", "indri_visit", "dedup_bm25", "dedup_dense", "iter_bm25", "iter_dense",
                "plan_and_search", "plan_and_search_visit"}
 _CODE_AGENTS = {"codefix", "codefix_grep", "codefix_patch"}
 _RAG = {"rag_bm25", "rag_dense", "rag_hybrid"}          # one model call, no loop
@@ -219,7 +219,7 @@ _MODEL_USERS = _AGENTS | _RAG
 _DENSE = set(DENSE_STRATEGIES) | {"sieve_visit_fused", "sieve_visit_dense", "search_fetch_dense_plain",
                                   "autoread_hybrid", "rag_dense", "rag_hybrid"}
 _BM25_USERS = {"search_visit", "search_visit_snippets", "search_fetch", "search_fetch_bm25_plain", "autoread", "plan_and_search_visit",
-               "autoread_hybrid", "bounded_dci", "search_visit_hybrid", "search_fetch_hybrid", "dedup_bm25",
+               "autoread_hybrid", "bounded_dci", "search_visit_hybrid", "search_fetch_hybrid", "dedup_bm25", "iter_bm25",
                "bm25", "rag_bm25", "rag_hybrid"}
 _BQL = {"sieve", "sieve_bm25", "sieve_dense", "sieve_nosnip", "sieve_plain", "sieve_v2", "sieve_visit", "plan_and_search",
         "sieve_visit_fused", "sieve_visit_dense", "codefix", "codefix_patch"}
@@ -227,7 +227,7 @@ _HYBRID = {"search_visit_hybrid", "search_fetch_hybrid", "autoread_hybrid", "rag
 _RERANK = {"search_visit_reranked", "reranked"}
 _VISIT = {"search_visit", "search_visit_dense", "search_visit_hybrid", "search_visit_snippets", "search_visit_reranked", "plan_and_search_visit", "autoread",
           "autoread_dense", "autoread_hybrid", "sieve_visit", "sieve_visit_fused", "sieve_visit_dense",
-          "indri_visit", "dedup_bm25", "dedup_dense"}
+          "indri_visit", "dedup_bm25", "dedup_dense", "iter_bm25", "iter_dense"}
 _FETCH = {"search_fetch", "search_fetch_dense", "search_fetch_hybrid", "search_fetch_bm25_plain",
           "search_fetch_dense_plain", "sieve", "sieve_bm25", "sieve_dense", "sieve_nosnip", "sieve_plain",
           "sieve_v2", "indri", "indri_plain", "plan_and_search"}
@@ -239,7 +239,7 @@ APPLIES: dict[str, set] = {
     "model.reasoning_effort": _MODEL_USERS, "model.timeout_s": _MODEL_USERS, "model.retry_attempts": _MODEL_USERS,
     "agent.max_steps": _AGENTS, "agent.forced_answer_tokens": _AGENTS, "agent.forced_answer_prefill": _AGENTS, "agent.forced_answer_nudge": _AGENTS, "agent.prompt_profile": _AGENTS, "agent.ctx_tokens": _AGENTS | _RAG,
     "agent.ctx_window": _AGENTS, "agent.ctx_stop_frac": _AGENTS,
-    "budgets.snippet_tokens": _DOC_AGENTS - {"dci", "dedup_bm25", "dedup_dense"},
+    "budgets.snippet_tokens": _DOC_AGENTS - {"dci", "dedup_bm25", "dedup_dense", "iter_bm25", "iter_dense"},
     "budgets.max_visit_tokens": _VISIT,
     "budgets.max_section_tokens": _FETCH,
     "budgets.bash_max_tokens": {"dci", "bounded_dci"}, "budgets.read_max_line_tokens": {"dci", "bounded_dci"},
@@ -255,8 +255,8 @@ APPLIES: dict[str, set] = {
     "retrieval.rerank_pool": _RERANK, "retrieval.rerank_batch_size": _RERANK, "retrieval.rerank_max_length": _RERANK,
     "listing.hybrid_pool": _HYBRID, "listing.autoread_topk": {"autoread", "autoread_dense", "autoread_hybrid"},
     "listing.bm25_dci_topk": {"bounded_dci"},
-    "listing.dedup_snippet_tokens": {"dedup_bm25", "dedup_dense"},
-    "listing.dedup_topk": {"dedup_bm25", "dedup_dense"}, "listing.dedup_pool_k": {"dedup_bm25", "dedup_dense"},
+    "listing.dedup_snippet_tokens": {"dedup_bm25", "dedup_dense", "iter_bm25", "iter_dense"},
+    "listing.dedup_topk": {"dedup_bm25", "dedup_dense", "iter_bm25", "iter_dense"}, "listing.dedup_pool_k": {"dedup_bm25", "dedup_dense", "iter_bm25", "iter_dense"},
     "retrieval.dense_model": _DENSE, "retrieval.dense_query_style": _DENSE,
     "retrieval.dense_query_instruction": _DENSE, "retrieval.dense_pooling": _DENSE, "retrieval.dense_dtype": _DENSE, "retrieval.dense_seq_length": _DENSE, "retrieval.dense_query_seq_length": _DENSE,
     "retrieval.dense_index": _DENSE, "retrieval.ann_ef_search": _DENSE, "retrieval.bm25_index": _BM25_USERS,

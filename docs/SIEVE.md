@@ -8,6 +8,87 @@ stages on top of the shared agent loop.
   <img src="assets/architecture.png" width="85%" alt="Sieve architecture: filter, rank, inspect, fetch"/>
 </p>
 
+## Run it end to end
+
+Four commands take you from a fresh clone to a Sieve number on one collection.
+[REPRODUCING.md](REPRODUCING.md) has the full grid: install details, the other datasets, the
+sharded cluster path and the judge.
+
+**1. Install and stage the data.** Needs JDK 21 on `JAVA_HOME` (Pyserini and Lucene).
+
+```bash
+python -m pip install -e ".[retrieval,api,eval,serve]"
+python -m agent_search.tokens --seed
+huggingface-cli download wshuai190/hotpotqa-structured --repo-type dataset --local-dir data/_hf/hotpotqa
+cp -r data/_hf/hotpotqa/structured data/hotpotqa_structured
+```
+
+**2. Build the two indexes Sieve reads.** The Lucene structured index selects, the dense cache
+ranks.
+
+```bash
+skimsearchagent-build-indexes --dataset hotpotqa_structured --retriever search_lucene --index-root indexes
+skimsearchagent-build-indexes --dataset hotpotqa_structured --retriever dense --model BAAI/bge-base-en-v1.5 --index-root indexes
+```
+
+`sieve_bm25` needs only the first one. See [REPRODUCING.md](REPRODUCING.md) step 3 for the full
+table of which strategy reads which index.
+
+**3. Serve the backbone.**
+
+```bash
+export VLLM_USE_FLASHINFER_MOE_FP16=0
+vllm serve Alibaba-NLP/Tongyi-DeepResearch-30B-A3B \
+  --tensor-parallel-size 1 --port 8000 --gpu-memory-utilization 0.9 \
+  --max-model-len 131072 --compilation-config '{"cudagraph_mode":"PIECEWISE"}'
+```
+
+**4. Run the cell.** Validate first; it reports anything missing before GPU time is spent.
+
+```bash
+skimsearchagent validate configs/paper/hotpotqa_structured_sieve.yaml
+skimsearchagent run configs/paper/hotpotqa_structured_sieve.yaml \
+  model.name=Alibaba-NLP/Tongyi-DeepResearch-30B-A3B \
+  model.api_base=http://127.0.0.1:8000/v1 \
+  output.runs_dir=runs/mine
+```
+
+HotpotQA and MuSiQue are scored by exact match during the run, so `results.json` already has
+`answer_em`. BrowseComp-Plus needs one more step:
+
+```bash
+export OPENAI_API_KEY=...
+skimsearchagent-judge --results-dir runs/mine/agent/<dataset>/<model>/<condition> \
+  --judge-model gpt-4o-mini --workers 16
+```
+
+### The Sieve experiment files
+
+| file under `configs/paper/` | collection | ranker |
+|---|---|---|
+| `browsecomp_plus_structured_full_sieve_tongyi.yaml` | BrowseComp-Plus, 100,195 docs | fused |
+| `hotpotqa_structured_sieve.yaml` | HotpotQA | fused |
+| `hotpotqa_structured_sieve_bm25.yaml` | HotpotQA | BM25 |
+| `musique_structured_sieve.yaml` | MuSiQue | fused |
+| `browsecomp_plus_structured_sieve_agentworld.yaml`, `..._openresearcher.yaml` | BrowseComp-Plus pooled | fused, transfer backbones |
+
+### The three rankers as flags
+
+```bash
+# Boolean-filtered BM25
+skimsearchagent-eval --dataset browsecomp_plus_structured_full --retriever agent_research_snip --runs-dir runs/demo
+# Boolean-filtered dense
+skimsearchagent-eval --dataset browsecomp_plus_structured_full --retriever agent_research_bql_donly_snip --runs-dir runs/demo
+# Boolean-filtered BM25 + dense, the paper default
+skimsearchagent-eval --dataset browsecomp_plus_structured_full --retriever agent_research_bql_dense_snip --runs-dir runs/demo
+```
+
+Those three also have aliases on the `skimsearchagent` launcher: `sieve_bm25`, `sieve_dense` and
+`sieve`. The paper's condition names carry the paper's prompt; the aliases run the same strategies
+under the library's default prompt, so a reproduction names the condition.
+
+## How it works
+
 1. **Filter.** The agent writes a BQL query: field-scoped terms (`title`, `section`, `date`,
    `infobox`, `body`), `AND`/`OR`/`NOT`, quoted phrases, prefixes. That compiles to a Lucene filter
    and *selects* the candidate set. When the filter admits nothing, a **soft fallback** relaxes to
@@ -20,34 +101,14 @@ stages on top of the shared agent loop.
    no character cap). The agent selects what to read before spending any reading budget.
 4. **Fetch.** The agent reads one named section, not the whole document.
 
-## Running Sieve
-
-The three ranker variants are ordinary conditions of the framework:
-
-```bash
-# Boolean-filtered BM25
-python -m agent_search.evaluation.run_eval --dataset browsecomp_plus_structured_full \
-  --retriever agent_research_snip --runs-dir runs/demo
-
-# Boolean-filtered Dense
-python -m agent_search.evaluation.run_eval --dataset browsecomp_plus_structured_full \
-  --retriever agent_research_bql_donly_snip --runs-dir runs/demo
-
-# Boolean-filtered BM25+Dense (the paper default)
-python -m agent_search.evaluation.run_eval --dataset browsecomp_plus_structured_full \
-  --retriever agent_research_bql_dense_snip --runs-dir runs/demo
-```
-
-Those three also have aliases on the `skimsearchagent` launcher: `sieve_bm25`, `sieve_dense`
-and `sieve`.
-
-The agent's fetch call names a rank and a section: `{"rank": 1, "section": "Career"}`, one section per call. The
-manual the agent reads (`agent_search/tools/search_bql/bql_browsecomp.md` for BrowseComp-Plus,
-`bql_doc.md` for the wiki collections) is the reference manual: the query language, the fields,
-the fetch call and worked examples, about 680 words. The manual ablation below found it the best
-of eight variants; the paper's longer manual, which added search, hop and mistake advice, is the
-variant `agent_research_bql_dense_snip_reference_howto_hops_mistakes`. REPRODUCING.md explains
-the departures from the paper's prompts.
+The fetch call names a rank and a section, `{"rank": 1, "section": "Career"}`, one section per
+call. The manual the agent reads is the reference manual: the query language, the fields, the
+fetch call and worked examples, about 680 words. It lives at
+`agent_search/tools/search_bql/bql_browsecomp.md` for BrowseComp-Plus and `bql_doc.md` for the
+wiki collections. The manual ablation below found it the best of eight variants; the paper's
+longer manual, which added search, hop and mistake advice, is the variant
+`agent_research_bql_dense_snip_reference_howto_hops_mistakes`. REPRODUCING.md, "Two departures
+from the paper's prompts", explains both changes.
 
 ## Ablation knobs
 
@@ -97,8 +158,22 @@ Search-Visit on BrowseComp-Plus, and 29.8 against 28.4 on MuSiQue. With OpenRese
 against 20.7, and 23.8 against 21.0. The weaker the backbone is at writing searches, the more the
 structured listing helps it.
 
-The per-component ablations, the manual ablation and the encoder sweep live in the CHANGELOG. To
-regenerate any of it, see [`REPRODUCING.md`](REPRODUCING.md).
+The per-component ablations, the manual ablation and the encoder sweep are the "Ablation knobs"
+table above. To regenerate any of it, see [REPRODUCING.md](REPRODUCING.md).
+
+### Where the published runs live
+
+One cell per leaf, under `runs/sieve/<dataset>/<strategy>/<agent>/<retriever>/`. Each leaf holds
+`rows.jsonl` (every question's trajectory and scores) and either `judge_summary.json`
+(BrowseComp-Plus, gpt-4o-mini) or the exact-match scores in the rows themselves (MuSiQue,
+HotpotQA). Strategy names are the library's: `sieve`, `search_fetch`, `search_visit`, `autoread`,
+`dci`, `bounded_dci`, `rag`, plus the Sieve variants `sieve_bm25`, `sieve_dense`, `sieve_nosnip`,
+`sieve_fill`, `sieve_strict` and the manual ablation `sieve_card`, `sieve_nomanual`,
+`sieve_reference_*`. The retriever segment names the ranking model: `bm25`, `bge-base`,
+`bm25+bge-base`, and the encoder sweep `bm25+bge-small` and so on.
+
+A run you launch yourself lands in the harness layout instead,
+`<runs_dir>/agent/<dataset>/<model>/<condition>/`. See [REPRODUCING.md](REPRODUCING.md) step 9.
 
 ## Ranking invariant: Boolean filters, one model ranks
 
