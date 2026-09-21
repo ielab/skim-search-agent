@@ -233,10 +233,10 @@
 <body>
 
 <nav class="topbar">
-  <div class="logo">
+  <a class="logo" href="../" aria-label="SkimSearchAgent home">
     <svg viewBox="0 0 26 26" width="22" height="22"><circle cx="11" cy="11" r="7.2" fill="none" stroke="#0e9384" stroke-width="2.6"/><line x1="16.5" y1="16.5" x2="23" y2="23" stroke="#0e9384" stroke-width="3" stroke-linecap="round"/><line x1="7.4" y1="9.4" x2="14.6" y2="9.4" stroke="#0e9384" stroke-width="1.7" stroke-linecap="round" opacity=".85"/><line x1="7.4" y1="12.8" x2="12.2" y2="12.8" stroke="#0e9384" stroke-width="1.7" stroke-linecap="round" opacity=".45"/></svg>
     SkimSearch<b>Agent</b>
-  </div>
+  </a>
   <div class="nav">
     <a class="opt" href="#results">Results</a>
     <a class="opt" href="#method">Method</a>
@@ -291,47 +291,53 @@
       <div class="agent" id="agent"><div class="lens"><span class="eye l"></span><span class="eye r"></span><span class="mouth"></span><div class="handle"></div></div><span class="bubble">&#128173;</span></div>
     </div>
   </div>
-  <div class="caption">replays a recorded ITER-0.6B episode from the published BrowseComp-Plus run &middot; teal results are new to the agent, grey ones it has already seen</div>
+  <div class="caption">replays a recorded ITER-0.6B episode on BrowseComp-Plus &middot; teal results are new to the agent, grey ones it has already seen</div>
 
   <section id="results">
-    <span class="sec-k">Results on BrowseComp-Plus</span>
-    <h2>Within a point of the paper, on the paper's own judge</h2>
-    <p class="lead">All 830 questions on the official 100,195-document corpus, with
-    Tongyi-DeepResearch-30B as the agent, ten unfiltered results per search and 50 search calls.</p>
+    <span class="sec-k">Headline results</span>
+    <h2>Better than LRAT on every backbone and benchmark</h2>
+    <p class="lead">Across six agent backbones from three model families, ITER-0.6B outperforms LRAT,
+    the existing agent-trajectory-trained retriever, in all twelve backbone and benchmark comparisons.</p>
 
     <div class="stats">
-      <div class="stat"><div class="v">48.6</div>
-        <div class="l">ITER-0.6B accuracy under the paper's judge. The paper reports <b>49.2</b></div></div>
-      <div class="stat"><div class="v">51.1</div>
-        <div class="l">ITER-4B accuracy under the paper's judge. The paper reports <b>51.2</b></div></div>
-      <div class="stat"><div class="v">2.3<small>&times;</small></div>
-        <div class="l">the recall@10 of bge-base when the raw question is ranked once, with no agent (0.215 against 0.092)</div></div>
+      <div class="stat"><div class="v">+15.4<small>%</small></div>
+        <div class="l">average relative improvement over LRAT in task success on BrowseComp-Plus</div></div>
+      <div class="stat"><div class="v">+6.9<small>%</small></div>
+        <div class="l">average relative improvement over LRAT in task success on InfoSeek-Eval</div></div>
+      <div class="stat"><div class="v">12<small>/12</small></div>
+        <div class="l">backbone and benchmark comparisons where ITER-0.6B beats LRAT</div></div>
     </div>
 
     <div class="tbl-wrap">
     <table class="res">
-      <thead><tr><th>retriever</th><th>paper's judge</th><th>gpt-4o-mini</th><th>steps</th><th>tokens</th><th>paper</th></tr></thead>
+      <thead><tr><th>retriever</th><th>InfoSeek-Eval SR</th><th>BrowseComp-Plus SR</th><th>search recall</th><th>visit recall</th></tr></thead>
       <tbody>
-        <tr><td class="c">ITER-Qwen3-Embedding-0.6B</td><td><span class="up">48.6</span></td><td>44.7</td><td>43.9</td><td>46.5k</td><td>49.2</td></tr>
-        <tr><td class="c">ITER-Qwen3-Embedding-4B</td><td><span class="up">51.1</span></td><td>47.7</td><td>40.4</td><td>43.0k</td><td>51.2</td></tr>
+        <tr><td class="c">BM25</td><td>77.3</td><td>31.1</td><td>.442</td><td>.248</td></tr>
+        <tr><td class="c">Base (0.6B)</td><td>58.0</td><td>32.4</td><td>.479</td><td>.249</td></tr>
+        <tr><td class="c">LRAT (0.6B)</td><td>72.0</td><td>43.7</td><td>.596</td><td>.321</td></tr>
+        <tr><td class="c">ITER (0.6B)</td><td><span class="up">78.7</span></td><td><span class="up">49.2</span></td><td><span class="up">.661</span></td><td><span class="up">.350</span></td></tr>
+        <tr><td class="c">ITER (4B)</td><td><span class="up">80.3</span></td><td><span class="up">51.2</span></td><td>.651</td><td><span class="up">.370</span></td></tr>
       </tbody>
     </table>
     </div>
-    <p class="lead" style="margin-top:16px">The paper's judge is Qwen3-30B-A3B-Thinking-2507 with
-    DIVER's template. The gpt-4o-mini column uses the BrowseComp Appendix F prompt.</p>
+    <p class="lead" style="margin-top:16px">Matched-agent evaluation with Tongyi-DeepResearch-30B.
+    SR is the task success rate; search and visit recall are the share of BrowseComp-Plus evidence
+    the agent retrieved and opened. At the matched 4B scale, ITER outperforms AgentIR on InfoSeek-Eval
+    for five of six backbones and has a higher visit-to-search recall ratio on BrowseComp-Plus for all
+    six. The full tables and ablations are in the paper.</p>
   </section>
 
   <section id="method">
     <span class="sec-k">The method</span>
     <h2>Retrieval that remembers what the agent already saw</h2>
-    <p class="lead">A retriever trained on question and document relevance alone hands an agent the
-    same top result on every search, even after the agent has read it. ITER trains the retriever
-    from the agent's own trajectories and evaluates it inside the same loop.</p>
+    <p class="lead">Retrievers trained from agent trajectories usually learn from the current
+    sub-query and its results alone. ITER also uses what the agent already did in the episode: the
+    searches it tried, the reasoning that led to the next one, and the documents it opened.</p>
     <div class="stages">
-      <div class="st-card"><span class="n">01</span><h3>Trajectories</h3><p>A search agent runs over a corpus. Every search and every read is recorded, question by question.</p></div>
-      <div class="st-card"><span class="n">02</span><h3>Conditioned query</h3><p>The query carries the main question, the agent's reasoning before the search, the current sub-query and the sub-queries it already tried.</p></div>
-      <div class="st-card"><span class="n">03</span><h3>Novelty training</h3><p>Supervision comes from the agent's own reads: new relevant evidence is promoted, documents it already read are pushed down.</p></div>
-      <div class="st-card"><span class="n">04</span><h3>In-loop evaluation</h3><p>The retriever is scored inside a running agent, the way it will be used, not on a fixed ranking of fixed queries.</p></div>
+      <div class="st-card"><span class="n">01</span><h3>Trajectories</h3><p>A search agent answers questions over a corpus. Every sub-query it issues and every document it opens is recorded.</p></div>
+      <div class="st-card"><span class="n">02</span><h3>History-conditioned query</h3><p>The query carries the main question, the agent's pre-search reasoning, the current sub-query and the sub-queries already tried, not the text it read.</p></div>
+      <div class="st-card"><span class="n">03</span><h3>Trajectory-relative supervision</h3><p>Positives are documents the agent opened and a verifier confirmed useful. Negatives are split by what the agent already did with them: redundancy, hard and weak.</p></div>
+      <div class="st-card"><span class="n">04</span><h3>No gold labels</h3><p>The training data comes from signals the trajectories already produce. ITER needs neither gold document labels nor oracle reranking.</p></div>
     </div>
     <figure>
       <img class="on-white" src="../assets/iter_overview.png" alt="Overview of ITER: a history-conditioned query and trajectory-relative supervision." loading="lazy">

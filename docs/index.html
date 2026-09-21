@@ -247,15 +247,15 @@
 <body>
 
 <nav class="topbar">
-  <div class="logo">
+  <a class="logo" href="./" aria-label="SkimSearchAgent home">
     <svg viewBox="0 0 26 26" width="22" height="22"><circle cx="11" cy="11" r="7.2" fill="none" stroke="#0e9384" stroke-width="2.6"/><line x1="16.5" y1="16.5" x2="23" y2="23" stroke="#0e9384" stroke-width="3" stroke-linecap="round"/><line x1="7.4" y1="9.4" x2="14.6" y2="9.4" stroke="#0e9384" stroke-width="1.7" stroke-linecap="round" opacity=".85"/><line x1="7.4" y1="12.8" x2="12.2" y2="12.8" stroke="#0e9384" stroke-width="1.7" stroke-linecap="round" opacity=".45"/></svg>
     SkimSearch<b>Agent</b>
-  </div>
+  </a>
   <div class="nav">
     <a class="opt" href="#modules">Modules</a>
     <a class="opt" href="#quickstart">Quick start</a>
     <a class="opt" href="#extend">Extend</a>
-    <a class="opt" href="#papers">Papers</a>
+    <a class="opt" href="#papers">Projects</a>
     <a href="sieve/">Sieve</a>
     <a href="iter/">ITER</a>
     <a href="https://github.com/ielab/skim-search-agent">GitHub</a>
@@ -293,8 +293,8 @@
         <div class="l">strategy families, from Search-Visit and Sieve to shell-based DCI, ITER's search and one-shot RAG</div></div>
       <div class="stat"><div class="v">4</div>
         <div class="l">backbone providers: OpenAI, Gemini, any OpenAI-compatible server, and vLLM in-process</div></div>
-      <div class="stat"><div class="v">2</div>
-        <div class="l">papers reproduced on this library, every step documented from a fresh clone</div></div>
+      <div class="stat"><div class="v">1</div>
+        <div class="l">run record that every strategy writes and one evaluation layer reads the same way</div></div>
     </div>
   </section>
 
@@ -400,10 +400,10 @@ condition("title_agent", task="research", strategy="title_only")
   </section>
 
   <section id="papers">
-    <span class="sec-k">Papers</span>
-    <h2>Two papers run on this library</h2>
-    <p class="lead">Each paper is one setting of the library, with its method, results and
-    citation on its own page.</p>
+    <span class="sec-k">Projects</span>
+    <h2>Built on SkimSearchAgent</h2>
+    <p class="lead">Two research projects are developed on the library. Each has its own page with
+    its method, results and citation.</p>
     <div class="papers">
       <div class="paper-card">
         <span class="tag">arXiv 2608.02751 &middot; cs.IR</span>
@@ -411,7 +411,6 @@ condition("title_agent", task="research", strategy="title_only")
         <p>Boolean-filtered search for deep-research agents: fielded candidate selection, one
         ranking model, compact result cards with query-biased snippets, and reading one section
         instead of a whole document.</p>
-        <div class="num"><b>48.8</b><span>on BrowseComp-Plus, against 45.1 for the best baseline, on 45.6k tokens per question</span></div>
         <a class="go" href="sieve/">Read the Sieve page &rarr;</a>
       </div>
       <div class="paper-card">
@@ -419,39 +418,8 @@ condition("title_agent", task="research", strategy="title_only")
         <h3>ITER: Interaction-Aware Retrieval</h3>
         <p>A dense retriever trained from search-agent trajectories. It conditions on the agent's
         earlier searches and returns documents the agent hasn't read yet.</p>
-        <div class="num"><b>48.6</b><span>for ITER-0.6B on BrowseComp-Plus under the paper's judge, which reports 49.2</span></div>
         <a class="go" href="iter/">Read the ITER page &rarr;</a>
       </div>
-    </div>
-  </section>
-
-  <section id="cite">
-    <span class="sec-k">Citation</span>
-    <h2>If you use the library</h2>
-    <div class="cite">
-      <button class="copy" onclick="navigator.clipboard.writeText(document.getElementById('bib').innerText).then(()=>{this.textContent='copied ✓';setTimeout(()=>this.textContent='copy',1500)})">copy</button>
-<pre id="bib">@misc{wang2026sieve,
-  title         = {Search, Inspect, Fetch: Exploiting Boolean Retrieval
-                   for Deep-Research Agents},
-  author        = {Wang, Shuai and Chen, Haodong and Yin, Yu and
-                   Zhuang, Shengyao and Koopman, Bevan and Zuccon, Guido},
-  year          = {2026},
-  eprint        = {2608.02751},
-  archivePrefix = {arXiv},
-  primaryClass  = {cs.IR},
-  url           = {https://arxiv.org/abs/2608.02751}
-}
-
-@misc{chen2026iter,
-  title         = {ITER: Interaction-Aware Retrieval for Agentic Search},
-  author        = {Chen, Haodong and Wang, Shuai and Yin, Yu and Zhuang, Shengyao and
-                   Zuccon, Guido and Leelanupab, Teerapong},
-  year          = {2026},
-  eprint        = {2608.27912},
-  archivePrefix = {arXiv},
-  primaryClass  = {cs.IR},
-  url           = {https://arxiv.org/abs/2608.27912}
-}</pre>
     </div>
   </section>
 </div>
