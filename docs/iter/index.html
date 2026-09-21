@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ITER</title>
-<meta name="description" content="ITER is interaction-aware retrieval for agentic search: a dense retriever trained from search-agent trajectories, conditioned on earlier searches, trained to return documents not yet read. One setting of the SkimSearchAgent library.">
+<title>ITER: Interaction-Aware Retrieval</title>
+<meta name="description" content="ITER is interaction-aware retrieval for agentic search: a dense retriever trained from search-agent trajectories that conditions on the agent's earlier searches and returns documents it has not read yet. One setting of the SkimSearchAgent library.">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 26 26'%3E%3Ccircle cx='11' cy='11' r='7.2' fill='none' stroke='%230e9384' stroke-width='2.6'/%3E%3Cline x1='16.5' y1='16.5' x2='23' y2='23' stroke='%230e9384' stroke-width='3' stroke-linecap='round'/%3E%3Cline x1='7.4' y1='9.4' x2='14.6' y2='9.4' stroke='%230e9384' stroke-width='1.7' stroke-linecap='round' opacity='.85'/%3E%3Cline x1='7.4' y1='12.8' x2='12.2' y2='12.8' stroke='%230e9384' stroke-width='1.7' stroke-linecap='round' opacity='.45'/%3E%3C/svg%3E">
 <script>
 (function(){
@@ -59,6 +59,18 @@
     .nav{gap:11px;font-size:12.5px}
     .theme-btn{width:27px;height:27px;font-size:12.5px}
   }
+  @media(max-width:560px){
+    .station{width:64px;margin-left:-32px}
+    .st-pad{width:44px;height:44px;font-size:17px;border-radius:14px}
+    .st-name{font-size:8px;letter-spacing:.04em;margin-top:5px}
+    .stage{height:150px}
+    .agent{width:44px}
+    .lens{width:34px;height:34px;border-width:3px}
+    .eye.l{left:8px}.eye.r{left:19px}
+    .mouth{left:11px;top:20px}
+    .ticker{font-size:10.5px}
+    .caption{padding:0 8px}
+  }
 
   .wrap{max-width:var(--shell,900px);margin:0 auto;padding:0 28px}
   @media(min-width:1400px){:root{--shell:1040px}}
@@ -68,20 +80,92 @@
   .hero{text-align:center;padding:64px 0 10px}
   .kicker{display:inline-block;font-family:var(--mono);font-size:11px;letter-spacing:.08em;color:var(--teal);border:1px solid var(--teal);border-radius:999px;padding:3px 12px;margin-bottom:18px}
   h1{font-size:clamp(34px,6vw,54px);font-weight:800;letter-spacing:-.035em;line-height:1.08}
-  h1 .a{color:var(--teal)}
-  .sub{margin:16px auto 0;max-width:640px;font-size:17px;color:var(--ink-2)}
-  .venue{margin-top:12px;font-size:13px;color:var(--ink-2)}
+  h1 .a{color:var(--teal)}h1 .b{color:var(--violet)}h1 .c{color:var(--amber)}
+  .sub{margin:16px auto 0;max-width:600px;font-size:17px;color:var(--ink-2)}
   .cta{display:flex;gap:10px;justify-content:center;margin-top:26px;flex-wrap:wrap}
   .btn{display:inline-flex;align-items:center;gap:7px;font-size:14px;font-weight:650;border-radius:12px;padding:10px 20px;border:1.5px solid var(--line);color:var(--ink);background:var(--card);transition:.15s}
   .btn:hover{transform:translateY(-1px);border-color:var(--ink-3)}
   .btn.primary{background:var(--teal);border-color:var(--teal);color:#fff;box-shadow:0 4px 14px var(--teal-glow)}
   .btn.primary:hover{border-color:var(--teal)}
 
+  /* animated stage */
+  .stage-card{margin:40px auto 0;max-width:760px;background:var(--card);border:1px solid var(--line);border-radius:22px;padding:16px 20px 10px;box-shadow:0 2px 18px rgba(32,36,31,.07);text-align:left}
+  .stage-top{display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap}
+  .who{display:flex;align-items:baseline;gap:8px}
+  .who-dot{width:9px;height:9px;border-radius:50%;background:var(--teal);align-self:center;box-shadow:0 0 8px var(--teal)}
+  .who-name{font-size:14px;font-weight:800}
+  .who-sub{font-size:11.5px;color:var(--ink-3)}
+  .meter{font-family:var(--mono);font-size:11px;color:var(--ink-3);font-variant-numeric:tabular-nums;white-space:nowrap}
+  .meter b{color:var(--teal);font-size:13px}
+  .ticker{margin-top:10px;font-family:var(--mono);font-size:11.5px;line-height:1.5;color:#e8eae5;background:#20241f;border-radius:10px;padding:6px 12px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;word-break:break-word;min-height:30px}
+  .ticker .dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--teal);margin-right:8px;animation:pulse 1.1s ease-in-out infinite}
+  .stage{position:relative;height:172px;margin-top:4px}
+  .floor{position:absolute;left:20px;right:20px;bottom:30px;border-top:2px dotted var(--line)}
+  .station{position:absolute;top:18px;width:92px;margin-left:-46px;text-align:center;z-index:2}
+  .st-pad{width:60px;height:60px;margin:0 auto;border-radius:20px;background:var(--bg);border:1.5px solid var(--line);display:grid;place-items:center;font-size:24px;transition:.3s;position:relative}
+  .station.active .st-pad{background:var(--teal-soft);border-color:var(--teal);transform:translateY(-4px);box-shadow:0 6px 18px var(--teal-glow)}
+  .station.active .st-pad::after{content:'';position:absolute;inset:-8px;border-radius:25px;border:2px solid var(--teal);opacity:0;animation:ring 1.1s ease-out infinite}
+  .st-name{margin-top:7px;font-size:10px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;color:var(--ink-3)}
+  .station.active .st-name{color:var(--teal)}
+  .agent{position:absolute;bottom:6px;left:1%;width:52px;z-index:4;transition:left .75s cubic-bezier(.45,1.45,.4,1)}
+  .lens{position:relative;width:40px;height:40px;margin:0 auto;border-radius:50%;background:linear-gradient(150deg,#fff,#eef5f3);border:3.5px solid var(--teal);box-shadow:0 3px 10px var(--teal-glow),inset -3px -3px 8px rgba(32,36,31,.07);animation:bob 2s ease-in-out infinite}
+  .handle{position:absolute;left:50%;bottom:-10px;width:5px;height:15px;border-radius:3px;background:var(--teal);transform:translateX(-50%)}
+  .eye{position:absolute;top:12px;width:5.5px;height:8px;border-radius:3px;background:var(--ink);animation:blink 3.6s infinite}
+  .eye.l{left:10px}.eye.r{left:22px}
+  .mouth{position:absolute;left:14px;top:24px;width:9px;height:4px;border-radius:0 0 8px 8px;background:var(--ink)}
+  .bubble{position:absolute;top:-17px;right:-7px;font-size:13px;opacity:0}
+  .agent.thinking .bubble{opacity:1;animation:bob 1.1s ease-in-out infinite}
+  .packet{position:absolute;width:12px;height:9px;border-radius:2.5px;background:var(--teal);z-index:3;opacity:0}
+  .packet.fly{animation:pkfly .7s cubic-bezier(.4,.1,.7,1) forwards}
+  .conf{position:absolute;width:7px;height:7px;border-radius:2px;z-index:6;opacity:0}
+  .conf.go{animation:confl 1s ease-out forwards}
+  .caption{text-align:center;font-size:12px;color:var(--ink-3);margin-top:10px}
+
+  /* authors */
+  .authors-row{display:flex;flex-wrap:wrap;justify-content:center;gap:6px 22px;margin-top:22px}
+  .au{font-size:15px;font-weight:600;color:var(--ink)}
+  .au a{color:var(--ink);border-bottom:1.5px solid var(--teal-soft);transition:.15s}
+  .au a:hover{color:var(--teal);border-bottom-color:var(--teal)}
+  .au sup{font-size:10.5px;color:var(--teal);font-weight:700;margin-left:1px}
+  .affil{display:flex;flex-direction:column;align-items:center;gap:2px;margin-top:12px;font-size:12.5px;color:var(--ink-3)}
+  .affil span sup{color:var(--teal);font-weight:700;margin-right:3px}
+
+  /* results */
+  .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:24px}
+  @media(max-width:720px){.stats{grid-template-columns:1fr}}
+  .stat{background:var(--card);border:1px solid var(--line-soft);border-radius:16px;padding:16px 18px}
+  .stat .v{font-size:30px;font-weight:800;letter-spacing:-.03em;line-height:1.1;color:var(--teal)}
+  .stat .v small{font-size:15px;font-weight:700;color:var(--ink-3);margin-left:3px}
+  .stat .l{font-size:12.5px;color:var(--ink-2);margin-top:5px;line-height:1.45}
+  .tbl-wrap{overflow-x:auto}
+  table.res{width:100%;min-width:520px;border-collapse:collapse;margin-top:22px;font-size:13.5px}
+  table.res th{text-align:left;font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-3);font-weight:700;padding:0 10px 8px 0;border-bottom:1px solid var(--line)}
+  table.res td{padding:11px 10px 11px 0;border-bottom:1px solid var(--line-soft);vertical-align:baseline}
+  table.res td.c{font-weight:650}
+  .up{color:var(--good);font-weight:700}
+  .down{color:var(--teal);font-weight:700}
+  .arrow{color:var(--ink-3);margin:0 5px}
+  figure{margin-top:26px}
+  figure img{width:100%;border:1px solid var(--line-soft);border-radius:14px;background:var(--card)}
+  figcaption{margin-top:9px;font-size:12.5px;color:var(--ink-3);text-align:center}
+  img.only-dark{display:none}
+  :root[data-theme="dark"] img.only-dark{display:block}
+  :root[data-theme="dark"] img.only-light{display:none}
+
+  /* team */
+  .team{margin-top:26px}
+  .team img{width:100%;border-radius:16px;border:1px solid var(--line-soft);display:block}
+  .team-names{display:grid;grid-template-columns:repeat(6,1fr);gap:4px;margin-top:9px}
+  .team-names a{display:block;text-align:center;font-size:12.5px;font-weight:650;color:var(--ink);line-height:1.3}
+  .team-names a:hover{color:var(--teal)}
+  .team-names a sup{color:var(--teal);font-size:9.5px;margin-left:1px}
+  @media(max-width:700px){.team-names{grid-template-columns:repeat(3,1fr);gap:8px 4px}}
+
   /* sections */
   section{padding:56px 0 0}
   .sec-k{font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--teal);font-weight:700}
   h2{font-size:clamp(22px,3vw,30px);font-weight:800;letter-spacing:-.025em;margin:6px 0 10px}
-  .lead{color:var(--ink-2);max-width:660px}
+  .lead{color:var(--ink-2);max-width:640px}
 
   .stages{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:24px}
   @media(max-width:760px){.stages{grid-template-columns:repeat(2,1fr)}}
@@ -90,27 +174,59 @@
   .st-card h3{font-size:15px;font-weight:750;margin:4px 0 5px;letter-spacing:-.01em}
   .st-card p{font-size:12.5px;color:var(--ink-2);line-height:1.55}
 
+  .cite{margin-top:20px;position:relative}
+  .copy{position:absolute;top:12px;right:12px;font-size:11px;font-weight:650;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:5px 12px;cursor:pointer;color:var(--ink-2)}
+  .copy:hover{border-color:var(--teal);color:var(--teal)}
+  pre{background:#222621;color:#e8eae5;border-radius:14px;padding:16px 20px;font-family:var(--mono);font-size:12.5px;line-height:1.7;overflow-x:auto;margin-top:18px}
+
+  footer{margin-top:70px;border-top:1px solid var(--line-soft);padding:28px 24px 40px;text-align:center;font-size:12.5px;color:var(--ink-3)}
+  footer .authors{color:var(--ink-2);margin-bottom:6px}
+  footer a{color:var(--ink-2)}
+
+  /* dark mascot: bone lens, hollow eye sockets with glowing pupils, a stitched grin */
+  :root[data-theme="dark"] .lens{
+    background:radial-gradient(circle at 38% 30%, #f2efe2, #d6d2bf 68%, #b9b5a2);
+    border-color:var(--teal);
+    box-shadow:0 3px 12px var(--teal-glow), inset 0 -5px 9px rgba(0,0,0,.28);
+  }
+  :root[data-theme="dark"] .eye{
+    width:9px;height:10px;border-radius:50% 50% 46% 46%;background:#141511;top:11px;
+    box-shadow:inset 0 0 0 9px #141511;
+  }
+  :root[data-theme="dark"] .eye::after{
+    content:'';position:absolute;left:3px;top:3.5px;width:3px;height:3px;border-radius:50%;
+    background:var(--teal);box-shadow:0 0 6px var(--teal);
+  }
+  :root[data-theme="dark"] .eye.l{left:7px}
+  :root[data-theme="dark"] .eye.r{left:22px}
+  :root[data-theme="dark"] .mouth{
+    left:12px;top:26px;width:14px;height:4px;border-radius:2px;background:#141511;
+    -webkit-mask-image:linear-gradient(90deg,#000 0 3px,transparent 3px 4.5px,#000 4.5px 7.5px,transparent 7.5px 9px,#000 9px 12px,transparent 12px 13.5px,#000 13.5px);
+            mask-image:linear-gradient(90deg,#000 0 3px,transparent 3px 4.5px,#000 4.5px 7.5px,transparent 7.5px 9px,#000 9px 12px,transparent 12px 13.5px,#000 13.5px);
+  }
+  :root[data-theme="dark"] .agent .bubble{filter:grayscale(1) brightness(1.4)}
+
+  .theme-btn{border:1px solid var(--line);background:var(--card);color:var(--ink-2);width:30px;height:30px;border-radius:9px;cursor:pointer;font-size:14px;line-height:1;transition:.15s}
+  .theme-btn:hover{border-color:var(--teal);color:var(--teal)}
+
+  @keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-4px)}}
+  @keyframes blink{0%,93%,100%{transform:scaleY(1)}95%,97%{transform:scaleY(.12)}}
+  @keyframes ring{0%{opacity:.5;transform:scale(.9)}100%{opacity:0;transform:scale(1.25)}}
+  @keyframes pkfly{0%{opacity:1;transform:translate(0,0) rotate(0)}100%{opacity:0;transform:translate(var(--dx),130px) rotate(24deg)}}
+  @keyframes confl{0%{opacity:1;transform:translate(0,0) rotate(0)}100%{opacity:0;transform:translate(var(--cx),var(--cy)) rotate(230deg)}}
+  @keyframes pulse{0%,100%{opacity:.3}50%{opacity:1}}
+  @media (prefers-reduced-motion: reduce){*{animation:none!important;transition:none!important}}
+
+  /* components shared with the library page */
   .feats{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:24px}
   @media(max-width:700px){.feats{grid-template-columns:1fr}}
   .feat{background:var(--card);border:1px solid var(--line-soft);border-radius:16px;padding:18px 20px}
   .feat h3{font-size:15.5px;font-weight:750;margin:0 0 5px;letter-spacing:-.01em}
   .feat p{font-size:13px;color:var(--ink-2)}
   .feat code{font-size:.88em}
-
-  pre{background:#222621;color:#e8eae5;border-radius:14px;padding:16px 20px;font-family:var(--mono);font-size:12.5px;line-height:1.7;overflow-x:auto;margin-top:18px}
   pre .c{color:#8b9187}
-
-  .cite{margin-top:20px;position:relative}
-  .copy{position:absolute;top:12px;right:12px;font-size:11px;font-weight:650;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:5px 12px;cursor:pointer;color:var(--ink-2)}
-  .copy:hover{border-color:var(--teal);color:var(--teal)}
-
-  footer{margin-top:70px;border-top:1px solid var(--line-soft);padding:28px 24px 40px;text-align:center;font-size:12.5px;color:var(--ink-3)}
-  footer a{color:var(--ink-2)}
-
-  .theme-btn{border:1px solid var(--line);background:var(--card);color:var(--ink-2);width:30px;height:30px;border-radius:9px;cursor:pointer;font-size:14px;line-height:1;transition:.15s}
-  .theme-btn:hover{border-color:var(--teal);color:var(--teal)}
-
-  @media (prefers-reduced-motion: reduce){*{animation:none!important;transition:none!important}}
+  .packet.seen{background:var(--ink-3)}
+  figure img.on-white{background:#fff}
 </style>
 </head>
 <body>
@@ -121,13 +237,13 @@
     SkimSearch<b>Agent</b>
   </div>
   <div class="nav">
+    <a class="opt" href="#results">Results</a>
     <a class="opt" href="#method">Method</a>
-    <a class="opt" href="#tools">Tools</a>
-    <a class="opt" href="#training">Training</a>
-    <a class="opt" href="#retrievers">Retrievers</a>
+    <a class="opt" href="#reproduce">Reproduce</a>
     <a class="opt" href="#cite">Cite</a>
     <a href="../">Library</a>
-    <a href="https://github.com/ielab/skim-search-agent">GitHub</a>
+    <a href="https://arxiv.org/abs/2608.27912">Paper</a>
+    <a href="https://github.com/ielab/ITER">GitHub</a>
     <button class="theme-btn" id="themeBtn" title="toggle light/dark" aria-label="toggle color theme">&#9789;</button>
   </div>
 </nav>
@@ -135,93 +251,139 @@
 <div class="wrap">
   <header class="hero">
     <span class="kicker">arXiv 2608.27912 &middot; cs.IR</span>
-    <h1><span class="a">ITER</span></h1>
-    <p class="sub">Interaction-aware retrieval for agentic search: a dense retriever trained from
-    search-agent trajectories, conditioned on the searches the agent already tried, and trained
-    to return documents it has not read yet. ITER is one setting of the
-    <a href="../">SkimSearchAgent</a> library.</p>
-    <p class="venue">Chen, Wang, Yin, Zhuang, Zuccon, Leelanupab, 2026</p>
+    <h1><span class="a">Remember.</span> <span class="b">Condition.</span> <span class="c">Retrieve.</span></h1>
+    <p class="sub">Interaction-aware retrieval for agentic search: a dense retriever trained from the
+    agent's own trajectories. It conditions on what the agent already searched and returns what it
+    <i>hasn't read yet</i>. ITER is one setting of the <a href="../">SkimSearchAgent</a> library.</p>
+    <div class="authors-row">
+      <span class="au"><a href="https://donovan0243.github.io/" target="_blank" rel="noreferrer">Haodong Chen</a><sup>1</sup></span>
+      <span class="au"><a href="https://shuaiwang.io" target="_blank" rel="noreferrer">Shuai Wang</a><sup>1</sup></span>
+      <span class="au"><a href="https://yinyubb.github.io/" target="_blank" rel="noreferrer">Yu Yin</a><sup>1</sup></span>
+      <span class="au"><a href="https://arvinzhuang.github.io/" target="_blank" rel="noreferrer">Shengyao Zhuang</a></span>
+      <span class="au"><a href="https://ielab.io/people/guido-zuccon.html" target="_blank" rel="noreferrer">Guido Zuccon</a><sup>1</sup></span>
+      <span class="au">Teerapong Leelanupab</span>
+    </div>
+    <div class="affil">
+      <span><sup>1</sup><a href="https://ielab.io" target="_blank" rel="noreferrer">ielab</a>, The University of Queensland</span>
+    </div>
 
     <div class="cta">
-      <a class="btn primary" href="https://arxiv.org/abs/2608.27912">Read the paper</a>
-      <a class="btn" href="https://github.com/ielab/ITER">ITER on GitHub</a>
-      <a class="btn" href="https://github.com/ielab/skim-search-agent/blob/main/docs/ITER.md">docs/ITER.md</a>
+      <a class="btn primary" href="https://github.com/ielab/ITER">&#9733; ITER on GitHub</a>
+      <a class="btn" href="https://arxiv.org/abs/2608.27912">Read the paper</a>
+      <a class="btn" href="https://huggingface.co/collections/ielabgroup/iter">Checkpoints</a>
       <a class="btn" href="../">SkimSearchAgent library</a>
     </div>
   </header>
 
+  <div class="stage-card">
+    <div class="stage-top">
+      <div class="who"><span class="who-dot"></span><span class="who-name">ITER-0.6B</span><span class="who-sub">history-aware search &middot; read by id</span></div>
+      <div class="meter"><b id="ctx">0</b> context tok &middot; <span id="nsearch">0</span> searches &middot; <span id="nread">0</span> reads</div>
+    </div>
+    <div class="ticker" id="ticker"><span class="dot"></span><span id="tick-text">warming up&hellip;</span></div>
+    <div class="stage" id="stage">
+      <div class="floor"></div>
+      <div class="station" id="st-search" style="left:12%"><div class="st-pad">&#128269;</div><div class="st-name">Search</div></div>
+      <div class="station" id="st-rank" style="left:37%"><div class="st-pad">&#10024;</div><div class="st-name">Unseen first</div></div>
+      <div class="station" id="st-read" style="left:62%"><div class="st-pad">&#128196;</div><div class="st-name">Read</div></div>
+      <div class="station" id="st-answer" style="left:87%"><div class="st-pad">&#9997;&#65039;</div><div class="st-name">Answer</div></div>
+      <div class="agent" id="agent"><div class="lens"><span class="eye l"></span><span class="eye r"></span><span class="mouth"></span><div class="handle"></div></div><span class="bubble">&#128173;</span></div>
+    </div>
+  </div>
+  <div class="caption">replays a recorded ITER-0.6B episode from the published BrowseComp-Plus run &middot; teal results are new to the agent, grey ones it has already seen</div>
+
+  <section id="results">
+    <span class="sec-k">Results on BrowseComp-Plus</span>
+    <h2>Within a point of the paper, on the paper's own judge</h2>
+    <p class="lead">All 830 questions on the official 100,195-document corpus, with
+    Tongyi-DeepResearch-30B as the agent, ten unfiltered results per search and 50 search calls.</p>
+
+    <div class="stats">
+      <div class="stat"><div class="v">48.6</div>
+        <div class="l">ITER-0.6B accuracy under the paper's judge. The paper reports <b>49.2</b></div></div>
+      <div class="stat"><div class="v">51.1</div>
+        <div class="l">ITER-4B accuracy under the paper's judge. The paper reports <b>51.2</b></div></div>
+      <div class="stat"><div class="v">2.3<small>&times;</small></div>
+        <div class="l">the recall@10 of bge-base when the raw question is ranked once, with no agent (0.215 against 0.092)</div></div>
+    </div>
+
+    <div class="tbl-wrap">
+    <table class="res">
+      <thead><tr><th>retriever</th><th>paper's judge</th><th>gpt-4o-mini</th><th>steps</th><th>tokens</th><th>paper</th></tr></thead>
+      <tbody>
+        <tr><td class="c">ITER-Qwen3-Embedding-0.6B</td><td><span class="up">48.6</span></td><td>44.7</td><td>43.9</td><td>46.5k</td><td>49.2</td></tr>
+        <tr><td class="c">ITER-Qwen3-Embedding-4B</td><td><span class="up">51.1</span></td><td>47.7</td><td>40.4</td><td>43.0k</td><td>51.2</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <p class="lead" style="margin-top:16px">The paper's judge is Qwen3-30B-A3B-Thinking-2507 with
+    DIVER's template. The gpt-4o-mini column uses the BrowseComp Appendix F prompt.</p>
+  </section>
+
   <section id="method">
     <span class="sec-k">The method</span>
     <h2>Retrieval that remembers what the agent already saw</h2>
-    <p class="lead">A retriever trained only on question-document relevance keeps handing an
-    agent the same top result on every search, even after the agent has already read it. ITER
-    trains the retriever from the agent's own trajectories and evaluates it inside the same agent
-    loop, so it learns to condition on interaction history rather than the question alone.</p>
+    <p class="lead">A retriever trained on question and document relevance alone hands an agent the
+    same top result on every search, even after the agent has read it. ITER trains the retriever
+    from the agent's own trajectories and evaluates it inside the same loop.</p>
     <div class="stages">
-      <div class="st-card"><span class="n">1</span><h3>Trajectories</h3><p>A search agent runs over a corpus, and every search and every read is recorded, question by question.</p></div>
-      <div class="st-card"><span class="n">2</span><h3>Conditioned query</h3><p>The retriever's query carries the main question plus every sub-query the agent already tried in that episode, not the raw question alone.</p></div>
-      <div class="st-card"><span class="n">3</span><h3>Novelty training</h3><p>Training rewards documents the agent has not read yet, so the retriever stops repeating a result once the agent has already seen it.</p></div>
-      <div class="st-card"><span class="n">4</span><h3>In-loop evaluation</h3><p>The trained retriever is evaluated the same way it was trained: inside a running agent, not against a static ranking of a fixed query set.</p></div>
+      <div class="st-card"><span class="n">01</span><h3>Trajectories</h3><p>A search agent runs over a corpus. Every search and every read is recorded, question by question.</p></div>
+      <div class="st-card"><span class="n">02</span><h3>Conditioned query</h3><p>The query carries the main question, the agent's reasoning before the search, the current sub-query and the sub-queries it already tried.</p></div>
+      <div class="st-card"><span class="n">03</span><h3>Novelty training</h3><p>Supervision comes from the agent's own reads: new relevant evidence is promoted, documents it already read are pushed down.</p></div>
+      <div class="st-card"><span class="n">04</span><h3>In-loop evaluation</h3><p>The retriever is scored inside a running agent, the way it will be used, not on a fixed ranking of fixed queries.</p></div>
     </div>
+    <figure>
+      <img class="on-white" src="../assets/iter_overview.png" alt="Overview of ITER: a history-conditioned query and trajectory-relative supervision." loading="lazy">
+      <figcaption>ITER builds a history-conditioned query and derives trajectory-relative supervision from the agent's document interactions. Figure from <a href="https://github.com/ielab/ITER">ielab/ITER</a>.</figcaption>
+    </figure>
   </section>
 
   <section id="tools">
     <span class="sec-k">Search tools</span>
-    <h2>Two tools: search, and open a document</h2>
-    <p class="lead">ITER's agent has two tools. <code>search_dedup</code> drops every document an
-    earlier search in the same episode already surfaced, so a query never returns a result the
-    agent has already been shown; a document that would have ranked but was already shown is
-    listed as already seen, so the agent can still choose to reopen it. <code>get_document</code>
-    opens one document by id. That pairing is <code>strategy=dedup_dense</code>, with the run's
-    dense model behind the search, or <code>dedup_bm25</code>, using the <code>research_dedup</code>
-    task template.</p>
+    <h2>Search, then open a document by id</h2>
+    <div class="feats">
+      <div class="feat"><h3>Evaluation: <code>iter_dense</code></h3><p>The standard top ten results with no de-duplication, in ITER's result format. This is how the paper evaluates every retriever, and how the numbers above were produced.</p></div>
+      <div class="feat"><h3>Trajectories: <code>dedup_dense</code></h3><p>A search that drops every document an earlier search in the episode already listed. ITER collects its training trajectories this way.</p></div>
+    </div>
+    <p class="lead" style="margin-top:18px">Both pair the search with <code>get_document</code>, which
+    opens one document by id. The BM25 versions are <code>iter_bm25</code> and <code>dedup_bm25</code>.</p>
   </section>
 
-  <section id="training">
-    <span class="sec-k">Training</span>
-    <h2>Trajectories become training data</h2>
-    <p class="lead">Every run is a trajectory, so it is also training data. The generic recipe
-    is shared with every other strategy in the library; this is ITER's path through it.</p>
-    <pre><span class="c"># trajectories -&gt; triples -&gt; checkpoint -&gt; serving</span>
-skimsearchagent-build-triples --runs runs/... --dataset hotpotqa_structured \
-  --out train_data/hotpotqa_i2.jsonl --query-style i2 --labeller oracle
-skimsearchagent-train-retriever template &gt; train.yaml
-sbatch --export=ALL,TRAIN=train.yaml,TRAIN_ENV=$PWD/envs-train scripts/slurm/train_retriever.sbatch
-skimsearchagent run configs/paper/hotpotqa_structured_sieve.yaml \
-  retrieval.dense_model=models/my-retriever retrieval.dense_query_style=i2</pre>
-    <p class="lead" style="margin-top:18px">Triples with tiered negatives come out of any run
-    directory's records; a patched FlagEmbedding trainer fits a dense retriever on them; the
-    checkpoint plugs back in as any strategy's dense model, served with the query style, the
-    instruction and the precision it was trained with, so it behaves in production exactly as it
-    behaved during training.</p>
+  <section id="reproduce">
+    <span class="sec-k">Reproduce</span>
+    <h2>One cache, one command</h2>
+    <p class="lead">Build the dense cache with the checkpoint, serve Tongyi-DeepResearch-30B on an
+    OpenAI-compatible endpoint, then run the experiment file. It holds every setting of the
+    published cell.</p>
+    <pre><span class="c"># the ITER cache: documents at 512 tokens, last-token pooling, bfloat16</span>
+DENSE_SEQ_LENGTH=512 DENSE_DTYPE=bfloat16 DENSE_POOLING=last_token \
+skimsearchagent-build-indexes --dataset browsecomp_plus_structured_full \
+  --retriever dense --model ielabgroup/ITER-Qwen3-Embedding-0.6B --index-root indexes
+
+<span class="c"># the published setting</span>
+skimsearchagent validate configs/iter/browsecomp_plus_full_iter_iter06b_tongyi.yaml
+skimsearchagent run configs/iter/browsecomp_plus_full_iter_iter06b_tongyi.yaml \
+  model.api_base=http://127.0.0.1:8000/v1</pre>
+    <p class="lead" style="margin-top:18px">Every step, from install to both judges, is in
+    <a href="https://github.com/ielab/skim-search-agent/blob/main/docs/ITER.md">docs/ITER.md</a>.</p>
   </section>
 
   <section id="retrievers">
-    <span class="sec-k">Retrievers</span>
-    <h2>Released checkpoints</h2>
-    <p class="lead">Any embedding model works as <code>retrieval.dense_model</code>. ITER
-    releases two trained checkpoints:</p>
+    <span class="sec-k">Retrievers and training</span>
+    <h2>Released checkpoints, and your own</h2>
     <div class="feats">
-      <div class="feat"><h3>ielabgroup/ITER-Qwen3-Embedding-0.6B</h3><p>The smaller of the two released checkpoints, trained on ITER's trajectories.</p></div>
-      <div class="feat"><h3>ielabgroup/ITER-Qwen3-Embedding-4B</h3><p>The larger released checkpoint, same training recipe, more parameters.</p></div>
+      <div class="feat"><h3><a href="https://huggingface.co/ielabgroup/ITER-Qwen3-Embedding-0.6B">ITER-Qwen3-Embedding-0.6B</a></h3><p>The smaller released checkpoint. Served with its i9 query format, queries at 8,192 tokens and documents at 512.</p></div>
+      <div class="feat"><h3><a href="https://huggingface.co/ielabgroup/ITER-Qwen3-Embedding-4B">ITER-Qwen3-Embedding-4B</a></h3><p>The larger released checkpoint, same recipe and the same serving settings.</p></div>
     </div>
-    <p class="lead" style="margin-top:18px">Both are decoder checkpoints without a
-    sentence-transformers config; the library detects that from the model's own config file and
-    serves them with last-token pooling and normalisation, in the precision ITER trained them in.
-    The query side pairs a query style with an instruction: ITER's own conditioned style for its
-    trained models, a plain style for the untrained Qwen3-Embedding baselines it started from.</p>
-  </section>
-
-  <section id="datasets">
-    <span class="sec-k">Datasets</span>
-    <h2>What it runs on</h2>
-    <p class="lead">ITER runs on a Wikipedia chunk corpus with two question sets over it,
-    <code>infoseek_eval</code> and <code>infoseek_train</code>, plus <code>browsecomp_plus_chunks</code>,
-    a chunked BrowseComp-Plus corpus with its own evidence judgments. The Wikipedia-scale corpus
-    is served from disk rather than held in memory, and retrieval over it goes through a
-    prebuilt index rather than an index built during the run. The InfoSeek sets carry answers
-    but no document labels, so they score on answer metrics and an LLM judge instead of ranking
-    metrics.</p>
+    <p class="lead" style="margin-top:18px">Every run is a trajectory, so it is also training data.
+    Triples come out of any run directory, a dense retriever trains on them, and the checkpoint
+    plugs back in as any strategy's dense model.</p>
+    <pre><span class="c"># trajectories, triples, a checkpoint, then serve it</span>
+skimsearchagent-build-triples --runs runs/mine --dataset hotpotqa_structured \
+  --out train_data/hotpotqa_i2.jsonl --query-style i2 --labeller oracle
+skimsearchagent-train-retriever template &gt; train.yaml
+skimsearchagent run configs/paper/hotpotqa_structured_sieve.yaml \
+  retrieval.dense_model=models/my-retriever retrieval.dense_query_style=i2</pre>
   </section>
 
   <section id="cite">
@@ -244,18 +406,88 @@ skimsearchagent run configs/paper/hotpotqa_structured_sieve.yaml \
 </div>
 
 <footer>
-  <div><a href="https://ielab.io">ielab</a>, The University of Queensland &middot;
-  <a href="https://github.com/ielab/skim-search-agent">github.com/ielab/skim-search-agent</a>
-  &middot; Apache-2.0</div>
-  <div style="margin-top:6px"><a href="../">Back to the SkimSearchAgent library</a></div>
+  <div class="authors">
+    <a href="https://donovan0243.github.io/">Haodong Chen</a> &middot;
+    <a href="https://shuaiwang.io">Shuai Wang</a> &middot;
+    <a href="https://yinyubb.github.io/">Yu Yin</a> &middot;
+    <a href="https://arvinzhuang.github.io/">Shengyao Zhuang</a> &middot;
+    <a href="https://ielab.io/people/guido-zuccon.html">Guido Zuccon</a> &middot;
+    Teerapong Leelanupab
+  </div>
+  <div><a href="../">SkimSearchAgent</a> &middot; Apache-2.0 &middot;
+  <a href="https://github.com/ielab/ITER">github.com/ielab/ITER</a></div>
 </footer>
 
 <script>
-(function themeInit(){
-  var btn = document.getElementById('themeBtn');
-  function paint(){ btn.innerHTML = document.documentElement.dataset.theme === 'dark' ? '&#9788;' : '&#9789;'; }
-  btn.onclick = function(){
-    var next = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
+/* the hero board replays one recorded ITER-0.6B episode (BrowseComp-Plus, published run) on a loop */
+const $ = id => document.getElementById(id);
+const agent = $('agent'), stage = $('stage');
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+let nsearch = 0, nread = 0;
+function ctx(n) { $('ctx').textContent = n >= 1000 ? (n / 1000).toFixed(1) + 'K' : n; }
+function counts() { $('nsearch').textContent = nsearch; $('nread').textContent = nread; }
+function say(t) { $('tick-text').textContent = t; }
+async function goto(id, left) {
+  document.querySelectorAll('#stage .station').forEach(s => s.classList.remove('active'));
+  agent.style.left = left; await sleep(760);
+  if (id) $(id).classList.add('active');
+}
+function packets(stationId, fresh) {
+  const st = $(stationId), base = st.offsetLeft + st.offsetWidth / 2 - 6;
+  for (let i = 0; i < 5; i++) {
+    const p = document.createElement('div');
+    p.className = 'packet' + (i < fresh ? '' : ' seen');
+    p.style.left = base + 'px'; p.style.top = '86px';
+    p.style.setProperty('--dx', (i - 2) * 26 + 'px');
+    stage.appendChild(p); setTimeout(() => p.classList.add('fly'), i * 85);
+    setTimeout(() => p.remove(), 1150 + i * 85);
+  }
+}
+function confetti() {
+  const st = $('st-answer'), base = st.offsetLeft + st.offsetWidth / 2;
+  const colors = ['#0e9384', '#7c3aed', '#d97706', '#317a31'];
+  for (let i = 0; i < 13; i++) {
+    const p = document.createElement('div'); p.className = 'conf';
+    p.style.background = colors[i % 4];
+    p.style.left = base + 'px'; p.style.top = '48px';
+    p.style.setProperty('--cx', (Math.random() * 130 - 65) + 'px');
+    p.style.setProperty('--cy', (Math.random() * -75 - 18) + 'px');
+    stage.appendChild(p); setTimeout(() => p.classList.add('go'), i * 30);
+    setTimeout(() => p.remove(), 1300);
+  }
+}
+async function hop(query, context, results, fresh, docid, title, contextAfterRead) {
+  await goto('st-search', '8.5%'); nsearch += 1; counts(); ctx(context);
+  say('search: ' + query);
+  await sleep(1300);
+  await goto('st-rank', '33.5%');
+  say(results + ' results · ' + fresh + ' new to the agent' + (fresh < results ? ', ' + (results - fresh) + ' already seen' : ''));
+  packets('st-rank', Math.round(fresh / 2));
+  await sleep(1500);
+  await goto('st-read', '58.5%'); nread += 1; counts(); ctx(contextAfterRead);
+  say('get_document ' + docid + ' · ' + title);
+  await sleep(1500);
+}
+async function episode() {
+  nsearch = 0; nread = 0; counts(); ctx(0);
+  agent.classList.add('thinking'); agent.style.left = '1%';
+  say('Q: the first Prime Minister of a landlocked country, found from a chameleon named after its collector');
+  await sleep(2000); agent.classList.remove('thinking');
+  await hop('chameleon species named after collector holotype landlocked country', 878, 10, 10, 30814, 'Marshall’s pygmy chameleon', 2411);
+  await hop('Zimbabwe literacy rate 2014', 3036, 10, 8, 68872, 'Zimbabwe Literacy Rate', 4312);
+  await hop('first prime minister of Zimbabwe', 4586, 10, 5, 73071, 'Prime Minister of Zimbabwe', 5957);
+  agent.classList.add('thinking'); await sleep(700); agent.classList.remove('thinking');
+  await goto('st-answer', '83.5%'); ctx(6607);
+  say('answer: Robert Mugabe ✓');
+  confetti(); await sleep(4200);
+}
+(async () => { for (;;) await episode(); })();
+
+(function themeInit() {
+  const btn = document.getElementById('themeBtn');
+  function paint() { btn.innerHTML = document.documentElement.dataset.theme === 'dark' ? '&#9788;' : '&#9789;'; }
+  btn.onclick = () => {
+    const next = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
     document.documentElement.dataset.theme = next;
     localStorage.setItem('ssa-theme', next);
     paint();
