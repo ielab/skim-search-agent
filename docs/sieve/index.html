@@ -148,9 +148,10 @@
   figure{margin-top:26px}
   figure img{width:100%;border:1px solid var(--line-soft);border-radius:14px;background:var(--card)}
   figcaption{margin-top:9px;font-size:12.5px;color:var(--ink-3);text-align:center}
-  img.only-dark{display:none}
-  :root[data-theme="dark"] img.only-dark{display:block}
-  :root[data-theme="dark"] img.only-light{display:none}
+  /* theme-specific images: these win over any component rule that sets display on an img */
+  img.only-dark{display:none!important}
+  :root[data-theme="dark"] img.only-dark{display:block!important}
+  :root[data-theme="dark"] img.only-light{display:none!important}
 
   /* team */
   .team{margin-top:26px}
