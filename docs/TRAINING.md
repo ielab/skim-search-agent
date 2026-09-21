@@ -18,14 +18,13 @@ Use runs where the agent reads documents, including wrong ones; the negatives co
 reads. The paper configs are suitable:
 
 ```bash
-sbatch --account=YOUR_ACCOUNT --partition=h24gpu --gres=gpu:2 \
+sbatch --account=YOUR_ACCOUNT --partition=YOUR_PARTITION --gres=gpu:2 \
     --export=ALL,EXPERIMENT=configs/paper/hotpotqa_structured_search_visit.yaml,MODEL=Alibaba-NLP/Tongyi-DeepResearch-30B-A3B \
     scripts/slurm/serve_and_run.sbatch
 ```
 
-Rows written by this version carry `hit_ids` (what each search listed) and `read_ids` (what
-each read opened) on every step. Older rows work; the listing is parsed from the observation
-text.
+Rows carry `hit_ids` (what each search listed) and `read_ids` (what each read opened) on every
+step. For a row without them, the builder parses the listing from the observation text.
 
 ## 2. Build the triples
 
@@ -92,7 +91,7 @@ Write a training file and submit the job:
 ```bash
 skimsearchagent-train-retriever template > train.yaml   # every knob with ITER's defaults
 # set train_data, output_dir, query_style (same as step 2), base_model
-sbatch --account=YOUR_ACCOUNT --partition=h24gpu --gres=gpu:1 \
+sbatch --account=YOUR_ACCOUNT --partition=YOUR_PARTITION --gres=gpu:1 \
     --export=ALL,TRAIN=train.yaml,TRAIN_ENV=$PWD/envs-train scripts/slurm/train_retriever.sbatch
 ```
 
@@ -126,7 +125,7 @@ belief. Both knobs are recorded in `config.json` and are part of the run's ident
 ## 5. ITER
 
 ITER's own setting has its own page: [ITER.md](ITER.md). That page covers its search tools,
-backbones, released retrievers, datasets, the sample runs, and what was verified.
+backbones, released retrievers, datasets and the sample runs.
 
 ## Components
 

@@ -9,8 +9,7 @@ It works over the documents the benchmark's own `gold_docs` point at, which is 6
 The full 100,195-doc collection is separate, published on Hugging Face as
 `wshuai190/browsecomp-plus-structured-full`.
 
-**Sections need a model, because there is no prebuilt sectioned corpus on the hub.** Raw web pages
-have no reliable section markup, so a **`gpt-5.4-nano`** pass proposes section boundaries and
+**Sections need a model.** Raw web pages have no reliable section markup, so a **`gpt-5.4-nano`** pass proposes section boundaries and
 headings for each page, and then a deterministic step splits the original body at those boundaries
 into a matched `(heading, text)` list. The model only says *where* sections start. It never
 rewrites text, so the corpus stays faithful and its `text` still matches the flat twin
@@ -69,9 +68,7 @@ are assumptions, so pass `--price-in` and `--price-out` after checking the curre
 **The prompt.** Each request shows the model a chunk of web pages, each with its title, author and
 date, then its body as numbered lines, and asks it to segment the *body* into the sections a reader
 would see on the rendered page (a lead, then topical sections). Section line numbers refer to body
-lines only, so metadata never turns into a section. It has been validated on real pages: the
-*Sanaa* Wikipedia article splits into 34 correctly-named sections (History, Ottoman era, Geography,
-Economy, and so on), and a 1-line page stays a single intro.
+lines only, so metadata never turns into a section.
 
 > The prepare stage downloads the ~2.8 GB dataset once and writes ~1 GB of batch input, so run it
 > on a **staging node**, not a laptop. Point `--out-prefix` and `--manifest` at a scratch dir
@@ -90,8 +87,8 @@ together with its own body. The `text` is byte-identical across the pair; the st
 `browsecomp_plus_flat` vs `browsecomp_plus_structured`.
 
 > The query and gold are read via the field names `query_id`, `query` and `gold_docs` in
-> `iter_rows`. If a `--limit 50` run prints "0 queries", those names have changed on the hub. The
-> fix is one line.
+> `iter_rows`. If a `--limit 50` run prints "0 queries", those names have changed on the hub;
+> update them in `iter_rows`.
 
 **Fairness.** `author` and `date` are emitted twice over: as their own fields (so
 `units_from_documents` carries them into metadata and BQL's `IN(author,·)` / `IN(date,·)` can scope
@@ -106,5 +103,5 @@ section titles as well. BQL's `IN(section,·)` and `fetch` address them precisel
   boundaries. The result is reproducible from `sections.jsonl`.
 - Docs with no frontmatter still get emitted (flat, with `title`/`author`/`date` empty and the full
   `text`). Docs the batch never sectioned get a single `(intro)` part. Nothing is ever lost.
-- `browsecomp_plus_structured` is already registered (general domain, `field_profile=browsecomp`)
+- `browsecomp_plus_structured` is registered (general domain, `field_profile=browsecomp`)
   and loads the structured BQL skill (title/author/date/section/body) on its own.

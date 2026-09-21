@@ -34,10 +34,10 @@ correspondence:
 | `AND(a, b)` / `OR` / `AND(a, NOT(b))` | `a AND b`, `OR`, `NOT` | same | same |
 | `PHRASE(w1, w2)` | `"w1 w2"` | `"w1 w2"` | `"w1 w2"` |
 | `NEAR/w5(a, b)` | Ovid `a adj5 b` | `a /5 b`, `a w/5 b` | `a NEAR/5 b`, `"a b"~5` |
-| `NEAR/sent` / `NEAR/para` |, | `/s`, `/p` |, |
+| `NEAR/sent` / `NEAR/para` | n/a | `/s`, `/p` | n/a |
 | `PREFIX(auth)` | `auth*` (truncation) | `auth!` | `auth*` |
 | `IN(title, x)` | `x[ti]`, Ovid `x.ti.` | `TI(x)` | `title:x` |
-| `EXPAND(x, synonym)` | thesaurus term mapping / explosion |, |, |
+| `EXPAND(x, synonym)` | thesaurus term mapping / explosion | n/a | n/a |
 | `IN(def/call/sig/comment/string, x)` | **no equivalent** | **no equivalent** | **no equivalent** |
 
 Four things BQL adds on top of that classical kit:
@@ -143,8 +143,7 @@ AND(
 
 ## 5. Backend targets
 
-One typed AST runs on the current reference executor today, and can be lowered to backend-specific
-programs later:
+One typed AST runs on the reference executor and can be lowered to backend-specific programs:
 
 | BQL node | Text (Lucene/Pyserini) | Code (ripgrep + ast-grep) |
 |---|---|---|
@@ -174,7 +173,7 @@ the OR. Use `synonym` for text, `symbol` (naming variants plus the call graph) f
 > below are about the **text/Lucene path**, which is the BM25 *baseline*. At repo scale ripgrep
 > scans in milliseconds, so the method needs no index at all.
 
-**What the reference executor does today** (`bql/executor.py`): for a large corpus (at
+**What the reference executor does** (`bql/executor.py`): for a large corpus (at
 least `AGENT_SEARCH_BQL_PREFILTER_MIN` units, default 5000, meaning the shared document corpus
 rather than a small per-query repo) selection is **two-phase filter-then-verify**. A pure-Python
 **inverted index** (`token → units`, built once per corpus) computes a recall-safe candidate

@@ -14,10 +14,10 @@ Run everything from **inside this folder**: `cd corpus_build/wikipedia`
 pip install pyarrow                   # enough for the FAST local-scan path (--sw-path)
 pip install datasets                  # only for the streaming engine (no pre-download)
 pip install duckdb huggingface_hub    # only for --engine duckdb
-hf auth login                         # if prompted (was: huggingface-cli login)
+hf auth login                         # if prompted (or: huggingface-cli login)
 ```
 
-## 1. Verify the real schema first (don't trust, check)
+## 1. Verify the real schema first
 ```bash
 python build.py inspect               # a few arbitrary articles: INSTANT (first rows)
 python build.py inspect --title Sanaa # find ONE title: LINEAR scan (minutes); usually skip this
@@ -93,7 +93,7 @@ go to `u.sections`, `u.section` and metadata, which only BQL's `IN(section,·)` 
 headings are already inside `text` once, not double-counted), and the pair isolates the value of
 structure with no bm25/dense confound. `tests/test_corpus_identity.py` guards this.
 
-## Next (already wired in the main repo)
+## Next
 `<name>_flat` and `<name>_structured` are registered as general-domain datasets. The structured arm
 gets the `wiki` BQL manual, the flat arm gets the title/body manual. Run the toolset conditions
 (`agent_research`, `agent_research_bm25`, `agent_research_dci`) on **both** the `_flat` and

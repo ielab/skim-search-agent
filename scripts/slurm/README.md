@@ -8,11 +8,11 @@ it submits.
 Nothing here hardcodes a site. Pass the account and partition on the command line:
 
 ```bash
-sbatch --account=YOUR_ACCOUNT --partition=h24gpu --qos=normal scripts/slurm/smoke_suite.sbatch
-sbatch --account=YOUR_ACCOUNT --partition=h24gpu --gres=gpu:2 \
+sbatch --account=YOUR_ACCOUNT --partition=YOUR_PARTITION scripts/slurm/smoke_suite.sbatch
+sbatch --account=YOUR_ACCOUNT --partition=YOUR_PARTITION --gres=gpu:2 \
     --export=ALL,EXPERIMENT=configs/paper/hotpotqa_structured_sieve.yaml,MODEL=Alibaba-NLP/Tongyi-DeepResearch-30B-A3B \
     scripts/slurm/serve_and_run.sbatch
-sbatch --account=YOUR_ACCOUNT --partition=h24gpu --gres=gpu:1 \
+sbatch --account=YOUR_ACCOUNT --partition=YOUR_PARTITION --gres=gpu:1 \
     --export=ALL,DATASET=hotpotqa_structured scripts/slurm/build_indexes.sbatch
 ```
 
@@ -52,13 +52,13 @@ Three stages, each its own job (see docs/TRAINING.md section 5):
 
 ```bash
 # 8 InfoSeek questions, dedup_dense over the wiki corpus, Tongyi served on the node (200 GB RAM: the HNSW index is read into memory)
-sbatch --account=ACCT --gres=gpu:1 --mem=200g --cpus-per-task=16 --time=03:00:00 \
+sbatch --account=YOUR_ACCOUNT --gres=gpu:1 --mem=200g --cpus-per-task=16 --time=03:00:00 \
     --export=ALL,EXPERIMENT=configs/iter/smoke_infoseek_train_tongyi.yaml,MODEL=Alibaba-NLP/Tongyi-DeepResearch-30B-A3B,TP=1,MAX_MODEL_LEN=98304,VLLM_PYTHON=/path/to/vllm-env/bin/python,OVERRIDES="evaluation.workers=2" \
     scripts/slurm/serve_and_run.sbatch
 # the same with an API backbone (only where compute nodes have network egress):
-sbatch --account=ACCT --export=ALL scripts/slurm/iter_smoke_traj.sbatch
-sbatch --account=ACCT --export=ALL,RUNS=runs/iter_smoke/agent/infoseek_train/<model>/agent_research_dedup_dense scripts/slurm/iter_smoke_train.sbatch
-sbatch --account=ACCT --export=ALL scripts/slurm/iter_smoke_eval.sbatch     # trained vs base on the triples (1 GPU)
+sbatch --account=YOUR_ACCOUNT --export=ALL scripts/slurm/iter_smoke_traj.sbatch
+sbatch --account=YOUR_ACCOUNT --export=ALL,RUNS=runs/iter_smoke/agent/infoseek_train/<model>/agent_research_dedup_dense scripts/slurm/iter_smoke_train.sbatch
+sbatch --account=YOUR_ACCOUNT --export=ALL scripts/slurm/iter_smoke_eval.sbatch     # trained vs base on the triples (1 GPU)
 ```
 
 `iter_smoke_train.sbatch` uses `envs-train` (a venv over the main env with FlagEmbedding 1.3.5 and
@@ -70,7 +70,7 @@ sbatch --account=ACCT --export=ALL scripts/slurm/iter_smoke_eval.sbatch     # tr
 the sample experiment files (see docs/ITER.md, "Sample a paper setting first"):
 
 ```bash
-sbatch --account=ACCT --qos=express --export=ALL,VLLM_PYTHON=/path/to/vllm-env/bin/python scripts/slurm/iter_sample.sbatch
+sbatch --account=YOUR_ACCOUNT --export=ALL,VLLM_PYTHON=/path/to/vllm-env/bin/python scripts/slurm/iter_sample.sbatch
 ```
 
 ## The verification matrix

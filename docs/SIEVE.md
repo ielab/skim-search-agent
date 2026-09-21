@@ -230,7 +230,7 @@ from the environment.
 **3.2 The same three as one SLURM job.**
 
 ```bash
-sbatch --account=YOUR_ACCOUNT --partition=h24gpu --gres=gpu:1 \
+sbatch --account=YOUR_ACCOUNT --partition=YOUR_PARTITION --gres=gpu:1 \
   --export=ALL,DATASET=browsecomp_plus_structured_full,DENSE_MODEL=BAAI/bge-base-en-v1.5,WHICH=dense,lucene,pyserini \
   scripts/slurm/build_indexes.sbatch
 ```
@@ -297,7 +297,7 @@ avoids the FlashInfer gated-delta-net kernel, which is JIT-compiled with nvcc an
 down on exit, so no manual server management is needed.
 
 ```bash
-sbatch --account=YOUR_ACCOUNT --partition=h24gpu --gres=gpu:1 \
+sbatch --account=YOUR_ACCOUNT --partition=YOUR_PARTITION --gres=gpu:1 \
   --export=ALL,EXPERIMENT=configs/paper/hotpotqa_structured_sieve.yaml,MODEL=Alibaba-NLP/Tongyi-DeepResearch-30B-A3B,TP=1,MAX_MODEL_LEN=131072,VLLM_PYTHON=/path/to/vllm-env/bin/python \
   scripts/slurm/serve_and_run.sbatch
 ```
@@ -465,7 +465,7 @@ with. Measured on 24-question express smokes:
 
 **6.3 Other knobs.** `TP` (GPUs per shard), `GPU_UTIL`, `VLLM_ARGS` (the serving flags from step
 4.2), `MAX_MODEL_LEN`, `SNIPPET_TOKENS` (32), `DEDUP_SNIPPET_TOKENS` (64), `SEED` (42),
-`TEMPERATURE` (0.6), `GPU_PARTITION` (h24gpu), `JOB_CPUS`, `JOB_MEM`, `INDEX_ROOT`,
+`TEMPERATURE` (0.6), `GPU_PARTITION` (your GPU partition), `JOB_CPUS`, `JOB_MEM`, `INDEX_ROOT`,
 `ARRAY_SPEC=3-9` to resubmit only some shards. `MAX_VISIT_TOKENS` and `MAX_SECTION_TOKENS` default
 to 12000 inside the script and are carried into the array export.
 
@@ -537,7 +537,7 @@ python scripts/judge_cells.py --datasets browsecomp --extra-cell runs/mine/agent
 segment of the model id.
 
 ```
-runs/paper/agent/browsecomp_plus_structured_full/Tongyi-DeepResearch-30B-A3B/agent_research_bql_dense_snip/
+runs/mine/agent/browsecomp_plus_structured_full/Tongyi-DeepResearch-30B-A3B/agent_research_bql_dense_snip/
   config.json               every resolved knob, env_knobs, token_ruler, prompt_sha256, git_rev
   rows.jsonl                one JSON object per question, the full trajectory included
   results.json              the aggregate: n, n_skipped, n_errors, and the mean of every row metric
@@ -547,8 +547,7 @@ runs/paper/agent/browsecomp_plus_structured_full/Tongyi-DeepResearch-30B-A3B/age
 
 Steps, seed and `max_steps` are not in the path, so point an ablation on any of them at its own
 `runs_dir`. One exception: `--seeds 0,1,2` adds a `seed=<N>` segment per seed, since that's a
-variance band rather than one run. The published Sieve runs use a curated tree instead,
-`runs/sieve/<dataset>/<strategy>/<agent>/<retriever>/`, with one cell per leaf.
+variance band rather than one run.
 
 **9.2 The row columns that matter.**
 
@@ -606,8 +605,8 @@ ship with the camera-ready. The figure scripts read through the identical loader
 |---|---|---|
 | Strict Boolean (no fallback) | `BQL_SOFT_FALLBACK=0` | 44.2 against 48.8 on BrowseComp-Plus, and steps rise from 58 to 62, so the fallback is load-bearing |
 | Without snippets | condition `agent_research_bql_dense_fetch` | 43.4 against 48.8 on BrowseComp-Plus, the largest single component |
-| Manual ablation | conditions `agent_research_bql_dense_snip_card` (a hundred-word card), `_nomanual` (a 21-word stub), `_reference_howto`, `_reference_hops`, `_reference_mistakes` (the reference plus one advice section), `_reference_howto_hops_mistakes` (the full manual) and `_reference_howto_hops_mistakes_noconstruct`; composed by `scripts/compose_manuals.py`; paper prompt, everything else matched | not in the paper; on BrowseComp-Plus every cut of the full manual scores above it and the reference alone scores highest, so the reference is the default |
-| Snippet width sweep | `snippet_tokens=32 / 64 / 128 / 256 / 512` on the `skimsearchagent` launcher, or `SNIPPET_TOKENS=` in the environment. Default 32. It governs BOTH arms' listing snippets, Sieve's query-biased window, and the visit baselines' opening window. A sweep moves the whole comparison, not just one side of it | not yet run; listing size grows roughly linearly with the window |
+| Manual ablation | conditions `agent_research_bql_dense_snip_card` (a hundred-word card), `_nomanual` (a 21-word stub), `_reference_howto`, `_reference_hops`, `_reference_mistakes` (the reference plus one advice section), `_reference_howto_hops_mistakes` (the full manual) and `_reference_howto_hops_mistakes_noconstruct`; composed by `scripts/compose_manuals.py`; paper prompt, everything else matched | on BrowseComp-Plus every cut of the full manual scores above it and the reference alone scores highest, so the reference is the default |
+| Snippet width sweep | `snippet_tokens=32 / 64 / 128 / 256 / 512` on the `skimsearchagent` launcher, or `SNIPPET_TOKENS=` in the environment. Default 32. It governs BOTH arms' listing snippets, Sieve's query-biased window, and the visit baselines' opening window. A sweep moves the whole comparison, not just one side of it | |
 | Dense encoder sweep | `DENSE_MODEL=<hf-id>` (bge-small/base/large, Qwen3-Embedding 0.6B/4B/8B) | 33M to 8B moves accuracy by 3.5 points with no trend by size, and tokens not at all. Sweep dense-only Sieve, not the fused ranker, or the fusion hides the encoder |
 | Ranker swap | the three conditions above | fusion wins on BrowseComp-Plus by 2.3 points over dense; on MuSiQue and HotpotQA dense alone ties or wins |
 | Engine swap | `agent_research_indri_snip` | Indri-QL executor comparison |
@@ -653,7 +652,7 @@ table above. To regenerate any of it, follow [Reproduce it](#reproduce-it).
 
 ### Full-set results
 
-Every cell below is a full collection on one code version: 830 questions for BrowseComp-Plus
+Every cell below is a full collection: 830 questions for BrowseComp-Plus
 structured, 2,409 for MuSiQue, 7,343 for HotpotQA. The backbone is Tongyi-DeepResearch-30B-A3B
 throughout. BrowseComp-Plus is scored by gpt-4o-mini with the BrowseComp Appendix F prompt, and the
 two wiki collections by exact match. Steps are the mean trajectory length. Tokens are the episode
@@ -694,7 +693,7 @@ gold document is in the top k.
 |---|---|---|---|---|
 | `bm25` | Lucene BM25 (Pyserini, k1=0.9, b=0.4) | 0.027 | 0.036 | 0.049 |
 | `dense` | `BAAI/bge-base-en-v1.5` | 0.092 | 0.102 | 0.152 |
-| `dense` | `ielabgroup/ITER-Qwen3-Embedding-0.6B` (i9 query format, weights of 2026-09-11) | 0.215 | 0.277 | 0.359 |
+| `dense` | `ielabgroup/ITER-Qwen3-Embedding-0.6B` (i9 query format) | 0.215 | 0.277 | 0.359 |
 | `dense` | `ielabgroup/ITER-Qwen3-Embedding-4B` (i9 query format) | 0.339 | 0.435 | 0.527 |
 | `hybrid` | BM25 + bge-base, RRF k=60, pools of 100 | 0.074 | 0.083 | 0.127 |
 | `hybrid` | BM25 + ITER-0.6B, RRF k=60, pools of 100 | 0.161 | 0.173 | 0.281 |
@@ -708,25 +707,11 @@ empty, since a floor has no agent; the 0.6B checkpoint more than doubles bge-bas
 4B checkpoint adds half again. Fusing BM25 into ITER by reciprocal rank lowers recall: BM25 is far
 weaker here and its votes dilute the dense ranking.
 
-### Where the published runs live
-
-One cell per leaf, under `runs/sieve/<dataset>/<strategy>/<agent>/<retriever>/`. Each leaf holds
-`rows.jsonl` (every question's trajectory and scores) and either `judge_summary.json`
-(BrowseComp-Plus, gpt-4o-mini) or the exact-match scores in the rows themselves (MuSiQue,
-HotpotQA). Strategy names are the library's: `sieve`, `search_fetch`, `search_visit`, `autoread`,
-`dci`, `bounded_dci`, `rag`, plus the Sieve variants `sieve_bm25`, `sieve_dense`, `sieve_nosnip`,
-`sieve_fill`, `sieve_strict` and the manual ablation `sieve_card`, `sieve_nomanual`,
-`sieve_reference_*`. The retriever segment names the ranking model: `bm25`, `bge-base`,
-`bm25+bge-base`, and the encoder sweep `bm25+bge-small` and so on.
-
-A run you launch yourself lands in the harness layout instead,
-`<runs_dir>/agent/<dataset>/<model>/<condition>/`. See [step 9](#9-read-the-results).
-
 ## Configuration reference
 
 | knob | paper value | where |
 |---|---|---|
-| results per search | 5 | the `listing:` knobs, `BM25_VISIT_TOPK` / `DENSE_VISIT_TOPK` for the visit strategies and `BM25_FETCH_TOPK` / `DENSE_FETCH_TOPK` / `HYBRID_FETCH_TOPK` for the fetch strategies (all 5 by default since 0.3.1; the earlier fetch default of 10 is kept as the ablation `runs/bcp_s_fetch_k10`) |
+| results per search | 5 | the `listing:` knobs, `BM25_VISIT_TOPK` / `DENSE_VISIT_TOPK` for the visit strategies and `BM25_FETCH_TOPK` / `DENSE_FETCH_TOPK` / `HYBRID_FETCH_TOPK` for the fetch strategies (all 5 by default) |
 | rank-metric cutoffs | 1, 3, 5, 10 | `--k` (report cutoffs only; it does not change what the agent sees) |
 | read ceiling (visit and section) | 12,000 tokens | `MAX_VISIT_TOKENS` / `MAX_SECTION_TOKENS` |
 | step cap | 100 | `--max-steps` (a run_eval flag, `max_steps=` in the launcher; there's no environment variable for it, and the default is 50) |
@@ -734,7 +719,7 @@ A run you launch yourself lands in the harness layout instead,
 | BM25 and the structured index | Lucene (the only document engines) | built once in step 3 |
 | default dense encoder | `BAAI/bge-base-en-v1.5` | `DENSE_MODEL` |
 | Boolean soft fallback | on | `BQL_SOFT_FALLBACK` (0 = strict ablation) |
-| snippet length | 32 model tokens | `SNIPPET_TOKENS` (the paper's code cut 25 whitespace words with a character clip; the library cuts model tokens) |
+| snippet length | 32 model tokens | `SNIPPET_TOKENS` |
 
 Every run directory records what it resolved in `config.json`, under `env_knobs` and the flag keys
 next to it. When those disagree with the intended invocation, the recorded values are correct. The

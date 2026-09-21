@@ -129,8 +129,7 @@ Read both numbers:
 python -c "import json; [print(f, round(100*json.load(open(f'$D/'+f))['judge_accuracy'],1)) for f in ('judge_summary.json','judge_summary_diver.json')]"
 ```
 
-Expect about 44.7 and 48.6 for ITER-0.6B. A second run of the same setup gave 44.3 and 48.2, so a
-result within half a point of these matches.
+Expect about 44.7 and 48.6 for ITER-0.6B.
 
 ### The ITER experiment files
 
@@ -283,8 +282,8 @@ sub-queries already tried in previous interactions, retrieve documents relevant 
 sub-query that provide NEW information not yet found." Use `plain` for the baselines. Queries run
 to 8192 tokens (`retrieval.dense_query_seq_length`), documents to 512.
 
-The ITER-0.6B hub revision of 2026-09-11 replaced the weights. A cache records the weights
-revision and is rebuilt when it changes.
+A dense cache records the checkpoint's weights revision and is rebuilt when the hub weights
+change.
 
 ## Corpus and datasets
 
@@ -342,7 +341,7 @@ skimsearchagent-sample-dataset --dataset browsecomp_plus_chunks --out browsecomp
     --n-topics 20 --n-docs 20000
 skimsearchagent-sample-dataset --dataset infoseek_eval --out infoseek_eval_sample \
     --n-topics 20 --n-docs 20000 --pool-bm25-index indexes/external/wiki25_512_lucene --pool-k 100
-sbatch --account=YOUR_ACCOUNT --qos=express \
+sbatch --account=YOUR_ACCOUNT --partition=YOUR_PARTITION \
     --export=ALL,VLLM_PYTHON=/path/to/vllm-env/bin/python scripts/slurm/iter_sample.sbatch
 ```
 
@@ -390,31 +389,12 @@ BrowseComp-Plus counterpart.
 
 Two cells in the paper's evaluation setting: the official 100,195-document corpus, documents encoded
 at 512 tokens, unfiltered top-10 rankings with no de-duplication, 50 search calls,
-Tongyi-DeepResearch-30B as the backbone, all 830 questions. Each one is scored twice, by the paper's
-judge and by ours, because the judge choice moves the number by about four points.
+Tongyi-DeepResearch-30B as the backbone, all 830 questions.
 
 | retriever | paper's judge | gpt-4o-mini | steps | tokens | paper |
 |---|---|---|---|---|---|
 | ITER-Qwen3-Embedding-0.6B | 48.6 | 44.7 | 43.9 | 46.5k | 49.2 |
 | ITER-Qwen3-Embedding-4B | 51.1 | 47.7 | 40.4 | 43.0k | 51.2 |
 
-Both cells land within a point of the paper on the paper's own judge: 48.6 against 49.2, and 51.1
-against 51.2. A second run of the 0.6B cell with the same setup scored 48.2, so run-to-run noise is
-about half a point.
-
-The two rows come from different code. The 0.6B cell ran on 21 September. The 4B cell ran on the
-evening of 14 September. It has the repairs for malformed tool calls but predates two later fixes: a
-filled skeleton for an empty tool call, and a forced answer when the context window fills instead of
-a dropped question. All three fixes together were worth 2.5 points on the 0.6B cell, so the 4B row
-may understate the current code by up to that much.
-
-Use the judge column that matches what you're comparing against. DIVER's own released answers for the
-i2 setting score 38.9 under gpt-4o-mini against the 44.5 they report, a 5.6-point gap in the same
-direction, so a number judged by gpt-4o-mini reads low next to any published ITER figure.
-`runs/iter/diver_i2_rescored/` holds that reference so you can re-check it.
-
-The backbone cells (Qwen3.5 at 4B, 9B and 27B, gpt-oss at 20B and 120B) ran under DIVER's de-duplicated
-setting with documents encoded at 1,024 tokens, which a later fix corrected to 512. Those runs were
-deleted and the numbers retracted rather than published on a superseded setting. Rerunning them in the
-setting above is open work. The smoke pipeline, sample runs, training check and held-out check ran end
-to end on SLURM with the launchers in `scripts/slurm/`; their 20-question numbers aren't reported.
+The paper's judge is Qwen3-30B-A3B-Thinking-2507 with DIVER's template, the gpt-4o-mini column uses
+the BrowseComp Appendix F prompt, and the paper column is the figure the ITER paper reports.

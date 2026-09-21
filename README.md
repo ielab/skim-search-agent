@@ -301,7 +301,7 @@ skimsearchagent run configs/paper/hotpotqa_structured_sieve.yaml retrieval.dense
 ```
 
 [docs/TRAINING.md](docs/TRAINING.md) is the recipe; [docs/ITER.md](docs/ITER.md) is the paper it
-comes from, with its backbones, released retrievers, datasets and the verified runs.
+comes from, with its backbones, released retrievers, datasets and results.
 
 ## Reproducibility
 

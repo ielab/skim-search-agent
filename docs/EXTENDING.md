@@ -231,7 +231,7 @@ The width is always `SNIPPET_TOKENS` tokens. A method never caps by characters.
 A task is the goal and the answer protocol. It is a folder with two files: `prompt.md`, which
 has front matter (`name`, `domain`, `message_format`, `terminal`) and a body with the `{{tools}}`
 and `{{tool_manuals}}` placeholders, and `task.py`, a `Task` subclass naming the folder. The
-four built-ins are under `agent_search/tasks/`. A plugin task points `prompt_file` at its own
+built-ins are under `agent_search/tasks/`. A plugin task points `prompt_file` at its own
 file:
 
 ```python

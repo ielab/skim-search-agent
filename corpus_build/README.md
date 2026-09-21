@@ -31,7 +31,7 @@ beforehand; see `browsecomp_plus/README.md`.
 | [`wshuai190/browsecomp-plus-structured-full`](https://huggingface.co/datasets/wshuai190/browsecomp-plus-structured-full) | the complete 100,195-doc collection: `structured/` + `flat/` (each `corpus.jsonl` + `queries.jsonl` + `qrels/test.tsv`) **+ `sections.jsonl`** (raw `{_id, sections}` map) |
 | [`wshuai190/hotpotqa-structured`](https://huggingface.co/datasets/wshuai190/hotpotqa-structured) | HotpotQA flat + structured twin, same layout |
 | [`wshuai190/musique-structured`](https://huggingface.co/datasets/wshuai190/musique-structured) | MuSiQue flat + structured twin, same layout |
-| *2wiki* | not published yet, rebuild it with [`wikipedia/`](wikipedia/) (sections are native to `structured-wikipedia`, so there's no paid batch) |
+| *2wiki* | not published; rebuild it with [`wikipedia/`](wikipedia/) (sections are native to `structured-wikipedia`, so there's no paid batch) |
 
 The published browsecomp dataset is the **full** 100,195-doc collection, which registers as
 `browsecomp_plus_structured_full` / `browsecomp_plus_flat_full`.
@@ -112,7 +112,7 @@ long-context dense embedder is not truncated, so there is no need to chunk by se
 
 Copy the resulting `data/*_flat/` and `data/*_structured/` over to the GPU node afterwards.
 
-## Wiring (already done in the main repo)
+## Wiring
 1. Datasets are registered in `agent_search/evaluation/datasets/beir.py`: `<name>_flat` and
    `<name>_structured` for `hotpotqa`, `2wiki` and `musique` (structured gets
    `field_profile=wiki`), plus `browsecomp_plus_structured` (`field_profile=browsecomp`).
