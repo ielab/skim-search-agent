@@ -28,18 +28,18 @@ model:
   top_p: 0.95                            # nucleus sampling for a served or in-process model
   top_k: null                            # top-k sampling for a served model (null = the server's default; DIVER's Qwen3.5 runs use 20)
   presence_penalty: 1.1                  # presence penalty (DIVER's Qwen3.5 runs use 1.5)
-  max_tokens: 4096                       # the first turn's budget; the schedule below takes over (DIVER's Tongyi client)
-  max_tokens_schedule: '4096,2048,1024'  # DIVER's Tongyi client: 4096 on the first turn, 2048 on the second, 1024 after; a cut-off thought is discarded
-  thinking: true                         # DIVER passes enable_thinking on every turn, off for the turn after a discarded thought
+  max_tokens: 4000                       # the published setting: a flat 4,000-token budget every turn (DIVER's client uses 4096 then a schedule)
+  max_tokens_schedule: null             # the published setting: no per-turn schedule (DIVER's client: '4096,2048,1024')
+  thinking: null                         # the published setting: the chat template's own default (DIVER's client passes true)
   timeout_s: 600                         # per-request timeout for API clients
   retry_attempts: 5                      # retries on rate limits / transient errors
 
 # --- agent: the episode loop
 agent:
   max_steps: 50                          # tool calls before the forced final answer (ITER's MAX_LLM_CALL_PER_RUN = 50)
-  forced_answer_tokens: 10000                # generation budget of the forced final answer at the step cap (stops at </answer>; ITER files: DIVER's 10000)
+  forced_answer_tokens: 2000             # the published setting: 2,000 tokens for the forced final answer (DIVER's client: 10000)
   forced_answer_prefill: null            # text the forced final answer continues from (null = an open <answer> tag, or DIVER's sentence for a text-terminal task)
-  forced_answer_nudge: 'Retrieval complete. You are forbidden to call any tools now. Based only on the information already collected above, provide your best final answer.'
+  forced_answer_nudge: null              # the published setting: the library's own final-turn message (DIVER's client: 'Retrieval complete. You are forbidden to call any tools now. ...')
   prompt_profile: null                   # override the condition's prompt (a condition name or a .md path); null = the strategy's own
   ctx_tokens: 95000                      # history kept in the prompt; the cap below fires first
   ctx_window: 100000                     # with ctx_stop_frac 0.9 the answer is forced at 90,000 tokens, DIVER's Tongyi cap
@@ -67,7 +67,7 @@ retrieval:
   dense_seq_length: 512                   # encoder tokens a document or query is cut to (null = 1024; ITER encodes at 512)
   dense_query_seq_length: 8192                  # encoder tokens a query is cut to (null = the document length; the ITER checkpoints take 8192)
   dense_index: null                      # prebuilt vector index to serve (this library's cache dir, or ITER's index.faiss + index.lookup.pkl); null = the per-corpus cache under index_root
-  ann_ef_search: 256                     # HNSW efSearch for a prebuilt index (0 = as built)
+  ann_ef_search: 0                       # HNSW efSearch for a prebuilt index (0 = as built); unused here, 100,195 docs search a flat index
   ann: auto                              # vector index backend: auto | flat | hnsw | ivfpq
   ann_min: 1000000                       # corpus size above which an ANN index is used
   ann_pq_min: 8000000                    # corpus size above which IVF-PQ is used
@@ -77,7 +77,7 @@ retrieval:
 evaluation:
   level: function                        # function | file (code arm only; documents ignore it)
   k: [1, 3, 5, 10]                       # rank cutoffs for @k metrics
-  workers: 1                             # concurrent episodes (use with a served model)
+  workers: 2                             # concurrent episodes against the served model; the published cells ran 2
   judge_model: gpt-4o-mini               # LLM judge for document answers (null = off)
   judge_api_base: null                   # endpoint for a served judge
   rejudge: false                         # re-grade rows that already carry a verdict

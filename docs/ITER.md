@@ -6,10 +6,21 @@ https://github.com/ielab/ITER.
 
 ITER trains a dense retriever from the trajectories of a search agent and evaluates it inside the
 agent loop: the retriever is conditioned on what the agent already searched, and it's trained to
-return documents the agent has not read yet. This page maps that setup onto this library. The
-generic training recipe (triples from run records, the trainer, plugging a checkpoint back in) is
-in [TRAINING.md](TRAINING.md). The install notes, SLURM sharding and the run-directory layout are shared with the Sieve paper
-and spelled out in [SIEVE.md](SIEVE.md#reproduce-it).
+return documents the agent has not read yet.
+
+<p align="center">
+  <img src="assets/iter_overview.png" width="94%" alt="Overview of ITER"/>
+</p>
+<p align="center"><em>ITER builds a history-conditioned query from the main question, pre-search
+reasoning, the current sub-query and the previous sub-queries, and derives trajectory-relative
+supervision from the agent's document interactions. The resulting retriever promotes new relevant
+evidence and demotes documents the agent has already read. Figure from
+<a href="https://github.com/ielab/ITER">ielab/ITER</a> (MIT licence).</em></p>
+
+This page maps that setup onto this library. The generic training recipe (triples from run records,
+the trainer, plugging a checkpoint back in) is in [TRAINING.md](TRAINING.md). The install notes,
+SLURM sharding and the run-directory layout are shared with the Sieve paper and spelled out in
+[SIEVE.md](SIEVE.md#reproduce-it).
 
 ## Reproduce it
 
@@ -57,52 +68,40 @@ vllm serve Alibaba-NLP/Tongyi-DeepResearch-30B-A3B \
   --enable-prefix-caching
 ```
 
-**5. Run the cell.** These are the settings the published cells ran with. The strategy is
-`agent_research_iter_dense`: ten unfiltered results per search, no de-duplication, then
-`get_document`. The dense encoder runs on CPU so it doesn't compete with vLLM for the GPU.
+**5. Run the cell.** The experiment file holds the exact settings the published cell ran with.
+Validate it, then run it against the server from step 4.
 
 ```bash
-export MAX_VISIT_TOKENS=512 MAX_SECTION_TOKENS=12000 SNIPPET_TOKENS=32 \
-       DENSE_QUERY_STYLE=i9 DENSE_POOLING=last_token DENSE_DTYPE=bfloat16 \
-       DENSE_SEQ_LENGTH=512 DENSE_QUERY_SEQ_LENGTH=8192 \
-       AGENT_CTX_WINDOW=100000 AGENT_CTX_TOKENS=95000 \
-       DEDUP_TOPK=10 DEDUP_POOL_K=100 AGENT_SEARCH_DENSE_DEVICE=cpu \
-       OPENAI_API_KEY=dummy
-
-skimsearchagent-eval \
-  --dataset browsecomp_plus_structured_full \
-  --retriever agent_research_iter_dense \
-  --dense-model ielabgroup/ITER-Qwen3-Embedding-0.6B \
-  --policy llm --backend api --api-base http://127.0.0.1:8000/v1 \
-  --model Alibaba-NLP/Tongyi-DeepResearch-30B-A3B \
-  --max-steps 50 --temperature 0.6 --seed 42 --workers 2 \
-  --k 1 3 5 10 --runs-dir runs/iter/paper_setting_iter06b
+skimsearchagent validate configs/iter/browsecomp_plus_full_iter_iter06b_tongyi.yaml
+skimsearchagent run configs/iter/browsecomp_plus_full_iter_iter06b_tongyi.yaml \
+  model.api_base=http://127.0.0.1:8000/v1
 ```
 
-For the 4B checkpoint, change `--dense-model` to `ielabgroup/ITER-Qwen3-Embedding-4B` and
-`--runs-dir` to `runs/iter/paper_setting_iter4b`, after building its cache in step 3.
+`validate` prints the resolved command and every setting it will export, and fails early if the
+dense cache from step 3 is missing. The strategy is `agent_research_iter_dense`: ten unfiltered
+results per search, no de-duplication, then `get_document`. For the 4B checkpoint use
+`browsecomp_plus_full_iter_iter4b_tongyi.yaml`, after building its cache in step 3.
 
-On SLURM the same run takes ten shards with one GPU each, about an hour per shard. Export the same
-knobs plus the ones below, then submit. `scripts/shard_cell.sh` serves vLLM on each node itself.
+On SLURM the same run takes ten shards with one GPU each, about an hour per shard.
+`scripts/shard_cell.sh` serves vLLM on each node itself. It reads the settings from the environment
+rather than the file, so export the file's values:
 
 ```bash
 export DATASET=browsecomp_plus_structured_full CONDITION=agent_research_iter_dense \
        MODEL=Alibaba-NLP/Tongyi-DeepResearch-30B-A3B DENSE_MODEL=ielabgroup/ITER-Qwen3-Embedding-0.6B \
        RUNS_DIR=runs/iter/paper_setting_iter06b NUM_SHARDS=10 WORKERS=2 MAX_STEPS=50 \
-       MAX_MODEL_LEN=131072 JOB_TIME=04:00:00 PREBUILD=0 SLURM_ACCOUNT=YOUR_ACCOUNT \
-       VLLM_ARGS="--enable-prefix-caching"
+       MAX_VISIT_TOKENS=512 MAX_SECTION_TOKENS=12000 SNIPPET_TOKENS=32 \
+       DENSE_QUERY_STYLE=i9 DENSE_POOLING=last_token DENSE_DTYPE=bfloat16 \
+       DENSE_SEQ_LENGTH=512 DENSE_QUERY_SEQ_LENGTH=8192 \
+       AGENT_CTX_WINDOW=100000 AGENT_CTX_TOKENS=95000 DEDUP_TOPK=10 DEDUP_POOL_K=100 \
+       AGENT_SEARCH_DENSE_DEVICE=cpu MAX_MODEL_LEN=131072 JOB_TIME=04:00:00 PREBUILD=0 \
+       SLURM_ACCOUNT=YOUR_ACCOUNT VLLM_ARGS="--enable-prefix-caching"
 bash scripts/shard_cell.sh
 # when every shard has finished:
 python scripts/merge_shards.py --runs-dir runs/iter/paper_setting_iter06b \
   --dataset browsecomp_plus_structured_full --condition agent_research_iter_dense \
   --num-shards 10 --model Alibaba-NLP/Tongyi-DeepResearch-30B-A3B
 ```
-
-The experiment file `configs/iter/browsecomp_plus_full_iter_iter06b_tongyi.yaml` is not the
-published setting. It adds DIVER's client behaviour: per-turn budgets of 4096, 2048 and 1024 tokens,
-thinking on, DIVER's final-turn nudge and a 10,000-token forced answer. The published cells ran
-with the library defaults instead: a flat 4,000-token turn budget, the template's thinking default,
-the library's nudge and a 2,000-token forced answer.
 
 **6. Judge it, twice.** Each cell carries two scores. gpt-4o-mini with the BrowseComp Appendix F
 prompt is this library's judge:
@@ -165,10 +164,10 @@ retrieval:
   dense_query_seq_length: 8192
   dense_query_style: i9       # the model card's reasoning-augmented query format
   dense_query_instruction: null   # null = the built-in i9 instruction
-  ann_ef_search: 256
+  ann_ef_search: 0            # unused: 100,195 docs search a flat index
 ```
 
-**The budgets.** They're DIVER's, not the Sieve experiments'.
+**The budgets.** The call cap and context window are DIVER's, not the Sieve experiments'.
 
 ```yaml
 agent:
@@ -176,8 +175,8 @@ agent:
   ctx_tokens: 95000
   ctx_window: 100000
   ctx_stop_frac: 0.9          # force the answer once the prompt passes 90,000 tokens
-  forced_answer_tokens: 10000
-  forced_answer_nudge: 'Retrieval complete. You are forbidden to call any tools now. Based only on the information already collected above, provide your best final answer.'
+  forced_answer_tokens: 2000  # the forced final answer at the step cap
+  forced_answer_nudge: null   # the library's own final-turn message
 budgets:
   max_visit_tokens: 512       # get_document returns at most 512 model tokens
 listing:
@@ -185,10 +184,14 @@ listing:
   dedup_pool_k: 100           # the dedup setting only: over-fetch 100, then drop what was seen
   dedup_snippet_tokens: 64    # each result's passage text, cut to 64 model tokens
 model:
-  max_tokens: 4096
-  max_tokens_schedule: '4096,2048,1024'   # 4096 on turn one, 2048 on turn two, 1024 after
-  thinking: true
+  max_tokens: 4000            # a flat budget every turn
+  max_tokens_schedule: null
+  thinking: null              # the chat template's own default
 ```
+
+These are the published values. DIVER's own client differs in four generation settings: a
+4096/2048/1024 per-turn schedule, thinking on, the nudge `'Retrieval complete. You are forbidden to
+call any tools now. ...'` and a 10,000-token forced answer. The published cells did not use them.
 
 **A corpus too large for memory.** Above 1 GiB
 (`AGENT_SEARCH_DOCSTORE_MIN_BYTES`) the loader writes a byte-offset index next to the corpus once
@@ -399,11 +402,11 @@ Both cells land within a point of the paper on the paper's own judge: 48.6 again
 against 51.2. A second run of the 0.6B cell with the same setup scored 48.2, so run-to-run noise is
 about half a point.
 
-The two rows come from different code. The 0.6B cell ran on 21 September. The 4B cell ran on 14
-September, before three fixes to the agent loop: repairs for malformed tool calls, a filled skeleton
-for an empty tool call, and a forced answer when the context window fills instead of a dropped
-question. On the 0.6B cell those fixes were worth 2.5 points under either judge, so read the 4B row as
-a lower bound for the current code.
+The two rows come from different code. The 0.6B cell ran on 21 September. The 4B cell ran on the
+evening of 14 September. It has the repairs for malformed tool calls but predates two later fixes: a
+filled skeleton for an empty tool call, and a forced answer when the context window fills instead of
+a dropped question. All three fixes together were worth 2.5 points on the 0.6B cell, so the 4B row
+may understate the current code by up to that much.
 
 Use the judge column that matches what you're comparing against. DIVER's own released answers for the
 i2 setting score 38.9 under gpt-4o-mini against the 44.5 they report, a 5.6-point gap in the same
