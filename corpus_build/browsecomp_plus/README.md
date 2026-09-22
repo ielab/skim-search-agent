@@ -12,9 +12,11 @@ The full 100,195-doc collection is separate, published on Hugging Face as
 **Sections need a model.** Raw web pages have no reliable section markup, so a **`gpt-5.4-nano`** pass proposes section boundaries and
 headings for each page, and then a deterministic step splits the original body at those boundaries
 into a matched `(heading, text)` list. The model only says *where* sections start. It never
-rewrites text, so the corpus stays faithful and its `text` still matches the flat twin
-byte-for-byte. The pass goes through the OpenAI **Batch API** (24h async, about 50% cheaper than
-list price) with many docs per request, so it is one overnight job.
+rewrites text, so the split stays faithful to the original body. The structured twin's `text`
+folds those headings in, along with an author/date line; the flat twin's `text` is that same
+original body, untouched, with no fold-in and no headings. The pass goes through the OpenAI
+**Batch API** (24h async, about 50% cheaper than list price) with many docs per request, so it is
+one overnight job.
 
 Gold is a label on the `docid`, so this never touches the qrels. The flat and structured arms
 evaluate the same queries.
@@ -75,33 +77,38 @@ lines only, so metadata never turns into a section.
 > outside the repo. Docs that no batch covers fall back to a frontmatter-only record, still
 > emitted but section-less, and `corpus` prints the percentage that got matched sections.
 
-## Output: a flat + structured pair (same docs, text and queries)
+## Output: a flat + structured pair (same doc ids, titles and queries; text is NOT byte-identical)
 ```
 data/browsecomp_plus_structured/corpus.jsonl : {_id, title, author, date, sections, text}   ← scopeable fields + matched sections
-data/browsecomp_plus_flat/corpus.jsonl       : {_id, title,                       text}    ← same text, no fields
+data/browsecomp_plus_flat/corpus.jsonl       : {_id, title,                       text}    ← the plain original body
 ```
 `sections` is a matched, ordered list of `{heading, text}` parts, with each `## section` kept
-together with its own body. The `text` is byte-identical across the pair; the structured arm
-*also* exposes the fields and section parts. Each arm gets its own `queries.jsonl` and
-`qrels/test.tsv`, generated from the dataset's own `gold_docs`, identical in both. The pair is
-`browsecomp_plus_flat` vs `browsecomp_plus_structured`.
+together with its own body. The structured arm's `text` is that body with author/date folded in as
+a leading line and the `## headings` inserted at the section boundaries. The flat arm's `text` is
+the plain original body: the frontmatter block is removed and nothing is added, no date line, no
+headings. Each arm gets its own `queries.jsonl` and `qrels/test.tsv`, generated from the dataset's
+own `gold_docs`, identical in both. The pair is `browsecomp_plus_flat` vs
+`browsecomp_plus_structured`.
 
 > The query and gold are read via the field names `query_id`, `query` and `gold_docs` in
 > `iter_rows`. If a `--limit 50` run prints "0 queries", those names have changed on the hub;
 > update them in `iter_rows`.
 
-**Fairness.** `author` and `date` are emitted twice over: as their own fields (so
-`units_from_documents` carries them into metadata and BQL's `IN(author,·)` / `IN(date,·)` can scope
-them), and folded into `text` so `bm25` and `dense` see them too. BQL gets **precise** field
-access, not **exclusive** access; otherwise the comparison would be confounded. The `## headings`
-stay **inside** `text` the same way (byte-identical to the flat arm), so bm25 and dense match
-section titles as well. BQL's `IN(section,·)` and `fetch` address them precisely.
+**Fairness.** `author` and `date` are emitted twice over on the structured arm: as their own
+fields (so `units_from_documents` carries them into metadata and BQL's `IN(author,·)` /
+`IN(date,·)` can scope them), and folded into that arm's `text` so `bm25` and `dense` see them too.
+BQL gets **precise** field access, not **exclusive** access; otherwise the comparison would be
+confounded. The `## headings` stay **inside** the structured `text` the same way, so bm25 and
+dense match section titles as well. BQL's `IN(section,·)` and `fetch` address them precisely. The
+flat arm never sees any of this folding: its `text` is the plain body, so the pair still isolates
+BQL's contribution to structural access, not to a richer bm25/dense blob.
 
 ## Notes
 - The sectioning model never rewrites text. It only proposes boundary line numbers, and the split
-  is deterministic, so the emitted body is the original text with `## headings` inserted at those
-  boundaries. The result is reproducible from `sections.jsonl`.
-- Docs with no frontmatter still get emitted (flat, with `title`/`author`/`date` empty and the full
+  is deterministic, so the structured arm's body is the original text with `## headings` inserted
+  at those boundaries. The result is reproducible from `sections.jsonl`. The flat arm skips this
+  step entirely: its `text` is the original body, unsplit.
+- Docs with no frontmatter still get emitted (with `title`/`author`/`date` empty and the full
   `text`). Docs the batch never sectioned get a single `(intro)` part. Nothing is ever lost.
 - `browsecomp_plus_structured` is registered (general domain, `field_profile=browsecomp`)
   and loads the structured BQL skill (title/author/date/section/body) on its own.

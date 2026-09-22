@@ -10,10 +10,11 @@ queries.
 SECTIONS (built with a model, there is NO prebuilt sectioned corpus on the hub). browsecomp's raw
 web pages have no reliable section markup, so a cheap `gpt-5.4-nano` pass proposes section
 BOUNDARIES + headings and a DETERMINISTIC step splits the ORIGINAL body at those boundaries (the
-model only says WHERE sections start, it never rewrites text, so the corpus stays faithful and its
-`text` still matches the flat twin byte-for-byte). It runs through the OpenAI *Batch* API (24h
-async, ~50% cheaper) with MANY docs per request, so the whole corpus is one cheap overnight job.
-Three resumable stages, then assemble:
+model only says WHERE sections start, it never rewrites text, so the split stays faithful to the
+original body). The structured twin's `text` folds in author/date and the `## heading` lines; the
+flat twin's `text` is that same original body, untouched, with no fold-in and no headings. It runs
+through the OpenAI *Batch* API (24h async, ~50% cheaper) with MANY docs per request, so the whole
+corpus is one cheap overnight job. Three resumable stages, then assemble:
 
   cd corpus_build/browsecomp_plus
   python build.py sectionize-validate --sample 8                           # always FIRST: cheap sync dry-run + cost
@@ -25,11 +26,12 @@ Three resumable stages, then assemble:
 
 `corpus` emits a PAIR over the same docs/queries (mirrors wikipedia):
   browsecomp_plus_structured/  {_id, title, author, date, sections, text}   ← scopeable fields + matched sections
-  browsecomp_plus_flat/        {_id, title,                       text}    ← same text, no fields
+  browsecomp_plus_flat/        {_id, title,                       text}    ← the ORIGINAL body, no fold-in
 where `sections` is a MATCHED, ordered [{heading, text}] list (each `##` section kept WITH its own
-body) so BQL's IN(section,·) + fetch-a-named-section work like the wikipedia arm. author/date (and
-the `## headings`) are also folded into `text` so bm25/dense match them too, BQL gets PRECISE
-field/section access, not EXCLUSIVE access.
+body) so BQL's IN(section,·) + fetch-a-named-section work like the wikipedia arm. author/date and
+the `## headings` are folded into the STRUCTURED arm's `text` only, so bm25/dense on that arm match
+them too (BQL gets PRECISE field/section access, not EXCLUSIVE access). The flat arm's `text` is
+the plain original body with the frontmatter removed: no date line, no inserted headings.
 
 DEPS (staging node): `datasets` (to read the hub), `openai` (submit/collect); optional `tqdm`.
 """
@@ -184,8 +186,9 @@ def to_record(d: dict) -> dict:
 # browsecomp's raw web pages have no reliable section markup, and there is NO prebuilt sectioned
 # corpus on the hub, so we make one. A cheap `gpt-5.4-nano` pass proposes section BOUNDARIES +
 # headings for each doc, and a deterministic step splits the ORIGINAL body at those boundaries: the
-# model only says where sections start, it never rewrites text, so the emitted corpus stays
-# faithful (and its `text` still matches the flat twin byte-for-byte). It runs through the OpenAI
+# model only says where sections start, it never rewrites text, so the split stays faithful to the
+# original body. The structured twin's `text` folds those headings in with an author/date line;
+# the flat twin's `text` is that same original body, untouched. It runs through the OpenAI
 # *Batch* API (24h async, ~50% cheaper) with MANY docs per request, a "big chunk" each call, not
 # one-at-a-time and not the whole corpus at once, so ~100K docs is one cheap overnight job. Three
 # resumable stages, each a subcommand:
@@ -433,8 +436,9 @@ def apply_boundaries(body: str, boundaries: list) -> list:
 
 
 def body_from_sections(sections: list) -> str:
-    """Rebuild the body with `## Heading` lines from a matched sections list, this is the emitted
-    `text`, so bm25/dense see the headings and the flat/structured twins stay byte-identical.
+    """Rebuild the body with `## Heading` lines from a matched sections list. This becomes the
+    STRUCTURED twin's `text` (folded with author/date), so bm25/dense see the headings there. The
+    flat twin does not use this: its `text` is the plain original body, headings never inserted.
     '(intro)' contributes its text with no heading line."""
     parts = []
     for s in sections:
@@ -445,8 +449,9 @@ def body_from_sections(sections: list) -> str:
 
 def to_record_sectioned(docid: str, fm_fields: dict, sections: list) -> dict:
     """A doc's frontmatter fields + its matched sections -> the STRUCTURED BEIR row. `text` is the
-    heading-augmented body (shared byte-identically with the flat twin); author/date folded in so
-    bm25/dense match them (BQL gets PRECISE field/section access, not EXCLUSIVE)."""
+    heading-augmented body with author/date folded in, so bm25/dense match them (BQL gets PRECISE
+    field/section access, not EXCLUSIVE). The flat twin does not use this record: it gets the
+    plain original body, built separately in `cmd_corpus`."""
     title = fm_fields.get("title", "")
     author = clean_author(fm_fields.get("author", ""))
     date = fm_fields.get("date", "")
@@ -825,10 +830,13 @@ def cmd_diagnose(a):
 
 def cmd_corpus(a):
     """Build the browsecomp PAIR straight from the hub (no pre-staged files needed):
-      data/browsecomp_plus_structured/  {_id, title, author, date, text}   ← scopeable fields
-      data/browsecomp_plus_flat/        {_id, title,              text}    ← same text, no fields
+      data/browsecomp_plus_structured/  {_id, title, author, date, sections, text}  ← scopeable
+                                          fields; text = date line + `## heading` lines + body
+      data/browsecomp_plus_flat/        {_id, title, text}   ← text = the plain original body,
+                                          frontmatter removed, no date line, no headings
     plus `queries.jsonl` + `qrels/test.tsv` generated from the dataset's own `gold_docs`. Same
-    docs/text/queries in both arms, only the author/date fields differ (mirrors wikipedia)."""
+    docs/ids/queries in both arms; only the structured arm adds fields and folds them (plus
+    section headings) into its own text (mirrors wikipedia)."""
     out_s = os.path.join(a.out_dir, "browsecomp_plus_structured")
     out_f = os.path.join(a.out_dir, "browsecomp_plus_flat")
     for od in (out_s, out_f):
@@ -841,7 +849,7 @@ def cmd_corpus(a):
     if getattr(a, "sections", None):
         for row in _read_jsonl(a.sections):
             sections_by_id[str(row["_id"])] = row["sections"]
-    docs: dict = {}                              # docid -> structured record (dedup across queries)
+    docs: dict = {}          # docid -> (structured record, flat text); dedup across queries
     queries: list = []
     qrels: list = []                             # (query_id, docid) gold pairs
     for qid, question, gold, dlist, answer in _tqdm(iter_rows(a.limit), desc="read hub", unit="query"):
@@ -854,20 +862,25 @@ def cmd_corpus(a):
         for d in dlist:
             did = str(d["docid"])
             if did not in docs:
+                fm, body = parse_frontmatter(d.get("text") or "")
+                # flat's text is the plain ORIGINAL body: frontmatter stripped, nothing inserted,
+                # trimmed of leading/trailing newlines only (not the structured arm's date line
+                # or `## heading` lines).
+                flat_text = body.strip("\n")
                 if did in sections_by_id:
-                    fm, _body = parse_frontmatter(d.get("text") or "")
-                    docs[did] = to_record_sectioned(did, fm, sections_by_id[did])
+                    rec = to_record_sectioned(did, fm, sections_by_id[did])
                 else:
-                    docs[did] = to_record(d)
+                    rec = to_record(d)
+                docs[did] = (rec, flat_text)
 
-    n_meta = sum(1 for r in docs.values() if r["author"] or r["date"])
-    n_sec = sum(1 for r in docs.values() if r.get("sections") and len(r["sections"]) > 1)
+    n_meta = sum(1 for r, _ in docs.values() if r["author"] or r["date"])
+    n_sec = sum(1 for r, _ in docs.values() if r.get("sections") and len(r["sections"]) > 1)
     cs = open(os.path.join(out_s, "corpus.jsonl"), "w", encoding="utf-8")
     cf = open(os.path.join(out_f, "corpus.jsonl"), "w", encoding="utf-8")
     with cs, cf:
-        for r in _tqdm(docs.values(), desc="write corpus", unit="doc"):
+        for r, flat_text in _tqdm(docs.values(), desc="write corpus", unit="doc"):
             cs.write(json.dumps(r, ensure_ascii=False) + "\n")
-            cf.write(json.dumps({"_id": r["_id"], "title": r["title"], "text": r["text"]},
+            cf.write(json.dumps({"_id": r["_id"], "title": r["title"], "text": flat_text},
                                 ensure_ascii=False) + "\n")
 
     docset = set(docs)
@@ -895,7 +908,8 @@ def cmd_corpus(a):
         if n_sec == 0:
             print("  WARNING: 0 multi-section docs — check that --sections docids match the corpus "
                   "and that the sectionize batch actually ran.")
-    print(f"  -> {out_s}/  and  {out_f}/   (same docs/text/queries; structured adds fields+sections)")
+    print(f"  -> {out_s}/  and  {out_f}/   (same docs/ids/queries; structured adds fields+sections "
+          f"and folds them into its own text; flat's text is the plain original body)")
     print("  register `browsecomp_plus_flat` + `browsecomp_plus_structured` is already wired.")
     return 0
 

@@ -56,6 +56,10 @@ cp -r data/_hf/musique/flat       data/musique_flat
 # browsecomp only: sections.jsonl lets you re-assemble the pair WITHOUT the paid batch:
 #   python browsecomp_plus/build.py corpus --sections data/_hf/bcp/sections.jsonl
 ```
+The `flat/` folder inside `wshuai190/browsecomp-plus-structured-full` predates the fix that made
+flat text plain: it still carries the leading date line and the `## heading` lines from the
+structured arm, so a fresh pull needs a rebuild with `python browsecomp_plus/build.py corpus
+--sections data/_hf/bcp/sections.jsonl` before its flat corpus is correct.
 
 ## How the two builders differ (they're not symmetric)
 
@@ -69,9 +73,10 @@ ends up a **subset** of the original. It writes both arms itself, `data/<name>_f
 and gets `sections` from a one-time `gpt-5.4-nano` Batch pass. The model proposes section
 boundaries; a deterministic step applies them to the original body, so the text is preserved and
 only `## Heading` markers are inserted. **Every doc is kept**: no frontmatter means empty fields, no
-model reply means intro-only. It writes both arms,
-`data/browsecomp_plus_{flat,structured}/`, over the same sectionized `text`. The flat twin carries
-the `## headings` in its `text` as well, without the scopeable fields.
+model reply means intro-only. It writes both arms, `data/browsecomp_plus_{flat,structured}/`, over
+the same doc ids and the same `title`. The two twins are NOT byte-identical: the structured arm
+adds `author`, `date`, `sections`, and a `text` with a leading date line and the `## heading` lines
+folded in; the flat arm's `text` is the plain original body, frontmatter stripped, nothing added.
 
 ## Shared properties
 - **Gold never moves.** Output is keyed by the same `_id`, so gold always resolves.
@@ -98,6 +103,8 @@ listing.
 {"_id":"...","title":"...","author":"...","date":"...",
  "sections":[{"heading":"(intro)","text":"..."},{"heading":"Recording","text":"..."}],
  "text":"By <author> <date>\n\n<body with ## headings>"}
+// browsecomp_plus_flat (same _id, same title, NO other fields)
+{"_id":"...","title":"...","text":"<the plain original body, frontmatter stripped>"}
 ```
 `units_from_documents` maps `title`, `section`, `sections` and `text` straight across, and carries
 any extra key (`infobox`, `author`, `date`) into unit metadata. `IN(title,·)`, `IN(section,·)`,
