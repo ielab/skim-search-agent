@@ -15,19 +15,19 @@ from agent_search.tools.search_dedup.tool import SearchDedup
 dedup_dense = register_strategy(Strategy(
     name="dedup_dense", toolset_name="dedup_dense",
     description="ITER: dense search that drops already-listed documents, then get_document",
-    tools=(SearchDedup(name="search", ranking="dense"), GetDocument(name="get_document"))))
+    tools=(SearchDedup(name="search", ranking="dense"), GetDocument(name="get_document", aliases=("visit",)))))
 
 dedup_bm25 = register_strategy(Strategy(
     name="dedup_bm25", toolset_name="dedup_bm25",
     description="ITER's loop with BM25: search that drops already-listed documents, then get_document",
-    tools=(SearchDedup(name="bm25_search", ranking="bm25"), GetDocument(name="get_document"))))
+    tools=(SearchDedup(name="bm25_search", ranking="bm25"), GetDocument(name="get_document", aliases=("visit",)))))
 
 iter_dense = register_strategy(Strategy(
     name="iter_dense", toolset_name="iter_dense",
     description="ITER's evaluation tools: standard top-10 dense search in ITER's format, then get_document",
-    tools=(SearchDedup(name="search", ranking="dense", dedup=False), GetDocument(name="get_document"))))
+    tools=(SearchDedup(name="search", ranking="dense", dedup=False), GetDocument(name="get_document", aliases=("visit",)))))
 
 iter_bm25 = register_strategy(Strategy(
     name="iter_bm25", toolset_name="iter_bm25",
     description="ITER's evaluation tools with BM25: standard top-10 search in ITER's format, then get_document",
-    tools=(SearchDedup(name="bm25_search", ranking="bm25", dedup=False), GetDocument(name="get_document"))))
+    tools=(SearchDedup(name="bm25_search", ranking="bm25", dedup=False), GetDocument(name="get_document", aliases=("visit",)))))
