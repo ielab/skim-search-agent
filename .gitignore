@@ -39,6 +39,5 @@ train_data/
 # The changelog and the publishing notes are kept locally, not published
 CHANGELOG.md
 BACKLOG.md
-docs/PUBLISHING.md
 slurm-*.out
 configs/checks/

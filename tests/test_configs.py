@@ -20,7 +20,7 @@ from lucene_support import require_jvm
 CONFIG_DIR = Path("configs")
 # Sourced from the dataset registry (like `retrievers = available()` below), NOT a hand-kept
 # list: a new `register_dataset(...)` call plugs in with no test edit (parameterize, don't
-# hardcode — see agent_search/evaluation/datasets.py's registry-as-extension-point docstring).
+# hardcode — see agent_search/evaluation/datasets/base.py's registry-as-extension-point docstring).
 
 
 # The shipped experiment files under configs/ are validated by tests/test_experiment_files.py

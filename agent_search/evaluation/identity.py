@@ -46,7 +46,7 @@ def _resolve_env_knobs() -> dict:
     except Exception:
         pass
 
-    # agent_search/evaluation/datasets.py:default_dense_model: the raw knob (unset vs an explicit
+    # agent_search/evaluation/datasets/base.py:default_dense_model: the raw knob (unset vs an explicit
     # override), not the per-run resolved value (that's already recorded at config.json's
     # top level as `dense_model`, via args.dense_model / RunConfig.resolved()). Overrides the
     # document-domain dense embedder default only (e.g. `Qwen/Qwen3-Embedding-0.6B`); the

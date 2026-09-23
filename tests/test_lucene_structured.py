@@ -33,7 +33,7 @@ require_jvm()
 
 
 # --- shared fixture corpus: built via `units_from_documents`, the same path a real dataset
-# takes (agent_search/evaluation/datasets.py), so title and body land in the same fields they
+# takes (agent_search/evaluation/datasets/base.py), so title and body land in the same fields they
 # do in production. -------------------------------------------------------------------
 
 def _docs() -> list[dict]:
