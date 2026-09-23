@@ -36,6 +36,7 @@ model:
 # --- agent: the episode loop
 agent:
   ctx_tokens: 86000 # history budget in model tokens kept in the prompt
+  max_history: null # optional cap on how many (assistant, observation) pairs the prompt carries; null = no cap, ctx_tokens alone decides
 
 # --- retrieval: engines and ranking
 retrieval:
