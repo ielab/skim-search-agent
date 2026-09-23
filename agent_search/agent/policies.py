@@ -53,6 +53,25 @@ def max_tokens_schedule() -> list:
     return [int(x) for x in raw.replace(";", ",").split(",") if x.strip()]
 
 
+def default_max_history() -> "int | None":
+    """How many of the most recent (assistant, observation) pairs the prompt may carry.
+
+    ``None`` (the default) means no count cap: the token budget ``ctx_tokens`` alone decides
+    how much history fits. ``AGENT_MAX_HISTORY`` sets an explicit cap.
+
+    This used to default to 40 steps. That is a silent count cap, unrelated to the token
+    budget, so an episode longer than 40 steps dropped its oldest work from every prompt even
+    when the whole conversation fitted the window: on a 51-step BrowseComp episode the agent
+    answered without seeing its first 11 steps, and in 20% of those it had already opened the
+    gold document in the part it could no longer see. It also broke prefix caching, since the
+    window slid by one pair per turn and the prompt prefix changed every time.
+    """
+    raw = os.environ.get("AGENT_MAX_HISTORY", "").strip()
+    if not raw or raw.lower() in ("none", "0", "off", "unlimited"):
+        return None
+    return int(raw)
+
+
 def default_ctx_tokens() -> int:
     """The history budget in model tokens. ``AGENT_CTX_TOKENS`` overrides; the default leaves
     headroom inside a 131k-token window (the paper's served backbone) for the system prompt,
@@ -70,11 +89,12 @@ class AgentPolicy:
     whitespace tokens otherwise)."""
 
     def __init__(self, generate: Callable[[list], str], system: str,
-                 max_history: int = 40, ctx_tokens: int | None = None):
+                 max_history: "int | None" = -1, ctx_tokens: int | None = None):
         self.generate = generate
         # `system`: the rendered system prompt (a condition's render).
         self.system = system
-        self.max_history = max_history
+        # -1 is the sentinel for 'not specified': take the environment default (no cap).
+        self.max_history = default_max_history() if max_history == -1 else max_history
         self.ctx_tokens = int(ctx_tokens) if ctx_tokens is not None else default_ctx_tokens()
         self.last_raw = ""
         # per-turn generation budgets (LLM_MAX_TOKENS_SCHEDULE, "4096,2048,1024": the last value
@@ -95,12 +115,15 @@ class AgentPolicy:
         ]
         # Walk history newest -> oldest, keeping whole (assistant, observation) pairs while
         # the running token total stays under the budget; older steps are dropped once the
-        # budget is hit. Only a single observation that alone exceeds the entire remaining
-        # budget gets truncated (rare: e.g. a ~930k-token document). Everything else is
-        # kept in full, chronologically ordered, in the final message list.
+        # budget is hit. The TOKEN budget is the only limit by default; `max_history` adds an
+        # optional count cap on top of it (see `default_max_history`). Only a single
+        # observation that alone exceeds the entire remaining budget gets truncated (rare:
+        # e.g. a ~930k-token document). Everything else is kept in full, chronologically
+        # ordered, in the final message list.
         kept: list[tuple[str, str]] = []   # (raw_output, observation) chronological once reversed
         budget = int(ctx_tokens) if ctx_tokens is not None else self.ctx_tokens
-        for s in reversed(history[-self.max_history:]):
+        recent = history if not self.max_history else history[-self.max_history:]
+        for s in reversed(recent):
             raw = s.raw_output or ""
             obs = s.observation or ""
             raw_len = count_tokens(raw)

@@ -143,3 +143,46 @@ def test_propose_reraises_non_overflow_errors():
     p = AgentPolicy(generate=gen, system=SYSTEM, ctx_tokens=8_000)
     with pytest.raises(RuntimeError, match="connection reset"):
         p.propose(Task("t", "q"), [_step(0, 10)])
+
+
+# --- the history cap is opt-in: the TOKEN budget is the only default limit -----
+# Regression: `max_history` defaulted to 40 steps, a count cap unrelated to the token
+# budget. A 51-step BrowseComp episode answered without seeing its first 11 steps even
+# though the whole conversation fitted the window, and 20% of those had opened the gold
+# document in the dropped part. It also broke prefix caching: the window slid by one pair
+# per turn, so the prompt prefix changed on every call.
+
+def test_long_history_is_kept_whole_when_it_fits_the_token_budget():
+    hist = [_step(i, 20) for i in range(60)]
+    budget = sum(_pair_tokens(s) for s in hist) + 100
+    p = _policy(ctx_tokens=budget)                      # no max_history given
+    assert p.max_history is None
+    bodies = _tool_responses(p.build_messages(Task("t", "q"), hist))
+    assert len(bodies) == 60, "every step must survive when the token budget allows it"
+    assert "alpha0 " in bodies[0], "the oldest step must still be the first one shown"
+
+
+def test_an_explicit_history_cap_still_applies():
+    hist = [_step(i, 20) for i in range(60)]
+    budget = sum(_pair_tokens(s) for s in hist) + 100
+    p = _policy(ctx_tokens=budget, max_history=40)
+    assert len(_tool_responses(p.build_messages(Task("t", "q"), hist))) == 40
+
+
+def test_the_history_cap_can_be_set_from_the_environment(monkeypatch):
+    from agent_search.agent import policies as P
+    hist = [_step(i, 20) for i in range(60)]
+    budget = sum(_pair_tokens(s) for s in hist) + 100
+    monkeypatch.setenv("AGENT_MAX_HISTORY", "10")
+    assert P.default_max_history() == 10
+    assert len(_tool_responses(_policy(ctx_tokens=budget).build_messages(Task("t", "q"), hist))) == 10
+    for off in ("", "none", "0", "off"):
+        monkeypatch.setenv("AGENT_MAX_HISTORY", off)
+        assert P.default_max_history() is None
+
+
+def test_the_token_budget_still_drops_the_oldest_steps_without_a_count_cap():
+    hist = [_step(i, 300) for i in range(60)]
+    per_pair = _pair_tokens(hist[0])
+    p = _policy(ctx_tokens=int(per_pair * 3.5))          # room for 3 pairs only
+    assert len(_tool_responses(p.build_messages(Task("t", "q"), hist))) == 3
