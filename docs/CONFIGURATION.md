@@ -17,11 +17,22 @@ find again in the run's record. This page covers, in order:
 One YAML file is one complete setting. Run it, check it, or print a fresh one:
 
 ```bash
-skimsearchagent run configs/paper/hotpotqa_structured_sieve.yaml            # run it (this file names no model: scripted policy)
-skimsearchagent run configs/paper/hotpotqa_structured_sieve.yaml model.name=gpt-4o   # run it with a model
-skimsearchagent validate configs/paper/hotpotqa_structured_sieve.yaml       # what it needs, what it will run
-skimsearchagent template paper sieve > configs/mine.yaml                    # a complete file to edit
+skimsearchagent run configs/sieve/hotpotqa_structured_sieve.yaml            # run it (this file names no model: scripted policy)
+skimsearchagent run configs/sieve/hotpotqa_structured_sieve.yaml model.name=gpt-4o   # run it with a model
+skimsearchagent validate configs/sieve/hotpotqa_structured_sieve.yaml       # what it needs, what it will run
+skimsearchagent template paper sieve > configs/ablation/mine.yaml            # a complete file to edit
 ```
+
+The files live in four folders, and nothing sits loose at the root:
+
+| folder | what is in it |
+|---|---|
+| `configs/sieve/` | the cells behind the Sieve paper's numbers, see [SIEVE.md](SIEVE.md) |
+| `configs/iter/` | the cells behind the ITER paper's numbers, see [ITER.md](ITER.md), with its samples, smokes and training recipes |
+| `configs/fixtures/` | tiny files that run on the built-in fixtures with no model and no API keys |
+| `configs/ablation/` | one-off variations. No doc, script or test points here, so the folder can go without breaking anything |
+
+Put your own files in `configs/ablation/`. Everywhere else is the published record.
 
 A file lists exactly the keys its strategy reads. A `search_visit` file has the BM25 listing depth
 and the BM25 backend and nothing about dense models or Sieve. A `sieve` file has the BQL and dense
@@ -141,7 +152,7 @@ same source as this page.
 The document strategies above run under the library's default prompt, the task `research`. The
 paper's conditions keep the paper's prompt (`research_paper`) and are selectable by their own
 names (`research_snip`, `research_bql_dense_snip`, `research_bm25`, ...; see
-[SIEVE.md](SIEVE.md#5-run-one-cell)); the shipped `configs/paper/*.yaml` name them.
+[SIEVE.md](SIEVE.md#5-run-one-cell)); the shipped `configs/sieve/*.yaml` name them.
 
 "Needs a dense cache" means the corpus must be embedded once
 (`skimsearchagent-build-indexes --dataset <name> --retriever dense --model <model>`) or a
@@ -363,7 +374,7 @@ paper sets:
 | `retrieval.bql_soft_fallback` | 1 | 1 (the strict-Boolean ablation sets 0) |
 | `model.temperature`, `model.seed` | 0.6, 42 | 0.6, 42 |
 
-The shipped files under `configs/paper/` are these settings for each paper cell. Trust the run's
+The shipped files under `configs/sieve/` are these settings for each paper cell. Trust the run's
 `config.json` over the file you meant to run. Check the first rows before scaling a sweep.
 
 ## 7. Training files

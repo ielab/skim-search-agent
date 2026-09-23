@@ -77,13 +77,13 @@ agent backbone, token budgets, listing depths, retrieval engines, scoring, outpu
 has no dense-model keys; a `sieve` file has no listing depths.
 
 ```bash
-skimsearchagent run configs/smoke_doc_fixture_sieve_bm25.yaml        # scripted policy, no keys
+skimsearchagent run configs/fixtures/smoke_doc_fixture_sieve_bm25.yaml        # scripted policy, no keys
 export OPENAI_API_KEY=...
-skimsearchagent run configs/doc_fixture_sieve_bm25_gpt4omini.yaml    # a real backbone
-skimsearchagent run configs/paper/hotpotqa_structured_sieve.yaml     # the paper's setting, scripted policy (no backbone named)
-skimsearchagent run configs/paper/hotpotqa_structured_sieve.yaml model.name=gpt-4o output.runs_dir=runs/gpt4o   # the same with a backbone
-skimsearchagent validate configs/paper/hotpotqa_structured_sieve.yaml   # what it needs, what it will run
-skimsearchagent template paper sieve > configs/mine.yaml              # a complete file for one strategy, to edit
+skimsearchagent run configs/fixtures/doc_fixture_sieve_bm25_gpt4omini.yaml    # a real backbone
+skimsearchagent run configs/sieve/hotpotqa_structured_sieve.yaml     # the paper's setting, scripted policy (no backbone named)
+skimsearchagent run configs/sieve/hotpotqa_structured_sieve.yaml model.name=gpt-4o output.runs_dir=runs/gpt4o   # the same with a backbone
+skimsearchagent validate configs/sieve/hotpotqa_structured_sieve.yaml   # what it needs, what it will run
+skimsearchagent template paper sieve > configs/ablation/mine.yaml              # a complete file for one strategy, to edit
 ```
 
 The run directory holds `config.json` (the file's content plus every resolved knob),
@@ -297,7 +297,7 @@ instruction and precision it was trained with:
 skimsearchagent-build-triples --runs runs/... --dataset hotpotqa_structured --out train_data/hotpotqa_i2.jsonl --query-style i2 --labeller oracle
 skimsearchagent-train-retriever template > train.yaml
 sbatch --export=ALL,TRAIN=train.yaml,TRAIN_ENV=$PWD/envs-train scripts/slurm/train_retriever.sbatch
-skimsearchagent run configs/paper/hotpotqa_structured_sieve.yaml retrieval.dense_model=models/my-retriever retrieval.dense_query_style=i2
+skimsearchagent run configs/sieve/hotpotqa_structured_sieve.yaml retrieval.dense_model=models/my-retriever retrieval.dense_query_style=i2
 ```
 
 [docs/TRAINING.md](docs/TRAINING.md) is the recipe; [docs/ITER.md](docs/ITER.md) is the paper it

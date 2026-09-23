@@ -10,7 +10,7 @@ Nothing here hardcodes a site. Pass the account and partition on the command lin
 ```bash
 sbatch --account=YOUR_ACCOUNT --partition=YOUR_PARTITION scripts/slurm/smoke_suite.sbatch
 sbatch --account=YOUR_ACCOUNT --partition=YOUR_PARTITION --gres=gpu:2 \
-    --export=ALL,EXPERIMENT=configs/paper/hotpotqa_structured_sieve.yaml,MODEL=Alibaba-NLP/Tongyi-DeepResearch-30B-A3B \
+    --export=ALL,EXPERIMENT=configs/sieve/hotpotqa_structured_sieve.yaml,MODEL=Alibaba-NLP/Tongyi-DeepResearch-30B-A3B \
     scripts/slurm/serve_and_run.sbatch
 sbatch --account=YOUR_ACCOUNT --partition=YOUR_PARTITION --gres=gpu:1 \
     --export=ALL,DATASET=hotpotqa_structured scripts/slurm/build_indexes.sbatch

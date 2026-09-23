@@ -134,7 +134,7 @@ def test_requirements_are_spelled_out():
 
 def test_run_from_file_end_to_end_records_the_experiment(tmp_path):
     _prebuild_lucene("doc_fixture", str(tmp_path / "idx"))
-    rc = cli.main(["run", str(REPO / "configs" / "smoke_doc_fixture_sieve_bm25.yaml"),
+    rc = cli.main(["run", str(REPO / "configs" / "fixtures" / "smoke_doc_fixture_sieve_bm25.yaml"),
                    f"output.runs_dir={tmp_path / 'runs'}", f"output.index_root={tmp_path / 'idx'}"])
     assert rc == 0
     cfg = json.loads(next((tmp_path / "runs").rglob("config.json")).read_text())
@@ -146,7 +146,7 @@ def test_run_from_file_end_to_end_records_the_experiment(tmp_path):
 
 
 def test_validate_and_template_commands(capsys):
-    assert cli.main(["validate", str(REPO / "configs" / "paper" / "hotpotqa_structured_sieve.yaml")]) == 0
+    assert cli.main(["validate", str(REPO / "configs" / "sieve" / "hotpotqa_structured_sieve.yaml")]) == 0
     out = capsys.readouterr().out
     assert "valid experiment" in out and "--max-steps 100" in out and "needs:" in out
     assert cli.main(["template", "paper"]) == 0

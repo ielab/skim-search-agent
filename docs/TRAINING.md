@@ -19,7 +19,7 @@ reads. The paper configs are suitable:
 
 ```bash
 sbatch --account=YOUR_ACCOUNT --partition=YOUR_PARTITION --gres=gpu:2 \
-    --export=ALL,EXPERIMENT=configs/paper/hotpotqa_structured_search_visit.yaml,MODEL=Alibaba-NLP/Tongyi-DeepResearch-30B-A3B \
+    --export=ALL,EXPERIMENT=configs/sieve/hotpotqa_structured_search_visit.yaml,MODEL=Alibaba-NLP/Tongyi-DeepResearch-30B-A3B \
     scripts/slurm/serve_and_run.sbatch
 ```
 
@@ -112,7 +112,7 @@ from float32 ones. `retrieval.dense_dtype` overrides the note.
 
 ```bash
 skimsearchagent-build-indexes --dataset hotpotqa_structured --retriever dense --model models/my-retriever
-skimsearchagent run configs/paper/hotpotqa_structured_sieve.yaml \
+skimsearchagent run configs/sieve/hotpotqa_structured_sieve.yaml \
     retrieval.dense_model=models/my-retriever retrieval.dense_query_style=i2 output.runs_dir=runs/mine
 ```
 

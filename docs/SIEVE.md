@@ -110,7 +110,7 @@ others.
 
 ```bash
 python -m pytest tests/ --junitxml=report.xml
-skimsearchagent run configs/smoke_doc_fixture_sieve_bm25.yaml   # three inline docs, no model, no keys
+skimsearchagent run configs/fixtures/smoke_doc_fixture_sieve_bm25.yaml   # three inline docs, no model, no keys
 ```
 
 Pass `--junitxml` because the Pyserini JVM swallows pytest's terminal output once it starts.
@@ -298,7 +298,7 @@ down on exit, so no manual server management is needed.
 
 ```bash
 sbatch --account=YOUR_ACCOUNT --partition=YOUR_PARTITION --gres=gpu:1 \
-  --export=ALL,EXPERIMENT=configs/paper/hotpotqa_structured_sieve.yaml,MODEL=Alibaba-NLP/Tongyi-DeepResearch-30B-A3B,TP=1,MAX_MODEL_LEN=131072,VLLM_PYTHON=/path/to/vllm-env/bin/python \
+  --export=ALL,EXPERIMENT=configs/sieve/hotpotqa_structured_sieve.yaml,MODEL=Alibaba-NLP/Tongyi-DeepResearch-30B-A3B,TP=1,MAX_MODEL_LEN=131072,VLLM_PYTHON=/path/to/vllm-env/bin/python \
   scripts/slurm/serve_and_run.sbatch
 ```
 
@@ -317,7 +317,7 @@ A cell is one (dataset, backbone, condition) triple.
 spent.
 
 ```bash
-skimsearchagent validate configs/paper/browsecomp_plus_structured_full_sieve_tongyi.yaml
+skimsearchagent validate configs/sieve/browsecomp_plus_structured_full_sieve_tongyi.yaml
 ```
 
 It prints the resolved `run_eval` command, the environment knobs, any keys the strategy doesn't
@@ -326,14 +326,14 @@ read, and the prerequisites: the dense cache, the Lucene index, Java 21, the API
 **5.2 Run it.**
 
 ```bash
-skimsearchagent run configs/paper/browsecomp_plus_structured_full_sieve_tongyi.yaml
+skimsearchagent run configs/sieve/browsecomp_plus_structured_full_sieve_tongyi.yaml
 ```
 
 Add `section.key=value` arguments to change anything in the file for this run only. They're
 recorded in `config.json`.
 
 ```bash
-skimsearchagent run configs/paper/hotpotqa_structured_sieve.yaml \
+skimsearchagent run configs/sieve/hotpotqa_structured_sieve.yaml \
   model.name=Alibaba-NLP/Tongyi-DeepResearch-30B-A3B \
   model.api_base=http://127.0.0.1:8000/v1 \
   output.runs_dir=runs/mine
@@ -345,7 +345,7 @@ checkout.
 **5.3 The paper's experiment files.** Each one is complete: every knob its strategy reads is
 spelled out, and the file's content lands in the run's `config.json`.
 
-| file pattern under `configs/paper/` | dataset | condition | backbone |
+| file pattern under `configs/sieve/` | dataset | condition | backbone |
 |---|---|---|---|
 | `browsecomp_plus_structured_full_sieve_tongyi.yaml` | BCP full | Sieve, fused ranker | Tongyi |
 | `browsecomp_plus_structured_full_search_visit_tongyi.yaml` | BCP full | Search-Visit, BM25 | Tongyi |
@@ -355,8 +355,9 @@ spelled out, and the file's content lands in the run's `config.json`.
 | `browsecomp_plus_structured_search_visit_<backbone>.yaml` | BCP pooled | Search-Visit, BM25 | agentworld, openresearcher, qwen35_4b/9b/27b, gptoss_20b/120b |
 | `browsecomp_plus_structured_search_fetch_<backbone>.yaml` | BCP pooled | Search-Fetch, hybrid | the same seven |
 
-`configs/iter/` holds the ITER settings ([ITER.md](ITER.md)), `configs/samples/` holds small
-sample runs, and `configs/smoke_*.yaml` runs on the fixtures with no model.
+`configs/iter/` holds the ITER settings ([ITER.md](ITER.md)), `configs/ablation/` holds one-off
+variations and sample runs, and `configs/fixtures/smoke_*.yaml` runs on the fixtures with no
+model and no keys.
 
 **5.4 The flag form.** `skimsearchagent-eval` is the same harness without the file.
 
@@ -397,7 +398,7 @@ run the same strategies under the library's default prompt, so a reproduction na
 | `bm25` / `dense` / `hybrid` / `reranked` | same | retrieval-only floors, no agent |
 
 **5.6 The base configuration.** Every paper cell runs with these. The launchers and the
-`configs/paper/` files pin all of it.
+`configs/sieve/` files pin all of it.
 
 ```bash
 export MAX_VISIT_TOKENS=12000 MAX_SECTION_TOKENS=12000 SNIPPET_TOKENS=32

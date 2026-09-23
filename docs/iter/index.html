@@ -389,7 +389,7 @@ skimsearchagent run configs/iter/browsecomp_plus_full_iter_iter06b_tongyi.yaml \
 skimsearchagent-build-triples --runs runs/mine --dataset hotpotqa_structured \
   --out train_data/hotpotqa_i2.jsonl --query-style i2 --labeller oracle
 skimsearchagent-train-retriever template &gt; train.yaml
-skimsearchagent run configs/paper/hotpotqa_structured_sieve.yaml \
+skimsearchagent run configs/sieve/hotpotqa_structured_sieve.yaml \
   retrieval.dense_model=models/my-retriever retrieval.dense_query_style=i2</pre>
   </section>
 

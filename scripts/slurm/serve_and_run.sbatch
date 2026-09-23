@@ -9,7 +9,7 @@
 #SBATCH --output=slurm_logs/%x-%j.out
 #SBATCH --error=slurm_logs/%x-%j.err
 # Serve an open-weight model with vLLM INSIDE the job, run one experiment file against it, and
-# stop the server before exiting. --export=ALL,EXPERIMENT=configs/paper/x.yaml,MODEL=<hf id>
+# stop the server before exiting. --export=ALL,EXPERIMENT=configs/sieve/x.yaml,MODEL=<hf id>
 # [,TP=2,PORT=8000,MAX_MODEL_LEN=131072,VLLM_PYTHON=/path/to/env/bin/python,OVERRIDES="model.name=... output.runs_dir=..."]
 # VLLM_PYTHON is the interpreter that has vLLM installed (default: the active env's python).
 # With MODEL unset the experiment file's own model.name is used (an API model needs no server).

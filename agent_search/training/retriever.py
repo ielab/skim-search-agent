@@ -13,7 +13,7 @@ Typical use (each step is also a console script):
     skimsearchagent-train-retriever template > train.yaml      # edit train_data / output_dir
     skimsearchagent-train-retriever check                        # FlagEmbedding present and patched?
     sbatch --export=ALL,TRAIN=train.yaml scripts/slurm/train_retriever.sbatch
-    skimsearchagent run configs/paper/hotpotqa_structured_sieve.yaml retrieval.dense_model=models/my-retriever \\
+    skimsearchagent run configs/sieve/hotpotqa_structured_sieve.yaml retrieval.dense_model=models/my-retriever \\
         retrieval.dense_query_style=i2
 
 Training needs its own environment (`pip install "skimsearchagent[train]"` installs FlagEmbedding

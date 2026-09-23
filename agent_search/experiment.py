@@ -1,7 +1,7 @@
 """Experiment files: one file fully determines one setting.
 
-    skimsearchagent run configs/paper/hotpotqa_structured_sieve.yaml
-    skimsearchagent run configs/paper/hotpotqa_structured_sieve.yaml model.name=gpt-4o output.runs_dir=runs/x
+    skimsearchagent run configs/sieve/hotpotqa_structured_sieve.yaml
+    skimsearchagent run configs/sieve/hotpotqa_structured_sieve.yaml model.name=gpt-4o output.runs_dir=runs/x
     skimsearchagent template            # print a complete file with every key and its default
     skimsearchagent template paper      # ... with the paper's base configuration
     skimsearchagent validate FILE       # check a file without running it

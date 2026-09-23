@@ -211,7 +211,7 @@ def test_overrides_are_recorded_in_the_run_record(tmp_path):
     from agent_search.evaluation.build_indexes import build
     from agent_search.evaluation.datasets import load_dataset_by_name
     repo = Path(__file__).resolve().parents[1]
-    f = repo / "configs" / "smoke_doc_fixture_sieve_bm25.yaml"
+    f = repo / "configs" / "fixtures" / "smoke_doc_fixture_sieve_bm25.yaml"
     # the doc run opens a prebuilt Lucene structured index under output.index_root
     build(load_dataset_by_name("doc_fixture"), index_root=str(tmp_path / "idx"),
           retriever="search_lucene", progress=False)

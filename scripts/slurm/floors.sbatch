@@ -10,7 +10,7 @@
 # file in $EXPERIMENTS (space-separated). One GPU for the dense encoder and the reranker; the
 # BM25 and BQL floors would run on a CPU node too.
 #
-#   sbatch --export=ALL,EXPERIMENTS="configs/floors/bcp_s_bm25.yaml configs/floors/bcp_s_reranked.yaml" \
+#   sbatch --export=ALL,EXPERIMENTS="configs/ablation/bcp_structured_sieve_bm25_tongyi.yaml configs/ablation/bcp_chunks_sample_sieve_bm25_tongyi.yaml" \
 #          scripts/slurm/floors.sbatch
 #
 # `bash scripts/slurm/floors.sbatch` runs the same thing interactively (not on a login node).
