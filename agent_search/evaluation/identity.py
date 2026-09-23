@@ -148,8 +148,9 @@ def _resolve_env_knobs() -> dict:
 
     # Every length budget in the prompt path is measured in tokens; there is no character cap.
     try:
-        from agent_search.agent.policies import default_ctx_tokens
+        from agent_search.agent.policies import default_ctx_tokens, default_max_history
         knobs["AGENT_CTX_TOKENS"] = default_ctx_tokens()
+        knobs["AGENT_MAX_HISTORY"] = default_max_history()
     except Exception:
         pass
     try:

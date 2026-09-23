@@ -54,8 +54,10 @@
 # 8:46/8:09/16:47/8:26 for 24 questions); AutoRead, 60-75k live context -> 2
 # (measured 2026-09-19: 2 workers beat 4 by a wide margin, 4 evicts cached prefixes from the KV cache);
 # BrowseComp Search/Fetch/Sieve, 25k -> 8; one-shot RAG -> 6 (one call, no gain). Decode is
-# not the bottleneck at these counts; prefill is, because the 40-turn history window
-# (agent_search/agent/policies.py, max_history) makes every step past 40 recompute its prompt.
+# not the bottleneck at these counts; prefill is, because a long episode's prompt is long.
+# The history is capped by tokens only (agent_search/agent/policies.py, ctx_tokens), so the
+# prompt keeps growing by appending and its prefix stays cacheable until the budget starts
+# dropping the oldest steps; only from that point on does a step recompute its prompt.
 # Prefix caching is vLLM's default; pass VLLM_ARGS=--enable-prefix-caching to record it.
 #
 # NOTE on LIMIT: --limit governs which instances COUNT as this cell's universe (must
