@@ -74,6 +74,7 @@ SCHEMA: dict[str, dict[str, Key]] = {
         "prompt_profile": Key(None, "flag", "--prompt-profile", "override the condition's prompt (a condition name or a .md path); null = the strategy's own"),
         "ctx_tokens": Key(115000, "env", "AGENT_CTX_TOKENS", "history budget in model tokens kept in the prompt"),
         "ctx_window": Key(131072, "env", "AGENT_CTX_WINDOW", "the serving model's context window (tokens)"),
+        "max_history": Key(None, "env", "AGENT_MAX_HISTORY", "optional cap on how many (assistant, observation) pairs the prompt carries; null = no cap, ctx_tokens alone decides"),
         "ctx_stop_frac": Key(0.9, "env", "AGENT_CTX_STOP_FRAC", "force the answer once the observed prompt exceeds this fraction of ctx_window (>= 1 disables)"),
     },
     "budgets": {   # tokens only — there are no character limits anywhere
