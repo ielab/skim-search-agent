@@ -41,3 +41,4 @@ CHANGELOG.md
 BACKLOG.md
 slurm-*.out
 configs/checks/
+hs_err_pid*.log
