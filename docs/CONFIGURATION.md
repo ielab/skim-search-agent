@@ -34,6 +34,12 @@ The files live in four folders, and nothing sits loose at the root:
 
 Put your own files in `configs/ablation/`. Everywhere else is the published record.
 
+The top-level `env:` block is for variables the schema has no key for, such as `HF_HUB_OFFLINE`
+or a family's `VLLM_ARGS`. It may not name a variable that a typed key already owns:
+`validate` rejects that, because `env` is applied last and would silently override the typed
+key and any command-line override of it. The dense encoder's device, for example, is
+`retrieval.dense_device`, and its default of null means the GPU when one is visible.
+
 A file lists exactly the keys its strategy reads. A `search_visit` file has the BM25 listing depth
 and the BM25 backend and nothing about dense models or Sieve. A `sieve` file has the BQL and dense
 keys and no listing depths. `validate` tells you when a file is missing a key the strategy needs,

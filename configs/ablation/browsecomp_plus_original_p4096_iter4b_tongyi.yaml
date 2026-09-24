@@ -94,4 +94,3 @@ output:
 # --- env: any other environment knob, verbatim (escape hatch; recorded in config.json)
 env:
   HF_HUB_OFFLINE: '1'
-  AGENT_SEARCH_DENSE_DEVICE: cpu

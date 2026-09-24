@@ -160,3 +160,16 @@ def test_console_script_form(tmp_path):
     out = subprocess.run([sys.executable, "-m", "agent_search.cli", "template"], cwd=REPO,
                          capture_output=True, text=True, timeout=120)
     assert out.returncode == 0 and "schema: 1" in out.stdout
+
+
+def test_env_block_may_not_shadow_a_typed_key():
+    """`env` is applied after every typed key, so an entry naming a schema key's variable would
+    silently override the key and any command-line override of it. The ITER files pinned the
+    dense encoder to the CPU this way for weeks. validate() must refuse it and name the key."""
+    data = yaml.safe_load(X.template("paper", "sieve"))
+    data["env"] = {"HF_HUB_OFFLINE": "1"}
+    X.validate(data, complete=True)                       # a variable the schema has no key for is fine
+    data["env"]["AGENT_SEARCH_DENSE_DEVICE"] = "cpu"
+    with pytest.raises(X.ExperimentError) as e:
+        X.validate(data, complete=True)
+    assert "AGENT_SEARCH_DENSE_DEVICE" in str(e.value) and "retrieval.dense_device" in str(e.value)

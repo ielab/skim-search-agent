@@ -366,6 +366,18 @@ def validate(data: Any, *, complete: bool = False) -> dict:
     env = data.get("env")
     if env is not None and (not isinstance(env, dict) or not all(isinstance(k, str) for k in env)):
         raise ExperimentError("`env` must be a mapping of environment variable names to values")
+    # A raw `env` entry must not shadow a typed key. `to_invocation` applies `env` last, so an
+    # entry such as AGENT_SEARCH_DENSE_DEVICE would silently beat retrieval.dense_device and
+    # every command-line override of it, which is how the ITER files pinned the dense encoder
+    # to the CPU for weeks without anyone seeing it. Name the typed key instead.
+    if env:
+        targets = {spec.target: f"{section}.{key}" for section, keys in SCHEMA.items()
+                   for key, spec in keys.items() if spec.kind == "env"}
+        shadowed = {k: targets[k] for k in env if k in targets}
+        if shadowed:
+            raise ExperimentError(
+                "`env` sets " + ", ".join(f"{k} (set {v} instead)" for k, v in shadowed.items())
+                + "; a knob the schema knows goes under its own section, never as a raw variable")
     if "strategy" in data and not isinstance(data["strategy"], str):
         raise ExperimentError("`strategy` must be a string")
     return data
