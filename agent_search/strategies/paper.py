@@ -24,6 +24,7 @@ condition("research_iter_dense", "research_tongyi", "iter_dense")            # t
 condition("research_iter_bm25", "research_tongyi", "iter_bm25")
 condition("research_dedup_bm25_qwen", "research_dedup_qwen", "dedup_bm25")        # DIVER on Qwen3.5 / WebExplorer: no answer tags
 condition("research_dedup_dense_qwen", "research_dedup_qwen", "dedup_dense")
+condition("research_iter_dense_qwen", "research_qwen", "iter_dense")            # the ITER setting (no dedup) on the Qwen3.5 backbones
 alias("codefix", "codefix", "codefix")
 alias("codefix_grep", "codefix", "codefix_grep")
 alias("codefix_patch", "codefix_patch", "codefix")
