@@ -65,6 +65,9 @@ class SearchDedup(Tool):
         self.engines = ("bm25",) if self.ranking == "bm25" else ("dense",)
         if self.ranking == "bm25":
             self.description, self.parameters = self.BM25_DESCRIPTION, self.BM25_PARAMETERS
+        # The dedup notice is the tool's own manual, shown only when it de-duplicates; the task
+        # prompts place it through {{tool_manuals}}, so no family needs a second prompt for it.
+        self.manual = "dedup_notice.md" if self.dedup else None
 
     def _retrieve(self, query: str, k: int):
         if self.ranking == "bm25":

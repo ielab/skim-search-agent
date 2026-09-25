@@ -136,7 +136,7 @@ backbones, released retrievers, datasets and the sample runs.
 | trainer command, environment check, patch, serving note | `agent_search/training/retriever.py` |
 | episode context at inference | `agent_search/training/history.py` |
 | ITER's FlagEmbedding changes | `agent_search/training/patches/flagembedding-1.3.5-iter.patch` |
-| ITER's search strategy (dedup search, get_document) | `agent_search/strategies/dedup.py`, `agent_search/tools/search_dedup/`, `agent_search/tasks/research_dedup/prompt.md` |
+| ITER's search strategy (dedup search, get_document) | `agent_search/strategies/dedup.py`, `agent_search/tools/search_dedup/`, `agent_search/tasks/research_tongyi/prompt.md` |
 | on-disk corpus, prebuilt index loading | `agent_search/corpus/docstore.py`, `retrievers/dense/vector_index.py` (`ExternalFaissIndex`) |
 | ITER datasets (topics, qrels, answer-only) | `agent_search/evaluation/datasets/topics.py` (`_load_topics_qrels`) |
 | retriever-only evaluation | `agent_search/training/retriever_eval.py` |

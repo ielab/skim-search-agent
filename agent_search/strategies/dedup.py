@@ -2,7 +2,7 @@
 
 `search_dedup` over-fetches a pool, removes the documents listed earlier in the episode and
 shows the top of what is left; `get_document` returns one document by its DocID. Two
-variants, one per ranker. Pair with the `research_dedup` task for DIVER's dedup prompt.
+variants, one per ranker. The dedup notice is the search tool's own manual, shown whenever it de-duplicates, so any family task pairs with it.
 
 `iter_dense` and `iter_bm25` are the same tools without the de-duplication: the standard top-10
 listing in ITER's result format. That is how the ITER paper evaluates every retriever (Sec. 5.3);

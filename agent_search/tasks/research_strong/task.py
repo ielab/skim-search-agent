@@ -6,12 +6,12 @@ from agent_search.tasks.base import Task, register_task
 
 
 @register_task
-class ResearchDedupStrong(Task):
-    name = "research_dedup_strong"
+class ResearchStrong(Task):
+    name = "research_strong"
     domain = "general"
     message_format = "deepresearch_tool_call"
     terminal = "answer"
-    description = "ITER's strong prompt for general backbones over the de-duplicated search and get_document tools; answer in <answer> tags."
+    description = "DIVER's strong prompt for general backbones: native function calling, the question as the user turn. The search tool adds its own dedup notice when it de-duplicates."
     # DIVER's QUERY_TEMPLATE: the user turn its native-tool clients (gpt-oss) send with --strong
     user_template = (
         "You are a deep research agent. You need to answer the given question by interacting with a search engine, "

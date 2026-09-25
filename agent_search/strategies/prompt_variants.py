@@ -1,6 +1,6 @@
 """Prompt variants for the ITER tools, for the prompt ablation.
 
-`research_dedup` is DIVER's Tongyi prompt (the ITER protocol), `research_dedup_strong` DIVER's
+`research_tongyi` is DIVER's Tongyi prompt (the ITER protocol), `research_strong` DIVER's
 strong prompt, `research` the library's default and `research_paper` the Sieve paper's. The Sieve
 strategies under the default prompt are the friendly-name conditions in `defaults.py`."""
 from agent_search.strategies.conditions import condition

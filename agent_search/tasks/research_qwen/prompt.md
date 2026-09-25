@@ -3,7 +3,7 @@ name: research_qwen
 domain: general
 message_format: deepresearch_tool_call
 terminal: text
-description: "The ITER paper's evaluation prompt for the Qwen3.5 and WebExplorer backbones (DIVER's qwen35_utils SYSTEM_PROMPT_SEARCH_ONLY, no dedup notice): standard search, get_document by id; a reply without a tool call is the answer."
+description: "DIVER's qwen35_utils SYSTEM_PROMPT_SEARCH_ONLY for the Qwen3.5 and WebExplorer backbones: search, get_document by id; a reply without a tool call is the answer. The search tool adds its own dedup notice when it de-duplicates."
 ---
 You are a helpful assistant.
 
@@ -19,3 +19,6 @@ For each function call, return a json object with function name and arguments wi
 <tool_call>
 {"name": <function-name>, "arguments": <args-json-object>}
 </tool_call>
+
+
+{{tool_manuals}}

@@ -41,6 +41,7 @@ STRATEGIES: dict[str, str] = {
     "iter_bm25": "agent_research_iter_bm25",
     "iter_dense": "agent_research_iter_dense",
     "iter_dense_qwen": "agent_research_iter_dense_qwen",
+    "iter_dense_strong": "agent_research_iter_dense_strong",
     # code-localization arm (SWE-bench-style repositories; dataset=code_fixture, swebench_*)
     "codefix": "agent_codefix",
     "codefix_grep": "agent_codefix_grep",
@@ -56,7 +57,7 @@ STRATEGIES: dict[str, str] = {
 DENSE_STRATEGIES = frozenset({
     "search_visit_dense", "search_visit_hybrid", "autoread_dense", "autoread_hybrid", "search_fetch_dense",
     "search_fetch_dense_plain", "search_fetch_hybrid", "sieve", "sieve_dense", "sieve_nosnip",
-    "sieve_visit_fused", "sieve_visit_dense", "dedup_dense", "iter_dense", "iter_dense_qwen", "rag_dense", "rag_hybrid", "hybrid", "dense",
+    "sieve_visit_fused", "sieve_visit_dense", "dedup_dense", "iter_dense", "iter_dense_qwen", "iter_dense_strong", "rag_dense", "rag_hybrid", "hybrid", "dense",
 })
 
 DEFAULT_STRATEGY = "sieve_bm25"

@@ -2,9 +2,7 @@
 (`prompt.md` + `task.py`). Importing the package registers the built-in tasks."""
 from agent_search.tasks.base import TASKS, Task, register_task
 from agent_search.tasks.research.task import Research
-from agent_search.tasks.research_dedup.task import ResearchDedup
-from agent_search.tasks.research_dedup_strong.task import ResearchDedupStrong
-from agent_search.tasks.research_dedup_qwen.task import ResearchDedupQwen
+from agent_search.tasks.research_strong.task import ResearchStrong
 from agent_search.tasks.research_qwen.task import ResearchQwen
 from agent_search.tasks.research_tongyi.task import ResearchTongyi
 from agent_search.tasks.research_paper.task import ResearchPaper

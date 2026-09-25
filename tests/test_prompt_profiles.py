@@ -142,8 +142,13 @@ def test_only_search_family_tools_have_a_manual():
     The code arm's `search` carries the code BQL manual (bql_code.md)."""
     with_manual = sorted({t.name for cond in CONDITIONS.values() for t in cond.strategy.tools if t.manual})
     assert with_manual, "no tool carries a manual"
-    for name in with_manual:                    # only the query-language searches coach the agent
-        assert name.startswith(("search", "isearch")), name
+    # only the query-language searches coach the agent. The one other manual is SearchDedup's
+    # dedup notice, a behaviour note the tool shows when it de-duplicates; its tool keeps DIVER's
+    # names (`search`, `bm25_search`), so it is exempt from the naming rule by its manual file.
+    notice_tools = {t.name for cond in CONDITIONS.values() for t in cond.strategy.tools
+                    if t.manual == "dedup_notice.md"}
+    for name in with_manual:
+        assert name.startswith(("search", "isearch")) or name in notice_tools, name
     without = {t.name for cond in CONDITIONS.values() for t in cond.strategy.tools if not t.manual}
     assert not any(n.startswith(("search_s", "search_bql", "isearch")) for n in without), sorted(without)
     assert not any(n.startswith(("fetch", "visit", "bash", "read", "get_document")) for n in with_manual)

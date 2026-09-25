@@ -92,7 +92,13 @@ The atomic tools: `search_bm25`, `search_dense`, `search_hybrid`, `search_bql`, 
 
 **Task.** The goal and the answer protocol: the prompt template, the domain, the message format,
 the terminal (`<answer>`, `<fix>`, a patch). One folder per task: `tasks/<name>/prompt.md` and
-`tasks/<name>/task.py`. The tasks: `research` (the default prompt), `research_paper` (the Sieve paper's), `research_dedup` (ITER's prompt), `research_dedup_strong`, `codefix`,
+`tasks/<name>/task.py`. The tasks: `research` (the default prompt), `research_paper` (the Sieve paper's), `research_tongyi` (ITER's prompt), `research_strong`, `codefix`,
+
+A notice about how a tool behaves belongs to that tool, not to the task. The dedup notice is
+`SearchDedup`'s manual and appears only when the tool de-duplicates, so a backbone family has
+one task prompt and the tools decide what it says about them. Before this, each family carried a
+dedup and a no-dedup prompt that differed by one paragraph, and a family that had only one of
+them could not run the other setting without a new task.
 `codefix_patch`.
 
 **Strategy.** A named combination of tools with their options, or a procedure that uses engines
@@ -146,7 +152,7 @@ agent_search/
   tools/           base.py (Tool, EpisodeState, ToolBox, the Workspace contract), seen.py (OrderedSeen), budgets.py (the token knobs), common.py (shared rendering),
                    then one folder per tool: search_bm25/, search_dense/, search_hybrid/, search_reranked/, search_bql/, search_indri/,
                    search_dedup/, search_bm25_dci/, visit/, fetch/, fetch_code/, get_document/, bash/, read/, grep/
-  tasks/           base.py (Task), render.py (template + declarations + manuals), then research/, research_paper/, research_dedup/, research_dedup_strong/,
+  tasks/           base.py (Task), render.py (template + declarations + manuals), then research/, research_paper/, research_tongyi/, research_qwen/, research_strong/,
                    codefix/, codefix_patch/ (prompt.md + task.py each)
   strategies/      base.py (Strategy), names.py (friendly CLI names), conditions.py (the registry), defaults.py (friendly names under the default prompt), paper.py (the paper's conditions), prompt_variants.py
                    (the paper's names), then one file per family: search_visit.py, autoread.py, search_fetch.py,

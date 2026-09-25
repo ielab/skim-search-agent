@@ -221,8 +221,10 @@ The paper collected its training trajectories in a de-duplicated setting (Sec. 4
 over-fetches a pool of 100, drops every document an earlier search already surfaced in the
 episode, shows the top 10 of the rest, and lists the hidden documents under "Already-seen" so the
 agent can reopen them. That's `strategy=dedup_dense` (or `dedup_bm25`) under the task
-`research_dedup`, the same prompt plus DIVER's dedup notice. DIVER's `--strong` prompt for general
-backbones is the task `research_dedup_strong`.
+the same task: the dedup notice is not part of any task prompt. It is the search tool's own
+manual (`agent_search/tools/search_dedup/dedup_notice.md`), rendered through `{{tool_manuals}}`
+only when the tool de-duplicates, so one prompt per backbone family serves both settings.
+DIVER's `--strong` prompt for general backbones is the task `research_strong`.
 
 DIVER's Tongyi client caps an episode at 50 LLM calls, budgets each turn (a turn cut off
 mid-thought is discarded and the next runs with thinking off) and forces the answer once the
@@ -239,9 +241,9 @@ same client, and the library keeps that split, one task and one driver per famil
 
 | backbone family | task | driver | what DIVER's client does |
 |---|---|---|---|
-| Tongyi-DeepResearch-30B | `research_dedup` | `loop` | Tongyi's deep-research persona, strict tool rules, answer tags, tool calls as `<tool_call>` text |
-| Qwen3.5 (4B, 9B, 27B), WebExplorer | `research_dedup_qwen` | `loop` | "You are a helpful assistant." plus the tools block; no answer tags, the first reply without a tool call is the answer; temperature 1.0, top-k 20, presence penalty 1.5, thinking on, generation budgets 4096 / 2048 / 1024 by turn, a turn cut off mid-thought is discarded and the next runs with thinking off, the answer is forced once the conversation passes 26k tokens |
-| gpt-oss (20B, 120B) | `research_dedup_strong` | `responses` | the strong prompt with the dedup notice as `instructions`, DIVER's question template as the user turn, native function calling through `/v1/responses`, reasoning effort medium, 10,000 output tokens per turn, the final turn made with no tools |
+| Tongyi-DeepResearch-30B | `research_tongyi` | `loop` | Tongyi's deep-research persona, strict tool rules, answer tags, tool calls as `<tool_call>` text |
+| Qwen3.5 (4B, 9B, 27B), WebExplorer | `research_qwen` | `loop` | "You are a helpful assistant." plus the tools block; no answer tags, the first reply without a tool call is the answer; temperature 1.0, top-k 20, presence penalty 1.5, thinking on, generation budgets 4096 / 2048 / 1024 by turn, a turn cut off mid-thought is discarded and the next runs with thinking off, the answer is forced once the conversation passes 26k tokens |
+| gpt-oss (20B, 120B) | `research_strong` | `responses` | the strong prompt with the dedup notice as `instructions`, DIVER's question template as the user turn, native function calling through `/v1/responses`, reasoning effort medium, 10,000 output tokens per turn, the final turn made with no tools |
 
 The dedup notice is appended to every family's prompt. The Qwen and gpt-oss files set the sampling
 keys (`model.top_k`, `presence_penalty`, `max_tokens_schedule`, `thinking`) and the driver;
