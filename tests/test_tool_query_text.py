@@ -26,3 +26,13 @@ def test_functions_prefix_on_a_tool_name_is_accepted():
     box = ToolBox([Echo(name="echo")], EpisodeState())
     assert box.run("functions.echo", {"x": "1"}) == "got 1"
     assert box.run("echo", {"x": "2"}) == "got 2"
+
+
+def test_i8_is_agentir_two_field_form():
+    """DIVER's i8, used with AgentIR-4B: the issuing turn's reasoning verbatim, 'Empty' when
+    there is none, then the sub-query; no main question and no previous interactions."""
+    from agent_search.training.queries import structured_query, STYLES
+    assert "i8" in STYLES
+    q = structured_query("i8", "main?", "sub q", [{"query": "old"}], pre_reasoning="I think\nso")
+    assert q == "Reasoning: I think\nso\n\nQuery: sub q"
+    assert structured_query("i8", "main?", "sub q", [], pre_reasoning="") == "Reasoning: Empty\n\nQuery: sub q"

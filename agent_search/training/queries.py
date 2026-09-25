@@ -27,7 +27,7 @@ from typing import Callable, Iterable, Optional, Sequence
 
 from agent_search.tokens import count_tokens, truncate_tokens
 
-STYLES = ("plain", "mem", "docs", "i0", "i1", "i2", "i3", "i4", "i5", "i6", "i7", "i9")
+STYLES = ("plain", "mem", "docs", "i0", "i1", "i2", "i3", "i4", "i5", "i6", "i7", "i8", "i9")
 # i9 (the paper's ITER-i7): i2's fields plus the agent's pre-search reasoning, one line, before the
 # sub-query. The released ielabgroup/ITER-Qwen3-Embedding checkpoints are trained on it (model card).
 DEFAULT_STYLE = "i9"
@@ -47,6 +47,7 @@ INSTRUCTIONS = {
     "i5": "Given the main question, the current sub-query, and previous interactions with notes taken on the documents already read, retrieve documents relevant to the current sub-query that provide NEW information beyond what the notes cover.",
     "i6": "Given the main question, the current sub-query, and previous interactions with the documents already visited, retrieve documents relevant to the current sub-query that provide NEW information beyond the visited documents.",
     "i7": "Given the main question, the current sub-query, and previous interactions with the documents already visited and notes taken on them, retrieve documents relevant to the current sub-query that provide NEW information beyond the visited documents.",
+    "i8": "Given the agent's reasoning that led to the current sub-query, retrieve documents relevant to the current sub-query that provide NEW information beyond what the reasoning already covers.",
     "i9": "Given the main question, the agent's reasoning and the current sub-query it led to, and the sub-queries already tried in previous interactions, retrieve documents relevant to the current sub-query that provide NEW information not yet found.",
 }
 
@@ -185,6 +186,11 @@ def structured_query(variant: str, question: str, current: str, interactions: Se
                      per_note_tokens: int = 128, pre_reasoning: str = "") -> str:
     if variant == "i0":
         return current
+    if variant == "i8":
+        # AgentIR's two fields, as DIVER renders them: the issuing turn's reasoning verbatim
+        # (not one-lined), "Empty" when there is none, then the sub-query. No main question, no
+        # previous interactions.
+        return f"Reasoning: {pre_reasoning or 'Empty'}\n\nQuery: {current}"
     lines = [f"Main Question: {question}"]
     if variant == "i9":
         # the <think> of the turn that issued this search, one line, untruncated; "<empty>" when

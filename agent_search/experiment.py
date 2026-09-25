@@ -108,7 +108,7 @@ SCHEMA: dict[str, dict[str, Key]] = {
         "dense_query_style": Key("plain", "env", "DENSE_QUERY_STYLE", "how the dense query is written from the agent's history: plain | mem | docs | i1..i7 | i9 (must match the trained retriever; the released ITER checkpoints: i9)"),
         "dense_query_instruction": Key(None, "env", "DENSE_QUERY_INSTRUCTION", "override the query instruction prefix (null = the checkpoint's serving note or the built-in table)"),
         "dense_pooling": Key(None, "env", "DENSE_POOLING", "pooling for a local checkpoint: last_token | mean | cls (null = serving note, else auto from config.json)"),
-        "dense_query_seq_length": Key(None, "env", "DENSE_QUERY_SEQ_LENGTH", "encoder tokens a query is cut to (null = the document length; the ITER checkpoints take 8192)"),
+        "dense_query_seq_length": Key(None, "env", "DENSE_QUERY_SEQ_LENGTH", "encoder tokens a query is cut to (null = the document length; the ITER and AgentIR checkpoints take 8192)"),
         "dense_seq_length": Key(None, "env", "DENSE_SEQ_LENGTH", "encoder tokens a document or query is cut to (null = 1024; ITER encodes at 512)"),
         "dense_dtype": Key(None, "env", "DENSE_DTYPE", "precision the dense encoder runs in: float32 | float16 | bfloat16 (null = the checkpoint's serving note, else float32)"),
         "dense_index": Key(None, "env", "DENSE_INDEX_PATH", "prebuilt vector index to serve (this library's cache dir, or ITER's index.faiss + index.lookup.pkl); null = the per-corpus cache under index_root"),
