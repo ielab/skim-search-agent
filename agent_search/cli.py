@@ -19,6 +19,7 @@ knob lands in the run's ``config.json``.
 from __future__ import annotations
 
 import os
+import subprocess
 import sys
 
 from agent_search.strategies.names import DEFAULT_STRATEGY, STRATEGIES, resolve_strategy
@@ -135,12 +136,34 @@ def build_run_eval_argv(kv: dict[str, str]) -> tuple[list[str], dict[str, str]]:
 
 
 def _run_invocation(args: list[str], env: dict[str, str]) -> int:
-    # export env knobs before the harness is imported: several tool modules resolve them at
-    # import, so setting them afterwards would silently have no effect.
+    """Run `agent_search.evaluation.run_eval` with the knobs exported.
+
+    The run happens in a fresh interpreter. Several tool modules read their knobs at import
+    (`agent_search/tools/budgets.py`: MAX_VISIT_TOKENS, DEDUP_SNIPPET_TOKENS, the listing
+    sizes; `search_dedup/tool.py`: DEDUP_TOPK; `agent/forced_answer.py`: FORCED_ANSWER_TOKENS),
+    and loading the experiment file already imported them into this process, so exporting the
+    env here and importing run_eval in the same process left every such knob at its default.
+    That is how a file saying `max_visit_tokens: 512` ran at 12,000 and a 512-token snippet
+    sweep ran at 64. A child process imports everything after the env is set, and
+    `agent_search.evaluation.identity` refuses to start a run whose import-time constants
+    disagree with the environment, so the mistake cannot come back quietly.
+    """
+    child_env = dict(os.environ)
+    for k, v in env.items():
+        child_env[k] = v
+        print(f">> {k}={v}", file=sys.stderr)
+    cmd = [sys.executable, "-m", "agent_search.evaluation.run_eval"] + args
+    print(">> " + " ".join(cmd[1:]).replace("-m agent_search", "python -m agent_search", 1), file=sys.stderr)
+    return int(subprocess.call(cmd, env=child_env))
+
+
+def _run_in_process(args: list[str], env: dict[str, str]) -> int:
+    """The same run inside this interpreter, for tests that register a dataset or patch a
+    module first. Only safe when nothing imported so far read an env knob at import; the
+    identity record's import-time check stops the run otherwise."""
     for k, v in env.items():
         os.environ[k] = v
         print(f">> {k}={v}", file=sys.stderr)
-    print(">> python -m agent_search.evaluation.run_eval " + " ".join(args), file=sys.stderr)
     from agent_search.evaluation.run_eval import main as run_eval_main
     sys.argv = ["run_eval"] + args
     try:

@@ -138,6 +138,45 @@ def encode_with_retry(model, texts, **kw):
         return model.encode(texts, **kw)
 
 
+def _tokenizer_of(model):
+    """The tokenizer an encoder uses (sentence-transformers and `DecoderEncoder` both expose
+    `.tokenizer`); None when there is none, and the texts then go through uncut."""
+    return getattr(model, "tokenizer", None)
+
+
+def encoder_prefix(text: str, tokenizer, max_tokens: int, chars_per_token: int = 8) -> str:
+    """The shortest whitespace-bounded prefix of `text` that the encoder cuts to the same
+    `max_tokens` tokens as the whole text.
+
+    A BrowseComp-Plus page is a whole web page (median 10k characters, 5% over 100k, the
+    longest 10 MB), and the encoder keeps 512 tokens of it. A tokenizer tokenizes everything
+    before it truncates, so encoding the corpus was paying for the megabyte tails: the first
+    batches of a build took 190 s each. This cuts the text at a whitespace boundary once the
+    prefix already holds `max_tokens` tokens. Byte-pair encoding works inside the pre-tokens
+    a whitespace split delimits, so the prefix's tokens are exactly the first tokens of the
+    whole text and the embedding is unchanged; a text without whitespace in the window is cut
+    raw and the window grows until the prefix carries enough tokens or the text ends. The
+    count is in tokens (`MARGIN` extra, so a whitespace run split by the cut sits past the
+    kept tokens); `chars_per_token` only sizes the first window."""
+    if tokenizer is None or not max_tokens or len(text) <= max_tokens * chars_per_token:
+        return text
+    window = max_tokens * chars_per_token
+    while window < len(text):
+        cut = text.rfind(" ", 0, window)
+        prefix = text[:cut] if cut > 0 else text[:window]
+        if len(tokenizer(prefix, add_special_tokens=False)["input_ids"]) >= max_tokens + MARGIN:
+            return prefix
+        window *= 4
+    return text
+
+
+MARGIN = 8    # tokens past the kept length a prefix must carry before it replaces the whole text
+
+
+def encoder_prefixes(texts, tokenizer, max_tokens: int) -> list:
+    return [encoder_prefix(t, tokenizer, max_tokens) for t in texts]
+
+
 def encode_query(model, text: str, query_len: int):
     """Encode one query under the shared lock with the query-side length, restoring the
     document length afterwards (one encoder serves both sides)."""
@@ -347,6 +386,7 @@ class DenseRetriever(Retriever):
         self._doc_ids = [u.doc_id for u in units]
         texts = [f"{u.qualname}\n{u.code}" for u in units]     # the encoder truncates in tokens
         model = self._encoder()
+        texts = encoder_prefixes(texts, _tokenizer_of(model), int(getattr(model, "max_seq_length", 0) or self.max_seq_length))
         big = len(texts) >= 5000
         if big:
             print(f"  [dense] encoding {len(texts)} units for key={key!r} on {getattr(model, 'device', '?')} "

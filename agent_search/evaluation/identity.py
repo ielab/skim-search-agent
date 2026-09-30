@@ -15,6 +15,49 @@ from typing import Optional
 from agent_search.tokens import ruler_name
 
 
+# knobs a module reads once at import: (variable, module, attribute). If the variable was set
+# after the import, the run would silently use the default; the record refuses to start instead.
+IMPORT_TIME_KNOBS = (
+    ("MAX_VISIT_TOKENS", "agent_search.tools.budgets", "MAX_VISIT_TOKENS"),
+    ("MAX_SECTION_TOKENS", "agent_search.tools.budgets", "MAX_SECTION_TOKENS"),
+    ("SNIPPET_TOKENS", "agent_search.tools.budgets", "SNIPPET_TOKENS"),
+    ("DEDUP_SNIPPET_TOKENS", "agent_search.tools.budgets", "DEDUP_SNIPPET_TOKENS"),
+    ("AUTOREAD_TOPK", "agent_search.tools.budgets", "AUTOREAD_TOPK"),
+    ("DENSE_VISIT_TOPK", "agent_search.tools.budgets", "DENSE_VISIT_TOPK"),
+    ("DENSE_FETCH_TOPK", "agent_search.tools.budgets", "DENSE_FETCH_TOPK"),
+    ("HYBRID_POOL", "agent_search.tools.budgets", "HYBRID_POOL"),
+    ("HYBRID_VISIT_TOPK", "agent_search.tools.budgets", "HYBRID_VISIT_TOPK"),
+    ("HYBRID_FETCH_TOPK", "agent_search.tools.budgets", "HYBRID_FETCH_TOPK"),
+    ("RERANK_VISIT_TOPK", "agent_search.tools.budgets", "RERANK_VISIT_TOPK"),
+    ("RERANK_FETCH_TOPK", "agent_search.tools.budgets", "RERANK_FETCH_TOPK"),
+    ("DEDUP_TOPK", "agent_search.tools.search_dedup.tool", "DEDUP_TOPK"),
+    ("DEDUP_POOL_K", "agent_search.tools.search_dedup.tool", "DEDUP_POOL_K"),
+    ("FORCED_ANSWER_TOKENS", "agent_search.agent.forced_answer", "DEFAULT_PREFILL_MAX_TOKENS"),
+)
+
+
+def _check_import_time_knobs() -> None:
+    """Raise when an import-time knob's module constant differs from its environment variable:
+    the variable was set after the module loaded and the run would use the wrong value."""
+    import importlib
+    import os as _os
+    from agent_search.errors import SetupError
+    wrong = []
+    for var, module, attr in IMPORT_TIME_KNOBS:
+        raw = _os.environ.get(var)
+        if raw in (None, ""):
+            continue
+        try:
+            actual = getattr(importlib.import_module(module), attr)
+        except Exception:  # noqa: BLE001: a module that does not load here is not a knob mismatch
+            continue
+        if int(raw) != int(actual):
+            wrong.append(f"{var}={raw} in the environment but {module}.{attr}={actual}")
+    if wrong:
+        raise SetupError("import-time knobs were set after their modules loaded: " + "; ".join(wrong)
+                         + ". Start the run in a fresh process (skimsearchagent run does) so the file's values apply.")
+
+
 def _resolve_env_knobs() -> dict:
     """Snapshot of the env-var knobs that materially define a run's retrieval condition
     (dense/BQL/indri toggles, token caps, ANN backend, agent driver/condition) but live
@@ -32,6 +75,7 @@ def _resolve_env_knobs() -> dict:
     import os as _os
     knobs: dict = {}
 
+    _check_import_time_knobs()
     try:
         from agent_search.tools.budgets import MAX_SECTION_TOKENS, MAX_VISIT_TOKENS, SNIPPET_TOKENS
         knobs["MAX_VISIT_TOKENS"] = MAX_VISIT_TOKENS
@@ -83,7 +127,8 @@ def _resolve_env_knobs() -> dict:
     # agent_search/retrievers/reranked.py: the base retriever, the reranker and its model.
     knobs["RERANK_BASE"] = _os.environ.get("RERANK_BASE", "bm25")
     knobs["RERANK_METHOD"] = _os.environ.get("RERANK_METHOD", "cross_encoder")
-    knobs["RERANK_MODEL"] = _os.environ.get("RERANK_MODEL", "BAAI/bge-reranker-v2-m3")
+    knobs["RERANK_MODEL"] = _os.environ.get("RERANK_MODEL") or None     # None = the method's own checkpoint
+    knobs["RERANK_MAX_LENGTH"] = _os.environ.get("RERANK_MAX_LENGTH") or None
     knobs["RERANK_POOL"] = int(_os.environ.get("RERANK_POOL", "100"))
     try:
         from agent_search.retrievers.bql.dense_fuse import bql_dense_enabled, RRF_K

@@ -118,7 +118,8 @@ def test_topics_loader_serves_a_big_corpus_from_disk(tmp_path, monkeypatch):
     assert inst[0].docstore.get("3")["title"] == "Nicholas Trist"
 
 
-def test_answer_only_run_end_to_end_with_dedup_bm25(tmp_path):
+def test_answer_only_run_end_to_end_with_dedup_bm25(tmp_path, monkeypatch):
+    monkeypatch.setattr(cli, "_run_invocation", cli._run_in_process)   # the dataset is registered in this process
     root = tmp_path / "tiny_answer_only"; root.mkdir(); _stage_topics(root, with_qrels=False)
     if "tiny_answer_only" not in DS.available_datasets():
         DS.register_dataset("tiny_answer_only", domain="general")(DS._topics_qrels_loader("tiny_answer_only", root=str(root)))
@@ -265,6 +266,7 @@ def test_retriever_eval_subset_corpus(tmp_path):
 
 
 def test_docstore_corpus_runs_through_the_harness_with_a_prebuilt_lucene_index(tmp_path, monkeypatch):
+    monkeypatch.setattr(cli, "_run_invocation", cli._run_in_process)   # the dataset is registered in this process
     """The whole on-disk path: a corpus forced onto the docstore, a prebuilt Lucene index named by
     BM25_INDEX_PATH, the dedup_bm25 strategy with the stub policy, answer-only scoring."""
     root = tmp_path / "tiny_disk"; root.mkdir(); _stage_topics(root, with_qrels=False)
