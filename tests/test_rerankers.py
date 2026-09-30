@@ -102,3 +102,58 @@ def test_retriever_uses_a_prebuilt_registry():
     r = RerankedRetriever(base="stub", reranker=_Longest(), pool=10, engines=_Engines()).index(UNITS, key="k")
     assert r.search("q", 2) == ["b", "c"]
     assert [d for d, _ in r.search_with_scores("q", 1)] == ["b"]
+
+
+# --- the Qwen3-Reranker family (prompts only; no model here) and loading a method by name ----
+
+from agent_search.retrievers.rerankers.qwen3_reranker import PREFIX, SUFFIX, Qwen3Reranker
+
+
+def test_qwen3_prompt_is_the_model_cards_format():
+    r = Qwen3Reranker(model="stub")
+    p = r.prompt("who signed the treaty", "The treaty was signed in 1848.")
+    assert p.startswith(PREFIX) and p.endswith(SUFFIX)
+    assert ("<Instruct>: Given a web search query, retrieve relevant passages that answer the query\n"
+            "<Query>: who signed the treaty\n<Document>: The treaty was signed in 1848.") in p
+    assert r.describe()["reranker"] == "qwen3_reranker" and r.max_length == 512
+
+
+def test_env_picks_each_methods_own_checkpoint(monkeypatch):
+    for v in ("RERANK_MODEL", "RERANK_MAX_LENGTH"):
+        monkeypatch.delenv(v, raising=False)
+    monkeypatch.setenv("RERANK_METHOD", "qwen3_reranker")
+    r = reranker_from_env()
+    assert isinstance(r, Qwen3Reranker) and r.model_id == "Qwen/Qwen3-Reranker-0.6B" and r.max_length == 512
+    monkeypatch.setenv("RERANK_METHOD", "cross_encoder")
+    assert reranker_from_env().model_id == "BAAI/bge-reranker-v2-m3"
+    monkeypatch.setenv("RERANK_MODEL", "/models/other")
+    monkeypatch.setenv("RERANK_MAX_LENGTH", "768")
+    r = reranker_from_env()
+    assert r.model_id == "/models/other" and r.max_length == 768
+
+
+def test_a_reranker_file_is_found_by_its_name(tmp_path, monkeypatch):
+    """A file dropped into the rerankers folder is selectable by name with no import anywhere."""
+    import agent_search.retrievers.rerankers as pkg
+    (tmp_path / "title_first.py").write_text(
+        "from agent_search.retrievers.rerankers.qwen3_reranker import Qwen3Reranker\n"
+        "from agent_search.retrievers.rerankers.base import register_reranker\n"
+        "@register_reranker\n"
+        "class TitleFirst(Qwen3Reranker):\n"
+        "    name = 'title_first'\n"
+        "    default_model = 'some/checkpoint'\n"
+        "    default_max_length = 1024\n")
+    monkeypatch.setattr(pkg, "__path__", list(pkg.__path__) + [str(tmp_path)])
+    for v in ("RERANK_MODEL", "RERANK_MAX_LENGTH"):
+        monkeypatch.delenv(v, raising=False)
+    monkeypatch.setenv("RERANK_METHOD", "title_first")
+    r = reranker_from_env()
+    assert type(r).__name__ == "TitleFirst" and r.model_id == "some/checkpoint" and r.max_length == 1024
+    with pytest.raises(ValueError):
+        build_reranker("no_such_file_either")
+
+
+def test_iter_reranked_search_uses_the_reranked_engine():
+    from agent_search.strategies.dedup import iter_reranked
+    search = iter_reranked.tools[0]
+    assert search.ranking == "reranked" and search.engines == ("reranked",) and search.dedup is False

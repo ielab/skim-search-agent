@@ -143,7 +143,7 @@ agent_search/
     lucene/        both query languages compiled to Lucene: compilers, engine, adapters
     fusion/        base.py (the Fusion contract) + rrf.py, interpolation.py: how rankings are combined
     hybrid.py      the hybrid engine and retriever: any retrievers the run names, fused by one method
-    rerankers/     base.py (the Reranker contract) + cross_encoder.py: how a candidate pool is reordered
+    rerankers/     base.py (the Reranker contract) + cross_encoder.py, qwen3_reranker.py: how a candidate pool is reordered
     reranked.py    the reranked engine and retriever: one retriever's pool, one reranker
     backend.py     which engine serves BQL and Indri: Lucene for documents, the in-memory executor for a code repository
     engines.py     the per-corpus engine registry the tools share

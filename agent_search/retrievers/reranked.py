@@ -4,8 +4,9 @@
 `hybrid`, `bql`, ...) for a pool of `pool` candidates, hands their texts to a `Reranker`
 (`agent_search.retrievers.rerankers`), and returns the reranked top `k`. The base, the
 reranker and the pool come from the run: `retrieval.rerank_base` (default `bm25`),
-`retrieval.rerank_method` (default `cross_encoder`), `retrieval.rerank_model` (the
-reranker's model id), `retrieval.rerank_pool` (default 100).
+`retrieval.rerank_method` (`cross_encoder` or `qwen3_reranker`; default `cross_encoder`),
+`retrieval.rerank_model` (the reranker's model id; null = the method's own checkpoint),
+`retrieval.rerank_pool` (default 100).
 
 `RerankedRetriever` is the same thing as a standalone retriever (`strategy=reranked`), for
 retrieval-only evaluation. The `search_reranked` tool uses the engine inside an agent.
@@ -17,7 +18,7 @@ from typing import Callable, Optional
 
 from agent_search.errors import SetupError
 from agent_search.retrievers.base import Retriever
-from agent_search.retrievers.rerankers import Reranker, build_reranker
+from agent_search.retrievers.rerankers import Reranker, build_reranker, reranker_class
 from agent_search.retrievers.rerankers.cross_encoder import DEFAULT_MODEL
 
 DEFAULT_BASE = "bm25"
@@ -34,14 +35,17 @@ def base_from_env() -> str:
 
 
 def reranker_from_env() -> Reranker:
-    """`RERANK_METHOD` (default `cross_encoder`) with its model (`RERANK_MODEL`), batch size
-    (`RERANK_BATCH_SIZE`) and pair length (`RERANK_MAX_LENGTH`)."""
+    """`RERANK_METHOD` (default `cross_encoder`) with its model (`RERANK_MODEL`, else the
+    method's `default_model`), batch size (`RERANK_BATCH_SIZE`) and pair length
+    (`RERANK_MAX_LENGTH`, else the method's `default_max_length`). A method that reads no
+    model (`default_model` None) is built with no parameters."""
     method = (os.environ.get("RERANK_METHOD") or DEFAULT_METHOD).strip().lower()
+    cls = reranker_class(method)
     params = {}
-    if method == "cross_encoder":
-        params = {"model": os.environ.get("RERANK_MODEL") or DEFAULT_MODEL,
+    if cls.default_model is not None:
+        params = {"model": os.environ.get("RERANK_MODEL") or cls.default_model,
                   "batch_size": int(os.environ.get("RERANK_BATCH_SIZE", "32")),
-                  "max_length": int(os.environ.get("RERANK_MAX_LENGTH", "512"))}
+                  "max_length": int(os.environ.get("RERANK_MAX_LENGTH") or cls.default_max_length)}
     return build_reranker(method, **params)
 
 

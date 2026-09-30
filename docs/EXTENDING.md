@@ -158,9 +158,15 @@ class TitleLength(Reranker):
 
 Then, in an experiment file: `retrieval.rerank_base: bm25` (any engine kind),
 `retrieval.rerank_method: title_length`, `retrieval.rerank_pool: 100`. The `reranked` floor and
-the `search_visit_reranked` strategy use them. The shipped method is `cross_encoder`
-(`retrieval.rerank_model`, default `BAAI/bge-reranker-v2-m3`). A reranker reads the documents
-during the run, so it costs a forward pass per candidate per search.
+the `search_visit_reranked` and `iter_reranked` strategies use them. Two methods ship:
+`cross_encoder` (a sequence-classification model, default `BAAI/bge-reranker-v2-m3`) and
+`qwen3_reranker` (the Qwen3-Reranker family: a causal model asked yes/no per pair, default
+`Qwen/Qwen3-Reranker-0.6B`). A class sets `default_model` and `default_max_length`, which
+`retrieval.rerank_model: null` and `rerank_max_length: null` fall back to. A file in
+`agent_search/retrievers/rerankers/` is found by its name without being imported anywhere,
+so a checkpoint that is not public can live in an untracked file next to the shipped ones.
+A reranker reads the documents during the run, so it costs a forward pass per candidate per
+search; the pool is scored in batches of `retrieval.rerank_batch_size` pairs.
 
 ## 3. A tool
 

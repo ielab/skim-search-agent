@@ -293,11 +293,11 @@ handles that for you.
 | `HYBRID_FUSION` | `rrf` | how a hybrid fuses them: `rrf` (ranks) or `interpolation` (min-max normalised scores) | `agent_search/retrievers/hybrid.py` |
 | `HYBRID_WEIGHTS` | equal | interpolation weights, comma-separated floats, one per retriever | `agent_search/retrievers/hybrid.py` |
 | `RERANK_BASE` | `bm25` | the retriever whose pool a reranker reorders (`bm25`, `dense`, `hybrid`, `bql`, `indri`) | `agent_search/retrievers/reranked.py` |
-| `RERANK_METHOD` | `cross_encoder` | the reranker (`agent_search/retrievers/rerankers/`, one file per method) | `agent_search/retrievers/reranked.py` |
-| `RERANK_MODEL` | `BAAI/bge-reranker-v2-m3` | the reranker model id or local directory | `agent_search/retrievers/rerankers/cross_encoder.py` |
+| `RERANK_METHOD` | `cross_encoder` | the reranker (`agent_search/retrievers/rerankers/`, one file per method): `cross_encoder` (a sequence-classification model), `qwen3_reranker` (the Qwen3-Reranker family, yes/no logits); a file added to that folder is selected by its name | `agent_search/retrievers/reranked.py` |
+| `RERANK_MODEL` | the method's own | the reranker model id or local directory; unset = `BAAI/bge-reranker-v2-m3` or `Qwen/Qwen3-Reranker-0.6B` by method | `agent_search/retrievers/reranked.py` |
 | `RERANK_POOL` | 100 | candidates taken from the base retriever before reranking | `agent_search/retrievers/reranked.py` |
 | `RERANK_BATCH_SIZE` | 32 | pairs scored per forward pass | `agent_search/retrievers/rerankers/cross_encoder.py` |
-| `RERANK_MAX_LENGTH` | 512 | tokens per (query, document) pair the reranker reads | `agent_search/retrievers/rerankers/cross_encoder.py` |
+| `RERANK_MAX_LENGTH` | the method's own (512) | tokens per (query, document) pair the reranker reads | `agent_search/retrievers/reranked.py` |
 | `RERANK_VISIT_TOPK` | 5 | results per search after reranking, `search_visit_reranked` (before import) | `agent_search/tools/budgets.py` |
 | `INDRI_DENSE` | 0 | attach the dense model to the Indri arm | `agent_search/retrievers/engines.py` |
 | `INDRI_DENSE_W` | 0.35 | weight of the dense score in Indri's ranking | `agent_search/retrievers/lucene/adapters.py` |

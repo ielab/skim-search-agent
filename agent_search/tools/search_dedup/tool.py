@@ -6,7 +6,9 @@ the rest. Documents that would have ranked in the top-k but were surfaced before
 under "Already-seen" so the agent can reopen them with `get_document`
 (`agent_search.tools.get_document`).
 
-`ranking="dense"` (default) queries the run's dense model; `ranking="bm25"` queries BM25.
+`ranking="dense"` (default) queries the run's dense model; `ranking="bm25"` queries BM25;
+`ranking="reranked"` takes the run's reranked engine (a pool from `RERANK_BASE`, reordered by
+`RERANK_METHOD`), so a reranker sits between the first stage and the listing.
 Result rendering follows ITER: ``DocID:<id>``, ``[<title>]``, then the passage cut to
 `DEDUP_SNIPPET_TOKENS` model tokens (ITER's runs: 64, by the served model's tokenizer; here
 the library's ruler). `snippet=` swaps the method.
@@ -38,7 +40,7 @@ class SearchDedup(Tool):
                                       "description": "Number of results to list (code search only; default 5)."}},
                   "required": ["query"]}
 
-    ranking: str = "dense"        # "dense" -> engines ("dense",); "bm25" -> engines ("bm25",)
+    ranking: str = "dense"        # "dense" -> engines ("dense",); "bm25" -> engines ("bm25",); "reranked" -> engines ("reranked",)
     pool_k: int = DEDUP_POOL_K
     top_k: int = DEDUP_TOPK
     # dedup=False is the standard top-k listing in ITER's result format (DocID, title, 64-token
@@ -62,7 +64,7 @@ class SearchDedup(Tool):
 
     def __init__(self, name: Optional[str] = None, **options):
         super().__init__(name=name, **options)
-        self.engines = ("bm25",) if self.ranking == "bm25" else ("dense",)
+        self.engines = {"bm25": ("bm25",), "reranked": ("reranked",)}.get(self.ranking, ("dense",))
         if self.ranking == "bm25":
             self.description, self.parameters = self.BM25_DESCRIPTION, self.BM25_PARAMETERS
         # The dedup notice is the tool's own manual, shown only when it de-duplicates; the task
@@ -72,6 +74,8 @@ class SearchDedup(Tool):
     def _retrieve(self, query: str, k: int):
         if self.ranking == "bm25":
             return self.engine["bm25"].search(query, k=k)
+        if self.ranking == "reranked":
+            return self.engine["reranked"].search(query, k=k) or []
         return self.engine["dense"].top_k_doc_ids(query, k=k) or []
 
     def run(self, args: dict) -> str:

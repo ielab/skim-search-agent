@@ -13,6 +13,7 @@ import os
 import threading
 from typing import Optional, Sequence
 
+from agent_search.retrievers.dense.base import encoder_prefix
 from agent_search.retrievers.rerankers.base import Candidate, Reranker, register_reranker
 
 DEFAULT_MODEL = "BAAI/bge-reranker-v2-m3"
@@ -28,6 +29,9 @@ def _shared_model(model_id: str, device: Optional[str], max_length: int):
         if m is None:
             from sentence_transformers import CrossEncoder  # heavy import, on first use
             m = CrossEncoder(model_id, max_length=max_length, device=device, trust_remote_code=True)
+            # the fast tokenizer is not thread-safe: two worker threads scoring at once fail with
+            # "Already borrowed". One lock per shared model; one GPU serves the pairs in order anyway.
+            m._agent_search_lock = threading.Lock()
             _MODELS[key] = m
     return m
 
@@ -35,6 +39,8 @@ def _shared_model(model_id: str, device: Optional[str], max_length: int):
 @register_reranker
 class CrossEncoderReranker(Reranker):
     name = "cross_encoder"
+    default_model = DEFAULT_MODEL
+    default_max_length = 512
 
     def __init__(self, model: str = DEFAULT_MODEL, batch_size: int = 32, max_length: int = 512,
                  device: Optional[str] = None):
@@ -54,8 +60,12 @@ class CrossEncoderReranker(Reranker):
         cands = [(d, t or "") for d, t in candidates]
         if not cands:
             return []
-        pairs = [(query, text) for _, text in cands]
-        scores = self._encoder().predict(pairs, batch_size=self.batch_size, show_progress_bar=False)
+        enc = self._encoder()
+        with enc._agent_search_lock:
+            # a candidate is a whole page; cut it to the pair length before the tokenizer reads it
+            tok = getattr(enc, "tokenizer", None)
+            pairs = [(query, encoder_prefix(text, tok, self.max_length)) for _, text in cands]
+            scores = enc.predict(pairs, batch_size=self.batch_size, show_progress_bar=False)
         ranked = sorted(zip((d for d, _ in cands), (float(s) for s in scores)),
                         key=lambda x: (-x[1], x[0]))
         return ranked[:k] if k is not None else ranked

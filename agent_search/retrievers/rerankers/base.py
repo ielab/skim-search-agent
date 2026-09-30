@@ -6,6 +6,11 @@ package, and `register_reranker` makes one selectable by name (`retrieval.rerank
 The composition that turns "a retriever plus a reranker" into an engine is
 `agent_search/retrievers/reranked.py`.
 
+A method not imported by the package is found by name: `build_reranker("x")` imports
+`agent_search.retrievers.rerankers.x` and uses what it registers. A reranker file dropped into
+this folder (a checkpoint that is not public yet, say) is selectable without a line changed
+anywhere else.
+
 A reranker scores online: the pairs are read by the model during the run. That is the point
 of reranking and is unlike document embeddings, which are always built ahead of a run.
 """
@@ -20,6 +25,8 @@ Candidate = tuple[str, str]        # (doc_id, text)
 
 class Reranker:
     name: str = ""
+    default_model: Optional[str] = None     # the checkpoint `retrieval.rerank_model: null` loads
+    default_max_length: int = 512           # tokens per pair when `retrieval.rerank_max_length` is null
 
     def rerank(self, query: str, candidates: Sequence[Candidate],
                k: Optional[int] = None) -> list[tuple[str, float]]:
@@ -36,14 +43,25 @@ def register_reranker(cls: type) -> type:
     return cls
 
 
-def build_reranker(name: str, **params) -> Reranker:
-    """A reranker by name. Unknown names and parameters are errors, so a typo in an experiment
+def reranker_class(name: str) -> type:
+    """The registered class for `name`, importing `agent_search.retrievers.rerankers.<name>`
+    first when nothing registered it yet. Unknown names are errors, so a typo in an experiment
     file cannot silently fall back to a default."""
+    if name not in RERANKERS:
+        import importlib
+        try:
+            importlib.import_module(f"agent_search.retrievers.rerankers.{name}")
+        except ModuleNotFoundError:
+            pass
     try:
-        cls = RERANKERS[name]
+        return RERANKERS[name]
     except KeyError:
         raise ValueError(f"unknown reranker {name!r}; choose from {sorted(RERANKERS)}") from None
-    return cls(**params)
 
 
-__all__ = ["Reranker", "RERANKERS", "register_reranker", "build_reranker", "Candidate"]
+def build_reranker(name: str, **params) -> Reranker:
+    """A reranker by name (`reranker_class`). Unknown parameters are errors."""
+    return reranker_class(name)(**params)
+
+
+__all__ = ["Reranker", "RERANKERS", "register_reranker", "reranker_class", "build_reranker", "Candidate"]
