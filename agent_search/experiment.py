@@ -129,6 +129,13 @@ SCHEMA: dict[str, dict[str, Key]] = {
         "rerank_pool": Key(100, "env", "RERANK_POOL", "candidates taken from the base retriever before reranking"),
         "rerank_batch_size": Key(32, "env", "RERANK_BATCH_SIZE", "pairs scored per forward pass"),
         "rerank_max_length": Key(None, "env", "RERANK_MAX_LENGTH", "tokens per (query, document) pair the reranker reads (null = the method's own, 512 for both shipped methods)"),
+        "splade_model": Key("naver/splade-cocondenser-ensembledistil", "env", "SPLADE_MODEL", "the SPLADE checkpoint behind the iter_splade search (a masked-LM head; agent_search/retrievers/learned/splade.py)"),
+        "splade_doc_length": Key(512, "env", "SPLADE_DOC_LENGTH", "tokens of each page SPLADE reads when the index is built"),
+        "splade_query_length": Key(256, "env", "SPLADE_QUERY_LENGTH", "tokens of a query SPLADE reads"),
+        "colbert_model": Key("colbert-ir/colbertv2.0", "env", "COLBERT_MODEL", "the ColBERT checkpoint behind the iter_colbert search (agent_search/retrievers/learned/colbert.py)"),
+        "colbert_doc_length": Key(180, "env", "COLBERT_DOC_LENGTH", "tokens of each page ColBERT indexes (ColBERTv2 trained at 180)"),
+        "colbert_query_length": Key(32, "env", "COLBERT_QUERY_LENGTH", "query tokens ColBERT scores, padded with [MASK] (ColBERTv2: 32)"),
+        "colbert_store_device": Key("auto", "env", "COLBERT_STORE_DEVICE", "where the page-token vectors sit at search time: auto (the GPU when they fit) | cuda | cpu"),
         "indri_dense": Key(False, "env", "INDRI_DENSE", "attach the dense belief to the Indri arm"),
         "indri_dense_w": Key(0.35, "env", "INDRI_DENSE_W", "Indri dense belief weight"),
         "indri_dense_expand_k": Key(50, "env", "INDRI_DENSE_EXPAND_K", "Indri dense pool expansion"),
@@ -211,7 +218,7 @@ _DOC_AGENTS = {"search_visit", "search_visit_dense", "search_visit_hybrid", "sea
                "sieve", "sieve_bm25", "sieve_dense", "sieve_nosnip", "sieve_plain", "sieve_v2",
                "sieve_visit", "sieve_visit_fused", "sieve_visit_dense",
                "indri", "indri_plain", "indri_visit", "dedup_bm25", "dedup_dense", "iter_bm25", "iter_dense", "iter_reranked",
-               "plan_and_search", "plan_and_search_visit"}
+               "iter_splade", "iter_colbert", "plan_and_search", "plan_and_search_visit"}
 _CODE_AGENTS = {"codefix", "codefix_grep", "codefix_patch"}
 _RAG = {"rag_bm25", "rag_dense", "rag_hybrid"}          # one model call, no loop
 _TEAMS = {"plan_and_search", "plan_and_search_visit"}  # procedures whose members are agents
@@ -228,7 +235,8 @@ _HYBRID = {"search_visit_hybrid", "search_fetch_hybrid", "autoread_hybrid", "rag
 _RERANK = {"search_visit_reranked", "reranked", "iter_reranked"}
 _VISIT = {"search_visit", "search_visit_dense", "search_visit_hybrid", "search_visit_snippets", "search_visit_reranked", "plan_and_search_visit", "autoread",
           "autoread_dense", "autoread_hybrid", "sieve_visit", "sieve_visit_fused", "sieve_visit_dense",
-          "indri_visit", "dedup_bm25", "dedup_dense", "iter_bm25", "iter_dense", "iter_reranked"}
+          "indri_visit", "dedup_bm25", "dedup_dense", "iter_bm25", "iter_dense", "iter_reranked",
+          "iter_splade", "iter_colbert"}
 _FETCH = {"search_fetch", "search_fetch_dense", "search_fetch_hybrid", "search_fetch_bm25_plain",
           "search_fetch_dense_plain", "sieve", "sieve_bm25", "sieve_dense", "sieve_nosnip", "sieve_plain",
           "sieve_v2", "indri", "indri_plain", "plan_and_search"}
@@ -240,7 +248,8 @@ APPLIES: dict[str, set] = {
     "model.reasoning_effort": _MODEL_USERS, "model.timeout_s": _MODEL_USERS, "model.retry_attempts": _MODEL_USERS,
     "agent.max_steps": _AGENTS, "agent.forced_answer_tokens": _AGENTS, "agent.forced_answer_prefill": _AGENTS, "agent.forced_answer_nudge": _AGENTS, "agent.prompt_profile": _AGENTS, "agent.ctx_tokens": _AGENTS | _RAG,
     "agent.ctx_window": _AGENTS, "agent.ctx_stop_frac": _AGENTS,
-    "budgets.snippet_tokens": _DOC_AGENTS - {"dci", "dedup_bm25", "dedup_dense", "iter_bm25", "iter_dense", "iter_reranked"},
+    "budgets.snippet_tokens": _DOC_AGENTS - {"dci", "dedup_bm25", "dedup_dense", "iter_bm25", "iter_dense", "iter_reranked",
+                                             "iter_splade", "iter_colbert"},
     "budgets.max_visit_tokens": _VISIT,
     "budgets.max_section_tokens": _FETCH,
     "budgets.bash_max_tokens": {"dci", "bounded_dci"}, "budgets.read_max_line_tokens": {"dci", "bounded_dci"},
@@ -254,10 +263,14 @@ APPLIES: dict[str, set] = {
     "listing.rerank_visit_topk": {"search_visit_reranked"}, "listing.rerank_fetch_topk": set(),
     "retrieval.rerank_base": _RERANK, "retrieval.rerank_method": _RERANK, "retrieval.rerank_model": _RERANK,
     "retrieval.rerank_pool": _RERANK, "retrieval.rerank_batch_size": _RERANK, "retrieval.rerank_max_length": _RERANK,
+    "retrieval.splade_model": {"iter_splade"}, "retrieval.splade_doc_length": {"iter_splade"},
+    "retrieval.splade_query_length": {"iter_splade"},
+    "retrieval.colbert_model": {"iter_colbert"}, "retrieval.colbert_doc_length": {"iter_colbert"},
+    "retrieval.colbert_query_length": {"iter_colbert"}, "retrieval.colbert_store_device": {"iter_colbert"},
     "listing.hybrid_pool": _HYBRID, "listing.autoread_topk": {"autoread", "autoread_dense", "autoread_hybrid"},
     "listing.bm25_dci_topk": {"bounded_dci"},
-    "listing.dedup_snippet_tokens": {"dedup_bm25", "dedup_dense", "iter_bm25", "iter_dense", "iter_reranked"},
-    "listing.dedup_topk": {"dedup_bm25", "dedup_dense", "iter_bm25", "iter_dense", "iter_reranked"}, "listing.dedup_pool_k": {"dedup_bm25", "dedup_dense", "iter_bm25", "iter_dense", "iter_reranked"},
+    "listing.dedup_snippet_tokens": {"dedup_bm25", "dedup_dense", "iter_bm25", "iter_dense", "iter_reranked", "iter_splade", "iter_colbert"},
+    "listing.dedup_topk": {"dedup_bm25", "dedup_dense", "iter_bm25", "iter_dense", "iter_reranked", "iter_splade", "iter_colbert"}, "listing.dedup_pool_k": {"dedup_bm25", "dedup_dense", "iter_bm25", "iter_dense", "iter_reranked", "iter_splade", "iter_colbert"},
     "retrieval.dense_model": _DENSE, "retrieval.dense_query_style": _DENSE,
     "retrieval.dense_query_instruction": _DENSE, "retrieval.dense_pooling": _DENSE, "retrieval.dense_dtype": _DENSE, "retrieval.dense_seq_length": _DENSE, "retrieval.dense_query_seq_length": _DENSE,
     "retrieval.dense_index": _DENSE, "retrieval.ann_ef_search": _DENSE, "retrieval.bm25_index": _BM25_USERS,

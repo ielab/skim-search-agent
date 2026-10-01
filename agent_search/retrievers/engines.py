@@ -3,7 +3,8 @@
 `Engines(units, key, ...)` hands out the BM25 engine, the dense engine (`DenseBelief`), the BQL
 executor in its three rankings (plain BM25, fused with the dense model, dense only), the Indri
 executor, the hybrid engine (several of the others fused, `agent_search.retrievers.hybrid`) and
-the reranked engine (one of the others, reordered by a reranker, `agent_search.retrievers.reranked`).
+the reranked engine (one of the others, reordered by a reranker, `agent_search.retrievers.reranked`),
+and the learned engines SPLADE and ColBERT (`agent_search.retrievers.learned`).
 Each is built on first request under a lock, so concurrent episodes never load the same index
 twice, and persisted under `index_root` keyed by the corpus. Document corpora rank on Lucene
 only; `domain="code"` selects the in-memory Boolean executor for a repository
@@ -34,7 +35,8 @@ class Engines:
     def get(self, kind: str):
         builders = {"bm25": self.bm25, "dense": self.dense, "bql": self.bql, "bql_fused": self.bql_fused,
                     "bql_dense": self.bql_dense_only, "bql_plain": self.bql_plain, "indri": self.indri,
-                    "hybrid": self.hybrid, "reranked": self.reranked}
+                    "hybrid": self.hybrid, "reranked": self.reranked, "splade": self.splade,
+                    "colbert": self.colbert}
         if kind not in builders:
             raise ValueError(f"unknown engine kind {kind!r}; choose from {sorted(builders)}")
         return builders[kind]()
@@ -147,6 +149,27 @@ class Engines:
                     components[n] = self._built[n]
                 self._built["hybrid"] = HybridEngine(components, fusion_from_env(), pool_from_env())
         return self._built["hybrid"]
+
+    def splade(self):
+        """SPLADE over the corpus (`agent_search.retrievers.learned.splade`), from its persisted index."""
+        return self._learned("splade")
+
+    def colbert(self):
+        """ColBERT over the corpus (`agent_search.retrievers.learned.colbert`), from its persisted index."""
+        return self._learned("colbert")
+
+    def _learned(self, kind: str):
+        with self._lock:
+            if kind not in self._built:
+                from agent_search.retrievers.learned import ColbertRetriever, SpladeRetriever
+                r = {"splade": SpladeRetriever, "colbert": ColbertRetriever}[kind](index_root=self.index_root)
+                if not self.rebuild and not r.is_cached(self.key):
+                    raise SetupError(
+                        f"no persisted {kind} index for corpus key {self.key!r} at {r._cache_dir(self.key)!r}; "
+                        f"build it with: skimsearchagent-build-indexes --retriever {kind} ... "
+                        f"(pages are never encoded online during a run)")
+                self._built[kind] = r.index(self.units, key=self.key)
+        return self._built[kind]
 
     def reranked(self):
         """The reranked engine: the base retriever the run names (`RERANK_BASE`, default `bm25`)

@@ -11,7 +11,8 @@ Every variant names its search tool `search`, as DIVER and the family task promp
 ranks behind it, so a BM25 cell differs from a dense one only in the retriever.
 `iter_reranked` is `iter_dense` with the listing reordered by the run's reranker
 (`retrieval.rerank_method`, `rerank_model`, `rerank_pool`; `agent_search/retrievers/reranked.py`),
-the pool coming from the run's dense model.
+the pool coming from the run's dense model. `iter_splade` and `iter_colbert` put SPLADE and ColBERT
+(`agent_search.retrievers.learned`) behind the same tool.
 """
 from agent_search.strategies.base import Strategy, register_strategy
 from agent_search.tools.get_document.tool import GetDocument
@@ -41,3 +42,14 @@ iter_reranked = register_strategy(Strategy(
     name="iter_reranked", toolset_name="iter_reranked",
     description="ITER's evaluation tools with a reranker: the dense pool reordered by the run's reranker, top-10 in ITER's format, then get_document",
     tools=(SearchDedup(name="search", ranking="reranked", dedup=False), GetDocument(name="get_document", aliases=("visit",)))))
+
+iter_splade = register_strategy(Strategy(
+    name="iter_splade", toolset_name="iter_splade",
+    description="ITER's evaluation tools with SPLADE: standard top-10 learned-sparse search in ITER's format, then get_document",
+    tools=(SearchDedup(name="search", ranking="splade", dedup=False), GetDocument(name="get_document", aliases=("visit",)))))
+
+iter_colbert = register_strategy(Strategy(
+    name="iter_colbert", toolset_name="iter_colbert",
+    description="ITER's evaluation tools with ColBERT: standard top-10 late-interaction search in ITER's format, then get_document",
+    tools=(SearchDedup(name="search", ranking="colbert", dedup=False), GetDocument(name="get_document", aliases=("visit",)))))
+

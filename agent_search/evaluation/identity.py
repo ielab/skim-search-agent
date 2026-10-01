@@ -130,6 +130,13 @@ def _resolve_env_knobs() -> dict:
     knobs["RERANK_MODEL"] = _os.environ.get("RERANK_MODEL") or None     # None = the method's own checkpoint
     knobs["RERANK_MAX_LENGTH"] = _os.environ.get("RERANK_MAX_LENGTH") or None
     knobs["RERANK_POOL"] = int(_os.environ.get("RERANK_POOL", "100"))
+    # agent_search/retrievers/learned: the SPLADE and ColBERT checkpoints and the lengths they read
+    knobs["SPLADE_MODEL"] = _os.environ.get("SPLADE_MODEL") or None
+    knobs["SPLADE_DOC_LENGTH"] = _os.environ.get("SPLADE_DOC_LENGTH") or None
+    knobs["SPLADE_QUERY_LENGTH"] = _os.environ.get("SPLADE_QUERY_LENGTH") or None
+    knobs["COLBERT_MODEL"] = _os.environ.get("COLBERT_MODEL") or None
+    knobs["COLBERT_DOC_LENGTH"] = _os.environ.get("COLBERT_DOC_LENGTH") or None
+    knobs["COLBERT_QUERY_LENGTH"] = _os.environ.get("COLBERT_QUERY_LENGTH") or None
     try:
         from agent_search.retrievers.bql.dense_fuse import bql_dense_enabled, RRF_K
         knobs["BQL_DENSE"] = bql_dense_enabled()

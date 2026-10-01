@@ -299,6 +299,13 @@ handles that for you.
 | `RERANK_BATCH_SIZE` | 32 | pairs scored per forward pass | `agent_search/retrievers/rerankers/cross_encoder.py` |
 | `RERANK_MAX_LENGTH` | the method's own (512) | tokens per (query, document) pair the reranker reads | `agent_search/retrievers/reranked.py` |
 | `RERANK_VISIT_TOPK` | 5 | results per search after reranking, `search_visit_reranked` (before import) | `agent_search/tools/budgets.py` |
+| `SPLADE_MODEL` | `naver/splade-cocondenser-ensembledistil` | the SPLADE checkpoint behind `iter_splade` | `agent_search/retrievers/learned/splade.py` |
+| `SPLADE_DOC_LENGTH` | 512 | page tokens SPLADE reads when the index is built (part of the index key) | `agent_search/retrievers/learned/splade.py` |
+| `SPLADE_QUERY_LENGTH` | 256 | query tokens SPLADE reads | `agent_search/retrievers/learned/splade.py` |
+| `COLBERT_MODEL` | `colbert-ir/colbertv2.0` | the ColBERT checkpoint behind `iter_colbert` | `agent_search/retrievers/learned/colbert.py` |
+| `COLBERT_DOC_LENGTH` | 180 | page tokens ColBERT indexes (ColBERTv2's training length; part of the index key) | `agent_search/retrievers/learned/colbert.py` |
+| `COLBERT_QUERY_LENGTH` | 32 | query tokens ColBERT scores, padded with `[MASK]` | `agent_search/retrievers/learned/colbert.py` |
+| `COLBERT_STORE_DEVICE` | `auto` | where the page-token vectors sit at search time: the GPU when they fit, else CPU memory | `agent_search/retrievers/learned/colbert.py` |
 | `INDRI_DENSE` | 0 | attach the dense model to the Indri arm | `agent_search/retrievers/engines.py` |
 | `INDRI_DENSE_W` | 0.35 | weight of the dense score in Indri's ranking | `agent_search/retrievers/lucene/adapters.py` |
 | `INDRI_DENSE_EXPAND_K` | 50 | hits Lucene returns for the dense rerank pool of Indri | `agent_search/retrievers/lucene/adapters.py` |

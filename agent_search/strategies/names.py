@@ -44,6 +44,9 @@ STRATEGIES: dict[str, str] = {
     "iter_dense_strong": "agent_research_iter_dense_strong",
     # ITER's tools with a reranked listing: the dense pool reordered by RERANK_METHOD
     "iter_reranked": "agent_research_iter_reranked",
+    # ITER's tools with a learned index behind `search`: SPLADE (sparse) and ColBERT (late interaction)
+    "iter_splade": "agent_research_iter_splade",
+    "iter_colbert": "agent_research_iter_colbert",
     # code-localization arm (SWE-bench-style repositories; dataset=code_fixture, swebench_*)
     "codefix": "agent_codefix",
     "codefix_grep": "agent_codefix_grep",

@@ -30,7 +30,7 @@ def prebuildable_for(retriever: str, dataset: Optional[str] = None) -> list[str]
     (`dataset` in the code domain) needs no structured index: its Boolean executor is in
     memory. The grep ranker is in memory too and needs nothing."""
     code = dataset is not None and dataset_domain(dataset) == "code"
-    if retriever in ("dense", "bm25_pyserini", "search_lucene"):
+    if retriever in ("dense", "bm25_pyserini", "search_lucene", "splade", "colbert"):
         return [retriever]
     if retriever == "bql":
         return [] if code else ["search_lucene"]
@@ -55,6 +55,7 @@ def prebuildable_for(retriever: str, dataset: Optional[str] = None) -> list[str]
             kinds.append("search_lucene")
         if "bm25" in engines:
             kinds.append("bm25_pyserini")
+        kinds += sorted(engines & {"splade", "colbert"})
         return kinds
     return []
 
@@ -90,6 +91,12 @@ def build(instances, index_root="indexes", rebuild=False, cache_dir="data/repos"
         from agent_search.retrievers.dense import DenseRetriever
         make_retriever = lambda: DenseRetriever(model or "nomic-ai/CodeRankEmbed",
                                                 index_root=index_root, rebuild=rebuild)
+    elif retriever == "splade":
+        from agent_search.retrievers.learned import SpladeRetriever
+        make_retriever = lambda: SpladeRetriever(model, index_root=index_root, rebuild=rebuild)
+    elif retriever == "colbert":
+        from agent_search.retrievers.learned import ColbertRetriever
+        make_retriever = lambda: ColbertRetriever(model, index_root=index_root, rebuild=rebuild)
     elif retriever == "search_lucene":
         from agent_search.retrievers.lucene.index_builder import LuceneIndexBuilder
         make_retriever = lambda: LuceneIndexBuilder(index_root=index_root, rebuild=rebuild)
@@ -136,10 +143,10 @@ def main() -> None:
     ap.add_argument("--repo-cache", default="data/repos",
                     help="pre-staged repo clones (default: data/repos)")
     ap.add_argument("--retriever", default="bm25_pyserini",
-                    choices=["bm25_pyserini", "dense", "search_lucene"],
+                    choices=["bm25_pyserini", "dense", "search_lucene", "splade", "colbert"],
                     help="which persistent index to pre-build")
     ap.add_argument("--model", default=None,
-                    help="dense model id (only for --retriever dense)")
+                    help="model id for --retriever dense, splade or colbert (null = the retriever's default)")
     ap.add_argument("--limit", type=int, default=None, help="cap #instances")
     ap.add_argument("--corpus-limit", type=int, default=None,
                     help="cap fixed-corpus documents for shared document datasets; "
@@ -154,10 +161,12 @@ def main() -> None:
     # The dense embedder must match what run_eval will later load (same model -> same
     # cache key), so default it from the dataset's domain exactly as the eval does.
     from agent_search.evaluation.datasets import dataset_domain, default_dense_model
-    model = args.model or default_dense_model(dataset_domain(args.dataset))
+    # only a dense build falls back to the dataset's dense model; SPLADE and ColBERT keep their own
+    # default checkpoint (a bge-base handed to them loads without the head they need)
+    model = args.model or (default_dense_model(dataset_domain(args.dataset)) if args.retriever == "dense" else None)
     n_unique = len(unique_corpora(instances))
     print(f"{args.dataset}: {len(instances)} instances -> {n_unique} unique corpora "
-          f"(shard {args.shard}/{args.nshards}); dense model: {model}")
+          f"(shard {args.shard}/{args.nshards}); model: {model or 'the retriever default'}")
     res = build(instances, index_root=args.index_root, rebuild=args.rebuild,
                 cache_dir=args.repo_cache, shard=args.shard, nshards=args.nshards,
                 retriever=args.retriever, model=model)

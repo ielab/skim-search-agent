@@ -35,13 +35,19 @@ if command -v module >/dev/null 2>&1; then
 fi
 export HF_HOME="${HF_HOME:-$HOME/.cache/huggingface}"
 export HF_HUB_OFFLINE=1
-EMBED_MODEL="${EMBED_MODEL:?set EMBED_MODEL, e.g. Qwen/Qwen3-Embedding-0.6B}"
+# RETRIEVER: dense (default), splade or colbert. SPLADE and ColBERT take their model from
+# EMBED_MODEL too (unset = their defaults) and their page length from SPLADE_DOC_LENGTH /
+# COLBERT_DOC_LENGTH, the same knobs a run reads to find the index.
+RETRIEVER="${RETRIEVER:-dense}"
+if [ "$RETRIEVER" = "dense" ]; then
+  EMBED_MODEL="${EMBED_MODEL:?set EMBED_MODEL, e.g. Qwen/Qwen3-Embedding-0.6B}"
+fi
 DATASET="${DATASET:-browsecomp_plus_structured_full}"
-echo ">> building dense cache: $EMBED_MODEL over $DATASET (seq_length=${DENSE_SEQ_LENGTH:-default})"
+echo ">> building $RETRIEVER index: ${EMBED_MODEL:-default model} over $DATASET"
 # the project env when submitted from the main checkout; otherwise the python on PATH (a worktree
 # has no envs/; the cluster env exported into the job carries torch and transformers)
 PY=./envs/bin/python; [ -x "$PY" ] || PY="$(command -v python)"
 PYTHONPATH=. "$PY" -m agent_search.evaluation.build_indexes \
-  --dataset "$DATASET" --retriever dense \
-  --index-root indexes --model "$EMBED_MODEL"
+  --dataset "$DATASET" --retriever "$RETRIEVER" \
+  --index-root indexes ${EMBED_MODEL:+--model "$EMBED_MODEL"}
 echo ">> done"
