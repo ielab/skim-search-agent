@@ -158,10 +158,11 @@ class TitleLength(Reranker):
 
 Then, in an experiment file: `retrieval.rerank_base: bm25` (any engine kind),
 `retrieval.rerank_method: title_length`, `retrieval.rerank_pool: 100`. The `reranked` floor and
-the `search_visit_reranked` and `iter_reranked` strategies use them. Two methods ship:
-`cross_encoder` (a sequence-classification model, default `BAAI/bge-reranker-v2-m3`) and
+the `search_visit_reranked` and `iter_reranked` strategies use them. Three methods ship:
+`cross_encoder` (a sequence-classification model, default `BAAI/bge-reranker-v2-m3`),
 `qwen3_reranker` (the Qwen3-Reranker family: a causal model asked yes/no per pair, default
-`Qwen/Qwen3-Reranker-0.6B`). A class sets `default_model` and `default_max_length`, which
+`Qwen/Qwen3-Reranker-0.6B`) and `monot5` (a T5 model answering true/false, default
+`castorini/monot5-3b-msmarco-10k`). A class sets `default_model` and `default_max_length`, which
 `retrieval.rerank_model: null` and `rerank_max_length: null` fall back to. A file in
 `agent_search/retrievers/rerankers/` is found by its name without being imported anywhere,
 so a checkpoint that is not public can live in an untracked file next to the shipped ones.

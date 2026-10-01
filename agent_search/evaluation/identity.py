@@ -137,6 +137,11 @@ def _resolve_env_knobs() -> dict:
     knobs["COLBERT_MODEL"] = _os.environ.get("COLBERT_MODEL") or None
     knobs["COLBERT_DOC_LENGTH"] = _os.environ.get("COLBERT_DOC_LENGTH") or None
     knobs["COLBERT_QUERY_LENGTH"] = _os.environ.get("COLBERT_QUERY_LENGTH") or None
+    knobs["DIFFRETRIEVER_MODEL"] = _os.environ.get("DIFFRETRIEVER_MODEL") or None
+    knobs["DIFFRETRIEVER_DOC_LENGTH"] = _os.environ.get("DIFFRETRIEVER_DOC_LENGTH") or None
+    # recorded only when it is not the dense default, so a dense run's record is what it was
+    if (_os.environ.get("DIFFRETRIEVER_MODE") or "dense") != "dense":
+        knobs["DIFFRETRIEVER_MODE"] = _os.environ["DIFFRETRIEVER_MODE"]
     try:
         from agent_search.retrievers.bql.dense_fuse import bql_dense_enabled, RRF_K
         knobs["BQL_DENSE"] = bql_dense_enabled()

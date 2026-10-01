@@ -36,7 +36,7 @@ class Engines:
         builders = {"bm25": self.bm25, "dense": self.dense, "bql": self.bql, "bql_fused": self.bql_fused,
                     "bql_dense": self.bql_dense_only, "bql_plain": self.bql_plain, "indri": self.indri,
                     "hybrid": self.hybrid, "reranked": self.reranked, "splade": self.splade,
-                    "colbert": self.colbert}
+                    "colbert": self.colbert, "diffretriever": self.diffretriever}
         if kind not in builders:
             raise ValueError(f"unknown engine kind {kind!r}; choose from {sorted(builders)}")
         return builders[kind]()
@@ -158,11 +158,17 @@ class Engines:
         """ColBERT over the corpus (`agent_search.retrievers.learned.colbert`), from its persisted index."""
         return self._learned("colbert")
 
+    def diffretriever(self):
+        """DiffRetriever over the corpus (`agent_search.retrievers.learned.diffretriever`), from its
+        persisted index; queries go to the encoding server at `DIFFRETRIEVER_URL`."""
+        return self._learned("diffretriever")
+
     def _learned(self, kind: str):
         with self._lock:
             if kind not in self._built:
-                from agent_search.retrievers.learned import ColbertRetriever, SpladeRetriever
-                r = {"splade": SpladeRetriever, "colbert": ColbertRetriever}[kind](index_root=self.index_root)
+                from agent_search.retrievers.learned import ColbertRetriever, DiffRetrieverRetriever, SpladeRetriever
+                r = {"splade": SpladeRetriever, "colbert": ColbertRetriever,
+                     "diffretriever": DiffRetrieverRetriever}[kind](index_root=self.index_root)
                 if not self.rebuild and not r.is_cached(self.key):
                     raise SetupError(
                         f"no persisted {kind} index for corpus key {self.key!r} at {r._cache_dir(self.key)!r}; "

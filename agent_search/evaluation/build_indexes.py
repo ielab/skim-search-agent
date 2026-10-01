@@ -30,7 +30,7 @@ def prebuildable_for(retriever: str, dataset: Optional[str] = None) -> list[str]
     (`dataset` in the code domain) needs no structured index: its Boolean executor is in
     memory. The grep ranker is in memory too and needs nothing."""
     code = dataset is not None and dataset_domain(dataset) == "code"
-    if retriever in ("dense", "bm25_pyserini", "search_lucene", "splade", "colbert"):
+    if retriever in ("dense", "bm25_pyserini", "search_lucene", "splade", "colbert", "diffretriever"):
         return [retriever]
     if retriever == "bql":
         return [] if code else ["search_lucene"]
@@ -55,7 +55,7 @@ def prebuildable_for(retriever: str, dataset: Optional[str] = None) -> list[str]
             kinds.append("search_lucene")
         if "bm25" in engines:
             kinds.append("bm25_pyserini")
-        kinds += sorted(engines & {"splade", "colbert"})
+        kinds += sorted(engines & {"splade", "colbert", "diffretriever"})
         return kinds
     return []
 
@@ -97,6 +97,9 @@ def build(instances, index_root="indexes", rebuild=False, cache_dir="data/repos"
     elif retriever == "colbert":
         from agent_search.retrievers.learned import ColbertRetriever
         make_retriever = lambda: ColbertRetriever(model, index_root=index_root, rebuild=rebuild)
+    elif retriever == "diffretriever":
+        from agent_search.retrievers.learned import DiffRetrieverRetriever
+        make_retriever = lambda: DiffRetrieverRetriever(model, index_root=index_root, rebuild=rebuild)
     elif retriever == "search_lucene":
         from agent_search.retrievers.lucene.index_builder import LuceneIndexBuilder
         make_retriever = lambda: LuceneIndexBuilder(index_root=index_root, rebuild=rebuild)
@@ -143,7 +146,7 @@ def main() -> None:
     ap.add_argument("--repo-cache", default="data/repos",
                     help="pre-staged repo clones (default: data/repos)")
     ap.add_argument("--retriever", default="bm25_pyserini",
-                    choices=["bm25_pyserini", "dense", "search_lucene", "splade", "colbert"],
+                    choices=["bm25_pyserini", "dense", "search_lucene", "splade", "colbert", "diffretriever"],
                     help="which persistent index to pre-build")
     ap.add_argument("--model", default=None,
                     help="model id for --retriever dense, splade or colbert (null = the retriever's default)")

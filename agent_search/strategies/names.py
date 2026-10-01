@@ -47,6 +47,7 @@ STRATEGIES: dict[str, str] = {
     # ITER's tools with a learned index behind `search`: SPLADE (sparse) and ColBERT (late interaction)
     "iter_splade": "agent_research_iter_splade",
     "iter_colbert": "agent_research_iter_colbert",
+    "iter_diffretriever": "agent_research_iter_diffretriever",
     # code-localization arm (SWE-bench-style repositories; dataset=code_fixture, swebench_*)
     "codefix": "agent_codefix",
     "codefix_grep": "agent_codefix_grep",

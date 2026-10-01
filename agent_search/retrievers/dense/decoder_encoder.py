@@ -18,7 +18,7 @@ from typing import Optional
 class DecoderEncoder:
     def __init__(self, path: str, *, pooling: str = "last_token", normalize: bool = True,
                  max_seq_length: int = 512, device: Optional[str] = None, torch_dtype=None,
-                 batch_size: int = 32):
+                 batch_size: int = 32, append_eos: bool = False):
         if pooling not in ("last_token", "mean", "cls"):
             raise ValueError(f"unknown pooling {pooling!r}; choose last_token, mean or cls")
         import torch                                    # retrieval extra; checked after the cheap validation
@@ -27,6 +27,9 @@ class DecoderEncoder:
         self.normalize = normalize
         self.max_seq_length = int(max_seq_length)
         self.batch_size = batch_size
+        # append_eos: the tokenizer does not end a text with its end token (Llama-2's adds only <s>),
+        # so cut the text one short and append it, so truncation never drops the pooled token
+        self.append_eos = bool(append_eos)
         self.tokenizer = AutoTokenizer.from_pretrained(path, trust_remote_code=True)
         self.tokenizer.padding_side = "left"
         if self.tokenizer.pad_token is None:
@@ -49,6 +52,15 @@ class DecoderEncoder:
         m = mask.unsqueeze(-1).to(hidden.dtype)
         return (hidden * m).sum(1) / m.sum(1).clamp(min=1)
 
+    def _batch(self, texts):
+        if not self.append_eos:
+            return self.tokenizer(texts, max_length=self.max_seq_length, truncation=True,
+                                  padding=True, return_tensors="pt").to(self._device)
+        eos = self.tokenizer.eos_token_id
+        ids = self.tokenizer(texts, max_length=self.max_seq_length - 1, truncation=True, padding=False)["input_ids"]
+        return self.tokenizer.pad({"input_ids": [x + [eos] for x in ids]}, padding=True,
+                                  return_tensors="pt").to(self._device)
+
     def encode(self, texts, batch_size: Optional[int] = None, convert_to_tensor: bool = False,
                normalize_embeddings: bool = True, show_progress_bar: bool = False, **_ignored):
         import torch
@@ -64,8 +76,7 @@ class DecoderEncoder:
             except ImportError:
                 pass
         for i in rng:
-            batch = self.tokenizer(texts[i:i + bs], max_length=self.max_seq_length, truncation=True,
-                                   padding=True, return_tensors="pt").to(self._device)
+            batch = self._batch(texts[i:i + bs])
             with torch.no_grad():
                 hidden = self.model(**batch).last_hidden_state
             vec = self._pool(hidden, batch["attention_mask"])

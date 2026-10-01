@@ -24,6 +24,7 @@ condition("research_iter_dense", "research_tongyi", "iter_dense")            # t
 condition("research_iter_bm25", "research_tongyi", "iter_bm25")
 condition("research_iter_splade", "research_tongyi", "iter_splade")          # the ITER setting with SPLADE behind `search`
 condition("research_iter_colbert", "research_tongyi", "iter_colbert")        # the ITER setting with ColBERT behind `search`
+condition("research_iter_diffretriever", "research_tongyi", "iter_diffretriever")  # the ITER setting with DiffRetriever behind `search`
 condition("research_iter_reranked", "research_tongyi", "iter_reranked")      # the ITER setting with the dense pool reranked (retrieval.rerank_*)
 condition("research_dedup_bm25_qwen", "research_qwen", "dedup_bm25")        # DIVER on Qwen3.5 / WebExplorer: no answer tags
 condition("research_dedup_dense_qwen", "research_qwen", "dedup_dense")

@@ -293,7 +293,7 @@ handles that for you.
 | `HYBRID_FUSION` | `rrf` | how a hybrid fuses them: `rrf` (ranks) or `interpolation` (min-max normalised scores) | `agent_search/retrievers/hybrid.py` |
 | `HYBRID_WEIGHTS` | equal | interpolation weights, comma-separated floats, one per retriever | `agent_search/retrievers/hybrid.py` |
 | `RERANK_BASE` | `bm25` | the retriever whose pool a reranker reorders (`bm25`, `dense`, `hybrid`, `bql`, `indri`) | `agent_search/retrievers/reranked.py` |
-| `RERANK_METHOD` | `cross_encoder` | the reranker (`agent_search/retrievers/rerankers/`, one file per method): `cross_encoder` (a sequence-classification model), `qwen3_reranker` (the Qwen3-Reranker family, yes/no logits); a file added to that folder is selected by its name | `agent_search/retrievers/reranked.py` |
+| `RERANK_METHOD` | `cross_encoder` | the reranker (`agent_search/retrievers/rerankers/`, one file per method): `cross_encoder` (a sequence-classification model), `qwen3_reranker` (the Qwen3-Reranker family, yes/no logits), `monot5` (a T5 model answering true/false; default `castorini/monot5-3b-msmarco-10k`); a file added to that folder is selected by its name | `agent_search/retrievers/reranked.py` |
 | `RERANK_MODEL` | the method's own | the reranker model id or local directory; unset = `BAAI/bge-reranker-v2-m3` or `Qwen/Qwen3-Reranker-0.6B` by method | `agent_search/retrievers/reranked.py` |
 | `RERANK_POOL` | 100 | candidates taken from the base retriever before reranking | `agent_search/retrievers/reranked.py` |
 | `RERANK_BATCH_SIZE` | 32 | pairs scored per forward pass | `agent_search/retrievers/rerankers/cross_encoder.py` |
@@ -306,6 +306,11 @@ handles that for you.
 | `COLBERT_DOC_LENGTH` | 180 | page tokens ColBERT indexes (ColBERTv2's training length; part of the index key) | `agent_search/retrievers/learned/colbert.py` |
 | `COLBERT_QUERY_LENGTH` | 32 | query tokens ColBERT scores, padded with `[MASK]` | `agent_search/retrievers/learned/colbert.py` |
 | `COLBERT_STORE_DEVICE` | `auto` | where the page-token vectors sit at search time: the GPU when they fit, else CPU memory | `agent_search/retrievers/learned/colbert.py` |
+| `DIFFRETRIEVER_MODEL` | `ielabgroup/diffretriever-dream-7b-multi-q4-p16` | the DiffRetriever checkpoint behind `iter_diffretriever` | `agent_search/retrievers/learned/diffretriever.py` |
+| `DIFFRETRIEVER_MODE` | `dense` | `dense` (multi-vector MaxSim), `sparse` (content-word term weights) or `hybrid` (min-max fusion of both, 0.5 each) | `agent_search/retrievers/learned/diffretriever.py` |
+| `DIFFRETRIEVER_DOC_LENGTH` | 101 | text tokens of a page after the retrieval prompt (the card's 156 total minus the 55-token prompt; part of the index key) | `agent_search/retrievers/learned/diffretriever.py` |
+| `DIFFRETRIEVER_STORE_DEVICE` | `auto` | where the passage vectors sit at search time: the GPU with the most room when they fit, else CPU memory | `agent_search/retrievers/learned/diffretriever.py` |
+| `DIFFRETRIEVER_URL` | unset | the encoding server (`scripts/serve_diffretriever.py`, run in an environment with transformers 4.54 and peft); infrastructure, not part of the run record | `agent_search/retrievers/learned/diffretriever.py` |
 | `INDRI_DENSE` | 0 | attach the dense model to the Indri arm | `agent_search/retrievers/engines.py` |
 | `INDRI_DENSE_W` | 0.35 | weight of the dense score in Indri's ranking | `agent_search/retrievers/lucene/adapters.py` |
 | `INDRI_DENSE_EXPAND_K` | 50 | hits Lucene returns for the dense rerank pool of Indri | `agent_search/retrievers/lucene/adapters.py` |

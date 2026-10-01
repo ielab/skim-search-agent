@@ -51,7 +51,8 @@ fingerprinted so a persisted index is never served against a corpus it was not b
 once per corpus, persisted under `indexes/`, and shared by every tool that needs it
 (`retrievers/engines.py`). There are five families: BM25 (Lucene, through Pyserini), dense
 (one file per encoder family, plus the trained-checkpoint family), learned indexes ranked exactly
-over every page (SPLADE's sparse term weights, ColBERT's per-token vectors), BQL (Boolean
+over every page (SPLADE's sparse term weights, ColBERT's per-token vectors, DiffRetriever's
+masked-position vectors and terms), BQL (Boolean
 selection with one ranking model), and Indri. Document corpora rank on Lucene only: BM25 and the structured
 index behind BQL and Indri, including the zero-hit fallback and the coverage ranking. A code
 repository is the one corpus kind with in-memory engines: the grep ranker and the Boolean
@@ -138,14 +139,14 @@ agent_search/
   retrievers/
     base.py        the Retriever contract, Hit, Observation
     lexical/       pyserini.py (Lucene BM25, every corpus), grep.py and scorer.py (the code repository ranker and its in-memory scorer)
-    dense/         base.py (DenseRetriever) + bge.py, coderank.py, qwen3_embedding.py, trained.py; decoder_encoder.py; belief.py; vector_index.py
-    learned/       base.py (an index of every page, scored exactly) + splade.py (learned sparse), colbert.py (late interaction)
+    dense/         base.py (DenseRetriever) + bge.py, coderank.py, qwen3_embedding.py, repllama.py, trained.py; decoder_encoder.py; belief.py; vector_index.py
+    learned/       base.py (an index of every page, scored exactly) + splade.py (learned sparse), colbert.py (late interaction), diffretriever.py (a diffusion LM, served by scripts/serve_diffretriever.py)
     bql/           the Boolean structural method: parser, executor, dense fusion, the BQL retriever
     indri/         the Indri query language: parser, fields, result
     lucene/        both query languages compiled to Lucene: compilers, engine, adapters
     fusion/        base.py (the Fusion contract) + rrf.py, interpolation.py: how rankings are combined
     hybrid.py      the hybrid engine and retriever: any retrievers the run names, fused by one method
-    rerankers/     base.py (the Reranker contract) + cross_encoder.py, qwen3_reranker.py: how a candidate pool is reordered
+    rerankers/     base.py (the Reranker contract) + cross_encoder.py, qwen3_reranker.py, monot5.py: how a candidate pool is reordered
     reranked.py    the reranked engine and retriever: one retriever's pool, one reranker
     backend.py     which engine serves BQL and Indri: Lucene for documents, the in-memory executor for a code repository
     engines.py     the per-corpus engine registry the tools share

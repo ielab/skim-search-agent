@@ -41,7 +41,7 @@ class SearchDedup(Tool):
                                       "description": "Number of results to list (code search only; default 5)."}},
                   "required": ["query"]}
 
-    ranking: str = "dense"        # the engine kind behind the tool: dense | bm25 | reranked | splade | colbert
+    ranking: str = "dense"        # the engine kind behind the tool: dense | bm25 | reranked | splade | colbert | diffretriever
     pool_k: int = DEDUP_POOL_K
     top_k: int = DEDUP_TOPK
     # dedup=False is the standard top-k listing in ITER's result format (DocID, title, 64-token
@@ -55,7 +55,7 @@ class SearchDedup(Tool):
     def __init__(self, name: Optional[str] = None, **options):
         super().__init__(name=name, **options)
         self.engines = {"bm25": ("bm25",), "reranked": ("reranked",), "splade": ("splade",),
-                        "colbert": ("colbert",)}.get(self.ranking, ("dense",))
+                        "colbert": ("colbert",), "diffretriever": ("diffretriever",)}.get(self.ranking, ("dense",))
         # the name, description and parameters do not depend on the ranking: the task prompts name
         # `search`, and a cell must differ from another only in what ranks behind it
         # The dedup notice is the tool's own manual, shown only when it de-duplicates; the task
@@ -65,7 +65,7 @@ class SearchDedup(Tool):
     def _retrieve(self, query: str, k: int):
         if self.ranking == "bm25":
             return self.engine["bm25"].search(query, k=k)
-        if self.ranking in ("reranked", "splade", "colbert"):
+        if self.ranking in ("reranked", "splade", "colbert", "diffretriever"):
             return self.engine[self.ranking].search(query, k=k) or []
         return self.engine["dense"].top_k_doc_ids(query, k=k) or []
 

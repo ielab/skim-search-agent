@@ -163,3 +163,121 @@ def test_the_index_builder_gives_learned_retrievers_their_own_model(monkeypatch,
             pass
         assert seen.get("retriever") == retriever and seen.get("model") is None, seen
 
+
+# --- DiffRetriever: the library side against a fake encoding server ---------------------------
+
+class _FakeEncoder:
+    """Stands in for scripts/serve_diffretriever.py: deterministic vectors per text, 4 per query and
+    16 per passage, so the library's index, cache and MaxSim can be checked by hand."""
+
+    def __init__(self, hidden=8):
+        import json, threading, base64
+        from http.server import BaseHTTPRequestHandler, HTTPServer
+        import numpy as np
+        outer = self
+        self.hidden, self.calls = hidden, []
+
+        class H(BaseHTTPRequestHandler):
+            def log_message(self, *a):
+                pass
+
+            def do_POST(self):
+                req = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+                outer.calls.append(req)
+                v = np.stack([outer.vec(t, req["is_query"]) for t in req["texts"]]).astype(np.float16)
+                reply = {"shape": list(v.shape), "dtype": "float16", "data": base64.b64encode(v.tobytes()).decode()}
+                if req.get("sparse"):
+                    reply["sparse"] = [outer.terms(t) for t in req["texts"]]
+                body = json.dumps(reply).encode()
+                self.send_response(200); self.send_header("Content-Length", str(len(body))); self.end_headers()
+                self.wfile.write(body)
+
+        self.server = HTTPServer(("127.0.0.1", 0), H)
+        threading.Thread(target=self.server.serve_forever, daemon=True).start()
+        self.url = f"http://127.0.0.1:{self.server.server_address[1]}"
+
+    def terms(self, text):
+        """A sparse vector over the text's own words: term id = a hash of the word, weight = its count x 100."""
+        import collections, zlib
+        c = collections.Counter(w for w in text.lower().split() if w.isalpha())
+        return {"ids": [zlib.crc32(w.encode()) % 997 for w in c], "vals": [100.0 * n for n in c.values()]}
+
+    def vec(self, text, is_query):
+        import numpy as np, zlib
+        rng = np.random.default_rng(zlib.crc32(text.encode()) + (1 if is_query else 0))
+        return rng.standard_normal((4 if is_query else 16, self.hidden))
+
+
+def test_diffretriever_builds_over_http_and_scores_with_the_cards_maxsim(tmp_path, monkeypatch):
+    from agent_search.retrievers.learned import DiffRetrieverRetriever
+    from agent_search.retrievers.learned import diffretriever as dr
+    fake = _FakeEncoder()
+    units = _units(DOCS)
+    r = DiffRetrieverRetriever(model="fake/diffretriever", doc_length=512, url=fake.url,
+                               index_root=str(tmp_path), store_device="cpu")
+    r.index(units, key="tiny")
+    assert all(c["max_text_tokens"] == 512 for c in fake.calls if not c["is_query"])      # pages at 512
+    q = "treaty that ended the war"
+    got = r.scores(q).tolist()
+    qv = r.vectors([q], True)[0]
+    for i, u in enumerate(units):
+        pv = r.vectors([f"{u.qualname}\n{u.code}"], False)[0]
+        want = float((qv @ pv.T).max(dim=-1).values.clamp(min=0).sum())            # the card's formula
+        assert got[i] == pytest.approx(want, rel=2e-3, abs=2e-3)
+    monkeypatch.setattr(dr, "CHUNK_PAGES", 2)
+    assert r.scores(q).tolist() == pytest.approx(got, rel=1e-5, abs=1e-5)
+    n = len(fake.calls)
+    again = DiffRetrieverRetriever(model="fake/diffretriever", doc_length=512, url=fake.url,
+                                   index_root=str(tmp_path), store_device="cpu").index(units, key="tiny")
+    assert len(fake.calls) == n                                                      # loaded, not re-encoded
+    assert again.search(q, 2) == r.search(q, 2)
+    fake.server.shutdown()
+
+
+def test_diffretriever_without_a_server_says_how_to_start_one(tmp_path, monkeypatch):
+    from agent_search.retrievers.learned import DiffRetrieverRetriever
+    monkeypatch.delenv("DIFFRETRIEVER_URL", raising=False)
+    r = DiffRetrieverRetriever(model="fake/diffretriever", index_root=str(tmp_path), store_device="cpu")
+    with pytest.raises(SetupError, match="serve_diffretriever.py"):
+        r.vectors(["q"], True)
+
+
+def test_diffretriever_sparse_and_hybrid_modes(tmp_path, monkeypatch):
+    """Sparse: the dot product of the server's term weights. Hybrid: the authors' fusion (each
+    list's top FUSION_DEPTH min-max normalised, 0.5 + 0.5, 0 where a page is missing). A dense
+    index built first gets its sparse part added in its own pass, without re-encoding the vectors."""
+    import numpy as np
+    from agent_search.retrievers.learned import DiffRetrieverRetriever
+    from agent_search.retrievers.learned import diffretriever as dr
+    fake = _FakeEncoder()
+    units = _units(DOCS)
+    kw = dict(model="fake/diffretriever", doc_length=64, url=fake.url, index_root=str(tmp_path), store_device="cpu")
+    DiffRetrieverRetriever(mode="dense", **kw).index(units, key="tiny")
+    vectors = os.path.join(DiffRetrieverRetriever(mode="dense", **kw)._cache_dir("tiny"), "vectors.f16")
+    stamp, before = os.path.getmtime(vectors), len(fake.calls)
+    sparse_r = DiffRetrieverRetriever(mode="sparse", **kw)
+    assert not sparse_r.is_cached("tiny")                                  # the dense index alone is not enough
+    sparse_r.index(units, key="tiny")
+    assert sparse_r.is_cached("tiny")
+    added = fake.calls[before:]
+    assert added and all(c.get("sparse") and not c["is_query"] for c in added)   # one sparse pass over the pages
+    assert os.path.getmtime(vectors) == stamp                             # the dense vectors were not re-encoded
+    q = "treaty war 1848"
+    qt = fake.terms(q)
+    got = sparse_r.scores(q)
+    for i, u in enumerate(units):
+        pt = fake.terms(f"{u.qualname}\n{u.code}")
+        p = dict(zip(pt["ids"], pt["vals"]))
+        assert got[i] == pytest.approx(sum(v * p.get(t, 0.0) for t, v in zip(qt["ids"], qt["vals"])))
+    monkeypatch.setattr(dr, "FUSION_DEPTH", 3)
+    hyb = DiffRetrieverRetriever(mode="hybrid", **kw).index(units, key="tiny")
+    dense = DiffRetrieverRetriever(mode="dense", **kw).index(units, key="tiny").scores(q).float().cpu().numpy()
+    fused = hyb.scores(q)
+    def top_minmax(s):
+        top = np.argsort(-s)[:3]; v = s[top]
+        return dict(zip(top.tolist(), ((v - v.min()) / max(v.max() - v.min(), 1e-9)).tolist()))
+    a, b = top_minmax(dense), top_minmax(got)
+    for i in range(len(units)):
+        want = 0.5 * a.get(i, 0.0) + 0.5 * b.get(i, 0.0) if (i in a or i in b) else -1.0
+        assert fused[i] == pytest.approx(want, abs=1e-5)
+    fake.server.shutdown()

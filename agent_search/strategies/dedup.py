@@ -11,7 +11,7 @@ Every variant names its search tool `search`, as DIVER and the family task promp
 ranks behind it, so a BM25 cell differs from a dense one only in the retriever.
 `iter_reranked` is `iter_dense` with the listing reordered by the run's reranker
 (`retrieval.rerank_method`, `rerank_model`, `rerank_pool`; `agent_search/retrievers/reranked.py`),
-the pool coming from the run's dense model. `iter_splade` and `iter_colbert` put SPLADE and ColBERT
+the pool coming from the run's dense model. `iter_splade`, `iter_colbert` and `iter_diffretriever` put SPLADE, ColBERT and DiffRetriever
 (`agent_search.retrievers.learned`) behind the same tool.
 """
 from agent_search.strategies.base import Strategy, register_strategy
@@ -53,3 +53,7 @@ iter_colbert = register_strategy(Strategy(
     description="ITER's evaluation tools with ColBERT: standard top-10 late-interaction search in ITER's format, then get_document",
     tools=(SearchDedup(name="search", ranking="colbert", dedup=False), GetDocument(name="get_document", aliases=("visit",)))))
 
+iter_diffretriever = register_strategy(Strategy(
+    name="iter_diffretriever", toolset_name="iter_diffretriever",
+    description="ITER's evaluation tools with DiffRetriever: standard top-10 multi-vector search in ITER's format, then get_document",
+    tools=(SearchDedup(name="search", ranking="diffretriever", dedup=False), GetDocument(name="get_document", aliases=("visit",)))))

@@ -217,7 +217,10 @@ class DenseRetriever(Retriever):
     name = "dense"
 
     # --- what a family declares -----------------------------------------------------------
-    query_prefix: str = ""            # put in front of every query (documents get no prefix)
+    query_prefix: str = ""            # put in front of every query
+    # the text a page is encoded as; `{title}` and `{body}` are its title line and body
+    document_template: str = "{title}\n{body}"
+    append_eos: bool = False          # the decoder encoder appends the end token after truncation
     pooling: Optional[str] = None     # last_token | mean | cls; None: the model's own config
     default_dtype: str = "float32"    # precision the weights load in
     normalize: bool = True            # L2-normalise embeddings (cosine retrieval)
@@ -303,7 +306,7 @@ class DenseRetriever(Retriever):
             from agent_search.retrievers.dense.decoder_encoder import DecoderEncoder
             return DecoderEncoder(snap or self.model_id, pooling=pooling, normalize=self.normalize,
                                   max_seq_length=int(self.encoder_seq_length or max_seq_length),
-                                  device=device, torch_dtype=torch_dtype)
+                                  device=device, torch_dtype=torch_dtype, append_eos=self.append_eos)
         return SentenceTransformer(self.model_id, trust_remote_code=True, device=device,
                                    model_kwargs={"torch_dtype": torch_dtype})
 
@@ -384,7 +387,7 @@ class DenseRetriever(Retriever):
                 pass
 
         self._doc_ids = [u.doc_id for u in units]
-        texts = [f"{u.qualname}\n{u.code}" for u in units]     # the encoder truncates in tokens
+        texts = [self.document_template.format(title=u.qualname, body=u.code) for u in units]     # the encoder truncates in tokens
         model = self._encoder()
         texts = encoder_prefixes(texts, _tokenizer_of(model), int(getattr(model, "max_seq_length", 0) or self.max_seq_length))
         big = len(texts) >= 5000

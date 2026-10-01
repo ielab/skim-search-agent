@@ -73,8 +73,14 @@ class LearnedIndexRetriever(Retriever):
         corpus_key = re.sub(r"[^A-Za-z0-9_.@-]+", "__", key or "default")
         return os.path.join(self.index_root, self.name, f"{model_key}-{self.length_tag()}", corpus_key)
 
-    def is_cached(self, key: Optional[str] = None) -> bool:
+    def index_complete(self, key: Optional[str] = None) -> bool:
+        """The index `encode_corpus` writes is on disk (its meta.json is written last)."""
         return os.path.exists(os.path.join(self._cache_dir(key), "meta.json"))
+
+    def is_cached(self, key: Optional[str] = None) -> bool:
+        """Everything a run of this retriever reads is on disk. A subclass that adds a part
+        (DiffRetriever's sparse index) extends this, never `index_complete`."""
+        return self.index_complete(key)
 
     def index(self, units: Sequence, key: Optional[str] = None) -> "LearnedIndexRetriever":
         from agent_search.corpus.fingerprint import corpus_fingerprint
@@ -82,7 +88,7 @@ class LearnedIndexRetriever(Retriever):
         fp = corpus_fingerprint(units)
         expected = [u.doc_id for u in units]
         with self._lock:
-            if not self.rebuild and self.is_cached(key):
+            if not self.rebuild and self.index_complete(key):
                 meta = json.load(open(os.path.join(cache_dir, "meta.json")))
                 ids = json.load(open(os.path.join(cache_dir, "doc_ids.json")))
                 if ids == expected and meta.get("corpus_fingerprint") == fp:
