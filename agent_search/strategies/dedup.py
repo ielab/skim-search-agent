@@ -7,6 +7,8 @@ variants, one per ranker. The dedup notice is the search tool's own manual, show
 `iter_dense` and `iter_bm25` are the same tools without the de-duplication: the standard top-10
 listing in ITER's result format. That is how the ITER paper evaluates every retriever (Sec. 5.3);
 the de-duplicated setting is how it collected training trajectories. Pair with `research_tongyi`.
+Every variant names its search tool `search`, as DIVER and the family task prompts do, whatever
+ranks behind it, so a BM25 cell differs from a dense one only in the retriever.
 `iter_reranked` is `iter_dense` with the listing reordered by the run's reranker
 (`retrieval.rerank_method`, `rerank_model`, `rerank_pool`; `agent_search/retrievers/reranked.py`),
 the pool coming from the run's dense model.
@@ -23,7 +25,7 @@ dedup_dense = register_strategy(Strategy(
 dedup_bm25 = register_strategy(Strategy(
     name="dedup_bm25", toolset_name="dedup_bm25",
     description="ITER's loop with BM25: search that drops already-listed documents, then get_document",
-    tools=(SearchDedup(name="bm25_search", ranking="bm25"), GetDocument(name="get_document", aliases=("visit",)))))
+    tools=(SearchDedup(name="search", ranking="bm25"), GetDocument(name="get_document", aliases=("visit",)))))
 
 iter_dense = register_strategy(Strategy(
     name="iter_dense", toolset_name="iter_dense",
@@ -33,7 +35,7 @@ iter_dense = register_strategy(Strategy(
 iter_bm25 = register_strategy(Strategy(
     name="iter_bm25", toolset_name="iter_bm25",
     description="ITER's evaluation tools with BM25: standard top-10 search in ITER's format, then get_document",
-    tools=(SearchDedup(name="bm25_search", ranking="bm25", dedup=False), GetDocument(name="get_document", aliases=("visit",)))))
+    tools=(SearchDedup(name="search", ranking="bm25", dedup=False), GetDocument(name="get_document", aliases=("visit",)))))
 
 iter_reranked = register_strategy(Strategy(
     name="iter_reranked", toolset_name="iter_reranked",

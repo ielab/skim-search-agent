@@ -201,32 +201,33 @@
  },
  "research_dedup_bm25": {
   "domain": "general",
-  "sha": "7b831d2724610ff7",
+  "sha": "afbd92dc65b51d28",
   "task": "research_dedup",
   "tools": [
-   "bm25_search",
+   "search",
    "get_document"
   ],
   "toolset": "dedup_bm25",
-  "note": "DIVER's Tongyi evaluation prompt (SYSTEM_PROMPT_SEARCH_ONLY + DEDUP_NOTICE), pinned 2026-09-12"
+  "note": "DIVER's Tongyi evaluation prompt (SYSTEM_PROMPT_SEARCH_ONLY + DEDUP_NOTICE), pinned 2026-09-12 | 2026-10-01: the search tool is named `search` with the dense cells' description, as DIVER and the task prompt name it (was `bm25_search`)"
  },
  "research_dedup_bm25_qwen": {
-  "sha": "47735fbdde1e77f4",
+  "sha": "e253370612e87348",
   "tools": [
-   "bm25_search",
+   "search",
    "get_document"
-  ]
+  ],
+  "note": " | 2026-10-01: the search tool is named `search` with the dense cells' description, as DIVER and the task prompt name it (was `bm25_search`)"
  },
  "research_dedup_bm25_strong": {
   "domain": "general",
-  "sha": "e4e81bcf4a02ad4b",
+  "sha": "43c1bca86aa9473c",
   "task": "research_dedup_strong",
   "tools": [
-   "bm25_search",
+   "search",
    "get_document"
   ],
   "toolset": "dedup_bm25",
-  "note": "DIVER's --strong prompt; the pre-0.3 research_dedup prompt, moved to its own task on 2026-09-12"
+  "note": "DIVER's --strong prompt; the pre-0.3 research_dedup prompt, moved to its own task on 2026-09-12 | 2026-10-01: the search tool is named `search` with the dense cells' description, as DIVER and the task prompt name it (was `bm25_search`)"
  },
  "research_dedup_dense": {
   "domain": "general",
@@ -317,11 +318,12 @@
   "toolset": "indri_snip"
  },
  "research_iter_bm25": {
-  "sha": "b72300ef768adc12",
+  "sha": "149fc27c36bc9737",
   "tools": [
-   "bm25_search",
+   "search",
    "get_document"
-  ]
+  ],
+  "note": " | 2026-10-01: the search tool is named `search` with the dense cells' description, as DIVER and the task prompt name it (was `bm25_search`)"
  },
  "research_iter_dense": {
   "sha": "149fc27c36bc9737",

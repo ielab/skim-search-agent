@@ -78,7 +78,7 @@ def test_dedup_search_hides_already_seen_and_lists_them():
 def test_dedup_conditions_and_strategies_are_registered():
     from agent_search.strategies import CONDITIONS
     from agent_search.strategies.names import STRATEGIES, DENSE_STRATEGIES
-    for cond_name, tools in (("research_dedup_bm25", ("bm25_search", "get_document")),
+    for cond_name, tools in (("research_dedup_bm25", ("search", "get_document")),
                              ("research_dedup_dense", ("search", "get_document"))):
         c = CONDITIONS[cond_name]
         assert c.tool_names == tools

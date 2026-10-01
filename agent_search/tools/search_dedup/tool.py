@@ -49,24 +49,13 @@ class SearchDedup(Tool):
     # de-duplicated setting is how its training trajectories were collected.
     dedup: bool = True
 
-    # what the `bm25_search` name showed in the ITER-with-BM25 prompt (the shared BM25 text)
-    BM25_DESCRIPTION = ("Keyword search over the document corpus (BM25); returns ranked documents (with "
-                        "`fetch` available: each hit's title + section names + infobox keys; otherwise "
-                        "title + a short opening snippet). Depending on the toolset: `visit` a ranked doc "
-                        "for its full text, `fetch` a named section of a ranked doc, or (bm25_dci) "
-                        "`bash`/`read` the ranked docs directly — no other documents are reachable.")
-    BM25_PARAMETERS = {"type": "object",
-                       "properties": {"query": {"type": "string",
-                                                "description": "A keyword query, for example: treaty that ended the Mexican-American War."}},
-                       "required": ["query"]}
-
     snippet: Snippet = OpeningLine()   # the text under each hit (agent_search.snippets); ITER's cut
 
     def __init__(self, name: Optional[str] = None, **options):
         super().__init__(name=name, **options)
         self.engines = {"bm25": ("bm25",), "reranked": ("reranked",)}.get(self.ranking, ("dense",))
-        if self.ranking == "bm25":
-            self.description, self.parameters = self.BM25_DESCRIPTION, self.BM25_PARAMETERS
+        # the name, description and parameters do not depend on the ranking: the task prompts name
+        # `search`, and a cell must differ from another only in what ranks behind it
         # The dedup notice is the tool's own manual, shown only when it de-duplicates; the task
         # prompts place it through {{tool_manuals}}, so no family needs a second prompt for it.
         self.manual = "dedup_notice.md" if self.dedup else None

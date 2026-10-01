@@ -27,7 +27,7 @@ def test_visit_reaches_get_document_in_the_iter_strategies():
         def generate(messages):
             calls.append(messages)
             if len(calls) == 1:
-                return '<tool_call>{"name": "bm25_search", "arguments": {"query": "Mexican-American War treaty"}}</tool_call>'
+                return '<tool_call>{"name": "search", "arguments": {"query": "Mexican-American War treaty"}}</tool_call>'
             if len(calls) == 2:
                 return '<tool_call>{"name": "visit", "arguments": {"docid": "d_guadalupe", "goal": "check the year"}}</tool_call>'
             return "<answer>Treaty of Guadalupe Hidalgo</answer>"
