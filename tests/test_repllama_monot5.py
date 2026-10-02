@@ -86,3 +86,30 @@ def test_monot5_score_is_log_p_true_and_keeps_the_cue(tiny_t5):
             assert s == pytest.approx(want, rel=1e-4, abs=1e-5)
     ranked = r.rerank("what ended the war", [("a", docs[0]), ("b", docs[1])])
     assert sorted(d for d, _ in ranked) == ["a", "b"]
+
+
+def test_laya_batched_scores_equal_its_own_api():
+    """Laya scores each candidate in a batch; each score must equal what its RLAgent.system_one
+    returns for that page alone (same calibrated temperature, same P(yes))."""
+    try:
+        from huggingface_hub import snapshot_download
+        from agent_search.retrievers.rerankers.laya import CODE_FILES, LAYA_FILES
+        snapshot_download("convaiinnovations/laya", allow_patterns=CODE_FILES + LAYA_FILES, local_files_only=True)
+    except Exception:  # noqa: BLE001
+        pytest.skip("convaiinnovations/laya not cached")
+    from agent_search.retrievers.rerankers.laya import LayaReranker
+    from agent_search.training.history import CURRENT, QueryContext
+    r = LayaReranker(device="cpu")
+    main, search = "Which treaty ended the Mexican-American War?", "treaty ended war 1848"
+    docs = ["Treaty of Guadalupe Hidalgo\nThe Treaty of Guadalupe Hidalgo, signed in 1848, ended the Mexican-American War.",
+            "Photosynthesis\nPhotosynthesis converts carbon dioxide and water into glucose using sunlight."]
+    agent = r._agent()[0]
+    token = CURRENT.set(QueryContext(question=main, text_of=lambda d: "", style="plain"))
+    try:
+        batched = r.scores(search, docs)
+    finally:
+        CURRENT.reset(token)
+    api = [agent.system_one({"question": main, "search": search, "candidate": d},
+                            {"x": {"type": "noul", "instructions": r.question, "criteria": r.criteria}})["answers"]["x"]["noul"]
+           for d in docs]
+    assert [round(x, 4) for x in batched] == api                     # the original question is in the state
