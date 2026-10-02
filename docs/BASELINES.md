@@ -36,6 +36,7 @@ Qwen3-32B judge leaves 13 to 26 per cell). Three judges score each cell:
 | retriever | file | Qwen3-32B (official) | Qwen3-30B-A3B-Thinking-2507 | gpt-4o-mini | searches |
 |---|---|---:|---:|---:|---:|
 | AgentIR-4B | `agentir4b` | 56.6 | 57.5 | 53.9 | 50.3 |
+| ITER-Qwen3-Embedding-0.6B | `iter06b` | 55.7 | 57.1 | 53.7 | 53.5 |
 | ColBERTv2 | `colbert` | 54.0 | 55.1 | 52.5 | 52.9 |
 | LRAT-Qwen3-Embedding-0.6B | `lrat06b` | 50.0 | 50.7 | 47.2 | 55.7 |
 | Qwen3-Embedding-4B | `qwen3emb4b` | 49.9 | 51.4 | 47.3 | 58.0 |
@@ -47,8 +48,8 @@ Qwen3-32B judge leaves 13 to 26 per cell). Three judges score each cell:
 | Qwen3-Embedding-0.6B | `qwen3emb06b` | 41.7 | 42.4 | 38.8 | 62.2 |
 | BM25 | `bm25` | 37.7 | 38.1 | 35.3 | 61.0 |
 
-ITER-Qwen3-Embedding-0.6B and -4B (`iter06b`, `iter4b`), and ITER-4B with documents encoded at
-4,096 tokens (`iter4b_d4096`), are running. Their rows go here when all three judges finish.
+ITER-Qwen3-Embedding-4B (`iter4b`), and ITER-4B with documents encoded at 4,096 tokens
+(`iter4b_d4096`), are running. Their rows go here when all three judges finish.
 
 ### Rerankers over the Qwen3-Embedding-0.6B pool
 

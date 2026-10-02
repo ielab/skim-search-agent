@@ -1,9 +1,8 @@
 {
- "updated": "2026-10-02",
+ "updated": "2026-10-03",
  "backbone": "Tongyi-DeepResearch-30B-A3B",
  "judge": "Qwen3-32B",
  "pending": [
-  "ITER-Qwen3-Embedding-0.6B",
   "ITER-Qwen3-Embedding-4B"
  ],
  "entries": [
@@ -26,6 +25,15 @@
    "search_calls": 53.3,
    "reranker": "monoT5-3B",
    "reranker_link": "https://huggingface.co/castorini/monot5-3b-msmarco-10k"
+  },
+  {
+   "id": "iter06b",
+   "retriever": "ITER-Qwen3-Embedding-0.6B",
+   "retriever_link": "https://huggingface.co/ielabgroup/ITER-Qwen3-Embedding-0.6B",
+   "kind": "dense",
+   "accuracy": 55.7,
+   "recall": 68.3,
+   "search_calls": 53.5
   },
   {
    "id": "colbert",
