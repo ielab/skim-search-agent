@@ -58,12 +58,15 @@ ITER-Qwen3-Embedding-0.6B and -4B (`iter06b`, `iter4b`), and ITER-4B with docume
 | bge-reranker-v2-m3 | `rerank_bge_m3` | 52.2 | 54.0 | 49.8 | 54.4 |
 | Qwen3-Reranker-0.6B | `rerank_qwen3_06b` | 49.8 | 50.2 | 48.0 | 57.0 |
 | none (the pool's own order) | `qwen3emb06b` | 41.7 | 42.4 | 38.8 | 62.2 |
+| Laya typed-decisions | `rerank_laya_typed` | 35.2 | 36.6 | 33.6 | 72.3 |
 | Laya (English) | `rerank_laya` | 33.4 | 34.8 | 32.0 | 71.6 |
-
-The Laya typed-decisions and multilingual checkpoints (`rerank_laya_typed`,
-`rerank_laya_multilingual`) are waiting on the Qwen3-32B judge.
+| Laya multilingual | `rerank_laya_multilingual` | 27.0 | 27.3 | 24.9 | 77.3 |
 
 The file column is short for `configs/baselines/browsecomp_plus_<file>_tongyi.yaml`.
+
+The same rows are on the project site's leaderboard, https://ielab.io/skim-search-agent/leaderboard/,
+with the Qwen3-32B accuracy, the evidence recall and the search calls that the BrowseComp-Plus
+leaderboard reports. `scripts/leaderboard_row.py` computes them from a judged cell.
 
 ## Run one
 
@@ -76,7 +79,9 @@ python -m pip install -e ".[retrieval,api,eval,serve]"
 python -m agent_search.tokens --seed
 ```
 
-**2. Stage the corpus.** On a node with internet. This writes `data/browsecomp_plus/`.
+**2. Stage the corpus.** On a node with internet. This writes `data/browsecomp_plus/`, with the
+gold qrels the runs read (`qrels/test.tsv`) and the evidence qrels recall is scored against
+(`qrels/evidence.tsv`).
 
 ```bash
 python scripts/stage_browsecomp_plus.py

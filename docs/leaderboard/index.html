@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BrowseComp-Plus Leaderboard · SkimSearchAgent</title>
+<meta name="description" content="Retriever and reranker baselines for deep-search agents on BrowseComp-Plus, run with SkimSearchAgent under one fixed agent setting.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 26 26'%3E%3Ccircle cx='11' cy='11' r='7.2' fill='none' stroke='%230e9384' stroke-width='2.6'/%3E%3Cline x1='16.5' y1='16.5' x2='23' y2='23' stroke='%230e9384' stroke-width='3' stroke-linecap='round'/%3E%3Cline x1='7.4' y1='9.4' x2='14.6' y2='9.4' stroke='%230e9384' stroke-width='1.7' stroke-linecap='round' opacity='.85'/%3E%3Cline x1='7.4' y1='12.8' x2='12.2' y2='12.8' stroke='%230e9384' stroke-width='1.7' stroke-linecap='round' opacity='.45'/%3E%3C/svg%3E">
+<script>
+(function(){
+  var t = null;
+  try { t = localStorage.getItem('ssa-theme'); } catch (e) {}
+  if (!t) t = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  document.documentElement.dataset.theme = t;
+})();
+</script>
+<style>
+  :root{
+    color-scheme:light;
+    --bg:#f6f5f0; --bg-soft:#ecebe3; --card:#ffffff;
+    --ink:#20241f; --ink-2:#5c6159; --ink-3:#989d93;
+    --line:#dfded4; --line-soft:#e9e8df;
+    --teal:#0e9384; --teal-soft:#e2f1ee; --teal-glow:rgba(14,147,132,.30);
+    --violet:#7c3aed; --violet-soft:#efe9fb;
+    --amber:#d97706; --amber-soft:#f5e3c8;
+    --gold:#c99a06; --silver:#8c9196; --bronze:#b26b3a;
+    --sans:system-ui,-apple-system,"Segoe UI",sans-serif;
+    --mono:ui-monospace,'SF Mono',Menlo,Consolas,monospace;
+  }
+  :root[data-theme="dark"]{
+    color-scheme:dark;
+    --bg:#161715; --bg-soft:#22231f; --card:#1d1e1b;
+    --ink:#eceae2; --ink-2:#b3b1a6; --ink-3:#82807a;
+    --line:#383931; --line-soft:#2b2c27;
+    --teal:#16a795; --teal-soft:#1c3531; --teal-glow:rgba(22,167,149,.35);
+    --violet:#8d6ee8; --violet-soft:#2b2440;
+    --amber:#e79b2e; --amber-soft:#3d321f;
+    --gold:#e3b52a; --silver:#a9aeb3; --bronze:#d08a57;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:15.5px;line-height:1.65;-webkit-font-smoothing:antialiased}
+  a{color:var(--teal);text-decoration:none}
+  code{font-family:var(--mono);font-size:.9em;background:var(--bg-soft);border-radius:5px;padding:1px 6px}
+
+  .topbar{position:sticky;top:0;z-index:20;display:flex;justify-content:space-between;align-items:center;padding:12px 24px;background:rgba(246,245,240,.85);backdrop-filter:blur(12px);border-bottom:1px solid var(--line-soft)}
+  :root[data-theme="dark"] .topbar{background:rgba(22,23,21,.85)}
+  .logo{display:flex;align-items:center;gap:7px;font-size:16px;font-weight:500;letter-spacing:-.02em;color:var(--ink);white-space:nowrap}
+  .logo b{font-weight:800}
+  .logo svg{transform:rotate(-6deg)}
+  .nav{display:flex;gap:18px;font-size:13.5px;font-weight:550;white-space:nowrap;align-items:center}
+  .nav a{color:var(--ink-2)}
+  .nav a:hover,.nav a.here{color:var(--teal)}
+  .theme-btn{border:1px solid var(--line);background:var(--card);color:var(--ink-2);width:30px;height:30px;border-radius:9px;cursor:pointer;font-size:14px;line-height:1}
+  .theme-btn:hover{border-color:var(--teal);color:var(--teal)}
+  @media(max-width:760px){
+    .nav .opt{display:none}
+    .topbar{padding:10px 16px}
+    .logo{font-size:14.5px}
+    .nav{gap:11px;font-size:12.5px}
+  }
+
+  .wrap{max-width:1040px;margin:0 auto;padding:0 28px}
+  @media(max-width:600px){.wrap{padding:0 16px}}
+
+  .hero{text-align:center;padding:56px 0 8px}
+  .kicker{display:inline-block;font-family:var(--mono);font-size:11px;letter-spacing:.08em;color:var(--teal);border:1px solid var(--teal);border-radius:999px;padding:3px 12px;margin-bottom:16px}
+  h1{font-size:clamp(32px,5.5vw,50px);font-weight:800;letter-spacing:-.035em;line-height:1.08}
+  h1 span{color:var(--teal)}
+  .sub{margin:14px auto 0;max-width:640px;font-size:16.5px;color:var(--ink-2)}
+  .chips{display:flex;flex-wrap:wrap;justify-content:center;gap:8px;margin-top:22px}
+  .chip{font-size:12.5px;color:var(--ink-2);background:var(--card);border:1px solid var(--line-soft);border-radius:999px;padding:4px 12px}
+  .chip b{color:var(--ink);font-weight:650}
+  .cta{display:flex;gap:10px;justify-content:center;margin-top:22px;flex-wrap:wrap}
+  .btn{display:inline-flex;align-items:center;gap:7px;font-size:13.5px;font-weight:650;border-radius:12px;padding:9px 18px;border:1.5px solid var(--line);color:var(--ink);background:var(--card)}
+  .btn:hover{border-color:var(--ink-3)}
+  .btn.primary{background:var(--teal);border-color:var(--teal);color:#fff;box-shadow:0 4px 14px var(--teal-glow)}
+
+  .board{margin-top:36px;background:var(--card);border:1px solid var(--line);border-radius:20px;box-shadow:0 2px 18px rgba(32,36,31,.07);overflow:hidden}
+  .controls{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;padding:16px 18px;border-bottom:1px solid var(--line-soft)}
+  .search{flex:1 1 220px;max-width:340px;font:inherit;font-size:14px;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:8px 12px}
+  .search:focus{outline:none;border-color:var(--teal)}
+  .filters{display:flex;gap:6px;flex-wrap:wrap}
+  .filt{font:inherit;font-size:12.5px;font-weight:650;color:var(--ink-2);background:var(--bg);border:1px solid var(--line);border-radius:999px;padding:5px 12px;cursor:pointer}
+  .filt[aria-pressed="true"]{background:var(--teal);border-color:var(--teal);color:#fff}
+  .count{font-size:12.5px;color:var(--ink-3);width:100%}
+  .tbl{overflow-x:auto}
+  table{width:100%;min-width:640px;border-collapse:collapse;font-size:14px}
+  th{position:sticky;top:0;background:var(--card);text-align:left;font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-3);font-weight:700;padding:12px 12px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
+  th.num,td.num{text-align:right}
+  th button{all:unset;cursor:pointer}
+  th button:hover,th button:focus-visible{color:var(--teal)}
+  th[aria-sort="descending"] button::after{content:" \2193"}
+  th[aria-sort="ascending"] button::after{content:" \2191"}
+  td{padding:12px;border-bottom:1px solid var(--line-soft);vertical-align:middle}
+  tbody tr:last-child td{border-bottom:none}
+  tbody tr:hover td{background:var(--bg)}
+  .rank{width:52px;font-family:var(--mono);font-weight:700;color:var(--ink-3)}
+  .medal{display:inline-grid;place-items:center;width:26px;height:26px;border-radius:50%;color:#fff;font-size:12.5px}
+  .m1{background:var(--gold)}.m2{background:var(--silver)}.m3{background:var(--bronze)}
+  .name{font-weight:650;color:var(--ink)}
+  .name:hover{color:var(--teal)}
+  .meta{display:flex;align-items:center;gap:6px;margin-top:3px}
+  .kind{font-family:var(--mono);font-size:10.5px;letter-spacing:.04em;border-radius:6px;padding:1px 7px;white-space:nowrap}
+  .k-sparse{background:var(--amber-soft);color:var(--amber)}
+  .k-dense{background:var(--teal-soft);color:var(--teal)}
+  .k-multi-vector{background:var(--violet-soft);color:var(--violet)}
+  .file{font-family:var(--mono);font-size:11px;color:var(--ink-3)}
+  .file:hover{color:var(--teal)}
+  .none{color:var(--ink-3)}
+  .acc{display:flex;align-items:center;justify-content:flex-end;gap:10px}
+  .bar{width:90px;height:7px;border-radius:4px;background:var(--bg-soft);overflow:hidden}
+  .bar i{display:block;height:100%;background:var(--teal);border-radius:4px}
+  .acc b{font-variant-numeric:tabular-nums;font-weight:750;min-width:38px;text-align:right}
+  td.num{font-variant-numeric:tabular-nums;color:var(--ink-2)}
+  @media(max-width:600px){.bar{display:none}}
+  .empty{padding:28px;text-align:center;color:var(--ink-3)}
+  .note{padding:12px 18px;font-size:12.5px;color:var(--ink-3);border-top:1px solid var(--line-soft)}
+
+  section{padding:48px 0 0}
+  .sec-k{font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--teal);font-weight:700}
+  h2{font-size:clamp(21px,3vw,28px);font-weight:800;letter-spacing:-.025em;margin:6px 0 14px}
+  .defs{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
+  @media(max-width:700px){.defs{grid-template-columns:1fr}}
+  .def{background:var(--card);border:1px solid var(--line-soft);border-radius:16px;padding:16px 18px}
+  .def h3{font-size:15px;font-weight:750;margin-bottom:4px}
+  .def p{font-size:13.5px;color:var(--ink-2)}
+  ul.setting{list-style:none;display:grid;gap:8px;max-width:760px}
+  ul.setting li{font-size:14px;color:var(--ink-2);padding-left:16px;position:relative}
+  ul.setting li::before{content:"";position:absolute;left:0;top:.7em;width:6px;height:6px;border-radius:50%;background:var(--teal)}
+  ul.setting b{color:var(--ink)}
+  pre{background:#222621;color:#e8eae5;border-radius:14px;padding:16px 20px;font-family:var(--mono);font-size:12.5px;line-height:1.7;overflow-x:auto;margin-top:14px}
+  p.lead{color:var(--ink-2);max-width:700px}
+
+  footer{margin-top:64px;border-top:1px solid var(--line-soft);padding:28px 24px 40px;text-align:center;font-size:12.5px;color:var(--ink-3)}
+  footer a{color:var(--ink-2)}
+</style>
+</head>
+<body>
+
+<nav class="topbar">
+  <a class="logo" href="../" aria-label="SkimSearchAgent home">
+    <svg viewBox="0 0 26 26" width="22" height="22"><circle cx="11" cy="11" r="7.2" fill="none" stroke="#0e9384" stroke-width="2.6"/><line x1="16.5" y1="16.5" x2="23" y2="23" stroke="#0e9384" stroke-width="3" stroke-linecap="round"/><line x1="7.4" y1="9.4" x2="14.6" y2="9.4" stroke="#0e9384" stroke-width="1.7" stroke-linecap="round" opacity=".85"/><line x1="7.4" y1="12.8" x2="12.2" y2="12.8" stroke="#0e9384" stroke-width="1.7" stroke-linecap="round" opacity=".45"/></svg>
+    SkimSearch<b>Agent</b>
+  </a>
+  <div class="nav">
+    <a class="opt" href="#metrics">Metrics</a>
+    <a class="opt" href="#setting">Setting</a>
+    <a class="opt" href="#run">Run a row</a>
+    <a href="../">Library</a>
+    <a class="here" href="./">Leaderboard</a>
+    <a href="https://github.com/ielab/skim-search-agent">GitHub</a>
+    <button class="theme-btn" id="themeBtn" title="toggle light/dark" aria-label="toggle color theme">&#9789;</button>
+  </div>
+</nav>
+
+<div class="wrap">
+  <header class="hero">
+    <span class="kicker">BrowseComp-Plus &middot; retriever and reranker baselines</span>
+    <h1>Search <span>Leaderboard</span></h1>
+    <p class="sub">One deep-search agent, one fixed setting, and the retriever behind its search
+    tool swapped one at a time. Every row is one experiment file you can run with SkimSearchAgent.</p>
+    <div class="chips">
+      <span class="chip">Agent <b id="chipBackbone">Tongyi-DeepResearch-30B-A3B</b></span>
+      <span class="chip">Questions <b>830</b></span>
+      <span class="chip">Corpus <b>100,195 docs</b></span>
+      <span class="chip">Judge <b id="chipJudge">Qwen3-32B</b></span>
+      <span class="chip">Updated <b id="chipDate">&ndash;</b></span>
+    </div>
+    <div class="cta">
+      <a class="btn primary" href="https://github.com/ielab/skim-search-agent/blob/main/docs/BASELINES.md">How to run a row</a>
+      <a class="btn" href="https://github.com/ielab/skim-search-agent/tree/main/configs/baselines">Experiment files</a>
+      <a class="btn" href="https://huggingface.co/spaces/Tevatron/BrowseComp-Plus">BrowseComp-Plus leaderboard</a>
+    </div>
+  </header>
+
+  <div class="board">
+    <div class="controls">
+      <input class="search" id="q" type="search" placeholder="Search retrievers and rerankers" aria-label="Search retrievers and rerankers">
+      <div class="filters" role="group" aria-label="Filter rows">
+        <button class="filt" data-f="all" aria-pressed="true">All</button>
+        <button class="filt" data-f="first" aria-pressed="false">Retriever only</button>
+        <button class="filt" data-f="reranked" aria-pressed="false">With a reranker</button>
+      </div>
+      <div class="count" id="count"></div>
+    </div>
+    <div class="tbl">
+      <table>
+        <thead>
+          <tr>
+            <th class="rank">#</th>
+            <th data-k="retriever" aria-sort="none"><button>Retriever</button></th>
+            <th data-k="reranker" aria-sort="none"><button>Reranker</button></th>
+            <th class="num" data-k="accuracy" aria-sort="descending"><button>Accuracy (%)</button></th>
+            <th class="num" data-k="recall" aria-sort="none"><button>Recall (%)</button></th>
+            <th class="num" data-k="search_calls" aria-sort="none"><button>Search calls</button></th>
+          </tr>
+        </thead>
+        <tbody id="rows"><tr><td colspan="6" class="empty">Loading&hellip;</td></tr></tbody>
+      </table>
+    </div>
+    <div class="note" id="pending"></div>
+  </div>
+
+  <section id="metrics">
+    <span class="sec-k">Metrics</span>
+    <h2>What each column means</h2>
+    <div class="defs">
+      <div class="def"><h3>Accuracy</h3><p>The share of all 830 questions the Qwen3-32B judge marks
+        correct, with the BrowseComp-Plus judge prompt. An answer the judge gives no verdict on
+        counts as wrong.</p></div>
+      <div class="def"><h3>Recall</h3><p>For each question, the share of its evidence documents
+        (gold and evidence together) that any search result showed the agent, averaged over all
+        830 questions.</p></div>
+      <div class="def"><h3>Search calls</h3><p>The mean number of <code>search</code> calls per
+        question.</p></div>
+      <div class="def"><h3>Rank</h3><p>Rows rank by accuracy. Click a column header to sort by
+        it instead.</p></div>
+    </div>
+  </section>
+
+  <section id="setting">
+    <span class="sec-k">Setting</span>
+    <h2>What stays fixed</h2>
+    <ul class="setting">
+      <li><b>Agent:</b> Tongyi-DeepResearch-30B-A3B served with vLLM, temperature 0.6, seed 42.</li>
+      <li><b>Corpus:</b> the original BrowseComp-Plus text, 100,195 documents, all 830 questions.</li>
+      <li><b>Tools:</b> <code>search</code> returns the top 10 documents with a 64-token snippet each.
+        <code>get_document</code> reads a document, cut at 12,000 tokens.</li>
+      <li><b>Budget:</b> 100 turns and a 131,072-token context window.</li>
+      <li><b>Encoding:</b> every learned retriever encodes a document's first 512 tokens.</li>
+      <li><b>Rerankers:</b> each reorders the top 100 of Qwen3-Embedding-0.6B. The agent sees the top 10.</li>
+      <li><b>Lists of queries:</b> when the agent sends several queries in one call, the first one runs.</li>
+    </ul>
+  </section>
+
+  <section id="run">
+    <span class="sec-k">Run a row</span>
+    <h2>Every row is one file</h2>
+    <p class="lead">A row's file is <code>configs/baselines/browsecomp_plus_&lt;row&gt;_tongyi.yaml</code>.
+    Build its index, serve the agent model, run the file and judge the answers.
+    <a href="https://github.com/ielab/skim-search-agent/blob/main/docs/BASELINES.md">docs/BASELINES.md</a>
+    has every step and command.</p>
+<pre>skimsearchagent run configs/baselines/browsecomp_plus_colbert_tongyi.yaml \
+  model.backend=api model.api_base=http://127.0.0.1:8000/v1
+# after the three judges: the row's accuracy, recall and search calls
+python scripts/leaderboard_row.py &lt;the run's results directory&gt;</pre>
+  </section>
+</div>
+
+<footer>
+  <div><a href="https://ielab.io">ielab</a>, The University of Queensland &middot; Apache-2.0</div>
+  <div style="margin-top:6px"><a href="../">SkimSearchAgent</a> &middot;
+  <a href="https://github.com/ielab/skim-search-agent">github.com/ielab/skim-search-agent</a></div>
+</footer>
+
+<script>
+(function themeInit() {
+  const btn = document.getElementById('themeBtn');
+  function paint() { btn.innerHTML = document.documentElement.dataset.theme === 'dark' ? '&#9788;' : '&#9789;'; }
+  btn.onclick = () => {
+    const next = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
+    document.documentElement.dataset.theme = next;
+    try { localStorage.setItem('ssa-theme', next); } catch (e) {}
+    paint();
+  };
+  paint();
+})();
+
+(function board() {
+  const FILES = 'https://github.com/ielab/skim-search-agent/blob/main/configs/baselines/';
+  const KIND = {sparse: 'sparse', dense: 'dense', 'multi-vector': 'multi-vector'};
+  const tbody = document.getElementById('rows');
+  const state = {key: 'accuracy', asc: false, filter: 'all', q: ''};
+  let entries = [];
+
+  const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const link = (text, href, cls) => href ? `<a class="${cls}" href="${esc(href)}">${esc(text)}</a>` : `<span class="${cls}">${esc(text)}</span>`;
+
+  function render() {
+    // rank is by accuracy over every row, whatever the view
+    const byAcc = [...entries].sort((a, b) => b.accuracy - a.accuracy);
+    const rank = new Map(byAcc.map((e, i) => [e.id, i + 1]));
+    let rows = entries.filter(e => state.filter === 'all' || (state.filter === 'reranked') === !!e.reranker);
+    if (state.q) {
+      const q = state.q.toLowerCase();
+      rows = rows.filter(e => [e.retriever, e.reranker || '', e.kind, e.id].join(' ').toLowerCase().includes(q));
+    }
+    rows.sort((a, b) => {
+      let x = a[state.key], y = b[state.key];
+      if (typeof x !== 'number') { x = String(x || '').toLowerCase(); y = String(y || '').toLowerCase(); }
+      return (x < y ? -1 : x > y ? 1 : 0) * (state.asc ? 1 : -1);
+    });
+    const max = Math.max(...entries.map(e => e.accuracy), 1);
+    tbody.innerHTML = rows.length ? rows.map(e => {
+      const r = rank.get(e.id);
+      const kind = e.reranker ? '' : `<span class="kind k-${esc(e.kind)}">${esc(KIND[e.kind] || e.kind)}</span>`;
+      return `<tr>
+        <td class="rank">${r <= 3 ? `<span class="medal m${r}">${r}</span>` : r}</td>
+        <td>${link(e.retriever, e.retriever_link, 'name')}
+          <div class="meta">${kind}<a class="file" href="${FILES}browsecomp_plus_${esc(e.id)}_tongyi.yaml">${esc(e.id)}</a></div></td>
+        <td>${e.reranker ? link(e.reranker, e.reranker_link, 'name') : '<span class="none">none</span>'}</td>
+        <td class="num"><div class="acc"><span class="bar"><i style="width:${(100 * e.accuracy / max).toFixed(1)}%"></i></span><b>${e.accuracy.toFixed(1)}</b></div></td>
+        <td class="num">${e.recall.toFixed(1)}</td>
+        <td class="num">${e.search_calls.toFixed(1)}</td>
+      </tr>`;
+    }).join('') : '<tr><td colspan="6" class="empty">No row matches.</td></tr>';
+    document.getElementById('count').textContent = `${rows.length} of ${entries.length} rows`;
+    document.querySelectorAll('th[data-k]').forEach(th => {
+      th.setAttribute('aria-sort', th.dataset.k === state.key ? (state.asc ? 'ascending' : 'descending') : 'none');
+    });
+  }
+
+  document.querySelectorAll('th[data-k] button').forEach(b => b.addEventListener('click', () => {
+    const k = b.parentElement.dataset.k;
+    if (state.key === k) state.asc = !state.asc;
+    else { state.key = k; state.asc = (k === 'retriever' || k === 'reranker' || k === 'search_calls'); }
+    render();
+  }));
+  document.querySelectorAll('.filt').forEach(b => b.addEventListener('click', () => {
+    state.filter = b.dataset.f;
+    document.querySelectorAll('.filt').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+    render();
+  }));
+  document.getElementById('q').addEventListener('input', ev => { state.q = ev.target.value.trim(); render(); });
+
+  fetch('data.json').then(r => r.json()).then(d => {
+    entries = d.entries;
+    document.getElementById('chipDate').textContent = d.updated;
+    document.getElementById('chipBackbone').textContent = d.backbone;
+    document.getElementById('chipJudge').textContent = d.judge;
+    const p = document.getElementById('pending');
+    if (d.pending && d.pending.length) p.textContent = `Running now: ${d.pending.join(', ')}. Their rows appear once judged.`;
+    else p.remove();
+    render();
+  }).catch(() => {
+    tbody.innerHTML = '<tr><td colspan="6" class="empty">The results file did not load.</td></tr>';
+  });
+})();
+</script>
+</body>
+</html>

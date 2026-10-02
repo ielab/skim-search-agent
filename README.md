@@ -9,6 +9,7 @@
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-00897B.svg)](LICENSE)
 
 [Project page](https://ielab.github.io/skim-search-agent/) ·
+[Leaderboard](https://ielab.io/skim-search-agent/leaderboard/) ·
 [Paper](https://arxiv.org/abs/2608.02751) ·
 [The library](#the-library) · [Install](#install) · [Run an experiment](#run-an-experiment) · [Change one thing](#change-one-thing) ·
 [Python API](#python-api) · [Strategies](#strategies) · [Train a retriever](#train-a-retriever) ·
@@ -342,7 +343,7 @@ session storage and is sent per request to OpenAI; the server does not store or 
 | [docs/CONFIGURATION.md](docs/CONFIGURATION.md) | the experiment-file schema, every flag and knob |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | modules, contracts, one episode end to end |
 | [docs/TRAINING.md](docs/TRAINING.md) | retriever training from run records |
-| [docs/BASELINES.md](docs/BASELINES.md) | retriever and reranker baselines on BrowseComp-Plus: how to run each one, and its results on three judges |
+| [docs/BASELINES.md](docs/BASELINES.md) | retriever and reranker baselines on BrowseComp-Plus: how to run each one, and its results on three judges; the same rows are on the [leaderboard](https://ielab.io/skim-search-agent/leaderboard/) |
 | [docs/SIEVE.md](docs/SIEVE.md) | the Sieve paper: the method, step-by-step reproduction from a fresh clone, and every result |
 | [docs/ITER.md](docs/ITER.md) | the ITER paper: step-by-step reproduction, its search tools, retrievers, datasets, training and results |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | development setup and how to add components |

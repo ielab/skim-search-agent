@@ -1,0 +1,176 @@
+{
+ "updated": "2026-10-02",
+ "backbone": "Tongyi-DeepResearch-30B-A3B",
+ "judge": "Qwen3-32B",
+ "pending": [
+  "ITER-Qwen3-Embedding-0.6B",
+  "ITER-Qwen3-Embedding-4B"
+ ],
+ "entries": [
+  {
+   "id": "agentir4b",
+   "retriever": "AgentIR-4B",
+   "retriever_link": "https://huggingface.co/Tevatron/AgentIR-4B",
+   "kind": "dense",
+   "accuracy": 56.6,
+   "recall": 75.0,
+   "search_calls": 50.3
+  },
+  {
+   "id": "rerank_monot5",
+   "retriever": "Qwen3-Embedding-0.6B",
+   "retriever_link": "https://huggingface.co/Qwen/Qwen3-Embedding-0.6B",
+   "kind": "reranked",
+   "accuracy": 55.9,
+   "recall": 68.1,
+   "search_calls": 53.3,
+   "reranker": "monoT5-3B",
+   "reranker_link": "https://huggingface.co/castorini/monot5-3b-msmarco-10k"
+  },
+  {
+   "id": "colbert",
+   "retriever": "ColBERTv2",
+   "retriever_link": "https://huggingface.co/colbert-ir/colbertv2.0",
+   "kind": "multi-vector",
+   "accuracy": 54.0,
+   "recall": 68.6,
+   "search_calls": 52.9
+  },
+  {
+   "id": "rerank_bge_m3",
+   "retriever": "Qwen3-Embedding-0.6B",
+   "retriever_link": "https://huggingface.co/Qwen/Qwen3-Embedding-0.6B",
+   "kind": "reranked",
+   "accuracy": 52.2,
+   "recall": 64.5,
+   "search_calls": 54.4,
+   "reranker": "bge-reranker-v2-m3",
+   "reranker_link": "https://huggingface.co/BAAI/bge-reranker-v2-m3"
+  },
+  {
+   "id": "lrat06b",
+   "retriever": "LRAT-Qwen3-Embedding-0.6B",
+   "retriever_link": "https://huggingface.co/Yuqi-Zhou/LRAT-Qwen3-Embedding-0.6B",
+   "kind": "dense",
+   "accuracy": 50.0,
+   "recall": 62.8,
+   "search_calls": 55.7
+  },
+  {
+   "id": "qwen3emb4b",
+   "retriever": "Qwen3-Embedding-4B",
+   "retriever_link": "https://huggingface.co/Qwen/Qwen3-Embedding-4B",
+   "kind": "dense",
+   "accuracy": 49.9,
+   "recall": 63.2,
+   "search_calls": 58.0
+  },
+  {
+   "id": "rerank_qwen3_06b",
+   "retriever": "Qwen3-Embedding-0.6B",
+   "retriever_link": "https://huggingface.co/Qwen/Qwen3-Embedding-0.6B",
+   "kind": "reranked",
+   "accuracy": 49.8,
+   "recall": 64.5,
+   "search_calls": 57.0,
+   "reranker": "Qwen3-Reranker-0.6B",
+   "reranker_link": "https://huggingface.co/Qwen/Qwen3-Reranker-0.6B"
+  },
+  {
+   "id": "splade",
+   "retriever": "SPLADE++ (CoCondenser-EnsembleDistil)",
+   "retriever_link": "https://huggingface.co/naver/splade-cocondenser-ensembledistil",
+   "kind": "sparse",
+   "accuracy": 49.5,
+   "recall": 60.9,
+   "search_calls": 55.9
+  },
+  {
+   "id": "qwen3emb8b",
+   "retriever": "Qwen3-Embedding-8B",
+   "retriever_link": "https://huggingface.co/Qwen/Qwen3-Embedding-8B",
+   "kind": "dense",
+   "accuracy": 48.4,
+   "recall": 62.3,
+   "search_calls": 57.5
+  },
+  {
+   "id": "diffretriever",
+   "retriever": "DiffRetriever, dense",
+   "retriever_link": "https://huggingface.co/ielabgroup/diffretriever-dream-7b-multi-q4-p16",
+   "kind": "multi-vector",
+   "accuracy": 48.3,
+   "recall": 62.5,
+   "search_calls": 57.5
+  },
+  {
+   "id": "diffretriever_sparse",
+   "retriever": "DiffRetriever, sparse",
+   "retriever_link": "https://huggingface.co/ielabgroup/diffretriever-dream-7b-multi-q4-p16",
+   "kind": "sparse",
+   "accuracy": 46.3,
+   "recall": 56.6,
+   "search_calls": 58.9
+  },
+  {
+   "id": "repllama",
+   "retriever": "RepLLaMA",
+   "retriever_link": "https://huggingface.co/castorini/repllama-v1-7b-lora-passage",
+   "kind": "dense",
+   "accuracy": 44.3,
+   "recall": 56.1,
+   "search_calls": 61.4
+  },
+  {
+   "id": "qwen3emb06b",
+   "retriever": "Qwen3-Embedding-0.6B",
+   "retriever_link": "https://huggingface.co/Qwen/Qwen3-Embedding-0.6B",
+   "kind": "dense",
+   "accuracy": 41.7,
+   "recall": 52.9,
+   "search_calls": 62.2
+  },
+  {
+   "id": "bm25",
+   "retriever": "BM25",
+   "retriever_link": "https://github.com/castorini/pyserini",
+   "kind": "sparse",
+   "accuracy": 37.7,
+   "recall": 47.0,
+   "search_calls": 61.0
+  },
+  {
+   "id": "rerank_laya_typed",
+   "retriever": "Qwen3-Embedding-0.6B",
+   "retriever_link": "https://huggingface.co/Qwen/Qwen3-Embedding-0.6B",
+   "kind": "reranked",
+   "accuracy": 35.2,
+   "recall": 36.7,
+   "search_calls": 72.3,
+   "reranker": "Laya typed-decisions",
+   "reranker_link": "https://huggingface.co/convaiinnovations/laya-typed-decisions"
+  },
+  {
+   "id": "rerank_laya",
+   "retriever": "Qwen3-Embedding-0.6B",
+   "retriever_link": "https://huggingface.co/Qwen/Qwen3-Embedding-0.6B",
+   "kind": "reranked",
+   "accuracy": 33.4,
+   "recall": 36.6,
+   "search_calls": 71.6,
+   "reranker": "Laya (English)",
+   "reranker_link": "https://huggingface.co/convaiinnovations/laya"
+  },
+  {
+   "id": "rerank_laya_multilingual",
+   "retriever": "Qwen3-Embedding-0.6B",
+   "retriever_link": "https://huggingface.co/Qwen/Qwen3-Embedding-0.6B",
+   "kind": "reranked",
+   "accuracy": 27.0,
+   "recall": 27.2,
+   "search_calls": 77.3,
+   "reranker": "Laya multilingual",
+   "reranker_link": "https://huggingface.co/convaiinnovations/laya-multilingual"
+  }
+ ]
+}

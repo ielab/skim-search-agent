@@ -256,6 +256,7 @@
     <a class="opt" href="#quickstart">Quick start</a>
     <a class="opt" href="#extend">Extend</a>
     <a class="opt" href="#papers">Projects</a>
+    <a href="leaderboard/">Leaderboard</a>
     <a href="sieve/">Sieve</a>
     <a href="iter/">ITER</a>
     <a href="https://github.com/ielab/skim-search-agent">GitHub</a>
@@ -273,6 +274,7 @@
     <div class="cta">
       <a class="btn primary" href="https://github.com/ielab/skim-search-agent">&#9733; GitHub</a>
       <a class="btn" href="https://github.com/ielab/skim-search-agent/tree/main/docs">Docs</a>
+      <a class="btn" href="leaderboard/">Leaderboard</a>
       <a class="btn" href="sieve/">Sieve paper</a>
       <a class="btn" href="iter/">ITER paper</a>
     </div>
@@ -399,6 +401,21 @@ condition("title_agent", task="research", strategy="title_only")
 <span class="c"># run it: strategy=title_agent</span></pre>
   </section>
 
+  <section id="leaderboard">
+    <span class="sec-k">Leaderboard</span>
+    <h2>Retrievers and rerankers on BrowseComp-Plus</h2>
+    <p class="lead">One deep-search agent and one fixed setting, with the retriever behind its
+    search tool swapped one row at a time. Accuracy is the Qwen3-32B judge over all 830 questions.
+    The top five:</p>
+    <div class="tbl-wrap">
+      <table class="res" id="lbTop">
+        <thead><tr><th>#</th><th>retriever</th><th>reranker</th><th>accuracy (%)</th><th>recall (%)</th><th>search calls</th></tr></thead>
+        <tbody><tr><td colspan="6">Loading&hellip;</td></tr></tbody>
+      </table>
+    </div>
+    <p style="margin-top:16px"><a class="btn" href="leaderboard/">Full leaderboard &rarr;</a></p>
+  </section>
+
   <section id="papers">
     <span class="sec-k">Projects</span>
     <h2>Built on SkimSearchAgent</h2>
@@ -426,7 +443,7 @@ condition("title_agent", task="research", strategy="title_only")
 
 <footer>
   <div><a href="https://ielab.io">ielab</a>, The University of Queensland &middot; Apache-2.0</div>
-  <div style="margin-top:6px"><a href="sieve/">Sieve</a> &middot; <a href="iter/">ITER</a> &middot;
+  <div style="margin-top:6px"><a href="leaderboard/">Leaderboard</a> &middot; <a href="sieve/">Sieve</a> &middot; <a href="iter/">ITER</a> &middot;
   <a href="https://github.com/ielab/skim-search-agent">github.com/ielab/skim-search-agent</a></div>
 </footer>
 
@@ -441,6 +458,18 @@ condition("title_agent", task="research", strategy="title_only")
     paint();
   };
   paint();
+})();
+</script>
+<script>
+(function leaderboardTop() {
+  const tb = document.querySelector('#lbTop tbody');
+  const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  fetch('leaderboard/data.json').then(r => r.json()).then(d => {
+    const top = [...d.entries].sort((a, b) => b.accuracy - a.accuracy).slice(0, 5);
+    tb.innerHTML = top.map((e, i) => `<tr><td>${i + 1}</td><td class="c">${esc(e.retriever)}</td>
+      <td>${e.reranker ? esc(e.reranker) : '&ndash;'}</td><td><b>${e.accuracy.toFixed(1)}</b></td>
+      <td>${e.recall.toFixed(1)}</td><td>${e.search_calls.toFixed(1)}</td></tr>`).join('');
+  }).catch(() => { tb.innerHTML = '<tr><td colspan="6"><a href="leaderboard/">See the leaderboard</a></td></tr>'; });
 })();
 </script>
 </body>
