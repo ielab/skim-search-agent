@@ -219,6 +219,14 @@ def main() -> None:
     from agent_search.evaluation.datasets import dataset_domain
     domain = dataset_domain(args.dataset, args.domain)
 
+    # a run that sets no query style uses its dense model's own (ITER's trained format for an ITER
+    # checkpoint, the plain sub-query otherwise); experiment files resolve this in to_invocation,
+    # this covers a launch from environment knobs alone
+    if not os.environ.get("DENSE_QUERY_STYLE"):
+        from agent_search.evaluation.datasets import default_dense_model
+        from agent_search.training.queries import default_style_for
+        os.environ["DENSE_QUERY_STYLE"] = default_style_for(args.dense_model or default_dense_model(domain))
+
     def _config_for(retriever: str, seed: int | None = None) -> RunConfig:
         return RunConfig(
             dataset=DatasetArgs(

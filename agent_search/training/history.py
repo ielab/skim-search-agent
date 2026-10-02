@@ -24,10 +24,13 @@ from agent_search.training.triples import is_read_action, is_search_action, read
 
 
 def dense_query_style() -> str:
+    """The run's query style (`DENSE_QUERY_STYLE`, default plain), under its canonical name."""
+    from agent_search.training.queries import canonical_style
     style = os.environ.get("DENSE_QUERY_STYLE", "plain").strip() or "plain"
-    if style not in STYLES:
-        raise ValueError(f"DENSE_QUERY_STYLE={style!r}; choose from {STYLES}")
-    return style
+    try:
+        return canonical_style(style)
+    except ValueError:
+        raise ValueError(f"DENSE_QUERY_STYLE={style!r}; choose from {STYLES}") from None
 
 
 @dataclass
@@ -50,7 +53,7 @@ class QueryContext:
         """Attach the model's latest generation as the note on the documents read at the
         previous step. Called before the next tool runs, so a search issued in this generation
         already sees the note (the same order `triples.py` uses when it builds training data)."""
-        self.current_reasoning = reasoning_text(raw_output or "")   # i9: the pre-search reasoning
+        self.current_reasoning = reasoning_text(raw_output or "")   # iter: the pre-search reasoning
         if self._pending_reads and self.interactions:
             note = self.current_reasoning
             visits = self.interactions[-1]["visits"]

@@ -694,8 +694,8 @@ gold document is in the top k.
 |---|---|---|---|---|
 | `bm25` | Lucene BM25 (Pyserini, k1=0.9, b=0.4) | 0.027 | 0.036 | 0.049 |
 | `dense` | `BAAI/bge-base-en-v1.5` | 0.092 | 0.102 | 0.152 |
-| `dense` | `ielabgroup/ITER-Qwen3-Embedding-0.6B` (i9 query format) | 0.215 | 0.277 | 0.359 |
-| `dense` | `ielabgroup/ITER-Qwen3-Embedding-4B` (i9 query format) | 0.339 | 0.435 | 0.527 |
+| `dense` | `ielabgroup/ITER-Qwen3-Embedding-0.6B` (its trained query format) | 0.215 | 0.277 | 0.359 |
+| `dense` | `ielabgroup/ITER-Qwen3-Embedding-4B` (its trained query format) | 0.339 | 0.435 | 0.527 |
 | `hybrid` | BM25 + bge-base, RRF k=60, pools of 100 | 0.074 | 0.083 | 0.127 |
 | `hybrid` | BM25 + ITER-0.6B, RRF k=60, pools of 100 | 0.161 | 0.173 | 0.281 |
 | `reranked` | BM25 pool of 100, `BAAI/bge-reranker-v2-m3` | 0.046 | 0.060 | 0.080 |
@@ -703,7 +703,7 @@ gold document is in the top k.
 A single-shot ranking barely reaches the evidence on this collection, which is why every
 agent strategy searches many times. The ITER encoders are served the way they were trained
 (`agent_search/retrievers/dense/decoder_encoder.py`: the end token kept, last position pooled,
-documents at 512 tokens, queries at 8192) and queried in their i9 format with the reasoning field
+documents at 512 tokens, queries at 8192) and queried in their trained format with the reasoning field
 empty, since a floor has no agent; the 0.6B checkpoint more than doubles bge-base's recall and the
 4B checkpoint adds half again. Fusing BM25 into ITER by reciprocal rank lowers recall: BM25 is far
 weaker here and its votes dilute the dense ranking.

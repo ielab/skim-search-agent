@@ -191,21 +191,21 @@ def test_build_triples_cli_on_the_fixture(tmp_path):
 
 
 def test_i9_renders_the_released_checkpoints_format():
-    """The released ITER checkpoints expect i9 (the paper's ITER-i7): i2's fields plus the agent's
+    """The released ITER checkpoints expect `iter` (the paper's ITER-i7): i2's fields plus the agent's
     pre-search reasoning on one line before the sub-query, `<empty>` when there is none."""
     inter = [{"query": "treaty Florida", "visits": []}]
-    q = Q.render_query("i9", "Q?", "sub", inter, pre_reasoning="Results are\n not helpful.\n  Try the ship.")
+    q = Q.render_query("iter", "Q?", "sub", inter, pre_reasoning="Results are\n not helpful.\n  Try the ship.")
     assert q == ("Main Question: Q?\nCurrent Reasoning: Results are not helpful. Try the ship.\n"
                  "Current Subquery: sub\nPrevious Interactions:\nPrevious SubQuery 1: treaty Florida")
-    assert Q.render_query("i9", "Q?", "sub", []) == ("Main Question: Q?\nCurrent Reasoning: <empty>\n"
+    assert Q.render_query("iter", "Q?", "sub", []) == ("Main Question: Q?\nCurrent Reasoning: <empty>\n"
                                                       "Current Subquery: sub\nPrevious Interactions: <empty>")
-    assert Q.INSTRUCTIONS["i9"].startswith("Given the main question, the agent's reasoning")
-    assert Q.DEFAULT_STYLE == "i9"
+    assert Q.INSTRUCTIONS["iter"].startswith("Given the main question, the agent's reasoning")
+    assert Q.DEFAULT_STYLE == "iter"
 
 
 def test_query_context_carries_the_current_turns_reasoning():
     from agent_search.training.history import QueryContext
-    ctx = QueryContext(question="Q?", text_of=lambda d: "", style="i9")
+    ctx = QueryContext(question="Q?", text_of=lambda d: "", style="iter")
     ctx.note('<think>\nSearch the ship.\n</think>\n<tool_call>{"name":"search","arguments":{"query":"ship"}}</tool_call>')
     assert ctx.render("ship").splitlines()[1] == "Current Reasoning: Search the ship."
 
@@ -216,6 +216,6 @@ def test_keyword_queries_keep_their_quotes_and_list_queries_use_the_first():
     from types import SimpleNamespace
     assert _plain_text('"Belgian ship" "Copacabana" World War II') == '"Belgian ship" "Copacabana" World War II'
     assert _plain_text("#combine(#1(bank management) treaty.title)") == "bank management treaty"
-    ctx = QueryContext(question="Q?", text_of=lambda d: "", style="i9")
+    ctx = QueryContext(question="Q?", text_of=lambda d: "", style="iter")
     ctx.observe(SimpleNamespace(name="search", args={"query": ['"a" b', "c"]}, raw_output=""), [])
     assert ctx.render("next").endswith('Previous Interactions:\nPrevious SubQuery 1: "a" b')

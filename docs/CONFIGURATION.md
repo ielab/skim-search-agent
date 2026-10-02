@@ -315,8 +315,8 @@ handles that for you.
 | `INDRI_DENSE_W` | 0.35 | weight of the dense score in Indri's ranking | `agent_search/retrievers/lucene/adapters.py` |
 | `INDRI_DENSE_EXPAND_K` | 50 | hits Lucene returns for the dense rerank pool of Indri | `agent_search/retrievers/lucene/adapters.py` |
 | `LUCENE_MU` | 2500 | Dirichlet smoothing of the Indri scorer (`INDRI_MU` is read as a fallback) | `agent_search/retrievers/lucene/engine.py` |
-| `DENSE_QUERY_STYLE` | `plain` | how the dense query is written from the agent's history (`plain`, `mem`, `docs`, `i1` to `i7`); must match the trained retriever | `agent_search/training/history.py` |
-| `DENSE_QUERY_INSTRUCTION` | unset | the query instruction prefix; unset means the checkpoint's serving note or the built-in table | `agent_search/retrievers/dense/base.py` |
+| `DENSE_QUERY_STYLE` | the model's own | how the dense query is written from the agent's history: `plain`, `iter` (the released ITER checkpoints' format), `mem`, `docs`, `i1` to `i8`; unset = the model's own (`iter` for an ITER checkpoint, `plain` otherwise); must match the trained retriever | `agent_search/training/queries.py` |
+| `DENSE_QUERY_INSTRUCTION` | unset | the query instruction prefix; unset = the one the model was trained with: its serving note, ITER's own instruction for an ITER checkpoint, the family's default otherwise | `agent_search/retrievers/dense/trained.py` |
 | `DENSE_POOLING` | unset | `last_token`, `mean` or `cls` for a checkpoint without a sentence-transformers config; unset means the serving note, then a guess from the model type | `agent_search/retrievers/dense/base.py` |
 | `DENSE_DTYPE` | unset | the precision the dense encoder runs in: `float32`, `float16` or `bfloat16`. Unset means the checkpoint's serving note (a model trained with bf16 is served in bf16), else float32. Caches and index metadata carry it. | `agent_search/retrievers/dense/base.py` |
 | `DENSE_INDEX_PATH` | unset | a prebuilt vector index to serve instead of the per-corpus cache (this library's cache directory, or ITER's `index.faiss` plus `index.lookup.pkl`); required for an on-disk corpus | `agent_search/retrievers/dense/base.py` |

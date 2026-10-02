@@ -60,9 +60,9 @@ listing:
 
 # --- retrieval: engines and ranking
 retrieval:
-  dense_model: /scratch3/wan458/DIVER/models/AgentIR-4B # the released ITER checkpoint (i9 query format, see the model card)
+  dense_model: /scratch3/wan458/DIVER/models/AgentIR-4B # the released ITER checkpoint (served in its trained query format, see the model card)
   dense_query_style: i8 # the released ITER checkpoints' format: main question, pre-search reasoning, sub-query, previous sub-queries
-  dense_query_instruction: "Given a user's reasoning followed by a web search query, retrieve relevant passages that answer the query while incorporating the user's reasoning" # null = the checkpoint's serving note or the built-in table (i2's full instruction)
+  dense_query_instruction: "Given a user's reasoning followed by a web search query, retrieve relevant passages that answer the query while incorporating the user's reasoning" # null = the instruction the model was trained with (ITER's own for an ITER checkpoint)
   dense_pooling: last_token              # pooling for a local checkpoint: last_token | mean | cls (null = serving note, else auto from config.json)
   dense_dtype: float16 # precision the dense encoder runs in: float32 | float16 | bfloat16 (null = the checkpoint's serving note, else float32)
   dense_seq_length: 4096                  # encoder tokens a document or query is cut to (null = 1024; ITER encodes at 512)

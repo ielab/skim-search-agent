@@ -91,7 +91,7 @@ export DATASET=browsecomp_plus_structured_full CONDITION=agent_research_iter_den
        MODEL=Alibaba-NLP/Tongyi-DeepResearch-30B-A3B DENSE_MODEL=ielabgroup/ITER-Qwen3-Embedding-0.6B \
        RUNS_DIR=runs/iter/paper_setting_iter06b NUM_SHARDS=10 WORKERS=2 MAX_STEPS=50 \
        MAX_VISIT_TOKENS=512 MAX_SECTION_TOKENS=12000 SNIPPET_TOKENS=32 \
-       DENSE_QUERY_STYLE=i9 DENSE_POOLING=last_token DENSE_DTYPE=bfloat16 \
+       DENSE_POOLING=last_token DENSE_DTYPE=bfloat16 \
        DENSE_SEQ_LENGTH=512 DENSE_QUERY_SEQ_LENGTH=8192 \
        AGENT_CTX_WINDOW=100000 AGENT_CTX_TOKENS=95000 DEDUP_TOPK=10 DEDUP_POOL_K=100 \
        AGENT_SEARCH_DENSE_DEVICE=cpu MAX_MODEL_LEN=131072 JOB_TIME=04:00:00 PREBUILD=0 \
@@ -161,8 +161,8 @@ retrieval:
   dense_dtype: bfloat16       # ITER encoded its corpora in bfloat16
   dense_seq_length: 512       # documents cut to 512 encoder tokens
   dense_query_seq_length: 8192
-  dense_query_style: i9       # the model card's reasoning-augmented query format
-  dense_query_instruction: null   # null = the built-in i9 instruction
+  dense_query_style: null     # null = the model's own: the ITER checkpoints' trained (reasoning-augmented) format
+  dense_query_instruction: null   # null = the instruction ITER was trained with
   ann_ef_search: 0            # unused: 100,195 docs search a flat index
 ```
 
@@ -276,12 +276,15 @@ tokens (`retrieval.dense_seq_length`). That is Tevatron's `--pooling eos` encodi
 ITER trained and indexed; it reproduces ITER's published vectors to 0.997 cosine.
 
 The query side is the pair `retrieval.dense_query_style` + `retrieval.dense_query_instruction`.
-Use `i9` for the released checkpoints, the model card's reasoning-augmented format: the main
-question, the agent's pre-search reasoning on one line, the sub-query, then the sub-queries already
-tried. The paper calls it ITER-i7. Leave the instruction `null` to get the built-in i9 text:
-"Given the main question, the agent's reasoning and the current sub-query it led to, and the
-sub-queries already tried in previous interactions, retrieve documents relevant to the current
-sub-query that provide NEW information not yet found." Use `plain` for the baselines. Queries run
+Leave both `null` for the released checkpoints: a run on an ITER checkpoint is then served the way
+the model card serves it, in ITER's trained format (the main question, the agent's pre-search
+reasoning on one line, the sub-query, then the sub-queries already tried; the ITER paper calls it
+ITER-i7) with ITER's own instruction: "Given the main question, the agent's reasoning and the
+current sub-query it led to, and the sub-queries already tried in previous interactions, retrieve
+documents relevant to the current sub-query that provide NEW information not yet found." The
+explicit name of that format is `iter`. Until 2026-10-02 the library paired the format with the
+plain Qwen3-Embedding instruction whenever the instruction was left `null`; cells run before then
+queried ITER with the right format and the wrong instruction. Use `plain` for the baselines. Queries run
 to 8192 tokens (`retrieval.dense_query_seq_length`), documents to 512.
 
 A dense cache records the checkpoint's weights revision and is rebuilt when the hub weights

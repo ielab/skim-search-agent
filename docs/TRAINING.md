@@ -63,7 +63,7 @@ Query styles (ITER's names):
 |---|---|
 | `plain` | the sub-query only |
 | `i2` | main question, current sub-query, previous sub-queries |
-| `i9` | `i2` plus the agent's pre-search reasoning on one line (the released ITER checkpoints; default) |
+| `iter` | `i2` plus the agent's pre-search reasoning on one line: the released ITER checkpoints' format and the default (an ITER checkpoint uses it when the style is null) |
 | `i3` / `i6` | `i2` plus the documents visited under each previous sub-query |
 | `i4` / `i7` | `i3` plus the agent's cleaned notes on those documents |
 | `i5` | main question, sub-query, notes only |

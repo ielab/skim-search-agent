@@ -61,7 +61,7 @@ listing:
 # --- retrieval: engines and ranking
 retrieval:
   dense_model: ielabgroup/ITER-Qwen3-Embedding-4B     # the released ITER checkpoint
-  dense_query_style: i9                                     # ITER's query: main question, pre-search reasoning, sub-query, previous sub-queries
+  dense_query_style: null                   # null = the model's own: ITER's trained format for the ITER checkpoints
   dense_query_instruction: null                                   # null = the checkpoint's serving note or the built-in table
   dense_pooling: last_token                             # pooling for a decoder checkpoint
   dense_dtype: bfloat16                               # precision

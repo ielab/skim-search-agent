@@ -105,8 +105,8 @@ SCHEMA: dict[str, dict[str, Key]] = {
     },
     "retrieval": {
         "dense_model": Key(None, "flag", "--dense-model", "the ONE dense model for every dense arm (ranker, fallback, baselines); null = BAAI/bge-base-en-v1.5 for documents; a directory trained by skimsearchagent-train-retriever works too"),
-        "dense_query_style": Key("plain", "env", "DENSE_QUERY_STYLE", "how the dense query is written from the agent's history: plain | mem | docs | i1..i7 | i9 (must match the trained retriever; the released ITER checkpoints: i9)"),
-        "dense_query_instruction": Key(None, "env", "DENSE_QUERY_INSTRUCTION", "override the query instruction prefix (null = the checkpoint's serving note or the built-in table)"),
+        "dense_query_style": Key(None, "env", "DENSE_QUERY_STYLE", "how the dense query is written from the agent's history (null = the model's own: the ITER checkpoints' trained format for ITER, the plain sub-query for every other model): plain | iter | mem | docs | i1..i8"),
+        "dense_query_instruction": Key(None, "env", "DENSE_QUERY_INSTRUCTION", "the query instruction (null = the one the model was trained with: its serving note, ITER's own for an ITER checkpoint, the family's default otherwise)"),
         "dense_pooling": Key(None, "env", "DENSE_POOLING", "pooling for a local checkpoint: last_token | mean | cls (null = serving note, else auto from config.json)"),
         "dense_query_seq_length": Key(None, "env", "DENSE_QUERY_SEQ_LENGTH", "encoder tokens a query is cut to (null = the document length; the ITER and AgentIR checkpoints take 8192)"),
         "dense_seq_length": Key(None, "env", "DENSE_SEQ_LENGTH", "encoder tokens a document or query is cut to (null = 1024; ITER encodes at 512)"),
@@ -531,6 +531,11 @@ def to_invocation(exp: Experiment) -> tuple[list[str], dict[str, str]]:
                 env[spec.target] = ("1" if value else "0") if isinstance(value, bool) else str(value)
     if seeds:
         args += ["--seeds", ",".join(str(s) for s in seeds)]
+    # a dense run that names no query style gets its model's own (ITER's trained format for an ITER
+    # checkpoint, the plain sub-query otherwise), so naming the model is enough
+    if "DENSE_QUERY_STYLE" not in env and applies("retrieval", "dense_query_style", exp.strategy):
+        from agent_search.training.queries import default_style_for
+        env["DENSE_QUERY_STYLE"] = default_style_for(exp.get("retrieval", "dense_model"))
     ks = exp.get("evaluation", "k")
     if ks:
         args += ["--k"] + [str(k) for k in ks]

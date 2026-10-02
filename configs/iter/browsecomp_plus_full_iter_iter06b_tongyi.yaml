@@ -60,9 +60,9 @@ listing:
 
 # --- retrieval: engines and ranking
 retrieval:
-  dense_model: ielabgroup/ITER-Qwen3-Embedding-0.6B # the released ITER checkpoint (i9 query format, see the model card)
-  dense_query_style: i9                  # the released ITER checkpoints' format: main question, pre-search reasoning, sub-query, previous sub-queries
-  dense_query_instruction: null                # null = the checkpoint's serving note or the built-in table (i2's full instruction)
+  dense_model: ielabgroup/ITER-Qwen3-Embedding-0.6B # the released ITER checkpoint (served in its trained query format, see the model card)
+  dense_query_style: null                   # null = the model's own: ITER's trained format for the ITER checkpoints
+  dense_query_instruction: null                # null = the instruction the model was trained with (ITER's own for an ITER checkpoint)
   dense_pooling: last_token              # pooling for a local checkpoint: last_token | mean | cls (null = serving note, else auto from config.json)
   dense_dtype: bfloat16                  # precision the dense encoder runs in: float32 | float16 | bfloat16 (null = the checkpoint's serving note, else float32)
   dense_seq_length: 512                   # encoder tokens a document or query is cut to (null = 1024; ITER encodes at 512)

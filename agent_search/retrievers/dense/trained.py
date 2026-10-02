@@ -5,8 +5,10 @@ The serving note `skimsearchagent_dense.json`, written by `skimsearchagent-train
 says how the model was trained: the query instruction, the pooling, whether embeddings are
 normalised, the document and query lengths, the precision. This class serves the checkpoint
 exactly that way. A checkpoint without a note (a released one) is served with last-token
-pooling, normalisation, and the plain Qwen3-Embedding instruction, which is what those models
-were trained with; a run overrides any of it with the `DENSE_*` knobs.
+pooling, normalisation, and the instruction that goes with the run's query style: ITER's own
+for its trained format (`iter`, as the ITER checkpoints' model card and ITER's evaluation code
+pair them), the plain Qwen3-Embedding instruction for a plain query (LRAT). A run overrides any
+of it with the `DENSE_*` knobs.
 """
 from __future__ import annotations
 
@@ -18,6 +20,16 @@ from agent_search.retrievers.dense.base import SERVING_NOTE, DenseRetriever, loc
 
 _DECODER_TYPES = ("qwen", "llama", "mistral", "gemma")
 PLAIN_INSTRUCTION = "Given a web search query, retrieve relevant passages that answer the query"
+
+
+def instruction_for_style(style: Optional[str]) -> str:
+    """The instruction a checkpoint without a serving note is served with: the one its query style
+    was trained with (ITER's for `iter`), the plain Qwen3-Embedding one for a plain query. Until
+    2026-10-02 the plain one was used for every style, so ITER checkpoints were queried in their
+    format but with the wrong instruction."""
+    from agent_search.training.queries import INSTRUCTIONS, canonical_style
+    s = canonical_style((style or "plain").strip() or "plain")
+    return PLAIN_INSTRUCTION if s in ("plain", "i0") else INSTRUCTIONS.get(s, PLAIN_INSTRUCTION)
 
 
 def read_serving_note(model_id: str) -> dict:
@@ -61,7 +73,7 @@ class TrainedRetriever(DenseRetriever):
     def __init__(self, model: str, *args, **kwargs):
         note = read_serving_note(model)
         self.note = note
-        instruction = note.get("query_instruction") or PLAIN_INSTRUCTION
+        instruction = note.get("query_instruction") or instruction_for_style(os.environ.get("DENSE_QUERY_STYLE"))
         self.query_prefix = f"Instruct: {instruction}\nQuery: "
         self.pooling = str(note.get("pooling") or "last_token")
         self.normalize = bool(note.get("normalize", True))

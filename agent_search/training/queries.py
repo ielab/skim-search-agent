@@ -15,6 +15,10 @@ Styles (ITER's names are kept so results line up with the paper):
   template; ``i2`` (sub-queries only) is the default training style, ``i3`` adds visited
   documents, ``i4`` adds notes too, ``i5`` notes only, ``i6``/``i7`` are ``i3``/``i4`` with the
   shorter agent-view snippets and no id tags.
+* ``iter``   the format the released ITER checkpoints (``ielabgroup/ITER-Qwen3-Embedding-*``) were
+  trained on: ``i2``'s fields plus the agent's reasoning before the search (the ITER paper's
+  ITER-i7). A run on an ITER checkpoint uses it by default (`default_style_for`).
+* ``i8``     AgentIR's format: the issuing turn's reasoning, then the sub-query.
 
 Token truncation uses the library's token ruler (`agent_search.tokens`), so this module has
 no tokenizer dependency; the numbers are the ones ITER used (64-token snippets, 256-token
@@ -27,10 +31,37 @@ from typing import Callable, Iterable, Optional, Sequence
 
 from agent_search.tokens import count_tokens, truncate_tokens
 
-STYLES = ("plain", "mem", "docs", "i0", "i1", "i2", "i3", "i4", "i5", "i6", "i7", "i8", "i9")
-# i9 (the paper's ITER-i7): i2's fields plus the agent's pre-search reasoning, one line, before the
+STYLES = ("plain", "mem", "docs", "i0", "i1", "i2", "i3", "i4", "i5", "i6", "i7", "i8", "iter")
+# iter (the paper's ITER-i7): i2's fields plus the agent's pre-search reasoning, one line, before the
 # sub-query. The released ielabgroup/ITER-Qwen3-Embedding checkpoints are trained on it (model card).
-DEFAULT_STYLE = "i9"
+DEFAULT_STYLE = "iter"
+# older names still accepted, so earlier experiment files and run records resolve
+ALIASES = {"i9": "iter"}
+
+
+def canonical_style(style: str) -> str:
+    """The style's name in `STYLES` (an alias such as the old `i9` maps to `iter`)."""
+    s = ALIASES.get(style, style)
+    if s not in STYLES:
+        raise ValueError(f"unknown query style {style!r}; choose from {STYLES}")
+    return s
+
+
+def default_style_for(model_id: Optional[str]) -> str:
+    """The query style a dense model is served with when a run names none: the style a checkpoint
+    trained here recorded in its serving note, ITER's own format for the released ITER checkpoints,
+    else the plain sub-query."""
+    if not model_id:
+        return "plain"
+    try:
+        from agent_search.retrievers.dense.trained import read_serving_note
+        noted = read_serving_note(model_id).get("query_style")
+        if noted:
+            return canonical_style(noted)
+    except Exception:  # noqa: BLE001: no note, or not readable here: fall through to the name
+        pass
+    name = model_id.rstrip("/").split("/")[-1].lower()
+    return "iter" if name.startswith("iter-qwen3-embedding") else "plain"
 
 # The instruction the trained model is served with. Training passes the same string as
 # FlagEmbedding's --query_instruction_for_retrieval; inference prefixes queries with
@@ -48,7 +79,7 @@ INSTRUCTIONS = {
     "i6": "Given the main question, the current sub-query, and previous interactions with the documents already visited, retrieve documents relevant to the current sub-query that provide NEW information beyond the visited documents.",
     "i7": "Given the main question, the current sub-query, and previous interactions with the documents already visited and notes taken on them, retrieve documents relevant to the current sub-query that provide NEW information beyond the visited documents.",
     "i8": "Given the agent's reasoning that led to the current sub-query, retrieve documents relevant to the current sub-query that provide NEW information beyond what the reasoning already covers.",
-    "i9": "Given the main question, the agent's reasoning and the current sub-query it led to, and the sub-queries already tried in previous interactions, retrieve documents relevant to the current sub-query that provide NEW information not yet found.",
+    "iter": "Given the main question, the agent's reasoning and the current sub-query it led to, and the sub-queries already tried in previous interactions, retrieve documents relevant to the current sub-query that provide NEW information not yet found.",
 }
 
 # per-variant rendering for the structured template: (with_docs, with_notes, id_tags, doc_tokens)
@@ -59,7 +90,7 @@ _VARIANT_CFG = {
     "i5": (False, True, True, 128),
     "i6": (True, False, False, 64),
     "i7": (True, True, False, 64),
-    "i9": (False, False, True, 128),   # i2's fields plus the Current Reasoning line
+    "iter": (False, False, True, 128),   # i2's fields plus the Current Reasoning line
 }
 
 
@@ -192,7 +223,7 @@ def structured_query(variant: str, question: str, current: str, interactions: Se
         # previous interactions.
         return f"Reasoning: {pre_reasoning or 'Empty'}\n\nQuery: {current}"
     lines = [f"Main Question: {question}"]
-    if variant == "i9":
+    if variant == "iter":
         # the <think> of the turn that issued this search, one line, untruncated; "<empty>" when
         # there is none (the model card's exact rule)
         lines.append(f"Current Reasoning: {_oneline(pre_reasoning) or '<empty>'}")
@@ -230,10 +261,9 @@ def render_query(style: str, question: str, current: str, interactions: Sequence
 
     ``interactions`` are the searches BEFORE this one, oldest first:
     ``[{"query": sub_query, "visits": [(doc_id, doc_text, reasoning_after_reading), ...]}]``.
-    ``pre_reasoning`` is the agent's reasoning in the turn that issues this search (i9 only).
+    ``pre_reasoning`` is the agent's reasoning in the turn that issues this search (iter only).
     """
-    if style not in STYLES:
-        raise ValueError(f"unknown query style {style!r}; choose from {STYLES}")
+    style = canonical_style(style)
     if style == "plain" or style == "i0":
         return current
     if style == "mem":
@@ -244,6 +274,6 @@ def render_query(style: str, question: str, current: str, interactions: Sequence
     return structured_query(style, question, current, interactions, pre_reasoning=pre_reasoning)
 
 
-__all__ = ["STYLES", "DEFAULT_STYLE", "INSTRUCTIONS", "instruction_prefix", "render_query",
+__all__ = ["STYLES", "DEFAULT_STYLE", "ALIASES", "canonical_style", "default_style_for", "INSTRUCTIONS", "instruction_prefix", "render_query",
            "reasoning_text", "clean_reasoning", "clean_note", "memory_query", "prevdoc_query",
            "structured_query"]
