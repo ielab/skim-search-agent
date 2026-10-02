@@ -2,10 +2,17 @@
  "updated": "2026-10-03",
  "backbone": "Tongyi-DeepResearch-30B-A3B",
  "judge": "Qwen3-32B",
- "pending": [
-  "ITER-Qwen3-Embedding-4B"
- ],
+ "pending": [],
  "entries": [
+  {
+   "id": "iter4b",
+   "retriever": "ITER-Qwen3-Embedding-4B",
+   "retriever_link": "https://huggingface.co/ielabgroup/ITER-Qwen3-Embedding-4B",
+   "kind": "dense",
+   "accuracy": 57.7,
+   "recall": 69.6,
+   "search_calls": 50.8
+  },
   {
    "id": "agentir4b",
    "retriever": "AgentIR-4B",

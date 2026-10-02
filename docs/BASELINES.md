@@ -35,6 +35,7 @@ Qwen3-32B judge leaves 13 to 26 per cell). Three judges score each cell:
 
 | retriever | file | Qwen3-32B (official) | Qwen3-30B-A3B-Thinking-2507 | gpt-4o-mini | searches |
 |---|---|---:|---:|---:|---:|
+| ITER-Qwen3-Embedding-4B | `iter4b` | 57.7 | 58.7 | 54.5 | 50.8 |
 | AgentIR-4B | `agentir4b` | 56.6 | 57.5 | 53.9 | 50.3 |
 | ITER-Qwen3-Embedding-0.6B | `iter06b` | 55.7 | 57.1 | 53.7 | 53.5 |
 | ColBERTv2 | `colbert` | 54.0 | 55.1 | 52.5 | 52.9 |
@@ -48,8 +49,10 @@ Qwen3-32B judge leaves 13 to 26 per cell). Three judges score each cell:
 | Qwen3-Embedding-0.6B | `qwen3emb06b` | 41.7 | 42.4 | 38.8 | 62.2 |
 | BM25 | `bm25` | 37.7 | 38.1 | 35.3 | 61.0 |
 
-ITER-Qwen3-Embedding-4B (`iter4b`), and ITER-4B with documents encoded at 4,096 tokens
-(`iter4b_d4096`), are running. Their rows go here when all three judges finish.
+One row changes the encoding length, so it sits outside the table: ITER-Qwen3-Embedding-4B with
+documents encoded at 4,096 tokens instead of 512 (`iter4b_d4096`) scores 58.3 on Qwen3-32B
+(official), 59.5 on Qwen3-30B-A3B-Thinking-2507 and 55.9 on gpt-4o-mini, with 49.4 searches per
+question. It needs its own index, built with `DENSE_SEQ_LENGTH=4096`.
 
 ### Rerankers over the Qwen3-Embedding-0.6B pool
 
