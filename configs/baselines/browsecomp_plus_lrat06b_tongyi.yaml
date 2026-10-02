@@ -3,7 +3,7 @@
 # Validate: skimsearchagent validate <this file>
 # Every key that changes what runs or how it is measured is listed; unknown keys are errors.
 schema: 1
-name: baseline_qwen3emb8b_tongyi                  # Qwen3-Embedding-8B, top-10
+name: lrat06b_tongyi                  # LRAT-Qwen3-Embedding-0.6B, top-10
 strategy: agent_research_iter_dense              # ITER's tools (top-10 search in ITER's format, get_document), Tongyi prompt without the dedup notice
 
 # --- dataset: what is searched and asked
@@ -60,13 +60,13 @@ listing:
 
 # --- retrieval: engines and ranking
 retrieval:
-  dense_model: Qwen/Qwen3-Embedding-8B                # the base Qwen3 embedding model, 8B
-  dense_query_style: plain                                  # the sub-query as written
-  dense_query_instruction: null                                   # the Qwen3-Embedding family's own retrieval instruction
-  dense_pooling: null                                   # the checkpoint's own config (last-token pooling)
+  dense_model: Yuqi-Zhou/LRAT-Qwen3-Embedding-0.6B    # LRAT (SIGIR 2026), a Qwen3-Embedding-0.6B fine-tune on agent trajectories
+  dense_query_style: plain                                  # the sub-query as written: LRAT trains on (query, document) pairs
+  dense_query_instruction: null                                   # the plain Qwen3-Embedding instruction, as its card says to serve it like the base model
+  dense_pooling: last_token                             # the base model's pooling (the checkpoint ships no sentence-transformers config)
   dense_dtype: bfloat16                               # precision
   dense_seq_length: 512                                    # document tokens: the same 512 for every encoder in this comparison
-  dense_query_seq_length: null                                   # null = the document length
+  dense_query_seq_length: null                                   # null = the document length (LRAT trains at 512)
   dense_index: null                      # prebuilt vector index to serve (this library's cache dir, or ITER's index.faiss + index.lookup.pkl); null = the per-corpus cache under index_root
   ann_ef_search: 0                       # HNSW efSearch for a prebuilt index (0 = as built); unused here, 100,195 docs search a flat index
   ann: auto                              # vector index backend: auto | flat | hnsw | ivfpq
@@ -85,7 +85,7 @@ evaluation:
 
 # --- output: where the run record goes
 output:
-  runs_dir: runs/baseline/qwen3emb8b_tongyi # root of the run record (runs_dir/<kind>/<dataset>/<model>/<retriever>)
+  runs_dir: runs/baseline/lrat06b_tongyi # root of the run record (runs_dir/<kind>/<dataset>/<model>/<retriever>)
   results_dir: null                      # explicit run directory (overrides runs_dir layout)
   index_root: indexes                    # where persistent indexes and embedding caches live
   rebuild: false                         # rebuild persistent indexes

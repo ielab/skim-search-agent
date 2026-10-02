@@ -2,7 +2,7 @@
 
 Retrievers and rerankers under one agent setting. Each row changes only the retriever behind
 `search` (or the reranker that reorders its pool). Everything else is fixed. Every row has its own
-experiment file under `configs/iter/`, and that file is what produced its numbers.
+experiment file under `configs/baselines/`, and that file is what produced its numbers.
 
 ## The setting
 
@@ -63,7 +63,7 @@ ITER-Qwen3-Embedding-0.6B and -4B (`iter06b`, `iter4b`), and ITER-4B with docume
 The Laya typed-decisions and multilingual checkpoints (`rerank_laya_typed`,
 `rerank_laya_multilingual`) are waiting on the Qwen3-32B judge.
 
-The file column is short for `configs/iter/browsecomp_plus_baseline_<file>_tongyi.yaml`.
+The file column is short for `configs/baselines/browsecomp_plus_<file>_tongyi.yaml`.
 
 ## Run one
 
@@ -123,7 +123,7 @@ Notes for single rows:
 Check a file before you run it. `validate` prints every setting and fails if the index is missing:
 
 ```bash
-skimsearchagent validate configs/iter/browsecomp_plus_baseline_colbert_tongyi.yaml
+skimsearchagent validate configs/baselines/browsecomp_plus_colbert_tongyi.yaml
 ```
 
 **5. Serve the backbone.**
@@ -137,7 +137,7 @@ vllm serve Alibaba-NLP/Tongyi-DeepResearch-30B-A3B --tensor-parallel-size 1 --po
 **6. Run the row.**
 
 ```bash
-F=configs/iter/browsecomp_plus_baseline_colbert_tongyi.yaml
+F=configs/baselines/browsecomp_plus_colbert_tongyi.yaml
 skimsearchagent run $F model.backend=api model.api_base=http://127.0.0.1:8000/v1
 ```
 

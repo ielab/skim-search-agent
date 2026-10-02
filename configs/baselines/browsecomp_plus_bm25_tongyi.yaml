@@ -3,8 +3,8 @@
 # Validate: skimsearchagent validate <this file>
 # Every key that changes what runs or how it is measured is listed; unknown keys are errors.
 schema: 1
-name: baseline_splade_tongyi                  # SPLADE++, top-10
-strategy: agent_research_iter_splade           # ITER's tools (top-10 search in ITER's format, get_document), Tongyi prompt without the dedup notice
+name: bm25_tongyi                  # BM25, top-10
+strategy: agent_research_iter_bm25           # ITER's tools (top-10 search in ITER's format, get_document), Tongyi prompt without the dedup notice
 
 # --- dataset: what is searched and asked
 dataset:
@@ -60,9 +60,7 @@ listing:
 
 # --- retrieval: engines and ranking
 retrieval:
-  splade_model: naver/splade-cocondenser-ensembledistil # SPLADE++ (EnsembleDistil), as Pyserini serves it
-  splade_doc_length: 512                                    # page tokens: the same 512 as every encoder in this comparison
-  splade_query_length: 256                                    # query tokens, as Pyserini's SPLADE query encoder reads them
+  bm25_index: null                       # prebuilt Lucene index directory for the pyserini backend; null = built under index_root
 
 # --- evaluation: scoring
 evaluation:
@@ -75,7 +73,7 @@ evaluation:
 
 # --- output: where the run record goes
 output:
-  runs_dir: runs/baseline/splade_tongyi # root of the run record (runs_dir/<kind>/<dataset>/<model>/<retriever>)
+  runs_dir: runs/baseline/bm25_tongyi # root of the run record (runs_dir/<kind>/<dataset>/<model>/<retriever>)
   results_dir: null                      # explicit run directory (overrides runs_dir layout)
   index_root: indexes                    # where persistent indexes and embedding caches live
   rebuild: false                         # rebuild persistent indexes

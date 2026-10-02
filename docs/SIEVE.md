@@ -355,7 +355,7 @@ spelled out, and the file's content lands in the run's `config.json`.
 | `browsecomp_plus_structured_search_visit_<backbone>.yaml` | BCP pooled | Search-Visit, BM25 | agentworld, openresearcher, qwen35_4b/9b/27b, gptoss_20b/120b |
 | `browsecomp_plus_structured_search_fetch_<backbone>.yaml` | BCP pooled | Search-Fetch, hybrid | the same seven |
 
-`configs/iter/` holds the ITER settings ([ITER.md](ITER.md)), `configs/ablation/` holds one-off
+`configs/iter/` holds the ITER settings ([ITER.md](ITER.md)), `configs/baselines/` the retriever and reranker baselines ([BASELINES.md](BASELINES.md)), `configs/ablation/` holds one-off
 variations and sample runs, and `configs/fixtures/smoke_*.yaml` runs on the fixtures with no
 model and no keys.
 

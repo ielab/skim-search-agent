@@ -3,7 +3,7 @@
 # Validate: skimsearchagent validate <this file>
 # Every key that changes what runs or how it is measured is listed; unknown keys are errors.
 schema: 1
-name: baseline_colbert_tongyi                  # ColBERTv2, top-10
+name: colbert_tongyi                  # ColBERTv2, top-10
 strategy: agent_research_iter_colbert           # ITER's tools (top-10 search in ITER's format, get_document), Tongyi prompt without the dedup notice
 
 # --- dataset: what is searched and asked

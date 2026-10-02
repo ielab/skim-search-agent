@@ -3,8 +3,8 @@
 # Validate: skimsearchagent validate <this file>
 # Every key that changes what runs or how it is measured is listed; unknown keys are errors.
 schema: 1
-name: baseline_rerank_bge_m3_tongyi                  # Qwen3-Embedding-0.6B pool of 100 reordered by bge-reranker-v2-m3
-strategy: agent_research_iter_reranked           # ITER's tools (top-10 search in ITER's format, get_document), Tongyi prompt without the dedup notice; the listing is the reranked pool
+name: diffretriever_sparse_tongyi                  # DiffRetriever (Dream-7B multi) alone, top-10, sparse
+strategy: agent_research_iter_diffretriever           # ITER's tools (top-10 search in ITER's format, get_document), Tongyi prompt without the dedup notice
 
 # --- dataset: what is searched and asked
 dataset:
@@ -60,25 +60,10 @@ listing:
 
 # --- retrieval: engines and ranking
 retrieval:
-  dense_model: Qwen/Qwen3-Embedding-0.6B              # the base Qwen3 embedding model, not an ITER fine-tune
-  dense_query_style: plain                                  # the sub-query as written: the base model was not trained on a history format
-  dense_query_instruction: null                                   # null = the Qwen3-Embedding family's own retrieval instruction
-  dense_pooling: null                                   # null = the checkpoint's own config (last-token pooling)
-  dense_dtype: bfloat16                               # precision the dense encoder runs in
-  dense_seq_length: 512                                    # encoder tokens a document is cut to: the ITER cells' length, so the first stage is compared like for like
-  dense_query_seq_length: null                                   # null = the document length
-  dense_index: null                      # prebuilt vector index to serve (this library's cache dir, or ITER's index.faiss + index.lookup.pkl); null = the per-corpus cache under index_root
-  ann_ef_search: 0                       # HNSW efSearch for a prebuilt index (0 = as built); unused here, 100,195 docs search a flat index
-  ann: auto                              # vector index backend: auto | flat | hnsw | ivfpq
-  ann_min: 1000000                       # corpus size above which an ANN index is used
-  ann_pq_min: 8000000                    # corpus size above which IVF-PQ is used
-  rerank_base: dense                     # the retriever whose pool the reranker reorders: the Qwen3-Embedding-0.6B dense model above
-  rerank_method: cross_encoder          # a standard cross-encoder baseline over the dense pool
-  rerank_model: null                     # null = the method's own checkpoint (BAAI/bge-reranker-v2-m3)
-  rerank_pool: 100                       # candidates from the dense model per search; the reranker orders them and the listing shows the top dedup_topk
-  rerank_batch_size: 32                  # pairs per forward pass
-  rerank_max_length: null                # tokens per (query, document) pair (null = the method's own, 512)
-  dense_device: null                     # device for the dense encoder (null = auto)
+  diffretriever_model: ielabgroup/diffretriever-dream-7b-multi-q4-p16 # DiffRetriever, Dream-7B multi (4 query, 16 passage vectors), served by scripts/serve_diffretriever.py
+  diffretriever_mode: sparse                    # the authors' content-word term weights (top 128 per position, x100, max-pooled)
+  diffretriever_doc_length: 512                                    # page text tokens after the prompt: the same 512 as every encoder here (the card serves 101)
+  diffretriever_store_device: auto                                   # the passage vectors sit on the GPU the server leaves room on
 
 # --- evaluation: scoring
 evaluation:
@@ -91,7 +76,7 @@ evaluation:
 
 # --- output: where the run record goes
 output:
-  runs_dir: runs/reranker/bge_m3_tongyi # root of the run record (runs_dir/<kind>/<dataset>/<model>/<retriever>)
+  runs_dir: runs/baseline/diffretriever_sparse_tongyi # root of the run record (runs_dir/<kind>/<dataset>/<model>/<retriever>)
   results_dir: null                      # explicit run directory (overrides runs_dir layout)
   index_root: indexes                    # where persistent indexes and embedding caches live
   rebuild: false                         # rebuild persistent indexes

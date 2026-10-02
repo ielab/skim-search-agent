@@ -364,13 +364,13 @@ def test_get_document_cap_is_the_configured_visit_budget():
     n_full = int(subprocess.run([sys.executable, "-c", code], env=env, capture_output=True, text=True, check=True).stdout.strip())
     assert n_capped < 40 < 400 <= n_full
     import yaml
-    # the ITER paper's protocol files read 512 tokens; the BrowseComp-Plus baseline files
-    # (browsecomp_plus_baseline_*) read whole documents up to 12,000, the value those cells ran with
-    for f in (REPO / "configs" / "iter").glob("*.yaml"):
-        d = yaml.safe_load(f.read_text())
-        if "strategy" in d:
-            want = 12000 if f.name.startswith("browsecomp_plus_baseline_") else 512
-            assert d["budgets"]["max_visit_tokens"] == want, f.name
+    # the ITER paper's protocol files read 512 tokens; the baseline files (configs/baselines/)
+    # read whole documents up to 12,000, the value those cells ran with
+    for folder, want in (("iter", 512), ("baselines", 12000)):
+        for f in (REPO / "configs" / folder).glob("*.yaml"):
+            d = yaml.safe_load(f.read_text())
+            if "strategy" in d:
+                assert d["budgets"]["max_visit_tokens"] == want, f.name
 
 
 def test_triple_builder_reads_documents_from_the_docstore(tmp_path, monkeypatch):

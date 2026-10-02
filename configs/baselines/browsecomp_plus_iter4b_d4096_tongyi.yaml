@@ -3,8 +3,8 @@
 # Validate: skimsearchagent validate <this file>
 # Every key that changes what runs or how it is measured is listed; unknown keys are errors.
 schema: 1
-name: baseline_rerank_monot5_tongyi                  # Qwen3-Embedding-0.6B pool of 100 reordered by monoT5-3B
-strategy: agent_research_iter_reranked           # ITER's tools (top-10 search in ITER's format, get_document), Tongyi prompt without the dedup notice; the listing is the reranked pool
+name: iter4b_d4096_tongyi             # ITER-Qwen3-Embedding-4B alone, top-10, documents encoded at 4096 tokens (the leaderboard setting)
+strategy: agent_research_iter_dense              # ITER's tools (top-10 search in ITER's format, get_document), Tongyi prompt without the dedup notice
 
 # --- dataset: what is searched and asked
 dataset:
@@ -60,24 +60,18 @@ listing:
 
 # --- retrieval: engines and ranking
 retrieval:
-  dense_model: Qwen/Qwen3-Embedding-0.6B              # the base Qwen3 embedding model, not an ITER fine-tune
-  dense_query_style: plain                                  # the sub-query as written: the base model was not trained on a history format
-  dense_query_instruction: null                                   # null = the Qwen3-Embedding family's own retrieval instruction
-  dense_pooling: null                                   # null = the checkpoint's own config (last-token pooling)
-  dense_dtype: bfloat16                               # precision the dense encoder runs in
-  dense_seq_length: 512                                    # encoder tokens a document is cut to: the ITER cells' length, so the first stage is compared like for like
-  dense_query_seq_length: null                                   # null = the document length
+  dense_model: ielabgroup/ITER-Qwen3-Embedding-4B     # the released ITER checkpoint
+  dense_query_style: null                   # null = the model's own: ITER's trained format for the ITER checkpoints
+  dense_query_instruction: null                   # null = the instruction the model was trained with (ITER's own)
+  dense_pooling: last_token                             # pooling for a decoder checkpoint
+  dense_dtype: bfloat16                               # precision
+  dense_seq_length: 4096                                   # document tokens: 4096, the leaderboard setting
+  dense_query_seq_length: 8192                                   # the ITER checkpoints take 8192-token queries
   dense_index: null                      # prebuilt vector index to serve (this library's cache dir, or ITER's index.faiss + index.lookup.pkl); null = the per-corpus cache under index_root
   ann_ef_search: 0                       # HNSW efSearch for a prebuilt index (0 = as built); unused here, 100,195 docs search a flat index
   ann: auto                              # vector index backend: auto | flat | hnsw | ivfpq
   ann_min: 1000000                       # corpus size above which an ANN index is used
   ann_pq_min: 8000000                    # corpus size above which IVF-PQ is used
-  rerank_base: dense                     # the retriever whose pool the reranker reorders: the Qwen3-Embedding-0.6B dense model above
-  rerank_method: monot5                                 # monoT5 (a T5 model answering true/false, pygaggle's scoring)
-  rerank_model: null                                   # null = castorini/monot5-3b-msmarco-10k
-  rerank_pool: 100                       # candidates from the dense model per search; the reranker orders them and the listing shows the top dedup_topk
-  rerank_batch_size: 16                                     # pairs per forward pass (3B model)
-  rerank_max_length: null                                   # null = 512, monoT5's training length
   dense_device: null                     # device for the dense encoder (null = auto)
 
 # --- evaluation: scoring
@@ -91,7 +85,7 @@ evaluation:
 
 # --- output: where the run record goes
 output:
-  runs_dir: runs/reranker/monot5_tongyi # root of the run record (runs_dir/<kind>/<dataset>/<model>/<retriever>)
+  runs_dir: runs/baseline/iter4b_d4096_tongyi # root of the run record (runs_dir/<kind>/<dataset>/<model>/<retriever>)
   results_dir: null                      # explicit run directory (overrides runs_dir layout)
   index_root: indexes                    # where persistent indexes and embedding caches live
   rebuild: false                         # rebuild persistent indexes

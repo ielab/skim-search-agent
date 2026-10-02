@@ -3,8 +3,8 @@
 # Validate: skimsearchagent validate <this file>
 # Every key that changes what runs or how it is measured is listed; unknown keys are errors.
 schema: 1
-name: baseline_repllama_tongyi                  # RepLLaMA-7B alone, top-10
-strategy: agent_research_iter_dense              # ITER's tools (top-10 search in ITER's format, get_document), Tongyi prompt without the dedup notice
+name: diffretriever_tongyi                  # DiffRetriever (Dream-7B multi) alone, top-10, dense
+strategy: agent_research_iter_diffretriever           # ITER's tools (top-10 search in ITER's format, get_document), Tongyi prompt without the dedup notice
 
 # --- dataset: what is searched and asked
 dataset:
@@ -59,20 +59,13 @@ listing:
   dedup_snippet_tokens: 64                # model tokens of passage shown per hit (ITER's runs: 64)
 
 # --- retrieval: engines and ranking
+# DiffRetriever runs behind scripts/serve_diffretriever.py in an environment with transformers 4.54
+# and peft; start it and export DIFFRETRIEVER_URL (scripts/slurm/diffretriever_index.sbatch shows how).
 retrieval:
-  dense_model: models/repllama-v1-7b-passage-merged # castorini/repllama-v1-7b-lora-passage merged into Llama-2-7b-hf: python scripts/merge_lora.py --adapter castorini/repllama-v1-7b-lora-passage --out models/repllama-v1-7b-passage-merged
-  dense_query_style: plain                                  # the sub-query as written
-  dense_query_instruction: null                                   # null = the family's `query: ` prefix (the model card)
-  dense_pooling: last_token                             # the end token, appended after truncation (the model card)
-  dense_dtype: float16                                # the model card's precision
-  dense_seq_length: 512                                    # page tokens: the same 512 as every encoder here
-  dense_query_seq_length: null                                   # null = the document length
-  dense_index: null                      # prebuilt vector index to serve (this library's cache dir, or ITER's index.faiss + index.lookup.pkl); null = the per-corpus cache under index_root
-  ann_ef_search: 0                       # HNSW efSearch for a prebuilt index (0 = as built); unused here, 100,195 docs search a flat index
-  ann: auto                              # vector index backend: auto | flat | hnsw | ivfpq
-  ann_min: 1000000                       # corpus size above which an ANN index is used
-  ann_pq_min: 8000000                    # corpus size above which IVF-PQ is used
-  dense_device: null                     # device for the dense encoder (null = auto)
+  diffretriever_model: ielabgroup/diffretriever-dream-7b-multi-q4-p16 # DiffRetriever, Dream-7B multi (4 query, 16 passage vectors), served by scripts/serve_diffretriever.py
+  diffretriever_mode: dense                     # the card's multi-vector MaxSim (sparse and hybrid are the other modes)
+  diffretriever_doc_length: 512                                    # page text tokens after the prompt: the same 512 as every encoder here (the card serves 101)
+  diffretriever_store_device: auto                                   # the passage vectors sit on the GPU the server leaves room on
 
 # --- evaluation: scoring
 evaluation:
@@ -85,7 +78,7 @@ evaluation:
 
 # --- output: where the run record goes
 output:
-  runs_dir: runs/baseline/repllama_tongyi # root of the run record (runs_dir/<kind>/<dataset>/<model>/<retriever>)
+  runs_dir: runs/baseline/diffretriever_tongyi # root of the run record (runs_dir/<kind>/<dataset>/<model>/<retriever>)
   results_dir: null                      # explicit run directory (overrides runs_dir layout)
   index_root: indexes                    # where persistent indexes and embedding caches live
   rebuild: false                         # rebuild persistent indexes

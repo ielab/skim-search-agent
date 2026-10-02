@@ -3,8 +3,8 @@
 # Validate: skimsearchagent validate <this file>
 # Every key that changes what runs or how it is measured is listed; unknown keys are errors.
 schema: 1
-name: baseline_diffretriever_sparse_tongyi                  # DiffRetriever (Dream-7B multi) alone, top-10, sparse
-strategy: agent_research_iter_diffretriever           # ITER's tools (top-10 search in ITER's format, get_document), Tongyi prompt without the dedup notice
+name: agentir4b_tongyi                  # AgentIR-4B alone, top-10
+strategy: agent_research_iter_dense              # ITER's tools (top-10 search in ITER's format, get_document), Tongyi prompt without the dedup notice
 
 # --- dataset: what is searched and asked
 dataset:
@@ -60,10 +60,19 @@ listing:
 
 # --- retrieval: engines and ranking
 retrieval:
-  diffretriever_model: ielabgroup/diffretriever-dream-7b-multi-q4-p16 # DiffRetriever, Dream-7B multi (4 query, 16 passage vectors), served by scripts/serve_diffretriever.py
-  diffretriever_mode: sparse                    # the authors' content-word term weights (top 128 per position, x100, max-pooled)
-  diffretriever_doc_length: 512                                    # page text tokens after the prompt: the same 512 as every encoder here (the card serves 101)
-  diffretriever_store_device: auto                                   # the passage vectors sit on the GPU the server leaves room on
+  dense_model: Tevatron/AgentIR-4B                     # the released AgentIR checkpoint
+  dense_query_style: i8                                     # AgentIR's query: the issuing turn's reasoning, then the sub-query
+  dense_query_instruction: "Given a user's reasoning followed by a web search query, retrieve relevant passages that answer the query while incorporating the user's reasoning" # the model card's instruction
+  dense_pooling: last_token                             # the model card's pooling (left padding, last token)
+  dense_dtype: float16                                # the model card's precision
+  dense_seq_length: 512                                    # document tokens: the same 512 for every encoder in this comparison
+  dense_query_seq_length: 8192                                   # the model card's max_length
+  dense_index: null                      # prebuilt vector index to serve (this library's cache dir, or ITER's index.faiss + index.lookup.pkl); null = the per-corpus cache under index_root
+  ann_ef_search: 0                       # HNSW efSearch for a prebuilt index (0 = as built); unused here, 100,195 docs search a flat index
+  ann: auto                              # vector index backend: auto | flat | hnsw | ivfpq
+  ann_min: 1000000                       # corpus size above which an ANN index is used
+  ann_pq_min: 8000000                    # corpus size above which IVF-PQ is used
+  dense_device: null                     # device for the dense encoder (null = auto)
 
 # --- evaluation: scoring
 evaluation:
@@ -76,7 +85,7 @@ evaluation:
 
 # --- output: where the run record goes
 output:
-  runs_dir: runs/baseline/diffretriever_sparse_tongyi # root of the run record (runs_dir/<kind>/<dataset>/<model>/<retriever>)
+  runs_dir: runs/baseline/agentir4b_tongyi # root of the run record (runs_dir/<kind>/<dataset>/<model>/<retriever>)
   results_dir: null                      # explicit run directory (overrides runs_dir layout)
   index_root: indexes                    # where persistent indexes and embedding caches live
   rebuild: false                         # rebuild persistent indexes

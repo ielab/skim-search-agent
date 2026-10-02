@@ -3,8 +3,8 @@
 # Validate: skimsearchagent validate <this file>
 # Every key that changes what runs or how it is measured is listed; unknown keys are errors.
 schema: 1
-name: baseline_bm25_tongyi                  # BM25, top-10
-strategy: agent_research_iter_bm25           # ITER's tools (top-10 search in ITER's format, get_document), Tongyi prompt without the dedup notice
+name: qwen3emb4b_tongyi                  # Qwen3-Embedding-4B, top-10
+strategy: agent_research_iter_dense              # ITER's tools (top-10 search in ITER's format, get_document), Tongyi prompt without the dedup notice
 
 # --- dataset: what is searched and asked
 dataset:
@@ -60,7 +60,19 @@ listing:
 
 # --- retrieval: engines and ranking
 retrieval:
-  bm25_index: null                       # prebuilt Lucene index directory for the pyserini backend; null = built under index_root
+  dense_model: Qwen/Qwen3-Embedding-4B                # the base Qwen3 embedding model, 4B
+  dense_query_style: plain                                  # the sub-query as written
+  dense_query_instruction: null                                   # the Qwen3-Embedding family's own retrieval instruction
+  dense_pooling: null                                   # the checkpoint's own config (last-token pooling)
+  dense_dtype: bfloat16                               # precision
+  dense_seq_length: 512                                    # document tokens: the same 512 for every encoder in this comparison
+  dense_query_seq_length: null                                   # null = the document length
+  dense_index: null                      # prebuilt vector index to serve (this library's cache dir, or ITER's index.faiss + index.lookup.pkl); null = the per-corpus cache under index_root
+  ann_ef_search: 0                       # HNSW efSearch for a prebuilt index (0 = as built); unused here, 100,195 docs search a flat index
+  ann: auto                              # vector index backend: auto | flat | hnsw | ivfpq
+  ann_min: 1000000                       # corpus size above which an ANN index is used
+  ann_pq_min: 8000000                    # corpus size above which IVF-PQ is used
+  dense_device: null                     # device for the dense encoder (null = auto)
 
 # --- evaluation: scoring
 evaluation:
@@ -73,7 +85,7 @@ evaluation:
 
 # --- output: where the run record goes
 output:
-  runs_dir: runs/baseline/bm25_tongyi # root of the run record (runs_dir/<kind>/<dataset>/<model>/<retriever>)
+  runs_dir: runs/baseline/qwen3emb4b_tongyi # root of the run record (runs_dir/<kind>/<dataset>/<model>/<retriever>)
   results_dir: null                      # explicit run directory (overrides runs_dir layout)
   index_root: indexes                    # where persistent indexes and embedding caches live
   rebuild: false                         # rebuild persistent indexes
