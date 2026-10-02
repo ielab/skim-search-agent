@@ -273,7 +273,7 @@ agent.search(question, k=10)
 | **Sieve** | `sieve`, `sieve_bm25`, `sieve_dense`, `sieve_nosnip`, `sieve_card`, `sieve_nomanual`, `sieve_reference_howto`, `sieve_reference_hops`, `sieve_reference_mistakes`, `sieve_reference_howto_hops_mistakes`, `sieve_reference_howto_hops_mistakes_noconstruct`, `sieve_plain`, `sieve_v2`, `sieve_visit`, `sieve_visit_fused`, `sieve_visit_dense` | BQL candidate filtering, one ranking model, result cards, section fetch (or whole documents) |
 | Structured control | `indri`, `indri_plain`, `indri_visit` | Indri-QL retrieval with cards and section fetch (or whole documents) |
 | Code localization | `codefix`, `codefix_grep`, `codefix_patch` | search or grep a repository, read functions, propose a fix (`dataset=code_fixture`) |
-| ITER search | `dedup_bm25`, `dedup_dense` | ITER's tool setup; see [docs/ITER.md](docs/ITER.md); every retriever and reranker baseline under it is in [docs/BASELINES.md](docs/BASELINES.md) |
+| ITER search | `dedup_bm25`, `dedup_dense` | ITER's tool setup; see [docs/ITER.md](docs/ITER.md) |
 | Multi-agent | `plan_and_search`, `plan_and_search_visit` | a planner splits the question, one agent per sub-question (Sieve, or search-visit), a synthesizer answers; every member episode is recorded |
 
 Every index is built once per dataset, before any run. Build the dense embedding cache with
@@ -342,9 +342,9 @@ session storage and is sent per request to OpenAI; the server does not store or 
 | [docs/CONFIGURATION.md](docs/CONFIGURATION.md) | the experiment-file schema, every flag and knob |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | modules, contracts, one episode end to end |
 | [docs/TRAINING.md](docs/TRAINING.md) | retriever training from run records |
+| [docs/BASELINES.md](docs/BASELINES.md) | retriever and reranker baselines on BrowseComp-Plus: how to run each one, and its results on three judges |
 | [docs/SIEVE.md](docs/SIEVE.md) | the Sieve paper: the method, step-by-step reproduction from a fresh clone, and every result |
 | [docs/ITER.md](docs/ITER.md) | the ITER paper: step-by-step reproduction, its search tools, retrievers, datasets, training and results |
-| [docs/BASELINES.md](docs/BASELINES.md) | retriever and reranker baselines on BrowseComp-Plus: how to run each one, and its results on three judges |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | development setup and how to add components |
 
 ## Papers

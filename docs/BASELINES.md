@@ -9,14 +9,14 @@ experiment file under `configs/iter/`, and that file is what produced its number
 - **Backbone:** `Alibaba-NLP/Tongyi-DeepResearch-30B-A3B`, temperature 0.6, seed 42.
 - **Corpus:** `browsecomp_plus`, the original BrowseComp-Plus text (100,195 documents, front
   matter included, no inserted headings), with all 830 questions.
-- **Tools:** ITER's. `search` returns the top 10 documents with a 64-token snippet each, no
+- **Tools:** `search` returns the top 10 documents with a 64-token snippet each, no
   de-duplication. `get_document` reads a document, cut at 12,000 tokens.
 - **Budget:** 100 turns, a 131,072-token context window (the run stops at 90% of 125,000).
 - **Encoding:** every learned retriever encodes a document's first 512 tokens.
 - **Rerankers:** each reorders the top 100 of Qwen3-Embedding-0.6B. The agent sees the top 10.
 
 Tongyi often sends `query` as a list. Every search tool here runs the first query of a list and
-drops the rest, as ITER's harness does. The official BrowseComp-Plus harness instead returns an
+drops the rest. The official BrowseComp-Plus harness instead returns an
 error for a list of two or more queries. About 14% to 21% of search calls in these cells carry
 more than one query.
 
