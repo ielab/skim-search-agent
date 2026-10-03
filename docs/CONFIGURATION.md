@@ -55,7 +55,7 @@ The sections of a file:
 |---|---|
 | top level | `schema`, `name`, `strategy` |
 | `dataset` | `name`, `limit`, `corpus_limit`, `only_instances` |
-| `model` | `name`, `policy`, `backend`, `api_base`, `tp`, `temperature`, `seed`, `seeds`, `driver`, `reasoning_effort`, `top_p`, `top_k`, `presence_penalty`, `max_tokens`, `max_tokens_schedule`, `thinking`, `timeout_s`, `retry_attempts` |
+| `model` | `name`, `policy`, `backend`, `api_base`, `tp`, `temperature`, `seed`, `seeds`, `driver`, `reasoning_effort`, `tool_call_format`, `top_p`, `top_k`, `presence_penalty`, `max_tokens`, `max_tokens_schedule`, `thinking`, `timeout_s`, `retry_attempts` |
 | `agent` | `max_steps`, `forced_answer_tokens`, `forced_answer_prefill`, `forced_answer_nudge`, `prompt_profile`, `ctx_tokens`, `ctx_window`, `max_history`, `ctx_stop_frac` |
 | `budgets` | every length budget: `snippet_tokens`, `max_visit_tokens`, `max_section_tokens`, `bash_max_tokens`, `read_max_line_tokens`, `grep_line_tokens`, `closer_evidence_*_tokens` |
 | `listing` | how many results a search shows: `*_topk`, `hybrid_pool`, `dedup_pool_k` |

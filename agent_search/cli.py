@@ -45,7 +45,7 @@ ENV_KNOBS = (
     # engine selection / models
     "dense_model", "dense_query_style", "dense_query_instruction", "dense_pooling", "dense_dtype",
     "dense_index", "ann_ef_search", "bm25_index",
-    "agent_driver", "reasoning_effort",
+    "agent_driver", "reasoning_effort", "agent_tool_call_format",
     "agent_default_condition", "vllm_api_base", "skimsearchagent_plugins",
     # index building / search backends
     "agent_search_ann", "agent_search_ann_min", "agent_search_ann_pq_min",

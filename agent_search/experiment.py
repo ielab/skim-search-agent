@@ -57,6 +57,7 @@ SCHEMA: dict[str, dict[str, Key]] = {
         "seeds": Key(None, "special", "", "variance band: a list such as [0, 1, 2] -> one seed=N run directory per seed (overrides seed)"),
         "driver": Key(None, "env", "AGENT_DRIVER", "loop | sdk | responses; null = loop, or sdk when openai-agents is installed and the model is API-served. responses = native function calling through /v1/responses (DIVER's gpt-oss protocol)"),
         "reasoning_effort": Key("low", "env", "REASONING_EFFORT", "OpenAI reasoning models only"),
+        "tool_call_format": Key(None, "env", "AGENT_TOOL_CALL_FORMAT", "a backbone's own tool-call text, read when the JSON <tool_call> parser finds no call: glm (GLM-4.x <arg_key>/<arg_value>) | qwen_xml (Qwen3.5 <function=...><parameter=...>); null = JSON only"),
         "top_p": Key(0.95, "env", "LLM_TOP_P", "nucleus sampling for a served or in-process model"),
         "top_k": Key(None, "env", "LLM_TOP_K", "top-k sampling for a served model (null = the server's default; DIVER's Qwen3.5 runs use 20)"),
         "presence_penalty": Key(1.1, "env", "LLM_PRESENCE_PENALTY", "presence penalty for a served or in-process model (DIVER's Qwen3.5 runs use 1.5)"),
@@ -248,7 +249,7 @@ _INDRI = {"indri", "indri_plain", "indri_visit"}
 APPLIES: dict[str, set] = {
     "model.name": _MODEL_USERS, "model.policy": _MODEL_USERS, "model.backend": _MODEL_USERS,
     "model.api_base": _MODEL_USERS, "model.tp": _MODEL_USERS, "model.temperature": _MODEL_USERS, "model.top_p": _MODEL_USERS, "model.top_k": _MODEL_USERS, "model.presence_penalty": _MODEL_USERS, "model.max_tokens": _MODEL_USERS, "model.max_tokens_schedule": _MODEL_USERS, "model.thinking": _MODEL_USERS,
-    "model.seed": _MODEL_USERS, "model.seeds": _MODEL_USERS, "model.driver": _AGENTS,
+    "model.seed": _MODEL_USERS, "model.seeds": _MODEL_USERS, "model.driver": _AGENTS, "model.tool_call_format": _AGENTS,
     "model.reasoning_effort": _MODEL_USERS, "model.timeout_s": _MODEL_USERS, "model.retry_attempts": _MODEL_USERS,
     "agent.max_steps": _AGENTS, "agent.forced_answer_tokens": _AGENTS, "agent.forced_answer_prefill": _AGENTS, "agent.forced_answer_nudge": _AGENTS, "agent.prompt_profile": _AGENTS, "agent.ctx_tokens": _AGENTS | _RAG,
     "agent.ctx_window": _AGENTS, "agent.ctx_stop_frac": _AGENTS,

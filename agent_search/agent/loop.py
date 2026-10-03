@@ -21,6 +21,7 @@ from typing import Callable, List, Optional, Protocol, Sequence
 
 from agent_search.corpus.units import CodeUnit
 from agent_search.agent.actions import parse_tool_call
+from agent_search.agent.call_formats import parse_alternate
 
 _ANSWER = re.compile(r"<answer>(.*?)</answer>", re.DOTALL | re.IGNORECASE)
 _EMPTY_CALL = re.compile(r"<tool_call>\s*</tool_call>", re.IGNORECASE)
@@ -279,7 +280,7 @@ def run_episode(policy: Policy, task: Task, workspace: WorkspaceLike,
             break
         t_llm = time.monotonic() - t0
         llm_calls += 1
-        call = parse_tool_call(raw)
+        call = parse_tool_call(raw) or parse_alternate(raw)   # a backbone's own call format, if the run names one
         name = call[0] if call else ""
         args = call[1] if call else {}
         if name == "answer" and "answer" not in (getattr(workspace, "tools", ()) or ()):
