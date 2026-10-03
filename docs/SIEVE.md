@@ -604,12 +604,12 @@ ship with the camera-ready. The figure scripts read through the identical loader
 
 | ablation | how | what this library measured |
 |---|---|---|
-| Strict Boolean (no fallback) | `BQL_SOFT_FALLBACK=0` | 44.2 against 48.8 on BrowseComp-Plus, and steps rise from 58 to 62, so the fallback is load-bearing |
-| Without snippets | condition `agent_research_bql_dense_fetch` | 43.4 against 48.8 on BrowseComp-Plus, the largest single component |
+| Strict Boolean (no fallback) | `BQL_SOFT_FALLBACK=0` | 46.0 against 50.7 on BrowseComp-Plus, and steps rise from 58 to 63, so the fallback is load-bearing |
+| Without snippets | condition `agent_research_bql_dense_fetch` | 44.8 against 50.7 on BrowseComp-Plus, the largest single component |
 | Manual ablation | conditions `agent_research_bql_dense_snip_card` (a hundred-word card), `_nomanual` (a 21-word stub), `_reference_howto`, `_reference_hops`, `_reference_mistakes` (the reference plus one advice section), `_reference_howto_hops_mistakes` (the full manual) and `_reference_howto_hops_mistakes_noconstruct`; composed by `scripts/compose_manuals.py`; paper prompt, everything else matched | on BrowseComp-Plus every cut of the full manual scores above it and the reference alone scores highest, so the reference is the default |
 | Snippet width sweep | `snippet_tokens=32 / 64 / 128 / 256 / 512` on the `skimsearchagent` launcher, or `SNIPPET_TOKENS=` in the environment. Default 32. It governs BOTH arms' listing snippets, Sieve's query-biased window, and the visit baselines' opening window. A sweep moves the whole comparison, not just one side of it | |
-| Dense encoder sweep | `DENSE_MODEL=<hf-id>` (bge-small/base/large, Qwen3-Embedding 0.6B/4B/8B) | 33M to 8B moves accuracy by 3.5 points with no trend by size, and tokens not at all. Sweep dense-only Sieve, not the fused ranker, or the fusion hides the encoder |
-| Ranker swap | the three conditions above | fusion wins on BrowseComp-Plus by 2.3 points over dense; on MuSiQue and HotpotQA dense alone ties or wins |
+| Dense encoder sweep | `DENSE_MODEL=<hf-id>` (bge-small/base/large, Qwen3-Embedding 0.6B/4B/8B) | 33M to 8B moves accuracy by 3.9 points with no trend by size, and tokens not at all. Sweep dense-only Sieve, not the fused ranker, or the fusion hides the encoder |
+| Ranker swap | the three conditions above | fusion wins on BrowseComp-Plus by 3.2 points over dense; on MuSiQue and HotpotQA dense alone ties or wins |
 | Engine swap | `agent_research_indri_snip` | Indri-QL executor comparison |
 
 ## Results
@@ -634,18 +634,18 @@ collections by exact match. The Sieve column is the best of the three rankers, n
 
 | collection | BM25 Search-Visit | best Search-Fetch | Sieve | tokens, Search-Visit to Sieve |
 |---|---|---|---|---|
-| BrowseComp-Plus (830) | 36.4 | 45.1 | **48.8** (fused) | 57.3k to 45.6k |
-| MuSiQue (2,409) | 25.0 | 26.7 | **28.3** (dense) | 42.5k to 31.1k |
-| HotpotQA (7,343) | 43.9 | 43.8 | **44.6** (dense) | 20.6k to 15.7k |
+| BrowseComp-Plus (830) | 38.3 | 46.1 | **50.7** (fused) | 58.1k to 46.1k |
+| MuSiQue (2,409) | 26.9 | 28.4 | **30.1** (dense) | 44.1k to 32.6k |
+| HotpotQA (7,343) | 49.0 | 48.7 | **50.0** (dense) | 21.2k to 16.5k |
 
 Sieve wins all three, and it costs less context everywhere. The margin isn't the same size in each
 column. BrowseComp-Plus is where the Boolean filter earns its keep, because the questions name
 entities and dates that make good filter terms. HotpotQA is the hard case for the claim: everything
 lands within a point, so the accuracy result there rests on the token saving, not the score.
 
-The effect carries across agent backbones. With Qwen-AgentWorld, Sieve is 40.4 against 24.8 for BM25
-Search-Visit on BrowseComp-Plus, and 29.8 against 28.4 on MuSiQue. With OpenResearcher it's 27.5
-against 20.7, and 23.8 against 21.0. The weaker the backbone is at writing searches, the more the
+The effect carries across agent backbones. With Qwen-AgentWorld, Sieve is 42.0 against 25.7 for BM25
+Search-Visit on BrowseComp-Plus, and 32.3 against 30.7 on MuSiQue. With OpenResearcher it's 28.4
+against 20.8, and 27.5 against 24.0. The weaker the backbone is at writing searches, the more the
 structured listing helps it.
 
 The per-component ablations, the manual ablation and the encoder sweep are the "Ablation knobs"
@@ -661,26 +661,26 @@ total counted once, so a prompt that gets resent on the next turn isn't counted 
 
 | method | BCP acc | steps | tokens | MuSiQue EM | steps | tokens | HotpotQA EM | steps | tokens |
 |---|---|---|---|---|---|---|---|---|---|
-| Search-Visit, BM25 | 36.4 | 54.4 | 57.3k | 25.0 | 41.4 | 42.5k | 43.9 | 22.5 | 20.6k |
-| Search-Visit, dense | 36.5 | 63.9 | 48.9k | 24.6 | 44.9 | 38.9k | 43.2 | 24.4 | 19.9k |
-| Search-Visit, hybrid | 43.1 | 55.5 | 52.4k | 26.0 | 43.5 | 41.0k | 43.3 | 23.2 | 19.8k |
-| Search-Fetch, BM25 | 39.2 | 59.2 | 48.7k | 26.7 | 42.4 | 32.2k | 42.9 | 25.1 | 16.1k |
-| Search-Fetch, dense | 37.3 | 63.9 | 44.7k | 25.8 | 45.0 | 30.2k | 42.1 | 26.4 | 16.0k |
-| Search-Fetch, hybrid | 45.1 | 56.0 | 45.3k | 26.2 | 43.5 | 30.6k | 43.8 | 25.6 | 15.9k |
-| DCI | 20.0 | 34.8 | 86.1k | 27.0 | 28.1 | 58.1k | 43.8 | 16.7 | 32.5k |
-| BM25-bounded DCI | 32.4 | 52.8 | 65.5k | 27.1 | 34.7 | 44.8k | 43.5 | 20.6 | 20.8k |
-| Sieve, BM25 | 45.8 | 58.6 | 45.3k | 27.2 | 44.1 | 30.8k | 44.2 | 26.1 | 15.6k |
-| Sieve, dense | 46.5 | 57.2 | 45.6k | 28.3 | 43.3 | 31.1k | 44.6 | 25.8 | 15.7k |
-| Sieve, fused | 48.8 | 58.0 | 45.6k | 27.6 | 43.8 | 31.5k | 44.6 | 26.8 | 16.2k |
+| Search-Visit, BM25 | 38.3 | 54.8 | 58.1k | 26.9 | 43.2 | 44.1k | 49.0 | 23.1 | 21.2k |
+| Search-Visit, dense | 38.0 | 64.3 | 49.3k | 26.1 | 46.6 | 40.6k | 48.4 | 25.2 | 20.5k |
+| Search-Visit, hybrid | 44.6 | 55.8 | 52.6k | 28.0 | 45.4 | 42.6k | 48.6 | 24.1 | 20.6k |
+| Search-Fetch, BM25 | 40.8 | 59.2 | 49.1k | 28.4 | 43.8 | 33.7k | 47.5 | 25.9 | 16.7k |
+| Search-Fetch, dense | 38.4 | 64.0 | 45.0k | 27.3 | 46.3 | 31.4k | 47.1 | 27.2 | 16.5k |
+| Search-Fetch, hybrid | 46.1 | 56.4 | 45.9k | 28.4 | 45.1 | 32.0k | 48.7 | 26.3 | 16.5k |
+| DCI | 21.4 | 34.7 | 86.6k | 29.4 | 28.6 | 59.3k | 49.9 | 17.1 | 33.3k |
+| BM25-bounded DCI | 34.2 | 53.2 | 66.2k | 29.0 | 35.6 | 46.5k | 48.9 | 21.1 | 21.4k |
+| Sieve, BM25 | 47.0 | 59.3 | 45.9k | 29.3 | 45.9 | 32.3k | 49.1 | 27.2 | 16.4k |
+| Sieve, dense | 47.5 | 57.7 | 46.5k | 30.1 | 45.1 | 32.6k | 50.0 | 26.8 | 16.5k |
+| Sieve, fused | 50.7 | 57.9 | 46.1k | 29.6 | 45.2 | 32.8k | 49.6 | 27.9 | 16.9k |
 
-Read it by column. On BrowseComp-Plus the best Sieve beats the best baseline by 3.7 points at the
-same token cost. On MuSiQue the margin is 1.2 points over bounded DCI, and it's dense Sieve rather
-than the fused one that gets there. On HotpotQA every method lands between 42 and 45, so what
-separates Sieve is the 15.6k tokens it spends against Search-Visit's 20.6k.
+Read it by column. On BrowseComp-Plus the best Sieve beats the best baseline by 4.6 points at the
+same token cost. On MuSiQue the margin is 0.7 points over DCI, and it's dense Sieve rather
+than the fused one that gets there. On HotpotQA every method lands between 47 and 50, so what
+separates Sieve is the 16.4k tokens it spends against Search-Visit's 21.2k.
 
-Which ranker wins depends on the collection. Fusion is worth 2.3 points over dense alone on
+Which ranker wins depends on the collection. Fusion is worth 3.2 points over dense alone on
 BrowseComp-Plus, and it's worth nothing on the two wiki collections, where dense alone ties or
-wins. Run the ranker you can afford: on HotpotQA plain BM25 Sieve is within 0.4 of the fused one.
+wins. Run the ranker you can afford: on HotpotQA plain BM25 Sieve is within 0.5 of the fused one.
 
 ### Retrieval floors on BrowseComp-Plus structured
 
