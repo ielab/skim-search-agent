@@ -129,7 +129,7 @@ Read both numbers:
 python -c "import json; [print(f, round(100*json.load(open(f'$D/'+f))['judge_accuracy'],1)) for f in ('judge_summary.json','judge_summary_diver.json')]"
 ```
 
-Expect about 44.7 and 48.6 for ITER-0.6B.
+Expect about 44.7 and 48.9 for ITER-0.6B.
 
 ### The ITER experiment files
 
@@ -398,8 +398,8 @@ Tongyi-DeepResearch-30B as the backbone, all 830 questions.
 
 | retriever | paper's judge | gpt-4o-mini | steps | tokens | paper |
 |---|---|---|---|---|---|
-| ITER-Qwen3-Embedding-0.6B | 48.6 | 44.7 | 43.9 | 46.5k | 49.2 |
-| ITER-Qwen3-Embedding-4B | 51.1 | 47.7 | 40.4 | 43.0k | 51.2 |
+| ITER-Qwen3-Embedding-0.6B | 48.9 | 44.7 | 43.9 | 46.5k | 49.2 |
+| ITER-Qwen3-Embedding-4B | 51.2 | 47.7 | 40.4 | 43.0k | 51.2 |
 
 The paper's judge is Qwen3-30B-A3B-Thinking-2507 with DIVER's template, the gpt-4o-mini column uses
 the BrowseComp Appendix F prompt, and the paper column is the figure the ITER paper reports.
