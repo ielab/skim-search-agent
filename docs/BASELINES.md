@@ -31,24 +31,27 @@ Qwen3-32B judge leaves 13 to 26 per cell). Three judges score each cell:
 
 `searches` is the mean number of search calls per question.
 
+Every judge reads the answer text only: reasoning tails and tool calls are removed before judging.
+An answer without a verdict counts as wrong.
+
 ### First-stage retrievers
 
 | retriever | file | Qwen3-32B (official) | Qwen3-30B-A3B-Thinking-2507 | gpt-4o-mini | searches |
 |---|---|---:|---:|---:|---:|
-| ITER-Qwen3-Embedding-4B (generic instruction) | `iter4b_generic` | 59.3 | 60.1 | 56.7 | 48.9 |
-| ITER-Qwen3-Embedding-4B | `iter4b` | 57.7 | 58.7 | 54.5 | 50.8 |
-| AgentIR-4B | `agentir4b` | 56.6 | 57.5 | 53.9 | 50.3 |
-| ITER-Qwen3-Embedding-0.6B | `iter06b` | 55.7 | 57.1 | 53.7 | 53.5 |
-| ColBERTv2 | `colbert` | 54.0 | 55.1 | 52.5 | 52.9 |
-| LRAT-Qwen3-Embedding-0.6B | `lrat06b` | 50.0 | 50.7 | 47.2 | 55.7 |
-| Qwen3-Embedding-4B | `qwen3emb4b` | 49.9 | 51.4 | 47.3 | 58.0 |
-| SPLADE++ (CoCondenser-EnsembleDistil) | `splade` | 49.5 | 49.9 | 46.9 | 55.9 |
-| Qwen3-Embedding-8B | `qwen3emb8b` | 48.4 | 50.2 | 47.2 | 57.5 |
-| DiffRetriever, dense | `diffretriever` | 48.3 | 49.9 | 46.4 | 57.5 |
-| DiffRetriever, sparse | `diffretriever_sparse` | 46.3 | 47.2 | 44.0 | 58.9 |
-| RepLLaMA | `repllama` | 44.3 | 44.5 | 41.9 | 61.4 |
-| Qwen3-Embedding-0.6B | `qwen3emb06b` | 41.7 | 42.4 | 38.8 | 62.2 |
-| BM25 | `bm25` | 37.7 | 38.1 | 35.3 | 61.0 |
+| ITER-Qwen3-Embedding-4B (generic instruction) | `iter4b_generic` | 59.8 | 60.6 | 56.7 | 48.9 |
+| ITER-Qwen3-Embedding-4B | `iter4b` | 58.2 | 59.4 | 54.5 | 50.8 |
+| AgentIR-4B | `agentir4b` | 57.0 | 57.7 | 53.9 | 50.3 |
+| ITER-Qwen3-Embedding-0.6B | `iter06b` | 56.4 | 57.5 | 53.6 | 53.5 |
+| ColBERTv2 | `colbert` | 54.5 | 55.7 | 52.5 | 52.9 |
+| LRAT-Qwen3-Embedding-0.6B | `lrat06b` | 50.2 | 50.8 | 47.2 | 55.7 |
+| Qwen3-Embedding-4B | `qwen3emb4b` | 50.0 | 51.7 | 47.2 | 58.0 |
+| SPLADE++ (CoCondenser-EnsembleDistil) | `splade` | 49.9 | 50.6 | 47.0 | 55.9 |
+| Qwen3-Embedding-8B | `qwen3emb8b` | 49.0 | 50.4 | 47.2 | 57.5 |
+| DiffRetriever, dense | `diffretriever` | 48.6 | 49.8 | 46.4 | 57.5 |
+| DiffRetriever, sparse | `diffretriever_sparse` | 46.7 | 47.8 | 44.0 | 58.9 |
+| RepLLaMA | `repllama` | 44.8 | 45.1 | 41.9 | 61.4 |
+| Qwen3-Embedding-0.6B | `qwen3emb06b` | 41.7 | 43.0 | 38.8 | 62.2 |
+| BM25 | `bm25` | 37.8 | 38.9 | 35.3 | 61.0 |
 
 `iter4b_generic` is the same 4B checkpoint in its own query format, with the generic
 Qwen3-Embedding instruction ("Given a web search query, retrieve relevant passages that answer the
@@ -56,21 +59,21 @@ query") in place of the ITER instruction it was trained with. On the same first 
 more evidence: gold hit about 0.50 against 0.39. The 0.6B checkpoint shows no such difference.
 
 One row changes the encoding length, so it sits outside the table: ITER-Qwen3-Embedding-4B with
-documents encoded at 4,096 tokens instead of 512 (`iter4b_d4096`) scores 58.3 on Qwen3-32B
-(official), 59.5 on Qwen3-30B-A3B-Thinking-2507 and 55.9 on gpt-4o-mini, with 49.4 searches per
+documents encoded at 4,096 tokens instead of 512 (`iter4b_d4096`) scores 58.9 on Qwen3-32B
+(official), 60.5 on Qwen3-30B-A3B-Thinking-2507 and 55.9 on gpt-4o-mini, with 49.4 searches per
 question. It needs its own index, built with `DENSE_SEQ_LENGTH=4096`.
 
 ### Rerankers over the Qwen3-Embedding-0.6B pool
 
 | reranker | file | Qwen3-32B (official) | Qwen3-30B-A3B-Thinking-2507 | gpt-4o-mini | searches |
 |---|---|---:|---:|---:|---:|
-| monoT5-3B | `rerank_monot5` | 55.9 | 56.3 | 53.4 | 53.3 |
-| bge-reranker-v2-m3 | `rerank_bge_m3` | 52.2 | 54.0 | 49.8 | 54.4 |
-| Qwen3-Reranker-0.6B | `rerank_qwen3_06b` | 49.8 | 50.2 | 48.0 | 57.0 |
-| none (the pool's own order) | `qwen3emb06b` | 41.7 | 42.4 | 38.8 | 62.2 |
-| Laya typed-decisions | `rerank_laya_typed` | 35.2 | 36.6 | 33.6 | 72.3 |
-| Laya (English) | `rerank_laya` | 33.4 | 34.8 | 32.0 | 71.6 |
-| Laya multilingual | `rerank_laya_multilingual` | 27.0 | 27.3 | 24.9 | 77.3 |
+| monoT5-3B | `rerank_monot5` | 56.1 | 57.0 | 53.5 | 53.3 |
+| bge-reranker-v2-m3 | `rerank_bge_m3` | 52.5 | 53.7 | 49.8 | 54.4 |
+| Qwen3-Reranker-0.6B | `rerank_qwen3_06b` | 49.9 | 51.1 | 48.1 | 57.0 |
+| none (the pool's own order) | `qwen3emb06b` | 41.7 | 43.0 | 38.8 | 62.2 |
+| Laya typed-decisions | `rerank_laya_typed` | 35.5 | 36.7 | 33.7 | 72.3 |
+| Laya (English) | `rerank_laya` | 33.1 | 35.4 | 32.0 | 71.6 |
+| Laya multilingual | `rerank_laya_multilingual` | 27.1 | 28.1 | 24.9 | 77.3 |
 
 The file column is short for `configs/baselines/browsecomp_plus_<file>_tongyi.yaml`.
 
