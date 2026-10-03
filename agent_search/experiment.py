@@ -57,7 +57,7 @@ SCHEMA: dict[str, dict[str, Key]] = {
         "seeds": Key(None, "special", "", "variance band: a list such as [0, 1, 2] -> one seed=N run directory per seed (overrides seed)"),
         "driver": Key(None, "env", "AGENT_DRIVER", "loop | sdk | responses; null = loop, or sdk when openai-agents is installed and the model is API-served. responses = native function calling through /v1/responses (DIVER's gpt-oss protocol)"),
         "reasoning_effort": Key("low", "env", "REASONING_EFFORT", "OpenAI reasoning models only"),
-        "tool_call_format": Key(None, "env", "AGENT_TOOL_CALL_FORMAT", "a backbone's own tool-call text, read when the JSON <tool_call> parser finds no call: glm (GLM-4.x <arg_key>/<arg_value>) | mcp (MiroThinker <tool_name>/<arguments>) | qwen_xml (Qwen3.5 <function=...><parameter=...>); null = JSON only"),
+        "tool_call_format": Key(None, "env", "AGENT_TOOL_CALL_FORMAT", "a backbone's own tool-call text, read when the JSON <tool_call> parser finds no call: glm (GLM-4.x <arg_key>/<arg_value>) | mcp (MiroThinker <tool_name>/<arguments>) | lenient_json (JSON with an unquoted tool name) | qwen_xml (Qwen3.5 <function=...><parameter=...>); null = JSON only"),
         "top_p": Key(0.95, "env", "LLM_TOP_P", "nucleus sampling for a served or in-process model"),
         "top_k": Key(None, "env", "LLM_TOP_K", "top-k sampling for a served model (null = the server's default; DIVER's Qwen3.5 runs use 20)"),
         "presence_penalty": Key(1.1, "env", "LLM_PRESENCE_PENALTY", "presence penalty for a served or in-process model (DIVER's Qwen3.5 runs use 1.5)"),

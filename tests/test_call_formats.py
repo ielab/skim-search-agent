@@ -40,6 +40,23 @@ def test_mcp_calls_take_the_last_one_even_with_broken_closing_tags():
     assert fmt.parse(MCP_WRAPPED) == ("get_document", {"docid": "4021"})
 
 
+MIRO_BARE = ('<tool>\n {"name": "search", "arguments": {"query": "research group 2009"}}\n </>\n'
+             '<tool>\n {"name": "search", "arguments": {"query": "Routledge 2018 co-edited"}}\n </>')
+QWEN36 = '<tool_call>\n{"name": search", "arguments": {"query": "\\"hat shop\\"", "k": 10}}\n</tool_call>'
+
+
+def test_mcp_reads_a_bare_named_object():
+    assert call_format("mcp").parse(MIRO_BARE) == ("search", {"query": "Routledge 2018 co-edited"})
+    # the closing brace of the object is often missing before " </>"
+    cut = '<tool>\n {"name": "search", "arguments": {"query": "a"}\n </>\n<tool>\n {"name": "search", "arguments": {"query": "b"}\n </>'
+    assert call_format("mcp").parse(cut) == ("search", {"query": "b"})
+
+
+def test_lenient_json_repairs_an_unquoted_tool_name():
+    assert parse_tool_call(QWEN36) is None
+    assert call_format("lenient_json").parse(QWEN36) == ("search", {"query": '"hat shop"', "k": 10})
+
+
 def test_a_format_never_reads_a_call_quoted_in_thinking():
     quoted = "<think><tool_call>search<arg_key>query</arg_key><arg_value>x</arg_value></tool_call></think>done"
     assert call_format("glm").parse(quoted) is None

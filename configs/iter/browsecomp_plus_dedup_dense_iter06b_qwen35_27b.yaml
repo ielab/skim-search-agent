@@ -25,7 +25,7 @@ model:
   seeds: null                            # variance band: a list such as [0, 1, 2] -> one seed=N run directory per seed (overrides seed)
   driver: null                           # loop | sdk; null = loop, or sdk when openai-agents is installed and the model is API-served
   reasoning_effort: low                  # OpenAI reasoning models only
-  tool_call_format: null                 # a backbone's own tool-call text read when the JSON parser finds none: glm | mcp | qwen_xml (null = JSON only)
+  tool_call_format: null                 # a backbone's own tool-call text read when the JSON parser finds none: glm | mcp | lenient_json | qwen_xml (null = JSON only)
   top_p: 0.95                            # nucleus sampling for a served or in-process model
   top_k: 20                              # DIVER's Qwen3.5 client
   presence_penalty: 1.5                  # DIVER's Qwen3.5 client
