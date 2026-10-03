@@ -5,6 +5,15 @@
  "pending": [],
  "entries": [
   {
+   "id": "iter4b_generic",
+   "retriever": "ITER-Qwen3-Embedding-4B (generic instruction)",
+   "retriever_link": "https://huggingface.co/ielabgroup/ITER-Qwen3-Embedding-4B",
+   "kind": "dense",
+   "accuracy": 59.3,
+   "recall": 73.0,
+   "search_calls": 48.9
+  },
+  {
    "id": "iter4b",
    "retriever": "ITER-Qwen3-Embedding-4B",
    "retriever_link": "https://huggingface.co/ielabgroup/ITER-Qwen3-Embedding-4B",

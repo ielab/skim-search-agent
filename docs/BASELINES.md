@@ -35,6 +35,7 @@ Qwen3-32B judge leaves 13 to 26 per cell). Three judges score each cell:
 
 | retriever | file | Qwen3-32B (official) | Qwen3-30B-A3B-Thinking-2507 | gpt-4o-mini | searches |
 |---|---|---:|---:|---:|---:|
+| ITER-Qwen3-Embedding-4B (generic instruction) | `iter4b_generic` | 59.3 | 60.1 | 56.7 | 48.9 |
 | ITER-Qwen3-Embedding-4B | `iter4b` | 57.7 | 58.7 | 54.5 | 50.8 |
 | AgentIR-4B | `agentir4b` | 56.6 | 57.5 | 53.9 | 50.3 |
 | ITER-Qwen3-Embedding-0.6B | `iter06b` | 55.7 | 57.1 | 53.7 | 53.5 |
@@ -48,6 +49,11 @@ Qwen3-32B judge leaves 13 to 26 per cell). Three judges score each cell:
 | RepLLaMA | `repllama` | 44.3 | 44.5 | 41.9 | 61.4 |
 | Qwen3-Embedding-0.6B | `qwen3emb06b` | 41.7 | 42.4 | 38.8 | 62.2 |
 | BM25 | `bm25` | 37.7 | 38.1 | 35.3 | 61.0 |
+
+`iter4b_generic` is the same 4B checkpoint in its own query format, with the generic
+Qwen3-Embedding instruction ("Given a web search query, retrieve relevant passages that answer the
+query") in place of the ITER instruction it was trained with. On the same first queries it retrieves
+more evidence: gold hit about 0.50 against 0.39. The 0.6B checkpoint shows no such difference.
 
 One row changes the encoding length, so it sits outside the table: ITER-Qwen3-Embedding-4B with
 documents encoded at 4,096 tokens instead of 512 (`iter4b_d4096`) scores 58.3 on Qwen3-32B
