@@ -179,7 +179,7 @@
    "retriever": "Qwen3-Embedding-0.6B",
    "retriever_link": "https://huggingface.co/Qwen/Qwen3-Embedding-0.6B",
    "kind": "reranked",
-   "accuracy": 33.1,
+   "accuracy": 34.2,
    "recall": 36.6,
    "search_calls": 71.6,
    "reranker": "Laya (English)",
