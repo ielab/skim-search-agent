@@ -10,9 +10,10 @@ from typing import Optional
 
 from agent_search.agent.call_formats.base import CallFormat
 from agent_search.agent.call_formats.glm import GlmCallFormat
+from agent_search.agent.call_formats.mcp import McpCallFormat
 from agent_search.agent.call_formats.qwen_xml import QwenXmlCallFormat
 
-FORMATS: dict[str, type[CallFormat]] = {c.name: c for c in (GlmCallFormat, QwenXmlCallFormat)}
+FORMATS: dict[str, type[CallFormat]] = {c.name: c for c in (GlmCallFormat, McpCallFormat, QwenXmlCallFormat)}
 
 
 def call_format(name: Optional[str]) -> Optional[CallFormat]:
@@ -30,4 +31,4 @@ def parse_alternate(text: Optional[str]) -> Optional[tuple[str, dict]]:
     return fmt.parse(text) if fmt else None
 
 
-__all__ = ["CallFormat", "GlmCallFormat", "QwenXmlCallFormat", "FORMATS", "call_format", "parse_alternate"]
+__all__ = ["CallFormat", "GlmCallFormat", "McpCallFormat", "QwenXmlCallFormat", "FORMATS", "call_format", "parse_alternate"]

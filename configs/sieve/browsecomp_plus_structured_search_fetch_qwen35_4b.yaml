@@ -25,7 +25,7 @@ model:
   seeds: null                            # variance band: a list such as [0, 1, 2] -> one seed=N run directory per seed (overrides seed)
   driver: loop                      # loop (text-parsed tool calls) | responses (native function calling through /v1/responses, gpt-oss)
   reasoning_effort: low                  # OpenAI reasoning models only (gpt-oss: medium, as DIVER served it)
-  tool_call_format: null                 # a backbone's own tool-call text read when the JSON parser finds none: glm | qwen_xml (null = JSON only)
+  tool_call_format: null                 # a backbone's own tool-call text read when the JSON parser finds none: glm | mcp | qwen_xml (null = JSON only)
   top_p: 0.95                            # nucleus sampling for a served or in-process model
   top_k: null                            # top-k sampling for a served model (null = the server's default; DIVER's Qwen3.5 runs use 20)
   presence_penalty: 1.1                  # presence penalty (DIVER's Qwen3.5 runs use 1.5)

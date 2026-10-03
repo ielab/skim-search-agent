@@ -28,6 +28,18 @@ def test_qwen_xml_calls():
     assert fmt.parse(QWEN_OPEN) == ("get_document", {"docid": 4021})
 
 
+MCP = ('<think>plan</think>\n\n<tool_name>search</tool_name>\n<arguments>\n{"query": "Ka Hao 2021"}\n </>\n'
+       '<tool_name>search</tool_name>\n<arguments>\n{"query": "\\"convenor\\" panel 2018"}\n </')
+MCP_WRAPPED = ('<use_mcp_tool>\n<server_name>tool-search</server_name>\n<tool_name>get_document</tool_name>\n'
+               '<arguments>\n{"docid": "4021"}\n</arguments>\n</use_mcp_tool>')
+
+
+def test_mcp_calls_take_the_last_one_even_with_broken_closing_tags():
+    fmt = call_format("mcp")
+    assert fmt.parse(MCP) == ("search", {"query": '"convenor" panel 2018'})
+    assert fmt.parse(MCP_WRAPPED) == ("get_document", {"docid": "4021"})
+
+
 def test_a_format_never_reads_a_call_quoted_in_thinking():
     quoted = "<think><tool_call>search<arg_key>query</arg_key><arg_value>x</arg_value></tool_call></think>done"
     assert call_format("glm").parse(quoted) is None
