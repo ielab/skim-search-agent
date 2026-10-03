@@ -1,6 +1,8 @@
 """Generation-text helpers shared by every backend's `generate()` callable."""
 from __future__ import annotations
 
+from agent_search.agent.answer_text import in_open_think
+
 
 def _repair_open_tag(text: str) -> str:
     """Generation stops at `</tool_call>`/`</answer>` and the stop string itself is removed
@@ -9,10 +11,15 @@ def _repair_open_tag(text: str) -> str:
     out-of-distribution task it does not reliably stop after its tool call. Without an explicit
     stop it ran on to max_tokens (10000) every turn, costing 6-10 minutes per instance."""
     for open_t, close_t in (("<tool_call>", "</tool_call>"), ("<answer>", "</answer>")):
-        if open_t in text and close_t not in text:
+        # open = the last opening tag has no closing tag after it (an earlier, quoted pair in the
+        # reasoning does not close the real one)
+        if text.rfind(open_t) > text.rfind(close_t):
             # an <answer> named in prose before a tool call is not an open answer: closing it
             # after the call would turn the call into a final answer
             if open_t == "<answer>" and "<tool_call>" in text[text.rfind("<answer>"):]:
+                continue
+            # a tag quoted inside reasoning that was cut off is not an open tag either
+            if in_open_think(text):
                 continue
             text += close_t
     return text

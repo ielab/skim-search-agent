@@ -1,6 +1,6 @@
 """An answer is read from the visible turn only: no reasoning (including a lone </think> whose
 opening tag the chat template supplied) and no tool call. Each case is a shape seen in real runs."""
-from agent_search.agent.answer_text import clean_answer, judge_text, visible_text
+from agent_search.agent.answer_text import clean_answer, in_open_think, judge_text, visible_text
 from agent_search.agent.backbone.text import _repair_open_tag
 from agent_search.evaluation.llm_judge import judge_answer_detail
 
@@ -56,3 +56,44 @@ def test_exact_match_reads_the_answer_without_a_tool_call():
     assert out["answer_em"] == 1.0 and out["grounded"]
     out = score_answer('Galati <tool_call>{"name": "search"}</tool_call>', "Galati", ["Galati"])
     assert out["answer_em"] == 1.0
+
+
+# Tongyi quoting the Sieve prompt's answer format while still thinking: generation stops at the
+# </answer> stop string, mid-thought
+CUT = ("<think>\nThus answer: 20,104. The instructions say: \"Give ONLY the short answer span "
+       "inside `<answer>...")
+
+
+def test_a_turn_cut_inside_reasoning_has_no_answer():
+    assert in_open_think(CUT) and not in_open_think("<think>a</think><answer>X</answer>")
+    assert visible_text(CUT) == "" and clean_answer(CUT) == ""
+    # the backend must not close the quoted tag: that turned "..." into the final answer
+    assert _repair_open_tag(CUT) == CUT
+
+
+def test_the_backend_continues_a_turn_cut_inside_reasoning():
+    from types import SimpleNamespace as NS
+    from agent_search.agent.backbone.openai_chat import openai_compat_generate
+    replies = [NS(content=CUT, finish="stop", stop="</answer>"),
+               NS(content="` tags.\nSo I answer now.\n</think>\n\n<answer>20,104", finish="stop", stop="</answer>")]
+    calls = []
+
+    class Completions:
+        def create(self, **kw):
+            calls.append(kw)
+            r = replies[len(calls) - 1]
+            return NS(choices=[NS(message=NS(content=r.content), finish_reason=r.finish, stop_reason=r.stop)],
+                      usage=NS(prompt_tokens=10, completion_tokens=20))
+
+    gen = openai_compat_generate("m", base_url="http://x/v1", client=NS(chat=NS(completions=Completions())))
+    out = gen([{"role": "user", "content": "q"}])
+    assert len(calls) == 2
+    assert calls[1]["messages"][-1] == {"role": "assistant", "content": CUT + "</answer>"}
+    assert calls[1]["extra_body"]["continue_final_message"] is True
+    assert out.endswith("</think>\n\n<answer>20,104</answer>")
+    assert clean_answer(out) == "<answer>20,104</answer>"
+
+
+def test_a_cut_turn_does_not_end_the_episode():
+    from agent_search.agent.loop import _final_locations
+    assert _final_locations(CUT + "</answer>", "", {}) is None

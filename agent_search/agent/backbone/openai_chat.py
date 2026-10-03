@@ -7,6 +7,8 @@ import sys
 import time
 from typing import Callable
 
+from agent_search.agent.answer_text import in_open_think
+
 from .retry import _with_retries
 from .text import _STOP, _repair_open_tag, _truncate_at_tool_response
 from .usage import _cached_tokens, _reasoning_tokens, _record_usage
@@ -108,8 +110,33 @@ def openai_compat_generate(model: str = DEFAULT_MODEL, *,
             if "chat_template_kwargs" in extra:
                 extra["chat_template_kwargs"]["enable_thinking"] = not extra["chat_template_kwargs"]["enable_thinking"]
             time.sleep(min(_env_float("LLM_RETRY_BASE_S", 1.0) * (2 ** attempt), 30.0))
-        generate.last_finish_reason = getattr(resp.choices[0], "finish_reason", None)
-        return _truncate_at_tool_response(_repair_open_tag(resp.choices[0].message.content or ""))
+        text = resp.choices[0].message.content or ""
+        finish = getattr(resp.choices[0], "finish_reason", None)
+        # A stop string matched inside the model's reasoning (it quoted the prompt's
+        # `<answer>...</answer>` format while thinking): the turn is cut mid-thought. Put the
+        # stop string back and let the server continue the same message, up to
+        # LLM_THINK_CONTINUATIONS times (3), so the turn ends where the model ends it.
+        budget = int(kw["max_tokens"])
+        for _ in range(max(0, _env_int("LLM_THINK_CONTINUATIONS", 3))):
+            stopped_on = getattr(resp.choices[0], "stop_reason", None)
+            if not (finish == "stop" and isinstance(stopped_on, str) and stopped_on and in_open_think(text)):
+                break
+            u = getattr(resp, "usage", None)
+            budget -= int(getattr(u, "completion_tokens", 0) or 0)
+            if budget <= 16:
+                break
+            text += stopped_on
+            more = dict(kw, messages=messages + [{"role": "assistant", "content": text}], max_tokens=budget,
+                        extra_body={**extra, "add_generation_prompt": False, "continue_final_message": True})
+            resp = _with_retries(lambda: client.chat.completions.create(**more))
+            u = getattr(resp, "usage", None)
+            if u is not None:
+                _record_usage(getattr(u, "prompt_tokens", 0), getattr(u, "completion_tokens", 0),
+                              _cached_tokens(u), _reasoning_tokens(u))
+            text += resp.choices[0].message.content or ""
+            finish = getattr(resp.choices[0], "finish_reason", None)
+        generate.last_finish_reason = finish
+        return _truncate_at_tool_response(_repair_open_tag(text))
 
     # Expose the underlying (client, model) as attributes on the closure. Setting these
     # attributes does not change how `generate(prompt)` itself behaves; it lets
