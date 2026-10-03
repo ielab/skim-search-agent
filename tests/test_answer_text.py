@@ -1,6 +1,6 @@
 """An answer is read from the visible turn only: no reasoning (including a lone </think> whose
 opening tag the chat template supplied) and no tool call. Each case is a shape seen in real runs."""
-from agent_search.agent.answer_text import clean_answer, in_open_think, judge_text, visible_text
+from agent_search.agent.answer_text import clean_answer, in_open_think, judge_text, quotes_instructions, visible_text
 from agent_search.agent.backbone.text import _repair_open_tag
 from agent_search.evaluation.llm_judge import judge_answer_detail
 
@@ -58,35 +58,51 @@ def test_exact_match_reads_the_answer_without_a_tool_call():
     assert out["answer_em"] == 1.0
 
 
-# Tongyi quoting the Sieve prompt's answer format while still thinking: generation stops at the
-# </answer> stop string, mid-thought
-CUT = ("<think>\nThus answer: 20,104. The instructions say: \"Give ONLY the short answer span "
-       "inside `<answer>...")
+# Tongyi restating the Sieve prompt's answer format while still thinking: generation stops at the
+# </answer> stop string, mid-thought. PROMPT is the instruction it is quoting.
+PROMPT = ("When the evidence is sufficient, give the final answer as `<answer>...</answer>`, where the "
+          "answer is ONLY the short span (e.g. `<answer>Giuseppe Verdi</answer>`, `<answer>yes</answer>`).")
+CUT = ("<think>\nThus answer: 20,104. The instructions say: \"give the final answer as `<answer>...")
+CUT_EXAMPLE = "<think>\nThe format is a short span (e.g. `<answer>Giuseppe Verdi"
+# a real answer at the end of reasoning the model never closed: common for Tongyi, and correct
+REAL = "<think>\nSame nationality: American.\n\nThus final answer: <answer>yes"
 
 
-def test_a_turn_cut_inside_reasoning_has_no_answer():
-    assert in_open_think(CUT) and not in_open_think("<think>a</think><answer>X</answer>")
-    assert visible_text(CUT) == "" and clean_answer(CUT) == ""
-    # the backend must not close the quoted tag: that turned "..." into the final answer
-    assert _repair_open_tag(CUT) == CUT
+def test_a_quoted_format_line_is_told_from_an_answer():
+    assert quotes_instructions(CUT, [PROMPT]) and quotes_instructions(CUT_EXAMPLE, [PROMPT])
+    assert quotes_instructions(CUT, [])                     # "..." is never an answer
+    assert not quotes_instructions(REAL, [PROMPT])          # "yes" in the model's own words
+    assert not quotes_instructions("no tag here", [PROMPT])
+    assert in_open_think(REAL) and not in_open_think("<think>a</think><answer>X</answer>")
 
 
-def test_the_backend_continues_a_turn_cut_inside_reasoning():
+def test_only_a_real_answer_gets_its_closing_tag_back():
+    assert _repair_open_tag(REAL) == REAL + "</answer>"
+    assert _repair_open_tag(CUT, quoted_answer=True) == CUT
+    # a real answer after a quoted pair earlier in the reasoning is still closed
+    later = CUT + "</answer>` tags.\nThus: <answer>20,104"
+    assert _repair_open_tag(later) == later + "</answer>"
+
+
+def _fake_client(replies, calls):
     from types import SimpleNamespace as NS
-    from agent_search.agent.backbone.openai_chat import openai_compat_generate
-    replies = [NS(content=CUT, finish="stop", stop="</answer>"),
-               NS(content="` tags.\nSo I answer now.\n</think>\n\n<answer>20,104", finish="stop", stop="</answer>")]
-    calls = []
 
     class Completions:
         def create(self, **kw):
             calls.append(kw)
             r = replies[len(calls) - 1]
-            return NS(choices=[NS(message=NS(content=r.content), finish_reason=r.finish, stop_reason=r.stop)],
+            return NS(choices=[NS(message=NS(content=r[0]), finish_reason="stop", stop_reason=r[1])],
                       usage=NS(prompt_tokens=10, completion_tokens=20))
+    return NS(chat=NS(completions=Completions()))
 
-    gen = openai_compat_generate("m", base_url="http://x/v1", client=NS(chat=NS(completions=Completions())))
-    out = gen([{"role": "user", "content": "q"}])
+
+def test_the_backend_continues_a_turn_cut_at_a_quoted_format_line():
+    from agent_search.agent.backbone.openai_chat import openai_compat_generate
+    calls = []
+    client = _fake_client([(CUT, "</answer>"),
+                           ("` tags.\nSo I answer now.\n</think>\n\n<answer>20,104", "</answer>")], calls)
+    gen = openai_compat_generate("m", base_url="http://x/v1", client=client)
+    out = gen([{"role": "system", "content": PROMPT}, {"role": "user", "content": "q"}])
     assert len(calls) == 2
     assert calls[1]["messages"][-1] == {"role": "assistant", "content": CUT + "</answer>"}
     assert calls[1]["extra_body"]["continue_final_message"] is True
@@ -94,6 +110,21 @@ def test_the_backend_continues_a_turn_cut_inside_reasoning():
     assert clean_answer(out) == "<answer>20,104</answer>"
 
 
-def test_a_cut_turn_does_not_end_the_episode():
+def test_the_backend_does_not_continue_a_real_answer_in_unclosed_reasoning():
+    from agent_search.agent.backbone.openai_chat import openai_compat_generate
+    from agent_search.agent.loop import _extract_answer, _final_locations
+    calls = []
+    gen = openai_compat_generate("m", base_url="http://x/v1", client=_fake_client([(REAL, "</answer>")], calls))
+    out = gen([{"role": "system", "content": PROMPT}, {"role": "user", "content": "q"}])
+    assert len(calls) == 1 and out == REAL + "</answer>"
+    assert _final_locations(out, "", {}) is not None and _extract_answer(out) == "yes"
+
+
+def test_a_quotation_that_is_never_finished_does_not_end_the_episode():
+    from agent_search.agent.backbone.openai_chat import openai_compat_generate
     from agent_search.agent.loop import _final_locations
-    assert _final_locations(CUT + "</answer>", "", {}) is None
+    calls = []
+    gen = openai_compat_generate("m", base_url="http://x/v1",
+                                 client=_fake_client([(CUT, "</answer>")] + [("", None)], calls))
+    out = gen([{"role": "system", "content": PROMPT}, {"role": "user", "content": "q"}])
+    assert not out.endswith("</answer>` </answer>") and _final_locations(out, "", {}) is None

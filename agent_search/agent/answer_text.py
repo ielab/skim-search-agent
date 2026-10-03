@@ -8,8 +8,8 @@ with `clean_answer` (an empty one is asked for again); the judges read `judge_te
 passes a tool call on but falls back to the reasoning when that is all the model wrote.
 
 A model that quotes the prompt's `<answer>...</answer>` format inside its reasoning hits the
-`</answer>` stop string mid-thought. `in_open_think` tells such a cut turn from a finished one:
-the backend continues it, and nothing in it is read as an answer.
+`</answer>` stop string mid-thought. `quotes_instructions` tells that quotation from a real
+answer: the backend continues the turn and never closes the quoted tag.
 """
 from __future__ import annotations
 
@@ -27,15 +27,44 @@ def in_open_think(text: str | None) -> bool:
     return low.rfind("<think>") > low.rfind("</think>")
 
 
+_QUOTE_CONTEXT = 12      # characters before the tag that must match the instructions too
+_DOTS = ("...", "\u2026")
+
+
+def _squash(s: str) -> str:
+    return re.sub(r"\s+", " ", s or "")
+
+
+def quotes_instructions(text: str | None, instructions) -> bool:
+    """True when the last `<answer>` in `text` is the model QUOTING its instructions, not
+    answering. Tongyi and AgentWorld restate the prompt's format line while thinking ("give the
+    final answer as `<answer>...</answer>`"), and the `</answer>` stop string then cuts the turn
+    there. A quotation is told from an answer by the text itself: the tag, its content so far and
+    the `_QUOTE_CONTEXT` characters before it occur verbatim in one of the `instructions` (the
+    system prompt and the other non-assistant messages), or the content is the literal "...".
+    An answer the model writes in its own words at the end of unclosed reasoning ("Thus final
+    answer: <answer>yes") matches neither and stays an answer."""
+    t = text or ""
+    i = t.rfind("<answer>")
+    if i < 0:
+        return False
+    content = t[i + len("<answer>"):]
+    content = content.split("</answer>")[0]
+    if content.strip() in _DOTS:
+        return True
+    probe = _squash(t[max(0, i - _QUOTE_CONTEXT):i] + "<answer>" + content).strip()
+    if len(probe) <= len("<answer>"):
+        return False
+    return any(probe in _squash(src) for src in (instructions or ()) if src)
+
+
 def visible_text(text: str | None) -> str:
-    """The turn without its reasoning: closed `<think>` blocks, everything up to a `</think>`
-    whose opening tag the template supplied, and everything after a `<think>` that never closes
-    (a turn cut mid-thought has no visible part)."""
+    """The turn without its reasoning: closed `<think>` blocks and everything up to a `</think>`
+    whose opening tag the template supplied. Reasoning that never closes is kept: Tongyi often
+    ends a turn with its answer or tool call inside it."""
     out = _THINK.sub("", text or "")
     if re.search(r"</think>", out, re.IGNORECASE):
         out = _LONE_CLOSE.sub("", out)
-    if in_open_think(out):
-        out = out[:out.lower().rfind("<think>")]
     return out
 
 
@@ -55,4 +84,4 @@ def judge_text(text: str | None) -> str:
     return _TOOL_CALL.sub("", re.sub(r"</?think>", " ", text or "", flags=re.IGNORECASE)).strip()
 
 
-__all__ = ["in_open_think", "visible_text", "clean_answer", "judge_text"]
+__all__ = ["in_open_think", "quotes_instructions", "visible_text", "clean_answer", "judge_text"]

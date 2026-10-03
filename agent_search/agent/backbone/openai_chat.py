@@ -7,7 +7,7 @@ import sys
 import time
 from typing import Callable
 
-from agent_search.agent.answer_text import in_open_think
+from agent_search.agent.answer_text import quotes_instructions
 
 from .retry import _with_retries
 from .text import _STOP, _repair_open_tag, _truncate_at_tool_response
@@ -112,14 +112,17 @@ def openai_compat_generate(model: str = DEFAULT_MODEL, *,
             time.sleep(min(_env_float("LLM_RETRY_BASE_S", 1.0) * (2 ** attempt), 30.0))
         text = resp.choices[0].message.content or ""
         finish = getattr(resp.choices[0], "finish_reason", None)
-        # A stop string matched inside the model's reasoning (it quoted the prompt's
-        # `<answer>...</answer>` format while thinking): the turn is cut mid-thought. Put the
-        # stop string back and let the server continue the same message, up to
-        # LLM_THINK_CONTINUATIONS times (3), so the turn ends where the model ends it.
+        # The `</answer>` stop string matched where the model was QUOTING its instructions (it
+        # restated the prompt's `<answer>...</answer>` format while thinking): the turn is cut
+        # mid-thought. Put the stop string back and let the server continue the same message, up
+        # to LLM_THINK_CONTINUATIONS times (3), so the turn ends where the model ends it. An
+        # answer in the model's own words is not a quotation and ends the turn as before.
+        instructions = [m.get("content") for m in messages
+                        if m.get("role") != "assistant" and isinstance(m.get("content"), str)]
         budget = int(kw["max_tokens"])
         for _ in range(max(0, _env_int("LLM_THINK_CONTINUATIONS", 3))):
             stopped_on = getattr(resp.choices[0], "stop_reason", None)
-            if not (finish == "stop" and isinstance(stopped_on, str) and stopped_on and in_open_think(text)):
+            if not (finish == "stop" and stopped_on == "</answer>" and quotes_instructions(text, instructions)):
                 break
             u = getattr(resp, "usage", None)
             budget -= int(getattr(u, "completion_tokens", 0) or 0)
@@ -136,7 +139,13 @@ def openai_compat_generate(model: str = DEFAULT_MODEL, *,
             text += resp.choices[0].message.content or ""
             finish = getattr(resp.choices[0], "finish_reason", None)
         generate.last_finish_reason = finish
-        return _truncate_at_tool_response(_repair_open_tag(text))
+        # a quotation the model never went past still ends in the stop string put back above:
+        # drop it, so the quoted tag stays open and is not read as an answer
+        if text.endswith("</answer>") and text.rfind("<answer>") > text.rfind("</answer>", 0, len(text) - 9) \
+                and quotes_instructions(text[:-len("</answer>")], instructions):
+            text = text[:-len("</answer>")]
+        still_quoted = text.rfind("<answer>") > text.rfind("</answer>") and quotes_instructions(text, instructions)
+        return _truncate_at_tool_response(_repair_open_tag(text, quoted_answer=still_quoted))
 
     # Expose the underlying (client, model) as attributes on the closure. Setting these
     # attributes does not change how `generate(prompt)` itself behaves; it lets

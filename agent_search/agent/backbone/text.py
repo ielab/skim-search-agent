@@ -1,10 +1,9 @@
 """Generation-text helpers shared by every backend's `generate()` callable."""
 from __future__ import annotations
 
-from agent_search.agent.answer_text import in_open_think
 
 
-def _repair_open_tag(text: str) -> str:
+def _repair_open_tag(text: str, quoted_answer: bool = False) -> str:
     """Generation stops at `</tool_call>`/`</answer>` and the stop string itself is removed
     from the output, so re-append the close tag for the parser's regex. An explicit stop list
     matters here because the Tongyi model is trained on web research, not BQL: on this
@@ -18,8 +17,8 @@ def _repair_open_tag(text: str) -> str:
             # after the call would turn the call into a final answer
             if open_t == "<answer>" and "<tool_call>" in text[text.rfind("<answer>"):]:
                 continue
-            # a tag quoted inside reasoning that was cut off is not an open tag either
-            if in_open_think(text):
+            # an <answer> the model is quoting from its instructions is not an open answer
+            if open_t == "<answer>" and quoted_answer:
                 continue
             text += close_t
     return text
