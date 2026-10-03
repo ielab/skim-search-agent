@@ -150,7 +150,12 @@ def judge_answer_detail(question: str, gold_answer: str, response: str,
                 "judge_reasoning": "exact match after normalization (no judge call)"}
     template = JUDGE_PROMPTS.get(prompt) or BCP_JUDGE_PROMPT
     text = template.format(question=question or "", response=resp, correct_answer=gold_answer or "")
-    raw = generate(text)
+    try:
+        raw = generate(text)
+    except Exception as e:  # noqa: BLE001 - one failed call (a timeout on a runaway reply) must not end the run
+        # The row stays unjudged and is retried on the next run; the other rows keep their verdicts.
+        return {"judge_correct": None, "judge_error": f"judge call failed: {type(e).__name__}",
+                "judge_raw": "", "judge_extracted": "None", "judge_reasoning": ""}
     data = _parse_judge_json(raw) if prompt == "bcp" else _parse_verdict_line(raw)
     if not data or "correct" not in data:
         # An unparseable judge reply is an error, not a "no": recording it as wrong would

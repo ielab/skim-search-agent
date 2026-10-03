@@ -123,3 +123,26 @@ def test_judge_refuses_a_run_that_is_still_writing(tmp_path):
     (d / "results.json").write_text("{}")
     s = judge_run_dir(str(d), lambda prompt: "correct: yes", force=True)
     assert s["n_judged"] == 1
+
+
+def test_a_failed_judge_call_leaves_that_row_unjudged_and_keeps_the_rest(tmp_path):
+    """One call that raises (a timeout on a runaway reply) must not end the run: that row stays
+    unjudged for the next run and the other rows are written with their verdicts."""
+    import json
+    from agent_search.evaluation.llm_judge import judge_run_dir
+    d = tmp_path / "run"
+    d.mkdir()
+    rows = [{"instance_id": str(i), "question": "q", "gold_answer": "Paris", "final_answer": a}
+            for i, a in enumerate(["It is Lyon.", "BOOM", "The city of Lyon."])]
+    (d / "rows.jsonl").write_text("".join(json.dumps(r) + "\n" for r in rows))
+
+    def generate(prompt):
+        if "BOOM" in prompt:
+            raise TimeoutError("request timed out")
+        return '{"extracted_final_answer": "Lyon", "reasoning": "", "correct": "no"}'
+
+    s = judge_run_dir(str(d), generate, unfinished_ok=True, workers=2)
+    out = [json.loads(l) for l in (d / "rows.jsonl").read_text().splitlines()]
+    assert [r["judge_correct"] for r in out] == [False, None, False]
+    assert out[1]["judge_error"] == "judge call failed: TimeoutError"
+    assert s["n_judged"] == 2 and s["n_judge_errors"] == 1
