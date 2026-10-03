@@ -33,6 +33,7 @@ import re
 import unicodedata
 from typing import Optional, Sequence
 
+from agent_search.agent.answer_text import judge_text
 from agent_search.evaluation.metrics import answer_em, answer_f1, support_f1
 
 _ANSWER_TAG_RE = re.compile(r"<answer>(.*?)</answer>", re.DOTALL | re.IGNORECASE)
@@ -105,10 +106,11 @@ def score_answer(answer: str, gold_answer: str, observations: Sequence[str], *,
     the ungrounded EM/F1 for diagnosis, and (when `gold_doc_ids` is given) MuSiQue's SUPPORT F1.
     `observations` is every tool response the agent saw this episode.
 
-    `answer` is first passed through `extract_answer_span`: if it carries an `<answer>...</answer>`
+    `answer` is first read the way a judge reads it (`agent.answer_text.judge_text`: no reasoning
+    tail, no tool call), then passed through `extract_answer_span`: if it carries an `<answer>...</answer>`
     tag, only the tagged span is scored (the short span the agent was instructed to emit); a raw
     answer with no tag is scored as-is."""
-    pred = extract_answer_span(answer)
+    pred = extract_answer_span(judge_text(answer))
     grounded = answer_in_evidence(pred, observations) if pred else False
     em = answer_em(pred, gold_answer)
     f1 = answer_f1(pred, gold_answer)

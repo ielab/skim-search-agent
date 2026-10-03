@@ -48,3 +48,11 @@ def test_the_judge_reads_the_cleaned_answer():
     # an answer written only inside the reasoning is judged from the reasoning, never with the call
     judge_answer_detail("q", "g", OPENSEEKER, judge)
     assert "<tool_call>" not in seen[-1] and "Now we need to enclose" in seen[-1]
+
+
+def test_exact_match_reads_the_answer_without_a_tool_call():
+    from agent_search.evaluation.doc_scoring import score_answer
+    out = score_answer("reasoning</think>\n<answer>Galati</answer>", "Galati", ["... Galati ..."])
+    assert out["answer_em"] == 1.0 and out["grounded"]
+    out = score_answer('Galati <tool_call>{"name": "search"}</tool_call>', "Galati", ["Galati"])
+    assert out["answer_em"] == 1.0
