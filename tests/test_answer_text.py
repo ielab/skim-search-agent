@@ -1,0 +1,50 @@
+"""An answer is read from the visible turn only: no reasoning (including a lone </think> whose
+opening tag the chat template supplied) and no tool call. Each case is a shape seen in real runs."""
+from agent_search.agent.answer_text import clean_answer, judge_text, visible_text
+from agent_search.agent.backbone.text import _repair_open_tag
+from agent_search.evaluation.llm_judge import judge_answer_detail
+
+# OpenSeeker: the template opened <think>; the model names the answer tag, then searches again
+OPENSEEKER = ("Now we need to enclose final answer in <answer> tags.\n</think>\n\n<tool_call>\n"
+              '{"name": "search", "arguments": {"query": "Darlene Kittle"}}\n</tool_call>')
+# Tongyi forced answer at the step budget: reasoning, then a tool call, after the <answer> prefill
+FORCED = ("Now we have hit the step budget, so we must answer now. It is likely Tony Goldwyn.\n"
+          '</think>\n\n<tool_call>\n{"name": "search", "arguments": {"query": "x"}}\n</tool_call>')
+
+
+def test_visible_text_drops_a_lone_closing_think():
+    assert visible_text("reasoning here</think>\n\nThe answer is X.") == "\n\nThe answer is X."
+    assert visible_text("<think>a</think>B") == "B"
+    assert visible_text("no reasoning at all") == "no reasoning at all"
+
+
+def test_clean_answer_keeps_only_the_answer():
+    assert clean_answer(OPENSEEKER) == ""
+    assert clean_answer("Thinking...</think>\nGabriel Estaba") == "Gabriel Estaba"
+    assert clean_answer("Carl Herrera <tool_call>{\"name\": \"search\"") == "Carl Herrera"
+
+
+def test_judge_text_falls_back_to_the_reasoning_without_the_call():
+    assert judge_text(FORCED).startswith("Now we have hit the step budget")
+    assert "<tool_call>" not in judge_text(FORCED)
+    assert judge_text("r</think>\nTony Goldwyn") == "Tony Goldwyn"
+
+
+def test_no_closing_answer_tag_is_fabricated_after_a_tool_call():
+    # generation stopped at </tool_call>; the prose mention of <answer> must stay open
+    assert _repair_open_tag(OPENSEEKER).endswith("</tool_call>")
+    # a real open answer is still closed
+    assert _repair_open_tag("<answer>Galati") == "<answer>Galati</answer>"
+
+
+def test_the_judge_reads_the_cleaned_answer():
+    seen = []
+    def judge(prompt):
+        seen.append(prompt)
+        return '{"extracted_final_answer": "Tony Goldwyn", "reasoning": "r", "correct": "yes", "confidence": 100}'
+    out = judge_answer_detail("q", "Tony Goldwyn", FORCED.replace("It is likely", "It is likely"), judge)
+    assert out["judge_correct"] is True
+    assert "<tool_call>" not in seen[0] and "</think>" not in seen[0]
+    # an answer written only inside the reasoning is judged from the reasoning, never with the call
+    judge_answer_detail("q", "g", OPENSEEKER, judge)
+    assert "<tool_call>" not in seen[-1] and "Now we need to enclose" in seen[-1]

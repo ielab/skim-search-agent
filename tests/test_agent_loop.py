@@ -563,6 +563,25 @@ def test_a_call_to_a_pseudo_tool_named_answer_is_the_final_answer():
     assert traj.stopped_reason == "submit" and traj.final_answer == "1848" and len(traj.steps) == 1
 
 
+def test_an_answer_tag_named_in_reasoning_before_a_tool_call_does_not_end_the_episode():
+    """OpenSeeker's template opens <think> itself, so its turn holds only the closing tag. A turn
+    that names the answer tag in that reasoning and then calls a tool is a tool call: the episode
+    goes on (it used to end with "tags. ..." as the final answer)."""
+    calls = {"n": 0}
+
+    def fake_generate(messages):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            return ("Now we need to enclose final answer in <answer> tags.\n</think>\n\n"
+                    '<tool_call>{"name":"search","arguments":{"query":"Darlene Kittle"}}</tool_call></answer>')
+        return "Checked it.</think>\n<answer>Talinum paniculatum</answer>"
+
+    policy = AgentPolicy(generate=fake_generate, system=RESEARCH_SNIP_SYSTEM)
+    traj = run_episode(policy, Task("t", "which plant?"), _AnyToolWS(), units=[], max_steps=10, domain="general")
+    assert calls["n"] == 2 and traj.steps[0].name == "search"
+    assert traj.stopped_reason == "answer" and traj.final_answer == "Talinum paniculatum"
+
+
 def test_run_episode_accepts_a_labelled_exact_answer_without_tags():
     """OpenResearcher writes BrowseComp's own answer format instead of the <answer> tag; a reply
     with no tool call and an "Exact Answer:" line ends the episode with that span."""

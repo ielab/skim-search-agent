@@ -30,6 +30,7 @@ import sys
 import re
 from pathlib import Path
 from typing import Callable, Optional
+from agent_search.agent.answer_text import judge_text
 
 # The BrowseComp Appendix F judge prompt, verbatim: matches the BrowseComp-Plus benchmark's own
 # judge prompt and the gate this project runs via `scripts/judge_cells.py`. Do not paraphrase:
@@ -140,7 +141,8 @@ def judge_answer_detail(question: str, gold_answer: str, response: str,
     backend-agnostic. Returns {judge_correct: bool, judge_extracted: str, judge_reasoning: str}.
     An empty response is 'no' with no call; a normalized exact match is 'yes' with no call
     (cost saver)."""
-    resp = (response or "").strip()
+    # the judge reads the answer, not a reasoning tail or a tool call the agent left next to it
+    resp = judge_text(response)
     if not resp:
         return {"judge_correct": False, "judge_extracted": "None", "judge_reasoning": "no answer"}
     if short_circuit and gold_answer and _norm_exact(resp) == _norm_exact(gold_answer):

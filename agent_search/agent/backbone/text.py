@@ -10,6 +10,10 @@ def _repair_open_tag(text: str) -> str:
     stop it ran on to max_tokens (10000) every turn, costing 6-10 minutes per instance."""
     for open_t, close_t in (("<tool_call>", "</tool_call>"), ("<answer>", "</answer>")):
         if open_t in text and close_t not in text:
+            # an <answer> named in prose before a tool call is not an open answer: closing it
+            # after the call would turn the call into a final answer
+            if open_t == "<answer>" and "<tool_call>" in text[text.rfind("<answer>"):]:
+                continue
             text += close_t
     return text
 

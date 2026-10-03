@@ -30,7 +30,7 @@ _EMPTY_CALL = re.compile(r"<tool_call>\s*</tool_call>", re.IGNORECASE)
 # and such a line is the final answer, not a turn to nudge
 _LABELLED_ANSWER = re.compile(r"^\s*\**\s*(?:Exact|Final)\s+Answer\s*\**\s*:\s*\**\s*(.+?)\s*$",
                               re.IGNORECASE | re.MULTILINE)
-_THINK = re.compile(r"<think>.*?</think>", re.DOTALL | re.IGNORECASE)
+from agent_search.agent.answer_text import visible_text as _visible
 _FIX = re.compile(r"<fix>(.*?)</fix>", re.DOTALL | re.IGNORECASE)
 
 # --- proactive context-budget early stop -------------------------------------------------------
@@ -292,8 +292,8 @@ def run_episode(policy: Policy, task: Task, workspace: WorkspaceLike,
         # the code-fix task ends with a <fix> block, not a tool call. It is checked before
         # tool-call parsing so a <fix> that also mentions a call in reasoning still terminates.
         # A grounding guard (fix_guard) may bounce an unfounded fix back for a retry.
-        if fix_guard is not None or _FIX.search(_THINK.sub("", raw or "")):
-            fm = _FIX.search(_THINK.sub("", raw or ""))
+        if fix_guard is not None or _FIX.search(_visible(raw)):
+            fm = _FIX.search(_visible(raw))
             if fm:
                 cand = fm.group(1).strip()
                 ok, why = (fix_guard(cand, steps) if fix_guard is not None else (True, ""))
@@ -311,14 +311,18 @@ def run_episode(policy: Policy, task: Task, workspace: WorkspaceLike,
                 break
 
         finals = _final_locations(raw, name, args)
+        if finals is not None and call and name != "submit":
+            # a parseable tool call outranks an <answer> in the same turn: the model is still
+            # searching (it named the tag in prose, or wrote the call after a draft answer)
+            finals = None
         # A bare `STOP` (no tool call, no <answer>) is also treated as a terminal signal, so a
         # prompt protocol that ends this way still terminates the episode instead of burning the
         # full step budget. Its ranking is the surfaced hits, since there is no submit or
         # <answer> to declare locations from.
         is_stop = (finals is None and not call
-                   and _THINK.sub("", raw or "").strip().upper() == "STOP")
+                   and _visible(raw).strip().upper() == "STOP")
         cut_off = (not call and getattr(policy, "last_finish_reason", None) == "length")
-        plain_text = _THINK.sub("", raw or "").strip()
+        plain_text = _visible(raw).strip()
         # a reply that still carries a tool-call block the parser could not read is a malformed
         # call, not an answer (DIVER's client answers it with an invalid-JSON error)
         is_text_answer = (terminal == "text" and finals is None and not call and not is_stop
@@ -338,7 +342,7 @@ def run_episode(policy: Policy, task: Task, workspace: WorkspaceLike,
             elif labelled:                          # "Exact Answer: X" without the tag
                 final_answer = labelled.group(1).strip().strip("*").strip()
             else:                                   # <answer>...</answer>, ignoring <think>
-                final_answer = _extract_answer(_THINK.sub("", raw or ""))
+                final_answer = _extract_answer(_visible(raw))
             _push(Step(name=reason, args=args, observation="(episode ended)",
                       raw_output=raw or "", t_llm=t_llm,
                       finish_reason=getattr(policy, "last_finish_reason", None)))
@@ -508,7 +512,7 @@ def _final_locations(raw: str, name: str, args: dict) -> Optional[list]:
     # the episode. Only a real <answer> in the output does. Strip <think> blocks first.
     # In a CODE run the <answer> carries declared locations (path:func); in a research
     # run it carries prose. The caller decides per domain how to rank (see run_episode).
-    visible = _THINK.sub("", raw or "")
+    visible = _visible(raw)
     m = _ANSWER.search(visible)
     if m:
         return [x for x in re.split(r"[\n,]+", m.group(1).strip()) if x.strip()]

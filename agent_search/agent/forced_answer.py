@@ -47,6 +47,8 @@ import time
 
 from typing import Optional, Tuple
 
+from agent_search.agent.answer_text import clean_answer
+
 # --- tuning defaults (shared with force_answer_backfill.py) -------
 
 # Generation budget of the forced final answer (`FORCED_ANSWER_TOKENS`, agent.forced_answer_tokens).
@@ -193,25 +195,25 @@ def elicit_final_answer(messages: list, client, model: str, *,
         # a plain-text answer: no closing tag to stop at, the whole continuation is the answer
         raw = call_prefill(client, model, messages, max_tokens=prefill_max_tokens,
                            temperature=temperature, seed=seed, prefill=prefill, stop=[])
-        answer = raw.split("<tool_call>")[0].strip()
+        answer = clean_answer(raw)
         if answer:
             return answer, "prefill", raw
         # the one fallback, as for the answer terminal: a plain ask; the reply is the answer
         raw2 = call_plain_ask(client, model, messages, max_tokens=fallback_max_tokens,
                               temperature=temperature, seed=seed)
-        answer2 = raw2.split("<tool_call>")[0].strip()
+        answer2 = clean_answer(raw2)
         return answer2, ("plain_ask_fallback" if answer2 else "empty"), raw2
     raw = call_prefill(client, model, messages, max_tokens=prefill_max_tokens,
                        temperature=temperature, seed=seed, prefill=prefill)
     # belt-and-braces strip: vLLM's default include_stop_str_in_output=False already excludes the
     # stop string from the returned text, but a differently-configured server or a model that
     # emits the closing tag anyway (max_tokens hit before the stop is seen, etc.) is handled too.
-    answer = raw.split("</answer>")[0].strip()
+    answer = clean_answer(raw.split("</answer>")[0])
     if answer:
         return answer, "prefill", raw
     raw2 = call_plain_ask(client, model, messages, max_tokens=fallback_max_tokens,
                           temperature=temperature, seed=seed)
     if extract_fn is None:
         from agent_search.agent.loop import _extract_answer as extract_fn
-    answer2 = extract_fn(raw2) if raw2.rfind("<answer>") >= 0 else ""
+    answer2 = clean_answer(extract_fn(raw2)) if raw2.rfind("<answer>") >= 0 else ""
     return answer2, ("plain_ask_fallback" if answer2 else "empty"), raw2
