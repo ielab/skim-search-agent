@@ -24,7 +24,7 @@ def ask_reader(prompt: str, temperature: float, max_tokens: Optional[int] = None
     base, model = os.environ.get("VISIT_READER_API_BASE"), reader_model()
     if not base or not model:
         raise ValueError("a read-with-a-model tool needs VISIT_READER_API_BASE and VISIT_READER_MODEL")
-    client = OpenAI(base_url=base, api_key=os.environ.get("OPENAI_API_KEY", "EMPTY"), timeout=300)
+    client = OpenAI(base_url=base, api_key=os.environ.get("OPENAI_API_KEY", "EMPTY"), timeout=300, max_retries=0)
     kw = {"max_tokens": max_tokens} if max_tokens else {}
     reply = client.chat.completions.create(model=model, temperature=temperature,
                                            messages=[{"role": "user", "content": prompt}], **kw)

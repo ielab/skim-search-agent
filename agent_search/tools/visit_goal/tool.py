@@ -46,6 +46,10 @@ EXTRACTOR_PROMPT = """Please process the following webpage content and user goal
 **Final Output Format using JSON format has "rational", "evidence", "summary" feilds**
 """
 
+# The official summariser call sets no limit. The prompt asks for the page's original text, so a
+# reader without a limit copies whole pages until the call times out.
+REPLY_TOKENS = 4096
+
 _HEAD = "The useful information in {url} for user goal {goal} as follows: \n\n"
 _FAILED = ("Evidence in page: \nThe provided webpage content could not be accessed. Please check the URL or "
            "file format.\n\nSummary: \nThe webpage content could not be processed, and therefore, no "
@@ -58,7 +62,7 @@ def read_with_goal(content: str, goal: str) -> dict:
     prompt = EXTRACTOR_PROMPT.format(webpage_content=content, goal=goal)
     for _ in range(2):
         try:
-            text = ask_reader(prompt, temperature=0.7)
+            text = ask_reader(prompt, temperature=0.7, max_tokens=REPLY_TOKENS)
             left, right = text.find("{"), text.rfind("}")
             data = json.loads(text[left:right + 1]) if 0 <= left <= right else None
             if isinstance(data, dict) and "evidence" in data and "summary" in data:
