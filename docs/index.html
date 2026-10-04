@@ -422,11 +422,12 @@ condition("title_agent", task="research", strategy="title_only")
     <h2>Retrievers, rerankers and agent backbones on BrowseComp-Plus</h2>
     <p class="lead">One fixed setting, with one part swapped per row: the retriever behind the
     search tool, a reranker over it, or the agent model. Accuracy is the Qwen3-32B judge over all
-    830 questions. The top five with the default agent:</p>
+    830 questions. Tokens are per question, each token counted once. The top five with the default
+    agent:</p>
     <div class="tbl-wrap">
       <table class="res" id="lbTop">
-        <thead><tr><th>#</th><th>retriever</th><th>reranker</th><th>accuracy (%)</th><th>recall (%)</th><th>search calls</th></tr></thead>
-        <tbody><tr><td colspan="6">Loading&hellip;</td></tr></tbody>
+        <thead><tr><th>#</th><th>retriever</th><th>reranker</th><th>accuracy (%)</th><th>recall (%)</th><th>search calls</th><th>tokens</th></tr></thead>
+        <tbody><tr><td colspan="7">Loading&hellip;</td></tr></tbody>
       </table>
     </div>
     <p style="margin-top:16px"><a class="btn" href="leaderboard/">Full leaderboard &rarr;</a></p>
@@ -484,8 +485,9 @@ condition("title_agent", task="research", strategy="title_only")
     const top = [...d.entries].sort((a, b) => b.accuracy - a.accuracy).slice(0, 5);
     tb.innerHTML = top.map((e, i) => `<tr><td>${i + 1}</td><td class="c">${esc(e.retriever)}</td>
       <td>${e.reranker ? esc(e.reranker) : '&ndash;'}</td><td><b>${e.accuracy.toFixed(1)}</b></td>
-      <td>${e.recall.toFixed(1)}</td><td>${e.search_calls.toFixed(1)}</td></tr>`).join('');
-  }).catch(() => { tb.innerHTML = '<tr><td colspan="6"><a href="leaderboard/">See the leaderboard</a></td></tr>'; });
+      <td>${e.recall.toFixed(1)}</td><td>${e.search_calls.toFixed(1)}</td>
+      <td>${e.tokens ? (e.tokens / 1000).toFixed(1) + 'k' : '&ndash;'}</td></tr>`).join('');
+  }).catch(() => { tb.innerHTML = '<tr><td colspan="7"><a href="leaderboard/">See the leaderboard</a></td></tr>'; });
 })();
 </script>
 </body>
