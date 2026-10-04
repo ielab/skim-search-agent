@@ -61,6 +61,8 @@ def openai_compat_generate(model: str = DEFAULT_MODEL, *,
     presence_penalty = _env_float("LLM_PRESENCE_PENALTY", 1.1) if presence_penalty is None else presence_penalty
     top_k = _env_int("LLM_TOP_K", None) if top_k is None else top_k
     thinking = _env_bool("LLM_THINKING") if thinking is None else thinking
+    # a vLLM extension, off unless the run sets LLM_REPETITION_PENALTY (MiroThinker runs with 1.05)
+    repetition_penalty = _env_float("LLM_REPETITION_PENALTY", None)
     if client is None:
         from openai import OpenAI
         client = OpenAI(base_url=base_url, api_key=api_key or os.environ.get("OPENAI_API_KEY", "EMPTY"),
@@ -71,6 +73,8 @@ def openai_compat_generate(model: str = DEFAULT_MODEL, *,
         extra = {}
         if top_k is not None:
             extra["top_k"] = top_k
+        if repetition_penalty is not None:
+            extra["repetition_penalty"] = repetition_penalty
         think = opts.get("thinking", thinking)
         if think is not None:
             extra["chat_template_kwargs"] = {"enable_thinking": bool(think)}

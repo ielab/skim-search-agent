@@ -136,10 +136,10 @@ def build_condition_agent(cfg, condition_name: str):
         mdl = cfg.model or DEFAULT_MODEL
         gen = make_generate(model=mdl, backend=cfg.backend, api_base=cfg.api_base, tp=cfg.tp,
                             temperature=cfg.temperature, seed=cfg.seed)
-        from agent_search.agent.policies import ToolMessagesPolicy
+        from agent_search.agent.policies import policy_class
 
         def policy_for(c):
-            policy = ToolMessagesPolicy if c.task.message_format == "tool_messages" else AgentPolicy
+            policy = policy_class(c.task.message_format)
             return policy(generate=gen, system=c.render(profile), user_template=c.task.loop_user_template,
                           system_verbatim=c.task.prompt_verbatim)
         if is_openai_model(mdl) or is_gemini_model(mdl) or cfg.backend == "api":

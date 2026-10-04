@@ -79,6 +79,23 @@ def default_ctx_tokens() -> int:
     return int(os.environ.get("AGENT_CTX_TOKENS", str(DEFAULT_CTX_TOKENS)))
 
 
+POLICIES: dict = {}      # Task.message_format -> the policy class that writes that history
+
+
+def register_policy(cls):
+    """Make a policy selectable by its `message_format` (a task names the format it needs)."""
+    POLICIES[cls.message_format] = cls
+    return cls
+
+
+def policy_class(message_format: str):
+    try:
+        return POLICIES[message_format]
+    except KeyError:
+        raise ValueError(f"unknown message format {message_format!r}; choose from {sorted(POLICIES)}") from None
+
+
+@register_policy
 class AgentPolicy:
     """A rendered-system-prompt policy. `generate(messages) -> raw text`.
 
@@ -87,6 +104,8 @@ class AgentPolicy:
     cap and never a character count. Tokens are counted on the library's measurement ruler
     (``agent_search.tokens.count_tokens``: tiktoken ``o200k_base`` when installed,
     whitespace tokens otherwise)."""
+
+    message_format = "deepresearch_tool_call"
 
     def __init__(self, generate: Callable[[list], str], system: str,
                  max_history: "int | None" = -1, ctx_tokens: int | None = None,
@@ -152,8 +171,8 @@ class AgentPolicy:
                 break
             else:
                 break   # budget exhausted: older steps are dropped
-        for raw, obs in reversed(kept):
-            msgs.extend(self.turn_messages(raw, obs))
+        for age, (raw, obs) in zip(range(len(kept) - 1, -1, -1), reversed(kept)):
+            msgs.extend(self.turn_messages(raw, obs, age))
         return msgs
 
     def system_text(self) -> str:
@@ -161,8 +180,9 @@ class AgentPolicy:
             return self.system.rstrip("\n")
         return _re.sub(r"\n{3,}", "\n\n", self.system).strip() + "\n"
 
-    def turn_messages(self, raw: str, obs: str) -> list:
-        """One kept turn as messages: the reply as written, then its observation as a user turn."""
+    def turn_messages(self, raw: str, obs: str, age: int = 0) -> list:
+        """One kept turn as messages: the reply as written, then its observation as a user turn.
+        `age` counts turns from the newest one (0)."""
         return [{"role": "assistant", "content": raw},
                 {"role": "user", "content": f"<tool_response>\n{obs}\n</tool_response>"}]
 
@@ -193,6 +213,7 @@ class AgentPolicy:
         return self.last_raw  # unreachable
 
 
+@register_policy
 class ToolMessagesPolicy(AgentPolicy):
     """The history as the model's chat template expects it (`Task.message_format: tool_messages`).
 
@@ -202,7 +223,9 @@ class ToolMessagesPolicy(AgentPolicy):
     lays the call out in its own format. Sent as plain text in user turns, the same template
     drops the reasoning of every turn before the last user message."""
 
-    def turn_messages(self, raw: str, obs: str) -> list:
+    message_format = "tool_messages"
+
+    def turn_messages(self, raw: str, obs: str, age: int = 0) -> list:
         import hashlib
         import json as _json
         from agent_search.agent.actions import parse_tool_call
@@ -224,6 +247,24 @@ class ToolMessagesPolicy(AgentPolicy):
         message["tool_calls"] = [{"id": call_id, "type": "function",
                                   "function": {"name": call[0], "arguments": _json.dumps(call[1], ensure_ascii=False)}}]
         return [message, {"role": "tool", "tool_call_id": call_id, "content": obs}]
+
+
+@register_policy
+class PlainResultsPolicy(AgentPolicy):
+    """MiroFlow's history (`Task.message_format: plain_results`): a tool result is a user message
+    with the result text alone, and only the newest `KEEP_RESULTS` results stay in the prompt.
+
+    MiroThinker runs with `keep_tool_result: 5`: every reply of the model is kept, and the result
+    of a call older than the last five reads "Tool result is omitted to save tokens." The model
+    was trained with this rule, which is what lets it run hundreds of calls in one context."""
+
+    message_format = "plain_results"
+    KEEP_RESULTS = 5
+    OMITTED = "Tool result is omitted to save tokens."
+
+    def turn_messages(self, raw: str, obs: str, age: int = 0) -> list:
+        result = {"role": "user", "content": obs if age < self.KEEP_RESULTS else self.OMITTED}
+        return [{"role": "assistant", "content": raw}, result] if raw.strip() else [result]
 
 
 # --- no-model policies (tests / dependency-light fixture runs) ---------------

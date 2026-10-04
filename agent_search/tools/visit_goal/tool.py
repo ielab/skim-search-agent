@@ -16,8 +16,7 @@ The agent never sees the raw page. Over a corpus the page is a document, address
 link a search result printed (`https://corpus/<doc id>`), by its id, or by its rank in the last
 listing. Several pages are read one after another and joined by a line of three dashes.
 
-The reader is an OpenAI-compatible endpoint: `VISIT_READER_API_BASE` and `VISIT_READER_MODEL`
-(the run's own served model when the launcher sets nothing else), temperature 0.7 as in the
+The reader is the endpoint of `agent_search/tools/page_reader.py`, at temperature 0.7 as in the
 official tool. The page is cut at `VISIT_PAGE_TOKENS` model tokens (95,000 in the official tool).
 """
 from __future__ import annotations
@@ -55,22 +54,18 @@ _FAILED = ("Evidence in page: \nThe provided webpage content could not be access
 
 def read_with_goal(content: str, goal: str) -> dict:
     """The reader model's JSON for one page, or {} when the call or the JSON fails."""
-    from openai import OpenAI
-    from agent_search.agent.answer_text import visible_text
-    base, model = os.environ.get("VISIT_READER_API_BASE"), os.environ.get("VISIT_READER_MODEL")
-    if not base or not model:
-        raise ValueError("the visit tool needs VISIT_READER_API_BASE and VISIT_READER_MODEL")
-    client = OpenAI(base_url=base, api_key=os.environ.get("OPENAI_API_KEY", "EMPTY"), timeout=300)
+    from agent_search.tools.page_reader import ask_reader
     prompt = EXTRACTOR_PROMPT.format(webpage_content=content, goal=goal)
     for _ in range(2):
         try:
-            reply = client.chat.completions.create(model=model, temperature=0.7,
-                                                   messages=[{"role": "user", "content": prompt}])
-            text = visible_text(reply.choices[0].message.content or "")
+            text = ask_reader(prompt, temperature=0.7)
             left, right = text.find("{"), text.rfind("}")
             data = json.loads(text[left:right + 1]) if 0 <= left <= right else None
             if isinstance(data, dict) and "evidence" in data and "summary" in data:
                 return data
+        except ValueError as e:
+            if "VISIT_READER" in str(e):
+                raise
         except Exception:  # noqa: BLE001 - a failed read is an observation, never a crash
             continue
     return {}

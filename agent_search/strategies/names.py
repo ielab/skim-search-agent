@@ -57,6 +57,9 @@ STRATEGIES: dict[str, str] = {
     # QUEST's own interface: one search tool that returns long passages, the model's prompt
     "passages_dense": "agent_research_quest_dense",
     "passages_bm25": "agent_research_quest_bm25",
+    # MiroThinker's own interface: MiroFlow's search and read-by-a-model tools, the model's prompt
+    "google_scrape_dense": "agent_research_mirothinker_dense",
+    "google_scrape_bm25": "agent_research_mirothinker_bm25",
     # code-localization arm (SWE-bench-style repositories; dataset=code_fixture, swebench_*)
     "codefix": "agent_codefix",
     "codefix_grep": "agent_codefix_grep",
@@ -73,7 +76,7 @@ DENSE_STRATEGIES = frozenset({
     "search_visit_dense", "search_visit_hybrid", "autoread_dense", "autoread_hybrid", "search_fetch_dense",
     "search_fetch_dense_plain", "search_fetch_hybrid", "sieve", "sieve_dense", "sieve_nosnip",
     "sieve_visit_fused", "sieve_visit_dense", "dedup_dense", "iter_dense", "iter_dense_qwen", "iter_dense_strong", "iter_reranked", "rag_dense", "rag_hybrid", "hybrid", "dense",
-    "browser_dense", "queries_visit_dense", "passages_dense",
+    "browser_dense", "queries_visit_dense", "passages_dense", "google_scrape_dense",
 })
 
 DEFAULT_STRATEGY = "sieve_bm25"

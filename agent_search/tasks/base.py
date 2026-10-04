@@ -30,7 +30,8 @@ class Task:
     # how the history is sent: `deepresearch_tool_call` puts each reply back as written and its
     # observation in a user turn inside <tool_response> tags; `tool_messages` sends the reply as
     # an assistant message with its reasoning and its call as fields and the observation as a
-    # tool message, so the model's own chat template writes the history (agent/policies.py)
+    # tool message, so the model's own chat template writes the history; `plain_results` puts
+    # the observation in a user turn without tags and keeps only the newest ones (agent/policies.py)
     message_format: str = "deepresearch_tool_call"
     terminal: str = "answer"                      # answer | fix | patch
     description: str = ""
