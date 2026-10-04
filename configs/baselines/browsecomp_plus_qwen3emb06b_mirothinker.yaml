@@ -78,3 +78,4 @@ output:
 env:
   HF_HUB_OFFLINE: '1'
   LLM_REPETITION_PENALTY: '1.05'         # MiroFlow's sampling setting
+  LLM_SEED_PER_CALL: '1'                 # the official client sends no seed; one seed on every request locks a repeated turn in

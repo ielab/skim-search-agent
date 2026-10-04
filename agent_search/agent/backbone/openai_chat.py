@@ -30,6 +30,13 @@ def _env_bool(name: str):
     return None if v in ("", "null", "none") else v in ("1", "true", "yes", "on")
 
 
+def _call_seed(seed, messages, per_call: bool):
+    """The seed one request carries: the run's seed, moved on by the assistant turns so far."""
+    if seed is None or not per_call:
+        return seed
+    return seed + sum(1 for m in messages if m.get("role") == "assistant")
+
+
 def openai_compat_generate(model: str = DEFAULT_MODEL, *,
                            base_url: str = "http://localhost:8000/v1",
                            api_key: str | None = None, client=None,
@@ -63,6 +70,10 @@ def openai_compat_generate(model: str = DEFAULT_MODEL, *,
     thinking = _env_bool("LLM_THINKING") if thinking is None else thinking
     # a vLLM extension, off unless the run sets LLM_REPETITION_PENALTY (MiroThinker runs with 1.05)
     repetition_penalty = _env_float("LLM_REPETITION_PENALTY", None)
+    # LLM_SEED_PER_CALL=1 sends seed + the number of assistant turns in the prompt. One seed on
+    # every request replays the same random draws each turn: once a reply repeats the one before
+    # it, the next reply repeats it too, at any temperature. A run stays reproducible either way.
+    seed_per_call = bool(_env_bool("LLM_SEED_PER_CALL"))
     if client is None:
         from openai import OpenAI
         client = OpenAI(base_url=base_url, api_key=api_key or os.environ.get("OPENAI_API_KEY", "EMPTY"),
@@ -80,7 +91,7 @@ def openai_compat_generate(model: str = DEFAULT_MODEL, *,
             extra["chat_template_kwargs"] = {"enable_thinking": bool(think)}
         kw = dict(model=model, messages=messages,
                   max_tokens=int(opts.get("max_tokens") or max_tokens),
-                  temperature=temperature, seed=seed, top_p=top_p,
+                  temperature=temperature, seed=_call_seed(seed, messages, seed_per_call), top_p=top_p,
                   presence_penalty=presence_penalty, stop=stop or _STOP)
         if extra:
             kw["extra_body"] = extra

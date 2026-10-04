@@ -84,3 +84,11 @@ def test_the_condition_renders_miroflows_system_prompt_and_user_turn():
     assert "Today is: 20" in system and "{{" not in system
     assert cond.task.loop_user_template.endswith("wrap the final answer in \\boxed{}.")
     assert cond.task.message_format == "plain_results" and cond.task.terminal == "text"
+
+
+def test_the_seed_moves_with_the_turn_only_when_asked():
+    from agent_search.agent.backbone.openai_chat import _call_seed
+    msgs = [{"role": "system", "content": "s"}, {"role": "user", "content": "q"},
+            {"role": "assistant", "content": "a"}, {"role": "user", "content": "r"}, {"role": "assistant", "content": "b"}]
+    assert _call_seed(42, msgs, False) == 42 and _call_seed(42, msgs[:2], True) == 42
+    assert _call_seed(42, msgs, True) == 44 and _call_seed(None, msgs, True) is None

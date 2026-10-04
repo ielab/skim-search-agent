@@ -77,3 +77,4 @@ output:
   allow_config_drift: false
 env:
   HF_HUB_OFFLINE: '1'
+  LLM_SEED_PER_CALL: '1'                 # the official client sends no seed; one seed on every request locks a repeated turn in
