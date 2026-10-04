@@ -1,7 +1,7 @@
 """The paper's condition names, each a task with a strategy. Kept so configs, run records and
 `--retriever agent_<name>` keep working; the registry grows here as strategies are ported."""
 from agent_search.strategies import (  # noqa: F401  (registrations)
-    autoread, codefix, dci, dedup, indri, rag, retrieval_only, search_fetch, search_visit, sieve, teams)
+    autoread, browser, codefix, dci, dedup, indri, queries_visit, rag, retrieval_only, search_fetch, search_visit, sieve, teams)
 from agent_search.strategies.conditions import alias, condition
 from agent_search.tasks import TASKS  # noqa: F401  (registrations)
 
@@ -30,6 +30,10 @@ condition("research_dedup_bm25_qwen", "research_qwen", "dedup_bm25")        # DI
 condition("research_dedup_dense_qwen", "research_qwen", "dedup_dense")
 condition("research_iter_dense_qwen", "research_qwen", "iter_dense")
 condition("research_iter_dense_strong", "research_strong", "iter_dense")        # the ITER setting (no dedup) on the gpt-oss backbones            # the ITER setting (no dedup) on the Qwen3.5 backbones
+condition("research_openresearcher_dense", "research_openresearcher", "browser_dense")   # OpenResearcher its own way: browser tools, its prompt
+condition("research_openresearcher_bm25", "research_openresearcher", "browser_bm25")
+condition("research_openseeker_dense", "research_openseeker", "queries_visit_dense")       # OpenSeeker its own way: batched search, visit with a goal, its prompt
+condition("research_openseeker_bm25", "research_openseeker", "queries_visit_bm25")
 alias("codefix", "codefix", "codefix")
 alias("codefix_grep", "codefix", "codefix_grep")
 alias("codefix_patch", "codefix_patch", "codefix")

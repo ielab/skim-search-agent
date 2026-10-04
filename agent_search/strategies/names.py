@@ -48,6 +48,12 @@ STRATEGIES: dict[str, str] = {
     "iter_splade": "agent_research_iter_splade",
     "iter_colbert": "agent_research_iter_colbert",
     "iter_diffretriever": "agent_research_iter_diffretriever",
+    # OpenResearcher's own interface: gpt-oss's browser tools and the model's prompt
+    "browser_dense": "agent_research_openresearcher_dense",
+    "browser_bm25": "agent_research_openresearcher_bm25",
+    # OpenSeeker's own interface: a batched search, a visit that reads for a goal, the model's prompt
+    "queries_visit_dense": "agent_research_openseeker_dense",
+    "queries_visit_bm25": "agent_research_openseeker_bm25",
     # code-localization arm (SWE-bench-style repositories; dataset=code_fixture, swebench_*)
     "codefix": "agent_codefix",
     "codefix_grep": "agent_codefix_grep",
@@ -64,6 +70,7 @@ DENSE_STRATEGIES = frozenset({
     "search_visit_dense", "search_visit_hybrid", "autoread_dense", "autoread_hybrid", "search_fetch_dense",
     "search_fetch_dense_plain", "search_fetch_hybrid", "sieve", "sieve_dense", "sieve_nosnip",
     "sieve_visit_fused", "sieve_visit_dense", "dedup_dense", "iter_dense", "iter_dense_qwen", "iter_dense_strong", "iter_reranked", "rag_dense", "rag_hybrid", "hybrid", "dense",
+    "browser_dense", "queries_visit_dense",
 })
 
 DEFAULT_STRATEGY = "sieve_bm25"

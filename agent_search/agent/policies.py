@@ -89,8 +89,13 @@ class AgentPolicy:
     whitespace tokens otherwise)."""
 
     def __init__(self, generate: Callable[[list], str], system: str,
-                 max_history: "int | None" = -1, ctx_tokens: int | None = None):
+                 max_history: "int | None" = -1, ctx_tokens: int | None = None,
+                 user_template: "str | None" = None, system_verbatim: bool = False):
         self.generate = generate
+        # the task's user turn with `{question}` (None = the date line plus the question), and
+        # whether its system prompt goes out byte for byte (Task.prompt_verbatim)
+        self.user_template = user_template
+        self.system_verbatim = system_verbatim
         # `system`: the rendered system prompt (a condition's render).
         self.system = system
         # -1 is the sentinel for 'not specified': take the environment default (no cap).
@@ -107,11 +112,14 @@ class AgentPolicy:
         self.last_finish_reason = None
 
     def build_messages(self, task, history, ctx_tokens: int | None = None) -> list:
-        system = _re.sub(r"\n{3,}", "\n\n", self.system).strip() + "\n"
+        system = self.system_text()
+        if self.user_template:
+            question = self.user_template.replace("{question}", task.query)
+        else:
+            question = f"Current date: {date.today().isoformat()}\n\n{task.query}"
         msgs = [
             {"role": "system", "content": system},
-            {"role": "user",
-             "content": f"Current date: {date.today().isoformat()}\n\n{task.query}"},
+            {"role": "user", "content": question},
         ]
         # Walk history newest -> oldest, keeping whole (assistant, observation) pairs while
         # the running token total stays under the budget; older steps are dropped once the
@@ -145,9 +153,18 @@ class AgentPolicy:
             else:
                 break   # budget exhausted: older steps are dropped
         for raw, obs in reversed(kept):
-            msgs.append({"role": "assistant", "content": raw})
-            msgs.append({"role": "user", "content": f"<tool_response>\n{obs}\n</tool_response>"})
+            msgs.extend(self.turn_messages(raw, obs))
         return msgs
+
+    def system_text(self) -> str:
+        if self.system_verbatim:
+            return self.system.rstrip("\n")
+        return _re.sub(r"\n{3,}", "\n\n", self.system).strip() + "\n"
+
+    def turn_messages(self, raw: str, obs: str) -> list:
+        """One kept turn as messages: the reply as written, then its observation as a user turn."""
+        return [{"role": "assistant", "content": raw},
+                {"role": "user", "content": f"<tool_response>\n{obs}\n</tool_response>"}]
 
     def propose(self, task, history) -> str:
         # The measurement ruler can differ from the serving model's tokenizer, so the budget
@@ -174,6 +191,39 @@ class AgentPolicy:
                     raise
                 ctx = int(ctx * 0.85)
         return self.last_raw  # unreachable
+
+
+class ToolMessagesPolicy(AgentPolicy):
+    """The history as the model's chat template expects it (`Task.message_format: tool_messages`).
+
+    A model trained through its template on tool messages (OpenResearcher) reads a turn as an
+    assistant message with its reasoning and its call as fields, followed by a tool message. Sent
+    that way the template writes the history itself: it keeps the reasoning of earlier turns and
+    lays the call out in its own format. Sent as plain text in user turns, the same template
+    drops the reasoning of every turn before the last user message."""
+
+    def turn_messages(self, raw: str, obs: str) -> list:
+        import hashlib
+        import json as _json
+        from agent_search.agent.actions import parse_tool_call
+        from agent_search.agent.answer_text import visible_text
+        from agent_search.agent.call_formats import parse_alternate
+        if not raw.strip():
+            # no reply behind this step (the loop's budget notice): its text is a user turn
+            return [{"role": "user", "content": obs}]
+        reasoning = raw.split("</think>", 1)[0].replace("<think>", "").strip() if "</think>" in raw else ""
+        call = parse_tool_call(raw) or parse_alternate(raw)
+        message = {"role": "assistant", "content": ""}
+        if reasoning:
+            message["reasoning"] = reasoning          # the field a vLLM server hands the template
+        if not call:
+            # no call was read: the reply itself, then what the loop answered it with
+            message["content"] = visible_text(raw).strip()
+            return [message, {"role": "user", "content": obs}]
+        call_id = "call_" + hashlib.sha1(raw.encode("utf-8")).hexdigest()[:12]
+        message["tool_calls"] = [{"id": call_id, "type": "function",
+                                  "function": {"name": call[0], "arguments": _json.dumps(call[1], ensure_ascii=False)}}]
+        return [message, {"role": "tool", "tool_call_id": call_id, "content": obs}]
 
 
 # --- no-model policies (tests / dependency-light fixture runs) ---------------

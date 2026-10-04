@@ -136,7 +136,12 @@ def build_condition_agent(cfg, condition_name: str):
         mdl = cfg.model or DEFAULT_MODEL
         gen = make_generate(model=mdl, backend=cfg.backend, api_base=cfg.api_base, tp=cfg.tp,
                             temperature=cfg.temperature, seed=cfg.seed)
-        policy_for = lambda c: AgentPolicy(generate=gen, system=c.render(profile))  # noqa: E731
+        from agent_search.agent.policies import ToolMessagesPolicy
+
+        def policy_for(c):
+            policy = ToolMessagesPolicy if c.task.message_format == "tool_messages" else AgentPolicy
+            return policy(generate=gen, system=c.render(profile), user_template=c.task.loop_user_template,
+                          system_verbatim=c.task.prompt_verbatim)
         if is_openai_model(mdl) or is_gemini_model(mdl) or cfg.backend == "api":
             try:
                 import agents  # noqa: F401

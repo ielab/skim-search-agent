@@ -27,6 +27,10 @@ def register_task(cls):
 class Task:
     name: str = ""
     domain: str = "general"                       # general (documents) | code
+    # how the history is sent: `deepresearch_tool_call` puts each reply back as written and its
+    # observation in a user turn inside <tool_response> tags; `tool_messages` sends the reply as
+    # an assistant message with its reasoning and its call as fields and the observation as a
+    # tool message, so the model's own chat template writes the history (agent/policies.py)
     message_format: str = "deepresearch_tool_call"
     terminal: str = "answer"                      # answer | fix | patch
     description: str = ""
@@ -35,6 +39,12 @@ class Task:
     # question (the loop driver's default). The Responses driver honours it; DIVER's strong prompt
     # pairs with its QUERY_TEMPLATE (Explanation / Exact Answer / Confidence lines).
     user_template: Optional[str] = None
+    # the same for the loop driver, which otherwise sends the date line plus the question. A
+    # task that puts the date in its system prompt, as its model's own code does, sets this.
+    loop_user_template: Optional[str] = None
+    # the system prompt goes out byte for byte (a model's own prompt, copied from its code).
+    # Otherwise the loop folds blank runs and ends the prompt with one newline, as it always has.
+    prompt_verbatim: bool = False
     prompt_path: Optional[str] = None             # or an explicit path (a plugin's own template)
 
     def template_path(self) -> Path:

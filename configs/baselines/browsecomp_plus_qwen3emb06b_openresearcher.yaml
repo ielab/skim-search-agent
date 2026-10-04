@@ -1,6 +1,6 @@
 schema: 1
 name: qwen3emb06b_openresearcher
-strategy: agent_research_iter_dense
+strategy: agent_research_openresearcher_dense      # the model's own interface: browser.search, browser.open, browser.find and its prompt
 dataset:
   name: browsecomp_plus
   limit: null
@@ -12,22 +12,22 @@ model:
   backend: api
   api_base: http://127.0.0.1:8000/v1
   tp: 1
-  temperature: 0.6
+  temperature: 1.0                       # the official code's sampling
   seed: 42
   seeds: null
   driver: null
   reasoning_effort: low
-  tool_call_format: null                 # a backbone's own tool-call text read when the JSON parser finds none: glm | mcp | lenient_json | qwen_xml (null = JSON only)
-  top_p: 0.95
+  tool_call_format: qwen_xml             # the chat template's XML function block
+  top_p: 1.0
   top_k: null
-  presence_penalty: 1.1
-  max_tokens: 4000
+  presence_penalty: 0.0
+  max_tokens: 8192                       # the official code's budget per turn
   max_tokens_schedule: null
   thinking: null
   timeout_s: 600
   retry_attempts: 5
 agent:
-  max_steps: 100
+  max_steps: 200                        # the official code's turn limit
   forced_answer_tokens: 2000
   forced_answer_prefill: null
   forced_answer_nudge: null
@@ -70,7 +70,7 @@ evaluation:
   judge_api_base: null
   rejudge: false
 output:
-  runs_dir: runs/backbone/openresearcher/qwen3emb06b
+  runs_dir: runs/backbone/openresearcher_native/qwen3emb06b
   results_dir: null
   index_root: indexes
   rebuild: false
