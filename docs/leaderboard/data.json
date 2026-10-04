@@ -241,6 +241,17 @@
    "tokens": 83862
   },
   {
+   "id": "qwen3emb06b_gptoss_120b",
+   "backbone": "gpt-oss-120b",
+   "backbone_link": "https://huggingface.co/openai/gpt-oss-120b",
+   "retriever": "Qwen3-Embedding-0.6B",
+   "retriever_link": "https://huggingface.co/Qwen/Qwen3-Embedding-0.6B",
+   "accuracy": 35.2,
+   "recall": 47.4,
+   "search_calls": 21.2,
+   "tokens": 59882
+  },
+  {
    "id": "qwen3emb06b_openseeker",
    "backbone": "OpenSeeker-v2-30B-SFT",
    "backbone_link": "https://huggingface.co/PolarSeeker/OpenSeeker-v2-30B-SFT",
@@ -396,7 +407,6 @@
   }
  ],
  "backbones_pending": [
-  "gpt-oss-120b",
   "Qwen3.6-27B",
   "Qwen3.8-27B"
  ]

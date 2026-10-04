@@ -94,6 +94,7 @@ With Qwen3-Embedding-0.6B behind the search tool:
 |---|---|---:|---:|---:|---:|
 | Tongyi-DeepResearch-30B-A3B | `qwen3emb06b_tongyi` | 41.7 | 43.0 | 38.8 | 62.2 |
 | gpt-oss-20b | `qwen3emb06b_gptoss_20b` | 35.5 | 33.6 | 32.7 | 45.1 |
+| gpt-oss-120b | `qwen3emb06b_gptoss_120b` | 35.2 | 35.9 | 33.7 | 21.2 |
 | OpenSeeker-v2-30B-SFT | `qwen3emb06b_openseeker` | 29.6 | 29.5 | 25.8 | 80.2 |
 | Qwen-AgentWorld-35B-A3B | `qwen3emb06b_agentworld` | 28.4 | 29.3 | 27.6 | 21.7 |
 | MiroThinker-1.7-mini | `qwen3emb06b_mirothinker` | 28.2 | 28.3 | 26.9 | 75.1 |
@@ -116,10 +117,9 @@ With ITER-Qwen3-Embedding-4B behind the search tool:
 
 The file column is short for `configs/baselines/browsecomp_plus_<file>.yaml`.
 
-Three more rows with Qwen3-Embedding-0.6B are running or waiting for a judge: gpt-oss-120b
-(`qwen3emb06b_gptoss_120b`), Qwen3.6-27B (`qwen3emb06b_qwen36_27b`) and Qwen3.8-27B
-(`qwen3emb06b_qwen38_27b`). Qwen3.6-27B and Qwen3.8-27B run with a flat 4,096-token budget per
-turn. The Qwen3.5 rows use the 4096,2048,1024 schedule.
+Two more rows with Qwen3-Embedding-0.6B are running: Qwen3.6-27B (`qwen3emb06b_qwen36_27b`) and
+Qwen3.8-27B (`qwen3emb06b_qwen38_27b`). They run with a flat 4,096-token budget per turn. The
+Qwen3.5 rows use the 4096,2048,1024 schedule.
 
 Serve each backbone with the flags its file carries in `env.VLLM_ARGS`:
 
