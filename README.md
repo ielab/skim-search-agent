@@ -52,6 +52,26 @@ index); a code repository is indexed in memory and re-indexed only for the files
 Every length limit is a token count. [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) explains each
 module; [docs/EXTENDING.md](docs/EXTENDING.md) shows how to add one of each.
 
+## What ships with the library
+
+Each name below is a file in the library and a value in an experiment file. A row on the
+[leaderboard](https://ielab.io/skim-search-agent/leaderboard/) is one experiment file under
+`configs/baselines/`, and [docs/BASELINES.md](docs/BASELINES.md) has the commands.
+
+| part | supported |
+|---|---|
+| Lexical retrievers | BM25 on Lucene (Pyserini), the Boolean method BQL, Indri query language, grep |
+| Dense retrievers | BGE (small, base, large), Qwen3-Embedding (0.6B, 4B, 8B), RepLLaMA, LRAT, AgentIR, the ITER checkpoints, CodeRankEmbed for code, and any checkpoint trained with `skimsearchagent-train-retriever` |
+| Learned sparse and multi-vector retrievers | SPLADE++, ColBERTv2, DiffRetriever (dense and sparse) |
+| Compositions | hybrid fusion of two rankings (`rrf`, `interpolation`), a reranker over a retriever's pool |
+| Rerankers | `cross_encoder` (bge-reranker-v2-m3), `qwen3_reranker` (Qwen3-Reranker), `monot5` (monoT5), `laya` (the Laya decision models) |
+| Agent backbones | any model behind an OpenAI-compatible server (vLLM), vLLM in-process, the OpenAI chat and reasoning models, Gemini. Experiment files ship for Tongyi-DeepResearch-30B, Qwen3.5 (4B, 9B, 27B), Qwen3.6-27B, Qwen3.8-27B, gpt-oss (20b, 120b), Qwen-AgentWorld-35B, OpenResearcher-30B, OpenSeeker-v2-30B, MiroThinker-1.7-mini and QUEST-35B |
+| Tool-call formats | the JSON `<tool_call>` format by default; `glm`, `mcp`, `lenient_json` and `qwen_xml` for backbones that write calls their own way (`model.tool_call_format`) |
+| Judges | the BrowseComp-Plus judge prompt with gpt-4o-mini or a served model (Qwen3-32B), DIVER's judge template (Qwen3-30B-A3B-Thinking-2507), exact match and F1 |
+| Datasets | BrowseComp-Plus, HotpotQA, MuSiQue, 2WikiMultihopQA, InfoSeek, SWE-bench Lite and Verified, LocBench, and your own corpus as a BEIR-style directory |
+
+[docs/EXTENDING.md](docs/EXTENDING.md) shows how to add one of each.
+
 ## Install
 
 ```bash
@@ -274,7 +294,7 @@ agent.search(question, k=10)
 | **Sieve** | `sieve`, `sieve_bm25`, `sieve_dense`, `sieve_nosnip`, `sieve_card`, `sieve_nomanual`, `sieve_reference_howto`, `sieve_reference_hops`, `sieve_reference_mistakes`, `sieve_reference_howto_hops_mistakes`, `sieve_reference_howto_hops_mistakes_noconstruct`, `sieve_plain`, `sieve_v2`, `sieve_visit`, `sieve_visit_fused`, `sieve_visit_dense` | BQL candidate filtering, one ranking model, result cards, section fetch (or whole documents) |
 | Structured control | `indri`, `indri_plain`, `indri_visit` | Indri-QL retrieval with cards and section fetch (or whole documents) |
 | Code localization | `codefix`, `codefix_grep`, `codefix_patch` | search or grep a repository, read functions, propose a fix (`dataset=code_fixture`) |
-| ITER search | `dedup_bm25`, `dedup_dense` | ITER's tool setup; see [docs/ITER.md](docs/ITER.md) |
+| ITER search | `iter_dense`, `iter_bm25`, `iter_reranked`, `iter_splade`, `iter_colbert`, `iter_diffretriever`, `dedup_bm25`, `dedup_dense` | a top-ten search and a whole-document read; `iter_*` puts one retriever behind the search (the leaderboard's setting), `dedup_*` also drops documents already listed; see [docs/ITER.md](docs/ITER.md) |
 | Multi-agent | `plan_and_search`, `plan_and_search_visit` | a planner splits the question, one agent per sub-question (Sieve, or search-visit), a synthesizer answers; every member episode is recorded |
 
 Every index is built once per dataset, before any run. Build the dense embedding cache with
@@ -343,7 +363,7 @@ session storage and is sent per request to OpenAI; the server does not store or 
 | [docs/CONFIGURATION.md](docs/CONFIGURATION.md) | the experiment-file schema, every flag and knob |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | modules, contracts, one episode end to end |
 | [docs/TRAINING.md](docs/TRAINING.md) | retriever training from run records |
-| [docs/BASELINES.md](docs/BASELINES.md) | retriever and reranker baselines on BrowseComp-Plus: how to run each one, and its results on three judges; the same rows are on the [leaderboard](https://ielab.io/skim-search-agent/leaderboard/) |
+| [docs/BASELINES.md](docs/BASELINES.md) | retriever, reranker and agent-backbone baselines on BrowseComp-Plus: how to run each one, and its results on three judges; the same rows are on the [leaderboard](https://ielab.io/skim-search-agent/leaderboard/) |
 | [docs/SIEVE.md](docs/SIEVE.md) | the Sieve paper: the method, step-by-step reproduction from a fresh clone, and every result |
 | [docs/ITER.md](docs/ITER.md) | the ITER paper: step-by-step reproduction, its search tools, retrievers, datasets, training and results |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | development setup and how to add components |

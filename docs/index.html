@@ -339,10 +339,10 @@
           <tr><td class="c">sieve</td><td><code>sieve_bm25</code>, <code>sieve</code>, <code>sieve_dense</code>, <code>sieve_nosnip</code>, <code>sieve_plain</code>, <code>sieve_v2</code>, <code>sieve_visit</code>, <code>sieve_visit_fused</code>, <code>sieve_visit_dense</code></td><td>Boolean candidate filtering, one ranking model, result cards, section fetch</td></tr>
           <tr><td class="c">indri</td><td><code>indri</code>, <code>indri_plain</code>, <code>indri_visit</code></td><td>Indri-QL retrieval with cards and section fetch</td></tr>
           <tr><td class="c">dci</td><td><code>dci</code>, <code>bounded_dci</code></td><td>shell commands over the exported corpus</td></tr>
-          <tr><td class="c">iter</td><td><code>iter_dense</code>, <code>iter_bm25</code>, <code>dedup_dense</code>, <code>dedup_bm25</code></td><td>ITER's search, the standard top ten or with already-listed documents dropped, then a document read by id</td></tr>
+          <tr><td class="c">iter</td><td><code>iter_dense</code>, <code>iter_bm25</code>, <code>iter_reranked</code>, <code>iter_splade</code>, <code>iter_colbert</code>, <code>iter_diffretriever</code>, <code>dedup_dense</code>, <code>dedup_bm25</code></td><td>ITER's search, the standard top ten or with already-listed documents dropped, then a document read by id</td></tr>
           <tr><td class="c">codefix</td><td><code>codefix</code>, <code>codefix_grep</code></td><td>Boolean code search or grep, then read a function and commit a fix</td></tr>
           <tr><td class="c">rag</td><td><code>rag</code>, <code>rag_dense</code>, <code>rag_hybrid</code></td><td>rank once, put the top documents in one prompt, one model call</td></tr>
-          <tr><td class="c">retrieval-only floors</td><td><code>bm25</code>, <code>bm25_lucene</code>, <code>dense</code>, <code>bql</code>, <code>grep</code>, <code>hybrid</code></td><td>rank once, no agent loop, no model</td></tr>
+          <tr><td class="c">retrieval-only floors</td><td><code>bm25</code>, <code>dense</code>, <code>bql</code>, <code>grep</code>, <code>hybrid</code></td><td>rank once, no agent loop, no model</td></tr>
         </tbody>
       </table>
     </div>
@@ -351,6 +351,22 @@
     chat and reasoning models, Gemini, any OpenAI-compatible server, and vLLM running in-process.
     Every one of them emits the same tool-call text the loop parses, so swapping the backbone is
     one YAML key.</p>
+
+    <p class="lead" style="margin-top:28px">What ships with the library:</p>
+    <div class="tbl-wrap">
+      <table class="res">
+        <thead><tr><th>part</th><th>supported</th></tr></thead>
+        <tbody>
+          <tr><td class="c">lexical retrievers</td><td>BM25 on Lucene, the Boolean method BQL, Indri query language, grep</td></tr>
+          <tr><td class="c">dense retrievers</td><td>BGE, Qwen3-Embedding (0.6B, 4B, 8B), RepLLaMA, LRAT, AgentIR, the ITER checkpoints, CodeRankEmbed, and any checkpoint you train</td></tr>
+          <tr><td class="c">learned sparse and multi-vector</td><td>SPLADE++, ColBERTv2, DiffRetriever</td></tr>
+          <tr><td class="c">rerankers</td><td>bge-reranker-v2-m3, Qwen3-Reranker, monoT5, the Laya decision models</td></tr>
+          <tr><td class="c">agent backbones</td><td>Tongyi-DeepResearch-30B, Qwen3.5 (4B, 9B, 27B), Qwen3.6-27B, Qwen3.8-27B, gpt-oss (20b, 120b), Qwen-AgentWorld-35B, OpenResearcher-30B, OpenSeeker-v2-30B, MiroThinker-1.7-mini, QUEST-35B, and any model behind an OpenAI-compatible server</td></tr>
+          <tr><td class="c">judges</td><td>the BrowseComp-Plus judge prompt with gpt-4o-mini or a served model, DIVER's judge template, exact match and F1</td></tr>
+          <tr><td class="c">datasets</td><td>BrowseComp-Plus, HotpotQA, MuSiQue, 2WikiMultihopQA, InfoSeek, SWE-bench Lite and Verified, LocBench, and your own corpus as a BEIR-style directory</td></tr>
+        </tbody>
+      </table>
+    </div>
   </section>
 
   <section id="quickstart">
@@ -403,10 +419,10 @@ condition("title_agent", task="research", strategy="title_only")
 
   <section id="leaderboard">
     <span class="sec-k">Leaderboard</span>
-    <h2>Retrievers and rerankers on BrowseComp-Plus</h2>
-    <p class="lead">One deep-search agent and one fixed setting, with the retriever behind its
-    search tool swapped one row at a time. Accuracy is the Qwen3-32B judge over all 830 questions.
-    The top five:</p>
+    <h2>Retrievers, rerankers and agent backbones on BrowseComp-Plus</h2>
+    <p class="lead">One fixed setting, with one part swapped per row: the retriever behind the
+    search tool, a reranker over it, or the agent model. Accuracy is the Qwen3-32B judge over all
+    830 questions. The top five with the default agent:</p>
     <div class="tbl-wrap">
       <table class="res" id="lbTop">
         <thead><tr><th>#</th><th>retriever</th><th>reranker</th><th>accuracy (%)</th><th>recall (%)</th><th>search calls</th></tr></thead>
