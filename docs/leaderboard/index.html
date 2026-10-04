@@ -143,7 +143,6 @@
     SkimSearch<b>Agent</b>
   </a>
   <div class="nav">
-    <a class="opt" href="#backbones">Backbones</a>
     <a class="opt" href="#metrics">Metrics</a>
     <a class="opt" href="#setting">Setting</a>
     <a class="opt" href="#run">Run a row</a>
@@ -156,12 +155,13 @@
 
 <div class="wrap">
   <header class="hero">
-    <span class="kicker">BrowseComp-Plus &middot; retriever and reranker baselines</span>
+    <span class="kicker">BrowseComp-Plus &middot; retriever, reranker and agent baselines</span>
     <h1>Search <span>Leaderboard</span></h1>
-    <p class="sub">One deep-search agent, one fixed setting, and the retriever behind its search
-    tool swapped one at a time. Every row is one experiment file you can run with SkimSearchAgent.</p>
+    <p class="sub">One fixed setting, with one part swapped at a time: the retriever behind the
+    search tool, a reranker over it, or the agent model. Every row is one experiment file you can
+    run with SkimSearchAgent.</p>
     <div class="chips">
-      <span class="chip">Agent <b id="chipBackbone">Tongyi-DeepResearch-30B-A3B</b></span>
+      <span class="chip">Default agent <b id="chipBackbone">Tongyi-DeepResearch-30B-A3B</b></span>
       <span class="chip">Questions <b>830</b></span>
       <span class="chip">Corpus <b>100,195 docs</b></span>
       <span class="chip">Judge <b id="chipJudge">Qwen3-32B</b></span>
@@ -176,11 +176,12 @@
 
   <div class="board" id="boardMain">
     <div class="controls">
-      <input class="search" id="q" type="search" placeholder="Search retrievers and rerankers" aria-label="Search retrievers and rerankers">
+      <input class="search" id="q" type="search" placeholder="Search agents, retrievers and rerankers" aria-label="Search agents, retrievers and rerankers">
       <div class="filters" role="group" aria-label="Filter rows">
         <button class="filt" data-f="all" aria-pressed="true">All</button>
-        <button class="filt" data-f="first" aria-pressed="false">Retriever only</button>
-        <button class="filt" data-f="reranked" aria-pressed="false">With a reranker</button>
+        <button class="filt" data-f="retrievers" aria-pressed="false">Retrievers</button>
+        <button class="filt" data-f="rerankers" aria-pressed="false">Rerankers</button>
+        <button class="filt" data-f="agents" aria-pressed="false">Agent backbones</button>
       </div>
       <div class="count" id="count"></div>
     </div>
@@ -189,6 +190,7 @@
         <thead>
           <tr>
             <th class="rank">#</th>
+            <th data-k="backbone" aria-sort="none"><button>Agent</button></th>
             <th data-k="retriever" aria-sort="none"><button>Retriever</button></th>
             <th data-k="reranker" aria-sort="none"><button>Reranker</button></th>
             <th class="num" data-k="accuracy" aria-sort="descending"><button>Accuracy (%)</button></th>
@@ -197,46 +199,11 @@
             <th class="num" data-k="tokens" aria-sort="none"><button>Tokens</button></th>
           </tr>
         </thead>
-        <tbody id="rows"><tr><td colspan="7" class="empty">Loading&hellip;</td></tr></tbody>
+        <tbody id="rows"><tr><td colspan="8" class="empty">Loading&hellip;</td></tr></tbody>
       </table>
     </div>
     <div class="note" id="pending"></div>
   </div>
-
-  <section id="backbones">
-    <span class="sec-k">Agent backbones</span>
-    <h2>The same search tool, a different agent</h2>
-    <p class="lead">The questions, the tools, the 100-turn budget and the judge stay as above. The
-    agent model changes. Each model runs with its own prompt family, sampling settings and
-    tool-call format.</p>
-    <div class="board" id="boardBackbones">
-      <div class="controls">
-        <div class="filters" role="group" aria-label="Filter backbone rows by retriever">
-          <button class="filt" data-f="Qwen3-Embedding-0.6B" aria-pressed="true">Qwen3-Embedding-0.6B</button>
-          <button class="filt" data-f="ITER-Qwen3-Embedding-4B" aria-pressed="false">ITER-Qwen3-Embedding-4B</button>
-          <button class="filt" data-f="all" aria-pressed="false">All</button>
-        </div>
-        <div class="count" id="bbCount"></div>
-      </div>
-      <div class="tbl">
-        <table>
-          <thead>
-            <tr>
-              <th class="rank">#</th>
-              <th data-k="backbone" aria-sort="none"><button>Agent backbone</button></th>
-              <th data-k="retriever" aria-sort="none"><button>Retriever</button></th>
-              <th class="num" data-k="accuracy" aria-sort="descending"><button>Accuracy (%)</button></th>
-              <th class="num" data-k="recall" aria-sort="none"><button>Recall (%)</button></th>
-              <th class="num" data-k="search_calls" aria-sort="none"><button>Search calls</button></th>
-              <th class="num" data-k="tokens" aria-sort="none"><button>Tokens</button></th>
-            </tr>
-          </thead>
-          <tbody id="bbRows"><tr><td colspan="7" class="empty">Loading&hellip;</td></tr></tbody>
-        </table>
-      </div>
-      <div class="note" id="bbPending"></div>
-    </div>
-  </section>
 
   <section id="metrics">
     <span class="sec-k">Metrics</span>
@@ -253,8 +220,10 @@
       <div class="def"><h3>Tokens</h3><p>The mean tokens per question, each token counted once:
         the largest prompt the episode held plus every token the model generated. It is not the
         sum of the prompts over the turns.</p></div>
-      <div class="def"><h3>Rank</h3><p>Rows rank by accuracy. Click a column header to sort by
-        it instead.</p></div>
+      <div class="def"><h3>Rank</h3><p>Rows rank by accuracy inside the view shown. Click a column
+        header to sort by it instead.</p></div>
+      <div class="def"><h3>Views</h3><p>Retrievers and Rerankers show the default agent's rows.
+        Agent backbones shows the retrievers that ran under several agent models.</p></div>
     </div>
   </section>
 
@@ -262,7 +231,9 @@
     <span class="sec-k">Setting</span>
     <h2>What stays fixed</h2>
     <ul class="setting">
-      <li><b>Agent:</b> Tongyi-DeepResearch-30B-A3B served with vLLM, temperature 0.6, seed 42.</li>
+      <li><b>Agent:</b> Tongyi-DeepResearch-30B-A3B served with vLLM, temperature 0.6, seed 42.
+        A row with another agent model keeps everything else on this list and runs that model with
+        its own prompt family, sampling settings and tool-call format.</li>
       <li><b>Corpus:</b> the original BrowseComp-Plus text, 100,195 documents, all 830 questions.</li>
       <li><b>Tools:</b> <code>search</code> returns the top 10 documents with a 64-token snippet each.
         <code>get_document</code> reads a document, cut at 12,000 tokens.</li>
@@ -314,18 +285,28 @@ python scripts/leaderboard_row.py &lt;the run's results directory&gt;</pre>
   const tbody = document.getElementById('rows');
   const state = {key: 'accuracy', asc: false, filter: 'all', q: ''};
   let entries = [];
+  let swept = new Set();     // retrievers that also ran under other agent models
 
   const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const link = (text, href, cls) => href ? `<a class="${cls}" href="${esc(href)}">${esc(text)}</a>` : `<span class="${cls}">${esc(text)}</span>`;
 
+  // Retrievers and Rerankers are the default agent's rows. Agent backbones are the rows of the
+  // retrievers that ran under several agent models, the default agent's row included.
+  const VIEW = {
+    all: () => true,
+    retrievers: e => e.default_agent && !e.reranker,
+    rerankers: e => e.default_agent && !!e.reranker,
+    agents: e => !e.reranker && swept.has(e.retriever),
+  };
+
   function render() {
-    // rank is by accuracy over every row, whatever the view
-    const byAcc = [...entries].sort((a, b) => b.accuracy - a.accuracy);
-    const rank = new Map(byAcc.map((e, i) => [e.id, i + 1]));
-    let rows = entries.filter(e => state.filter === 'all' || (state.filter === 'reranked') === !!e.reranker);
+    // rank is by accuracy inside the view shown
+    let rows = entries.filter(VIEW[state.filter]);
+    const rank = new Map([...rows].sort((a, b) => b.accuracy - a.accuracy).map((e, i) => [e.id, i + 1]));
+    const total = rows.length;
     if (state.q) {
       const q = state.q.toLowerCase();
-      rows = rows.filter(e => [e.retriever, e.reranker || '', e.kind, e.id].join(' ').toLowerCase().includes(q));
+      rows = rows.filter(e => [e.backbone, e.retriever, e.reranker || '', e.kind || '', e.id].join(' ').toLowerCase().includes(q));
     }
     rows.sort((a, b) => {
       let x = a[state.key], y = b[state.key];
@@ -335,19 +316,20 @@ python scripts/leaderboard_row.py &lt;the run's results directory&gt;</pre>
     const max = Math.max(...entries.map(e => e.accuracy), 1);
     tbody.innerHTML = rows.length ? rows.map(e => {
       const r = rank.get(e.id);
-      const kind = e.reranker ? '' : `<span class="kind k-${esc(e.kind)}">${esc(KIND[e.kind] || e.kind)}</span>`;
+      const kind = e.reranker || !e.kind ? '' : `<span class="kind k-${esc(e.kind)}">${esc(KIND[e.kind] || e.kind)}</span>`;
       return `<tr>
         <td class="rank">${r <= 3 ? `<span class="medal m${r}">${r}</span>` : r}</td>
+        <td>${link(e.backbone, e.backbone_link, 'name')}</td>
         <td>${link(e.retriever, e.retriever_link, 'name')}
-          <div class="meta">${kind}<a class="file" href="${FILES}browsecomp_plus_${esc(e.id)}_tongyi.yaml">${esc(e.id)}</a></div></td>
+          <div class="meta">${kind}<a class="file" href="${FILES}${esc(e.file)}">${esc(e.id)}</a></div></td>
         <td>${e.reranker ? link(e.reranker, e.reranker_link, 'name') : '<span class="none">none</span>'}</td>
         <td class="num"><div class="acc"><span class="bar"><i style="width:${(100 * e.accuracy / max).toFixed(1)}%"></i></span><b>${e.accuracy.toFixed(1)}</b></div></td>
         <td class="num">${e.recall.toFixed(1)}</td>
         <td class="num">${e.search_calls.toFixed(1)}</td>
         <td class="num">${(e.tokens / 1000).toFixed(1)}k</td>
       </tr>`;
-    }).join('') : '<tr><td colspan="7" class="empty">No row matches.</td></tr>';
-    document.getElementById('count').textContent = `${rows.length} of ${entries.length} rows`;
+    }).join('') : '<tr><td colspan="8" class="empty">No row matches.</td></tr>';
+    document.getElementById('count').textContent = `${rows.length} of ${total} rows`;
     board.querySelectorAll('th[data-k]').forEach(th => {
       th.setAttribute('aria-sort', th.dataset.k === state.key ? (state.asc ? 'ascending' : 'descending') : 'none');
     });
@@ -356,7 +338,7 @@ python scripts/leaderboard_row.py &lt;the run's results directory&gt;</pre>
   board.querySelectorAll('th[data-k] button').forEach(b => b.addEventListener('click', () => {
     const k = b.parentElement.dataset.k;
     if (state.key === k) state.asc = !state.asc;
-    else { state.key = k; state.asc = (k === 'retriever' || k === 'reranker' || k === 'search_calls' || k === 'tokens'); }
+    else { state.key = k; state.asc = !(k === 'accuracy' || k === 'recall'); }
     render();
   }));
   board.querySelectorAll('.filt').forEach(b => b.addEventListener('click', () => {
@@ -367,81 +349,27 @@ python scripts/leaderboard_row.py &lt;the run's results directory&gt;</pre>
   document.getElementById('q').addEventListener('input', ev => { state.q = ev.target.value.trim(); render(); });
 
   fetch('data.json').then(r => r.json()).then(d => {
-    entries = d.entries;
+    const agent = d.backbone;
+    const agentLink = (d.backbones || []).filter(b => b.backbone === agent).map(b => b.backbone_link)[0] || '';
+    // one list: the default agent's rows, then the rows of the other agent models
+    entries = d.entries.map(e => ({...e, backbone: agent, backbone_link: agentLink, default_agent: true,
+                                   file: `browsecomp_plus_${e.id}_tongyi.yaml`}));
+    const have = new Set(entries.map(e => e.id));
+    for (const b of d.backbones || []) {
+      if (!have.has(b.id)) entries.push({...b, default_agent: false, file: `browsecomp_plus_${b.id}.yaml`});
+    }
+    swept = new Set(entries.filter(e => !e.default_agent).map(e => e.retriever));
     document.getElementById('chipDate').textContent = d.updated;
-    document.getElementById('chipBackbone').textContent = d.backbone;
+    document.getElementById('chipBackbone').textContent = agent;
     document.getElementById('chipJudge').textContent = d.judge;
     const p = document.getElementById('pending');
-    if (d.pending && d.pending.length) p.textContent = `Running now: ${d.pending.join(', ')}. Their rows appear once judged.`;
+    const running = [...(d.pending || []), ...(d.backbones_pending || [])];
+    if (running.length) p.textContent = `Running now: ${running.join(', ')}. Their rows appear once judged.`;
     else p.remove();
     render();
   }).catch(() => {
-    tbody.innerHTML = '<tr><td colspan="7" class="empty">The results file did not load.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="8" class="empty">The results file did not load.</td></tr>';
   });
-})();
-
-(function backbones() {
-  const FILES = 'https://github.com/ielab/skim-search-agent/blob/main/configs/baselines/';
-  const section = document.getElementById('backbones');
-  const board = document.getElementById('boardBackbones');
-  const tbody = document.getElementById('bbRows');
-  const state = {key: 'accuracy', asc: false, filter: 'Qwen3-Embedding-0.6B'};
-  let rows = [];
-
-  const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-  const link = (text, href) => href ? `<a class="name" href="${esc(href)}">${esc(text)}</a>` : `<span class="name">${esc(text)}</span>`;
-  // the two Tongyi rows are the retriever table's own rows and keep that table's file names
-  const file = e => e.id.includes('_') ? `browsecomp_plus_${e.id}.yaml` : `browsecomp_plus_${e.id}_tongyi.yaml`;
-
-  function render() {
-    // rank is by accuracy inside the retriever shown
-    const shown = rows.filter(e => state.filter === 'all' || e.retriever === state.filter);
-    const rank = new Map([...shown].sort((a, b) => b.accuracy - a.accuracy).map((e, i) => [e.id, i + 1]));
-    shown.sort((a, b) => {
-      let x = a[state.key], y = b[state.key];
-      if (typeof x !== 'number') { x = String(x || '').toLowerCase(); y = String(y || '').toLowerCase(); }
-      return (x < y ? -1 : x > y ? 1 : 0) * (state.asc ? 1 : -1);
-    });
-    const max = Math.max(...rows.map(e => e.accuracy), 1);
-    tbody.innerHTML = shown.length ? shown.map(e => {
-      const r = rank.get(e.id);
-      return `<tr>
-        <td class="rank">${r <= 3 ? `<span class="medal m${r}">${r}</span>` : r}</td>
-        <td>${link(e.backbone, e.backbone_link)}
-          <div class="meta"><a class="file" href="${FILES}${esc(file(e))}">${esc(e.id)}</a></div></td>
-        <td>${link(e.retriever, e.retriever_link)}</td>
-        <td class="num"><div class="acc"><span class="bar"><i style="width:${(100 * e.accuracy / max).toFixed(1)}%"></i></span><b>${e.accuracy.toFixed(1)}</b></div></td>
-        <td class="num">${e.recall.toFixed(1)}</td>
-        <td class="num">${e.search_calls.toFixed(1)}</td>
-        <td class="num">${(e.tokens / 1000).toFixed(1)}k</td>
-      </tr>`;
-    }).join('') : '<tr><td colspan="7" class="empty">No row matches.</td></tr>';
-    document.getElementById('bbCount').textContent = `${shown.length} of ${rows.length} rows`;
-    board.querySelectorAll('th[data-k]').forEach(th => {
-      th.setAttribute('aria-sort', th.dataset.k === state.key ? (state.asc ? 'ascending' : 'descending') : 'none');
-    });
-  }
-
-  board.querySelectorAll('th[data-k] button').forEach(b => b.addEventListener('click', () => {
-    const k = b.parentElement.dataset.k;
-    if (state.key === k) state.asc = !state.asc;
-    else { state.key = k; state.asc = (k === 'backbone' || k === 'retriever' || k === 'search_calls' || k === 'tokens'); }
-    render();
-  }));
-  board.querySelectorAll('.filt').forEach(b => b.addEventListener('click', () => {
-    state.filter = b.dataset.f;
-    board.querySelectorAll('.filt').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
-    render();
-  }));
-
-  fetch('data.json').then(r => r.json()).then(d => {
-    if (!d.backbones || !d.backbones.length) { section.remove(); return; }
-    rows = d.backbones;
-    const p = document.getElementById('bbPending');
-    if (d.backbones_pending && d.backbones_pending.length) p.textContent = `Running now: ${d.backbones_pending.join(', ')}. Their rows appear once judged.`;
-    else p.remove();
-    render();
-  }).catch(() => { section.remove(); });
 })();
 </script>
 </body>
