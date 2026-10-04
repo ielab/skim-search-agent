@@ -7,6 +7,7 @@ from agent_search.tasks.research_qwen.task import ResearchQwen
 from agent_search.tasks.research_tongyi.task import ResearchTongyi
 from agent_search.tasks.research_openresearcher.task import ResearchOpenResearcher
 from agent_search.tasks.research_openseeker.task import ResearchOpenSeeker
+from agent_search.tasks.research_quest.task import ResearchQuest
 from agent_search.tasks.research_paper.task import ResearchPaper
 from agent_search.tasks.codefix.task import CodeFix
 from agent_search.tasks.codefix_patch.task import CodeFixPatch

@@ -1,7 +1,8 @@
 """The paper's condition names, each a task with a strategy. Kept so configs, run records and
 `--retriever agent_<name>` keep working; the registry grows here as strategies are ported."""
 from agent_search.strategies import (  # noqa: F401  (registrations)
-    autoread, browser, codefix, dci, dedup, indri, queries_visit, rag, retrieval_only, search_fetch, search_visit, sieve, teams)
+    autoread, browser, codefix, dci, dedup, indri, passages, queries_visit, rag, retrieval_only, search_fetch, search_visit,
+    sieve, teams)
 from agent_search.strategies.conditions import alias, condition
 from agent_search.tasks import TASKS  # noqa: F401  (registrations)
 
@@ -34,6 +35,8 @@ condition("research_openresearcher_dense", "research_openresearcher", "browser_d
 condition("research_openresearcher_bm25", "research_openresearcher", "browser_bm25")
 condition("research_openseeker_dense", "research_openseeker", "queries_visit_dense")       # OpenSeeker its own way: batched search, visit with a goal, its prompt
 condition("research_openseeker_bm25", "research_openseeker", "queries_visit_bm25")
+condition("research_quest_dense", "research_quest", "passages_dense")                      # QUEST its own way: search only, long passages, its prompt
+condition("research_quest_bm25", "research_quest", "passages_bm25")
 alias("codefix", "codefix", "codefix")
 alias("codefix_grep", "codefix", "codefix_grep")
 alias("codefix_patch", "codefix_patch", "codefix")

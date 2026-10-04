@@ -1,5 +1,5 @@
 schema: 1
-name: qwen3emb06b_quest
+name: qwen3emb8b_quest
 strategy: agent_research_quest_dense             # the model's own interface: search only, long passages, its prompt
 dataset:
   name: browsecomp_plus
@@ -45,7 +45,7 @@ listing:
   dedup_pool_k: 100
   dedup_snippet_tokens: 64
 retrieval:
-  dense_model: Qwen/Qwen3-Embedding-0.6B
+  dense_model: Qwen/Qwen3-Embedding-8B
   dense_query_style: plain
   dense_query_instruction: null
   dense_pooling: null
@@ -70,7 +70,7 @@ evaluation:
   judge_api_base: null
   rejudge: false
 output:
-  runs_dir: runs/backbone/quest_native/qwen3emb06b
+  runs_dir: runs/backbone/quest_native/qwen3emb8b
   results_dir: null
   index_root: indexes
   rebuild: false

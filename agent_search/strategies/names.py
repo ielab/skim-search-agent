@@ -54,6 +54,9 @@ STRATEGIES: dict[str, str] = {
     # OpenSeeker's own interface: a batched search, a visit that reads for a goal, the model's prompt
     "queries_visit_dense": "agent_research_openseeker_dense",
     "queries_visit_bm25": "agent_research_openseeker_bm25",
+    # QUEST's own interface: one search tool that returns long passages, the model's prompt
+    "passages_dense": "agent_research_quest_dense",
+    "passages_bm25": "agent_research_quest_bm25",
     # code-localization arm (SWE-bench-style repositories; dataset=code_fixture, swebench_*)
     "codefix": "agent_codefix",
     "codefix_grep": "agent_codefix_grep",
@@ -70,7 +73,7 @@ DENSE_STRATEGIES = frozenset({
     "search_visit_dense", "search_visit_hybrid", "autoread_dense", "autoread_hybrid", "search_fetch_dense",
     "search_fetch_dense_plain", "search_fetch_hybrid", "sieve", "sieve_dense", "sieve_nosnip",
     "sieve_visit_fused", "sieve_visit_dense", "dedup_dense", "iter_dense", "iter_dense_qwen", "iter_dense_strong", "iter_reranked", "rag_dense", "rag_hybrid", "hybrid", "dense",
-    "browser_dense", "queries_visit_dense",
+    "browser_dense", "queries_visit_dense", "passages_dense",
 })
 
 DEFAULT_STRATEGY = "sieve_bm25"
