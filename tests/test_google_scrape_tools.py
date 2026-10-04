@@ -86,9 +86,13 @@ def test_the_condition_renders_miroflows_system_prompt_and_user_turn():
     assert cond.task.message_format == "plain_results" and cond.task.terminal == "text"
 
 
-def test_the_seed_moves_with_the_turn_only_when_asked():
+def test_the_seed_moves_with_the_episodes_calls_only_when_asked():
     from agent_search.agent.backbone.openai_chat import _call_seed
-    msgs = [{"role": "system", "content": "s"}, {"role": "user", "content": "q"},
-            {"role": "assistant", "content": "a"}, {"role": "user", "content": "r"}, {"role": "assistant", "content": "b"}]
-    assert _call_seed(42, msgs, False) == 42 and _call_seed(42, msgs[:2], True) == 42
-    assert _call_seed(42, msgs, True) == 44 and _call_seed(None, msgs, True) is None
+    from agent_search.agent.backbone.usage import _record_usage, reset_usage
+    reset_usage()
+    assert _call_seed(42, True) == 42
+    _record_usage(10, 5)
+    _record_usage(12, 5)
+    assert _call_seed(42, False) == 42 and _call_seed(42, True) == 44 and _call_seed(None, True) is None
+    reset_usage()
+    assert _call_seed(42, True) == 42
