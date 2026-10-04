@@ -29,7 +29,7 @@ The files live in five folders, and nothing sits loose at the root:
 |---|---|
 | `configs/sieve/` | the cells behind the Sieve paper's numbers, see [SIEVE.md](SIEVE.md) |
 | `configs/iter/` | the cells behind the ITER paper's numbers, see [ITER.md](ITER.md), with its samples, smokes and training recipes |
-| `configs/baselines/` | retriever and reranker baselines on BrowseComp-Plus, see [BASELINES.md](BASELINES.md) |
+| `configs/baselines/` | retriever, reranker and agent-backbone baselines on BrowseComp-Plus, see [BASELINES.md](BASELINES.md) |
 | `configs/fixtures/` | tiny files that run on the built-in fixtures with no model and no API keys |
 | `configs/ablation/` | one-off variations. No doc, script or test points here, so the folder can go without breaking anything |
 

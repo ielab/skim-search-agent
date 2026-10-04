@@ -79,7 +79,64 @@ The file column is short for `configs/baselines/browsecomp_plus_<file>_tongyi.ya
 
 The same rows are on the project site's leaderboard, https://ielab.io/skim-search-agent/leaderboard/,
 with the Qwen3-32B accuracy, the evidence recall and the search calls that the BrowseComp-Plus
-leaderboard reports. `scripts/leaderboard_row.py` computes them from a judged cell.
+leaderboard reports, and the tokens per question with each token counted once.
+`scripts/leaderboard_row.py` computes them from a judged cell.
+
+### Agent backbones
+
+The questions, the tools, the 100-turn budget and the three judges stay as above. The agent model
+changes. Each model runs with its own prompt family, sampling settings and tool-call format, all
+written in its experiment file.
+
+With Qwen3-Embedding-0.6B behind the search tool:
+
+| backbone | file | Qwen3-32B (official) | Qwen3-30B-A3B-Thinking-2507 | gpt-4o-mini | searches |
+|---|---|---:|---:|---:|---:|
+| Tongyi-DeepResearch-30B-A3B | `qwen3emb06b_tongyi` | 41.7 | 43.0 | 38.8 | 62.2 |
+| gpt-oss-20b | `qwen3emb06b_gptoss_20b` | 35.5 | 33.6 | 32.7 | 45.1 |
+| OpenSeeker-v2-30B-SFT | `qwen3emb06b_openseeker` | 29.6 | 29.5 | 25.8 | 80.2 |
+| Qwen-AgentWorld-35B-A3B | `qwen3emb06b_agentworld` | 28.4 | 29.3 | 27.6 | 21.7 |
+| MiroThinker-1.7-mini | `qwen3emb06b_mirothinker` | 28.2 | 28.3 | 26.9 | 75.1 |
+| QUEST-35B-RL | `qwen3emb06b_quest` | 26.5 | 26.0 | 21.7 | 51.6 |
+| Qwen3.5-9B | `qwen3emb06b_qwen35_9b` | 25.4 | 24.8 | 22.0 | 25.3 |
+| Qwen3.5-27B | `qwen3emb06b_qwen35_27b` | 22.4 | 22.3 | 20.1 | 18.3 |
+| OpenResearcher-30B-A3B | `qwen3emb06b_openresearcher` | 16.7 | 17.3 | 16.3 | 58.5 |
+| Qwen3.5-4B | `qwen3emb06b_qwen35_4b` | 16.0 | 16.4 | 14.6 | 19.9 |
+
+With ITER-Qwen3-Embedding-4B behind the search tool:
+
+| backbone | file | Qwen3-32B (official) | Qwen3-30B-A3B-Thinking-2507 | gpt-4o-mini | searches |
+|---|---|---:|---:|---:|---:|
+| Tongyi-DeepResearch-30B-A3B | `iter4b_tongyi` | 58.2 | 59.4 | 54.5 | 50.8 |
+| OpenSeeker-v2-30B-SFT | `iter4b_openseeker` | 45.1 | 45.4 | 42.8 | 71.8 |
+| Qwen3.5-9B | `iter4b_qwen35_9b` | 44.3 | 44.5 | 40.6 | 19.4 |
+| Qwen3.5-27B | `iter4b_qwen35_27b` | 38.3 | 37.8 | 34.5 | 13.0 |
+| Qwen3.5-4B | `iter4b_qwen35_4b` | 31.2 | 31.9 | 28.8 | 15.1 |
+| OpenResearcher-30B-A3B | `iter4b_openresearcher` | 26.9 | 28.2 | 26.4 | 53.0 |
+
+The file column is short for `configs/baselines/browsecomp_plus_<file>.yaml`.
+
+Three more rows with Qwen3-Embedding-0.6B are running or waiting for a judge: gpt-oss-120b
+(`qwen3emb06b_gptoss_120b`), Qwen3.6-27B (`qwen3emb06b_qwen36_27b`) and Qwen3.8-27B
+(`qwen3emb06b_qwen38_27b`). Qwen3.6-27B and Qwen3.8-27B run with a flat 4,096-token budget per
+turn. The Qwen3.5 rows use the 4096,2048,1024 schedule.
+
+Serve each backbone with the flags its file carries in `env.VLLM_ARGS`:
+
+| backbone | model | extra `vllm serve` flags |
+|---|---|---|
+| Tongyi-DeepResearch-30B-A3B | `Alibaba-NLP/Tongyi-DeepResearch-30B-A3B` | none |
+| OpenSeeker-v2-30B-SFT | `PolarSeeker/OpenSeeker-v2-30B-SFT` | none |
+| OpenResearcher-30B-A3B | `OpenResearcher/OpenResearcher-30B-A3B` | none |
+| MiroThinker-1.7-mini | `miromind-ai/MiroThinker-1.7-mini` | none |
+| Qwen-AgentWorld-35B-A3B | `Qwen/Qwen-AgentWorld-35B-A3B` | `--language-model-only --gdn-prefill-backend triton` |
+| QUEST-35B-RL | `osunlp/QUEST-35B-RL` | `--language-model-only --enable-auto-tool-choice --tool-call-parser qwen3_xml --reasoning-parser qwen3 --gdn-prefill-backend triton` |
+| Qwen3.5-4B, Qwen3.5-9B, Qwen3.5-27B, Qwen3.6-27B, Qwen3.8-27B | `Qwen/Qwen3.5-4B` and so on | `--enable-auto-tool-choice --tool-call-parser qwen3_xml --reasoning-parser qwen3 --gdn-prefill-backend triton` |
+| gpt-oss-20b, gpt-oss-120b | `openai/gpt-oss-20b`, `openai/gpt-oss-120b` | `--enable-auto-tool-choice --tool-call-parser openai --reasoning-parser openai_gptoss` |
+
+The gpt-oss rows run through the Responses API (`model.driver: responses`) at reasoning effort
+high. MiroThinker-1.7-mini reads its own prompt, `configs/baselines/prompts/research_mirothinker.md`,
+and its MCP-style tool calls (`model.tool_call_format: mcp`).
 
 ## Run one
 

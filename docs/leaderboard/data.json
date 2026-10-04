@@ -11,7 +11,8 @@
    "kind": "dense",
    "accuracy": 59.8,
    "recall": 73.0,
-   "search_calls": 48.9
+   "search_calls": 48.9,
+   "tokens": 81392
   },
   {
    "id": "iter4b",
@@ -20,7 +21,8 @@
    "kind": "dense",
    "accuracy": 58.2,
    "recall": 69.6,
-   "search_calls": 50.8
+   "search_calls": 50.8,
+   "tokens": 84373
   },
   {
    "id": "agentir4b",
@@ -29,7 +31,8 @@
    "kind": "dense",
    "accuracy": 57.0,
    "recall": 75.0,
-   "search_calls": 50.3
+   "search_calls": 50.3,
+   "tokens": 84145
   },
   {
    "id": "iter06b",
@@ -38,7 +41,8 @@
    "kind": "dense",
    "accuracy": 56.4,
    "recall": 68.3,
-   "search_calls": 53.5
+   "search_calls": 53.5,
+   "tokens": 85496
   },
   {
    "id": "rerank_monot5",
@@ -49,7 +53,8 @@
    "recall": 68.1,
    "search_calls": 53.3,
    "reranker": "monoT5-3B",
-   "reranker_link": "https://huggingface.co/castorini/monot5-3b-msmarco-10k"
+   "reranker_link": "https://huggingface.co/castorini/monot5-3b-msmarco-10k",
+   "tokens": 85629
   },
   {
    "id": "colbert",
@@ -58,7 +63,8 @@
    "kind": "multi-vector",
    "accuracy": 54.5,
    "recall": 68.6,
-   "search_calls": 52.9
+   "search_calls": 52.9,
+   "tokens": 87010
   },
   {
    "id": "rerank_bge_m3",
@@ -69,7 +75,8 @@
    "recall": 64.5,
    "search_calls": 54.4,
    "reranker": "bge-reranker-v2-m3",
-   "reranker_link": "https://huggingface.co/BAAI/bge-reranker-v2-m3"
+   "reranker_link": "https://huggingface.co/BAAI/bge-reranker-v2-m3",
+   "tokens": 86998
   },
   {
    "id": "lrat06b",
@@ -78,7 +85,8 @@
    "kind": "dense",
    "accuracy": 50.2,
    "recall": 62.8,
-   "search_calls": 55.7
+   "search_calls": 55.7,
+   "tokens": 89385
   },
   {
    "id": "qwen3emb4b",
@@ -87,7 +95,8 @@
    "kind": "dense",
    "accuracy": 50.0,
    "recall": 63.2,
-   "search_calls": 58.0
+   "search_calls": 58.0,
+   "tokens": 91141
   },
   {
    "id": "rerank_qwen3_06b",
@@ -98,7 +107,8 @@
    "recall": 64.5,
    "search_calls": 57.0,
    "reranker": "Qwen3-Reranker-0.6B",
-   "reranker_link": "https://huggingface.co/Qwen/Qwen3-Reranker-0.6B"
+   "reranker_link": "https://huggingface.co/Qwen/Qwen3-Reranker-0.6B",
+   "tokens": 90253
   },
   {
    "id": "splade",
@@ -107,7 +117,8 @@
    "kind": "sparse",
    "accuracy": 49.9,
    "recall": 60.9,
-   "search_calls": 55.9
+   "search_calls": 55.9,
+   "tokens": 88932
   },
   {
    "id": "qwen3emb8b",
@@ -116,7 +127,8 @@
    "kind": "dense",
    "accuracy": 49.0,
    "recall": 62.3,
-   "search_calls": 57.5
+   "search_calls": 57.5,
+   "tokens": 91899
   },
   {
    "id": "diffretriever",
@@ -125,7 +137,8 @@
    "kind": "multi-vector",
    "accuracy": 48.6,
    "recall": 62.5,
-   "search_calls": 57.5
+   "search_calls": 57.5,
+   "tokens": 91263
   },
   {
    "id": "diffretriever_sparse",
@@ -134,7 +147,8 @@
    "kind": "sparse",
    "accuracy": 46.7,
    "recall": 56.6,
-   "search_calls": 58.9
+   "search_calls": 58.9,
+   "tokens": 93965
   },
   {
    "id": "repllama",
@@ -143,7 +157,8 @@
    "kind": "dense",
    "accuracy": 44.8,
    "recall": 56.1,
-   "search_calls": 61.4
+   "search_calls": 61.4,
+   "tokens": 94692
   },
   {
    "id": "qwen3emb06b",
@@ -152,7 +167,8 @@
    "kind": "dense",
    "accuracy": 41.7,
    "recall": 52.9,
-   "search_calls": 62.2
+   "search_calls": 62.2,
+   "tokens": 96966
   },
   {
    "id": "bm25",
@@ -161,7 +177,8 @@
    "kind": "sparse",
    "accuracy": 37.8,
    "recall": 47.0,
-   "search_calls": 61.0
+   "search_calls": 61.0,
+   "tokens": 98188
   },
   {
    "id": "rerank_laya_typed",
@@ -172,7 +189,8 @@
    "recall": 36.7,
    "search_calls": 72.3,
    "reranker": "Laya typed-decisions",
-   "reranker_link": "https://huggingface.co/convaiinnovations/laya-typed-decisions"
+   "reranker_link": "https://huggingface.co/convaiinnovations/laya-typed-decisions",
+   "tokens": 104775
   },
   {
    "id": "rerank_laya",
@@ -183,7 +201,8 @@
    "recall": 36.6,
    "search_calls": 71.6,
    "reranker": "Laya (English)",
-   "reranker_link": "https://huggingface.co/convaiinnovations/laya"
+   "reranker_link": "https://huggingface.co/convaiinnovations/laya",
+   "tokens": 104683
   },
   {
    "id": "rerank_laya_multilingual",
@@ -194,7 +213,191 @@
    "recall": 27.2,
    "search_calls": 77.3,
    "reranker": "Laya multilingual",
-   "reranker_link": "https://huggingface.co/convaiinnovations/laya-multilingual"
+   "reranker_link": "https://huggingface.co/convaiinnovations/laya-multilingual",
+   "tokens": 112155
   }
+ ],
+ "backbones": [
+  {
+   "id": "qwen3emb06b",
+   "backbone": "Tongyi-DeepResearch-30B-A3B",
+   "backbone_link": "https://huggingface.co/Alibaba-NLP/Tongyi-DeepResearch-30B-A3B",
+   "retriever": "Qwen3-Embedding-0.6B",
+   "retriever_link": "https://huggingface.co/Qwen/Qwen3-Embedding-0.6B",
+   "accuracy": 41.7,
+   "recall": 52.9,
+   "search_calls": 62.2,
+   "tokens": 96966
+  },
+  {
+   "id": "qwen3emb06b_gptoss_20b",
+   "backbone": "gpt-oss-20b",
+   "backbone_link": "https://huggingface.co/openai/gpt-oss-20b",
+   "retriever": "Qwen3-Embedding-0.6B",
+   "retriever_link": "https://huggingface.co/Qwen/Qwen3-Embedding-0.6B",
+   "accuracy": 35.5,
+   "recall": 52.9,
+   "search_calls": 45.1,
+   "tokens": 83862
+  },
+  {
+   "id": "qwen3emb06b_openseeker",
+   "backbone": "OpenSeeker-v2-30B-SFT",
+   "backbone_link": "https://huggingface.co/PolarSeeker/OpenSeeker-v2-30B-SFT",
+   "retriever": "Qwen3-Embedding-0.6B",
+   "retriever_link": "https://huggingface.co/Qwen/Qwen3-Embedding-0.6B",
+   "accuracy": 29.6,
+   "recall": 50.1,
+   "search_calls": 80.2,
+   "tokens": 112041
+  },
+  {
+   "id": "qwen3emb06b_agentworld",
+   "backbone": "Qwen-AgentWorld-35B-A3B",
+   "backbone_link": "https://huggingface.co/Qwen/Qwen-AgentWorld-35B-A3B",
+   "retriever": "Qwen3-Embedding-0.6B",
+   "retriever_link": "https://huggingface.co/Qwen/Qwen3-Embedding-0.6B",
+   "accuracy": 28.4,
+   "recall": 32.1,
+   "search_calls": 21.7,
+   "tokens": 66944
+  },
+  {
+   "id": "qwen3emb06b_mirothinker",
+   "backbone": "MiroThinker-1.7-mini",
+   "backbone_link": "https://huggingface.co/miromind-ai/MiroThinker-1.7-mini",
+   "retriever": "Qwen3-Embedding-0.6B",
+   "retriever_link": "https://huggingface.co/Qwen/Qwen3-Embedding-0.6B",
+   "accuracy": 28.2,
+   "recall": 47.8,
+   "search_calls": 75.1,
+   "tokens": 112736
+  },
+  {
+   "id": "qwen3emb06b_quest",
+   "backbone": "QUEST-35B-RL",
+   "backbone_link": "https://huggingface.co/osunlp/QUEST-35B-RL",
+   "retriever": "Qwen3-Embedding-0.6B",
+   "retriever_link": "https://huggingface.co/Qwen/Qwen3-Embedding-0.6B",
+   "accuracy": 26.5,
+   "recall": 44.4,
+   "search_calls": 51.6,
+   "tokens": 88218
+  },
+  {
+   "id": "qwen3emb06b_qwen35_9b",
+   "backbone": "Qwen3.5-9B",
+   "backbone_link": "https://huggingface.co/Qwen/Qwen3.5-9B",
+   "retriever": "Qwen3-Embedding-0.6B",
+   "retriever_link": "https://huggingface.co/Qwen/Qwen3-Embedding-0.6B",
+   "accuracy": 25.4,
+   "recall": 33.0,
+   "search_calls": 25.3,
+   "tokens": 51714
+  },
+  {
+   "id": "qwen3emb06b_qwen35_27b",
+   "backbone": "Qwen3.5-27B",
+   "backbone_link": "https://huggingface.co/Qwen/Qwen3.5-27B",
+   "retriever": "Qwen3-Embedding-0.6B",
+   "retriever_link": "https://huggingface.co/Qwen/Qwen3-Embedding-0.6B",
+   "accuracy": 22.4,
+   "recall": 31.4,
+   "search_calls": 18.3,
+   "tokens": 38561
+  },
+  {
+   "id": "qwen3emb06b_openresearcher",
+   "backbone": "OpenResearcher-30B-A3B",
+   "backbone_link": "https://huggingface.co/OpenResearcher/OpenResearcher-30B-A3B",
+   "retriever": "Qwen3-Embedding-0.6B",
+   "retriever_link": "https://huggingface.co/Qwen/Qwen3-Embedding-0.6B",
+   "accuracy": 16.7,
+   "recall": 33.3,
+   "search_calls": 58.5,
+   "tokens": 103608
+  },
+  {
+   "id": "qwen3emb06b_qwen35_4b",
+   "backbone": "Qwen3.5-4B",
+   "backbone_link": "https://huggingface.co/Qwen/Qwen3.5-4B",
+   "retriever": "Qwen3-Embedding-0.6B",
+   "retriever_link": "https://huggingface.co/Qwen/Qwen3-Embedding-0.6B",
+   "accuracy": 16.0,
+   "recall": 28.2,
+   "search_calls": 19.9,
+   "tokens": 34724
+  },
+  {
+   "id": "iter4b",
+   "backbone": "Tongyi-DeepResearch-30B-A3B",
+   "backbone_link": "https://huggingface.co/Alibaba-NLP/Tongyi-DeepResearch-30B-A3B",
+   "retriever": "ITER-Qwen3-Embedding-4B",
+   "retriever_link": "https://huggingface.co/ielabgroup/ITER-Qwen3-Embedding-4B",
+   "accuracy": 58.2,
+   "recall": 69.6,
+   "search_calls": 50.8,
+   "tokens": 84373
+  },
+  {
+   "id": "iter4b_openseeker",
+   "backbone": "OpenSeeker-v2-30B-SFT",
+   "backbone_link": "https://huggingface.co/PolarSeeker/OpenSeeker-v2-30B-SFT",
+   "retriever": "ITER-Qwen3-Embedding-4B",
+   "retriever_link": "https://huggingface.co/ielabgroup/ITER-Qwen3-Embedding-4B",
+   "accuracy": 45.1,
+   "recall": 68.5,
+   "search_calls": 71.8,
+   "tokens": 105293
+  },
+  {
+   "id": "iter4b_qwen35_9b",
+   "backbone": "Qwen3.5-9B",
+   "backbone_link": "https://huggingface.co/Qwen/Qwen3.5-9B",
+   "retriever": "ITER-Qwen3-Embedding-4B",
+   "retriever_link": "https://huggingface.co/ielabgroup/ITER-Qwen3-Embedding-4B",
+   "accuracy": 44.3,
+   "recall": 51.3,
+   "search_calls": 19.4,
+   "tokens": 42200
+  },
+  {
+   "id": "iter4b_qwen35_27b",
+   "backbone": "Qwen3.5-27B",
+   "backbone_link": "https://huggingface.co/Qwen/Qwen3.5-27B",
+   "retriever": "ITER-Qwen3-Embedding-4B",
+   "retriever_link": "https://huggingface.co/ielabgroup/ITER-Qwen3-Embedding-4B",
+   "accuracy": 38.3,
+   "recall": 46.5,
+   "search_calls": 13.0,
+   "tokens": 26979
+  },
+  {
+   "id": "iter4b_qwen35_4b",
+   "backbone": "Qwen3.5-4B",
+   "backbone_link": "https://huggingface.co/Qwen/Qwen3.5-4B",
+   "retriever": "ITER-Qwen3-Embedding-4B",
+   "retriever_link": "https://huggingface.co/ielabgroup/ITER-Qwen3-Embedding-4B",
+   "accuracy": 31.2,
+   "recall": 45.6,
+   "search_calls": 15.1,
+   "tokens": 28374
+  },
+  {
+   "id": "iter4b_openresearcher",
+   "backbone": "OpenResearcher-30B-A3B",
+   "backbone_link": "https://huggingface.co/OpenResearcher/OpenResearcher-30B-A3B",
+   "retriever": "ITER-Qwen3-Embedding-4B",
+   "retriever_link": "https://huggingface.co/ielabgroup/ITER-Qwen3-Embedding-4B",
+   "accuracy": 26.9,
+   "recall": 47.8,
+   "search_calls": 53.0,
+   "tokens": 98617
+  }
+ ],
+ "backbones_pending": [
+  "gpt-oss-120b",
+  "Qwen3.6-27B",
+  "Qwen3.8-27B"
  ]
 }

@@ -11,6 +11,9 @@ Prints one JSON object:
     recall        mean over questions of the share of evidence documents (gold and evidence,
                   data/browsecomp_plus/qrels/evidence.tsv) that any search result showed the agent.
     search_calls  mean number of `search` calls per question.
+    tokens        mean tokens per question, each token counted once: the largest prompt the
+                  episode held plus every token the model generated (`total_tokens_once`). It is
+                  not the sum of the prompts over the turns.
     judged        how many answers have a Qwen3-32B verdict.
 
 The leaderboard leaves out calibration error. The agent never states a confidence, so that
@@ -37,7 +40,7 @@ def row_metrics(cell, evidence):
     rows = [json.loads(l) for l in open(os.path.join(cell, "rows.jsonl"))]
     n = len(rows)
     correct = judged = 0
-    recall = searches = 0.0
+    recall = searches = tokens = 0.0
     for r in rows:
         verdict = r.get("judge_correct_officialbcp")
         judged += verdict is not None
@@ -46,8 +49,10 @@ def row_metrics(cell, evidence):
         shown = {str(d) for d in (r.get("surfaced_docs") or [])}
         recall += len(shown & rel) / len(rel) if rel else 0.0
         searches += sum(1 for a in (r.get("actions") or []) if a == "search")
+        tokens += r.get("total_tokens_once") or 0
     return {"questions": n, "judged": judged, "accuracy": round(100 * correct / n, 1),
-            "recall": round(100 * recall / n, 1), "search_calls": round(searches / n, 1)}
+            "recall": round(100 * recall / n, 1), "search_calls": round(searches / n, 1),
+            "tokens": round(tokens / n)}
 
 
 def main():

@@ -1,0 +1,80 @@
+schema: 1
+name: qwen3emb06b_gptoss_120b
+strategy: agent_research_iter_dense_strong
+dataset:
+  name: browsecomp_plus
+  limit: null
+  corpus_limit: null
+  only_instances: null
+model:
+  name: openai/gpt-oss-120b
+  policy: null
+  backend: api
+  api_base: http://127.0.0.1:8000/v1
+  tp: 1
+  temperature: 0.6
+  seed: 42
+  seeds: null
+  driver: responses
+  reasoning_effort: high
+  top_p: 0.95
+  top_k: null
+  presence_penalty: 1.1
+  max_tokens: 10000
+  max_tokens_schedule: null
+  thinking: null
+  timeout_s: 600
+  retry_attempts: 5
+agent:
+  max_steps: 100
+  forced_answer_tokens: 2000
+  forced_answer_prefill: null
+  forced_answer_nudge: null
+  prompt_profile: null
+  ctx_tokens: 125000
+  ctx_window: 131072
+  max_history: null
+  ctx_stop_frac: 0.9
+budgets:
+  max_visit_tokens: 12000
+  closer_evidence_arg_tokens: 32
+  closer_evidence_obs_tokens: 160
+listing:
+  dedup_topk: 10
+  dedup_pool_k: 100
+  dedup_snippet_tokens: 64
+retrieval:
+  dense_model: Qwen/Qwen3-Embedding-0.6B
+  dense_query_style: plain
+  dense_query_instruction: null
+  dense_pooling: null
+  dense_dtype: bfloat16
+  dense_seq_length: 512
+  dense_query_seq_length: null
+  dense_index: null
+  ann_ef_search: 0
+  ann: auto
+  ann_min: 1000000
+  ann_pq_min: 8000000
+  dense_device: null
+evaluation:
+  level: function
+  k:
+  - 1
+  - 3
+  - 5
+  - 10
+  workers: 2
+  judge_model: gpt-4o-mini
+  judge_api_base: null
+  rejudge: false
+output:
+  runs_dir: runs/backbone/gptoss_120b/qwen3emb06b
+  results_dir: null
+  index_root: indexes
+  rebuild: false
+  allow_config_drift: false
+env:
+  HF_HUB_OFFLINE: '1'
+  VLLM_ARGS: --enable-auto-tool-choice --tool-call-parser openai --reasoning-parser
+    openai_gptoss
