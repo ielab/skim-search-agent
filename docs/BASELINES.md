@@ -84,24 +84,36 @@ leaderboard reports, and the tokens per question with each token counted once.
 
 ### Agent backbones
 
-The questions, the tools, the 100-turn budget and the three judges stay as above. The agent model
-changes. Each model runs with its own prompt family, sampling settings and tool-call format, all
-written in its experiment file.
+The questions, the corpus, the retriever and the three judges stay as above. The agent model
+changes. Each model runs with its own sampling settings and tool-call format, all written in its
+experiment file.
+
+General models (Tongyi-DeepResearch, gpt-oss, Qwen3.5, Qwen-AgentWorld) use the library's search
+and fetch tools and the 100-turn budget. Four agents were fine-tuned with their own tools and
+prompt, and they run in that interface: the tool names, the result layout, the system prompt, the
+history format and the turn budget are the ones in each agent's released code. The library's
+retriever answers the searches, and the corpus answers the page reads.
+
+| agent | tools | turn budget | sampling |
+|---|---|---|---|
+| OpenResearcher-30B-A3B | `browser.search`, `browser.open`, `browser.find` | 200 turns | temperature 1.0 |
+| QUEST-35B-RL | `search` (several queries, five 512-token passages each) | 400 calls | temperature 1.0, presence penalty 1.1 |
+| MiroThinker-1.7-mini | `google_search`, `scrape_and_extract_info` (the served model reads the page) | 300 turns, the newest five results kept | temperature 1.0, top-p 0.95, repetition penalty 1.05 |
+| OpenSeeker-v2-30B-SFT | `search` (several queries), `visit` with a goal (the served model reads the page) | 200 calls | temperature 0.6, top-p 0.95, top-k 20 |
 
 With Qwen3-Embedding-0.6B behind the search tool:
 
 | backbone | file | Qwen3-32B (official) | Qwen3-30B-A3B-Thinking-2507 | gpt-4o-mini | searches |
 |---|---|---:|---:|---:|---:|
+| MiroThinker-1.7-mini | `qwen3emb06b_mirothinker` | 58.1 | 61.2 | 56.4 | 93.6 |
 | Tongyi-DeepResearch-30B-A3B | `qwen3emb06b_tongyi` | 41.7 | 43.0 | 38.8 | 62.2 |
-| gpt-oss-20b | `qwen3emb06b_gptoss_20b` | 35.5 | 33.6 | 32.7 | 45.1 |
-| gpt-oss-120b | `qwen3emb06b_gptoss_120b` | 35.2 | 35.9 | 33.7 | 21.2 |
-| OpenSeeker-v2-30B-SFT | `qwen3emb06b_openseeker` | 29.6 | 29.5 | 25.8 | 80.2 |
+| QUEST-35B-RL | `qwen3emb06b_quest` | 41.3 | 40.8 | 39.5 | 50.7 |
+| OpenResearcher-30B-A3B | `qwen3emb06b_openresearcher` | 39.4 | 41.7 | 38.4 | 43.6 |
+| gpt-oss-120b | `qwen3emb06b_gptoss_120b` | 38.1 | 38.7 | 36.3 | 21.8 |
+| gpt-oss-20b | `qwen3emb06b_gptoss_20b` | 36.5 | 34.6 | 33.5 | 44.5 |
 | Qwen-AgentWorld-35B-A3B | `qwen3emb06b_agentworld` | 28.4 | 29.3 | 27.6 | 21.7 |
-| MiroThinker-1.7-mini | `qwen3emb06b_mirothinker` | 28.2 | 28.3 | 26.9 | 75.1 |
-| QUEST-35B-RL | `qwen3emb06b_quest` | 26.5 | 26.0 | 21.7 | 51.6 |
 | Qwen3.5-9B | `qwen3emb06b_qwen35_9b` | 25.4 | 24.8 | 22.0 | 25.3 |
 | Qwen3.5-27B | `qwen3emb06b_qwen35_27b` | 22.4 | 22.3 | 20.1 | 18.3 |
-| OpenResearcher-30B-A3B | `qwen3emb06b_openresearcher` | 16.7 | 17.3 | 16.3 | 58.5 |
 | Qwen3.5-4B | `qwen3emb06b_qwen35_4b` | 16.0 | 16.4 | 14.6 | 19.9 |
 
 With ITER-Qwen3-Embedding-4B behind the search tool:
@@ -109,17 +121,29 @@ With ITER-Qwen3-Embedding-4B behind the search tool:
 | backbone | file | Qwen3-32B (official) | Qwen3-30B-A3B-Thinking-2507 | gpt-4o-mini | searches |
 |---|---|---:|---:|---:|---:|
 | Tongyi-DeepResearch-30B-A3B | `iter4b_tongyi` | 58.2 | 59.4 | 54.5 | 50.8 |
-| OpenSeeker-v2-30B-SFT | `iter4b_openseeker` | 45.1 | 45.4 | 42.8 | 71.8 |
 | Qwen3.5-9B | `iter4b_qwen35_9b` | 44.3 | 44.5 | 40.6 | 19.4 |
 | Qwen3.5-27B | `iter4b_qwen35_27b` | 38.3 | 37.8 | 34.5 | 13.0 |
 | Qwen3.5-4B | `iter4b_qwen35_4b` | 31.2 | 31.9 | 28.8 | 15.1 |
-| OpenResearcher-30B-A3B | `iter4b_openresearcher` | 26.9 | 28.2 | 26.4 | 53.0 |
 
-The file column is short for `configs/baselines/browsecomp_plus_<file>.yaml`.
+The file column is short for `configs/baselines/browsecomp_plus_<file>.yaml`. `searches` counts
+the agent's search tool under its own name (`browser.search`, `google_search`, `search`).
 
-Two more rows with Qwen3-Embedding-0.6B are running: Qwen3.6-27B (`qwen3emb06b_qwen36_27b`) and
-Qwen3.8-27B (`qwen3emb06b_qwen38_27b`). They run with a flat 4,096-token budget per turn. The
-Qwen3.5 rows use the 4096,2048,1024 schedule.
+Read the rows with these points in mind:
+
+- The budgets differ. MiroThinker-1.7-mini may take 300 turns and uses 126 steps per question on
+  average. Tongyi-DeepResearch stops at 100.
+- The token column of the leaderboard counts the largest prompt plus the generated tokens.
+  MiroThinker-1.7-mini keeps only its newest five tool results in the prompt, and the tokens its
+  page reader spends are not in that count. Its real cost is higher than the column shows.
+- The OpenSeeker-v2-30B-SFT file ships without a row. Each `visit` asks the served model to read
+  the page, and a full run was too slow to finish.
+- The fine-tuned agents' clients send no sampling seed. One seed on every request replays the
+  same random draws each turn, and a repeated turn then repeats for the rest of the episode. Their
+  files set `LLM_SEED_PER_CALL: '1'`: the seed is 42 plus the number of model calls the episode has
+  made, so a run is still reproducible.
+- The gpt-oss rows run through the Responses API (`model.driver: responses`) at reasoning effort
+  high. A turn with no tool call and no `Exact Answer:` line is not an answer: the model is
+  reminded and takes the turn again, three times at most.
 
 Serve each backbone with the flags its file carries in `env.VLLM_ARGS`:
 
@@ -130,13 +154,22 @@ Serve each backbone with the flags its file carries in `env.VLLM_ARGS`:
 | OpenResearcher-30B-A3B | `OpenResearcher/OpenResearcher-30B-A3B` | none |
 | MiroThinker-1.7-mini | `miromind-ai/MiroThinker-1.7-mini` | none |
 | Qwen-AgentWorld-35B-A3B | `Qwen/Qwen-AgentWorld-35B-A3B` | `--language-model-only --gdn-prefill-backend triton` |
-| QUEST-35B-RL | `osunlp/QUEST-35B-RL` | `--language-model-only --enable-auto-tool-choice --tool-call-parser qwen3_xml --reasoning-parser qwen3 --gdn-prefill-backend triton` |
+| QUEST-35B-RL | `osunlp/QUEST-35B-RL` | `--language-model-only --gdn-prefill-backend triton --enable-prefix-caching --mamba-cache-mode align` |
 | Qwen3.5-4B, Qwen3.5-9B, Qwen3.5-27B, Qwen3.6-27B, Qwen3.8-27B | `Qwen/Qwen3.5-4B` and so on | `--enable-auto-tool-choice --tool-call-parser qwen3_xml --reasoning-parser qwen3 --gdn-prefill-backend triton` |
 | gpt-oss-20b, gpt-oss-120b | `openai/gpt-oss-20b`, `openai/gpt-oss-120b` | `--enable-auto-tool-choice --tool-call-parser openai --reasoning-parser openai_gptoss` |
 
-The gpt-oss rows run through the Responses API (`model.driver: responses`) at reasoning effort
-high. MiroThinker-1.7-mini reads its own prompt, `configs/baselines/prompts/research_mirothinker.md`,
-and its MCP-style tool calls (`model.tool_call_format: mcp`).
+Notes for single backbones:
+
+- **MiroThinker-1.7-mini and OpenSeeker-v2-30B-SFT** read pages with a model. Point the reader at
+  the served backbone before the run:
+  `export VISIT_READER_API_BASE=http://127.0.0.1:8000/v1 VISIT_READER_MODEL=miromind-ai/MiroThinker-1.7-mini`.
+- **QUEST-35B-RL** names a tokenizer class in `tokenizer_config.json` that vLLM 0.18 does not
+  load. Copy the snapshot to a folder, set `tokenizer_class` to `Qwen2TokenizerFast` there, and
+  serve the folder with `--served-model-name osunlp/QUEST-35B-RL`. Give the server 0.92 of the GPU.
+- **Qwen3.6-27B and Qwen3.8-27B** have experiment files and no row. Their files carry
+  `--enable-prefix-caching --mamba-cache-mode align`: without them the server recomputes the whole prompt every
+  turn. With the flags a turn still takes about 40 seconds, because the models write 1,000 to
+  2,400 thinking tokens per turn.
 
 ## Run one
 

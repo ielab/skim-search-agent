@@ -78,4 +78,4 @@ output:
 env:
   HF_HUB_OFFLINE: '1'
   VLLM_ARGS: --enable-auto-tool-choice --tool-call-parser qwen3_xml --reasoning-parser
-    qwen3 --gdn-prefill-backend triton
+    qwen3 --gdn-prefill-backend triton --enable-prefix-caching --mamba-cache-mode align
