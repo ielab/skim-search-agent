@@ -12,6 +12,7 @@ class ResearchStrong(Task):
     message_format = "deepresearch_tool_call"
     terminal = "answer"
     description = "DIVER's strong prompt for general backbones: native function calling, the question as the user turn. The search tool adds its own dedup notice when it de-duplicates."
+    answer_line = "Exact Answer:"                 # the template below asks for it
     # DIVER's QUERY_TEMPLATE: the user turn its native-tool clients (gpt-oss) send with --strong
     user_template = (
         "You are a deep research agent. You need to answer the given question by interacting with a search engine, "

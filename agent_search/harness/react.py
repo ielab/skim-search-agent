@@ -106,6 +106,7 @@ class ReAct(Harness):
             return run_episode_responses(ws, question, model=ctx.model or DEFAULT_MODEL, api_base=ctx.api_base,
                                          instructions=system, max_turns=ctx.max_steps,
                                          user_template=getattr(task, "user_template", None),
+                                         answer_line=getattr(task, "answer_line", None),
                                          on_step=_on_step, before_tool=_before_tool)
         finally:
             CURRENT.reset(token)

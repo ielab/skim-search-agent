@@ -21,7 +21,11 @@ DIVER's client turn for turn:
 - on the second-to-last turn the model is told retrieval is complete, and the final turn is
   made with no tools at all, so it must answer;
 - the first turn without a function call ends the episode; the answer is that turn's message
-  text, whole (DIVER's user template asks for Explanation / Exact Answer / Confidence lines).
+  text, whole (DIVER's user template asks for Explanation / Exact Answer / Confidence lines);
+- when the task names its answer line (`answer_line`), a turn without a function call and
+  without that line is not an answer: the model wrote a call as plain text, or stopped
+  mid-thought. It is told so and takes another turn, `MAX_REMINDERS` times at most. DIVER's
+  client ends the episode there and grades the half-finished turn.
 
 The result is the loop driver's `Trajectory`, with one `Step` per tool call, so rows, judging
 and the count-once token accounting are the same as for every other driver. Per-step
@@ -40,6 +44,10 @@ from agent_search.agent.loop import Step, Trajectory
 FINAL_ROUND_MSG = ("Retrieval complete. You are forbidden to call any tools now. "
                    "You must provide your final answer based on the above info.")
 DEFAULT_MAX_OUTPUT_TOKENS = 10000     # DIVER's --max-tokens for gpt-oss
+NOT_AN_ANSWER_MSG = ("Your last turn had no tool call and no final answer. To search or read, call the tool "
+                     "through the function interface. To finish, answer in the requested format, with the "
+                     "line that starts with `{answer_line}`.")
+MAX_REMINDERS = 3
 
 
 def responses_tools(ws) -> list:
@@ -103,6 +111,7 @@ def run_episode_responses(ws, question: str, *, model: str, instructions: str,
                           reasoning_effort: Optional[str] = None,
                           max_output_tokens: Optional[int] = None,
                           user_template: Optional[str] = None,
+                          answer_line: Optional[str] = None,
                           on_step=None, before_tool=None) -> Trajectory:
     """One episode over `ws` through the Responses API. `client` is injectable for tests;
     otherwise an OpenAI client is opened on `api_base` (OPENAI_API_KEY, "EMPTY" for vLLM)."""
@@ -135,6 +144,7 @@ def run_episode_responses(ws, question: str, *, model: str, instructions: str,
 
     turn_starts: list = []        # index into `messages` where each turn's output items begin
     rejected = 0
+    reminders = 0
     for i in range(max_turns):
         is_last_round = (i == max_turns - 2)
         request = {"model": model, "max_output_tokens": max_out, "input": list(messages),
@@ -186,6 +196,15 @@ def run_episode_responses(ws, question: str, *, model: str, instructions: str,
         calls = [it for it in items if it.get("type") == "function_call"] if not force_text_only else []
         if not calls:
             text = "\n".join(_item_text(it) for it in items if it.get("type") == "message").strip()
+            if (answer_line and not force_text_only and reminders < MAX_REMINDERS
+                    and answer_line.lower() not in text.lower()):
+                reminders += 1
+                reminder = NOT_AN_ANSWER_MSG.format(answer_line=answer_line)
+                messages.append({"role": "user", "content": reminder})
+                _push(Step(name="none", args={}, observation=reminder,
+                           raw_output=(thinking + "\n" + text).strip(), t_llm=t_llm,
+                           prompt_tokens=inp, completion_tokens=out))
+                continue
             final_answer = text
             reason = "answer"
             _push(Step(name="answer", args={}, observation="(episode ended)",
@@ -226,4 +245,5 @@ def run_episode_responses(ws, question: str, *, model: str, instructions: str,
     return traj
 
 
-__all__ = ["run_episode_responses", "responses_tools", "FINAL_ROUND_MSG", "DEFAULT_MAX_OUTPUT_TOKENS"]
+__all__ = ["run_episode_responses", "responses_tools", "FINAL_ROUND_MSG", "NOT_AN_ANSWER_MSG", "MAX_REMINDERS",
+           "DEFAULT_MAX_OUTPUT_TOKENS"]

@@ -168,3 +168,37 @@ def test_a_persistent_failure_ends_the_episode_with_an_error_row_not_a_crash(mon
     traj = run_episode_responses(ws, "q", model="m", instructions="i",
                                  client=SimpleNamespace(responses=SimpleNamespace(create=create)), max_turns=5)
     assert traj.stopped_reason == "error" and traj.final_answer == "" and traj.steps[0].name == "none"
+
+
+def test_a_turn_with_no_call_and_no_answer_line_is_reminded_and_taken_again():
+    from agent_search.agent.responses_driver import NOT_AN_ANSWER_MSG
+    ws = _WS()
+    client = _client([_resp([_call("search", {"query": "a"})]),
+                      _resp([_message('Search:\n{"query": "b"}')]),
+                      _resp([_call("search", {"query": "b"}, "c2")]),
+                      _resp([_message("Explanation: x [7]\nExact Answer: B\nConfidence: 80%")])])
+    traj = run_episode_responses(ws, "q?", model="m", instructions="sys", client=client, max_turns=50,
+                                 answer_line="Exact Answer:")
+    assert [s.name for s in traj.steps] == ["search", "none", "search", "answer"]
+    assert traj.stopped_reason == "answer" and "Exact Answer: B" in traj.final_answer
+    reminder = NOT_AN_ANSWER_MSG.format(answer_line="Exact Answer:")
+    assert {"role": "user", "content": reminder} in client.requests[2]["input"]
+    assert traj.steps[1].observation == reminder and "Search:" in traj.steps[1].raw_output
+
+
+def test_reminders_stop_after_the_limit_and_are_off_without_an_answer_line():
+    from agent_search.agent.responses_driver import MAX_REMINDERS
+    loose = _resp([_message("Let me search again.")])
+    client = _client([loose])
+    traj = run_episode_responses(_WS(), "q?", model="m", instructions="sys", client=client, max_turns=50,
+                                 answer_line="Exact Answer:")
+    assert [s.name for s in traj.steps] == ["none"] * MAX_REMINDERS + ["answer"]
+    assert traj.final_answer == "Let me search again." and traj.llm_calls == MAX_REMINDERS + 1
+    client = _client([loose])
+    traj = run_episode_responses(_WS(), "q?", model="m", instructions="sys", client=client, max_turns=50)
+    assert [s.name for s in traj.steps] == ["answer"]
+
+
+def test_the_strong_task_names_its_answer_line():
+    assert CONDITIONS["research_iter_dense_strong"].task.answer_line == "Exact Answer:"
+    assert CONDITIONS["research_iter_dense"].task.answer_line is None

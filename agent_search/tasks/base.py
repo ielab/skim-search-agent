@@ -40,6 +40,10 @@ class Task:
     # question (the loop driver's default). The Responses driver honours it; DIVER's strong prompt
     # pairs with its QUERY_TEMPLATE (Explanation / Exact Answer / Confidence lines).
     user_template: Optional[str] = None
+    # the line the user template asks the final answer to carry (DIVER's `Exact Answer:`). The
+    # Responses driver reminds the model when a turn has no call and no such line; None = the
+    # first turn without a call is the answer.
+    answer_line: Optional[str] = None
     # the same for the loop driver, which otherwise sends the date line plus the question. A
     # task that puts the date in its system prompt, as its model's own code does, sets this.
     loop_user_template: Optional[str] = None
