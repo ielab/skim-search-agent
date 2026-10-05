@@ -1,9 +1,45 @@
 {
- "updated": "2026-10-05",
+ "updated": "2026-10-06",
  "backbone": "Tongyi-DeepResearch-30B-A3B",
  "judge": "Qwen3-32B",
  "pending": [],
  "entries": [
+  {
+   "id": "rerank_monot5_iter06b",
+   "retriever": "ITER-Qwen3-Embedding-0.6B",
+   "retriever_link": "https://huggingface.co/ielabgroup/ITER-Qwen3-Embedding-0.6B",
+   "kind": "reranked",
+   "accuracy": 61.7,
+   "recall": 75.9,
+   "search_calls": 49.6,
+   "reranker": "monoT5-3B",
+   "reranker_link": "https://huggingface.co/castorini/monot5-3b-msmarco-10k",
+   "tokens": 81664
+  },
+  {
+   "id": "rerank_bge_m3_iter4b",
+   "retriever": "ITER-Qwen3-Embedding-4B",
+   "retriever_link": "https://huggingface.co/ielabgroup/ITER-Qwen3-Embedding-4B",
+   "kind": "reranked",
+   "accuracy": 61.2,
+   "recall": 76.6,
+   "search_calls": 46.1,
+   "reranker": "bge-reranker-v2-m3",
+   "reranker_link": "https://huggingface.co/BAAI/bge-reranker-v2-m3",
+   "tokens": 78350
+  },
+  {
+   "id": "rerank_bge_m3_iter06b",
+   "retriever": "ITER-Qwen3-Embedding-0.6B",
+   "retriever_link": "https://huggingface.co/ielabgroup/ITER-Qwen3-Embedding-0.6B",
+   "kind": "reranked",
+   "accuracy": 60.1,
+   "recall": 72.1,
+   "search_calls": 49.5,
+   "reranker": "bge-reranker-v2-m3",
+   "reranker_link": "https://huggingface.co/BAAI/bge-reranker-v2-m3",
+   "tokens": 79513
+  },
   {
    "id": "iter4b_generic",
    "retriever": "ITER-Qwen3-Embedding-4B (generic instruction)",
@@ -15,6 +51,18 @@
    "tokens": 81392
   },
   {
+   "id": "rerank_qwen3_06b_iter4b",
+   "retriever": "ITER-Qwen3-Embedding-4B",
+   "retriever_link": "https://huggingface.co/ielabgroup/ITER-Qwen3-Embedding-4B",
+   "kind": "reranked",
+   "accuracy": 58.7,
+   "recall": 74.6,
+   "search_calls": 49.2,
+   "reranker": "Qwen3-Reranker-0.6B",
+   "reranker_link": "https://huggingface.co/Qwen/Qwen3-Reranker-0.6B",
+   "tokens": 81044
+  },
+  {
    "id": "iter4b",
    "retriever": "ITER-Qwen3-Embedding-4B",
    "retriever_link": "https://huggingface.co/ielabgroup/ITER-Qwen3-Embedding-4B",
@@ -23,6 +71,18 @@
    "recall": 69.6,
    "search_calls": 50.8,
    "tokens": 84373
+  },
+  {
+   "id": "rerank_qwen3_06b_iter06b",
+   "retriever": "ITER-Qwen3-Embedding-0.6B",
+   "retriever_link": "https://huggingface.co/ielabgroup/ITER-Qwen3-Embedding-0.6B",
+   "kind": "reranked",
+   "accuracy": 57.5,
+   "recall": 73.1,
+   "search_calls": 51.0,
+   "reranker": "Qwen3-Reranker-0.6B",
+   "reranker_link": "https://huggingface.co/Qwen/Qwen3-Reranker-0.6B",
+   "tokens": 84063
   },
   {
    "id": "agentir4b",

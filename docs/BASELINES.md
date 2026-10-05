@@ -75,6 +75,22 @@ question. It needs its own index, built with `DENSE_SEQ_LENGTH=4096`.
 | Laya (English) | `rerank_laya` | 34.2 | 35.4 | 32.0 | 71.6 |
 | Laya multilingual | `rerank_laya_multilingual` | 27.1 | 28.1 | 24.9 | 77.3 |
 
+### Rerankers over the ITER pools
+
+The same three rerankers over the pool of 100 from the ITER checkpoints:
+
+| retriever | reranker | file | Qwen3-32B (official) | Qwen3-30B-A3B-Thinking-2507 | gpt-4o-mini | searches |
+|---|---|---|---:|---:|---:|---:|
+| ITER-Qwen3-Embedding-0.6B | monoT5-3B | `rerank_monot5_iter06b` | 61.7 | 63.4 | 59.2 | 49.6 |
+| ITER-Qwen3-Embedding-4B | bge-reranker-v2-m3 | `rerank_bge_m3_iter4b` | 61.2 | 61.9 | 59.0 | 46.1 |
+| ITER-Qwen3-Embedding-0.6B | bge-reranker-v2-m3 | `rerank_bge_m3_iter06b` | 60.1 | 60.6 | 57.5 | 49.5 |
+| ITER-Qwen3-Embedding-4B | Qwen3-Reranker-0.6B | `rerank_qwen3_06b_iter4b` | 58.7 | 58.9 | 55.4 | 49.2 |
+| ITER-Qwen3-Embedding-0.6B | Qwen3-Reranker-0.6B | `rerank_qwen3_06b_iter06b` | 57.5 | 58.1 | 55.3 | 51.0 |
+
+Without a reranker the two retrievers score 56.4 (`iter06b`) and 58.2 (`iter4b`). These five
+rows ran as 12 shard jobs each. A row needs its retriever's index (`iter06b` or `iter4b` in step
+4). monoT5-3B over the ITER-Qwen3-Embedding-4B pool is not in the table: its run is not finished.
+
 The file column is short for `configs/baselines/browsecomp_plus_<file>_tongyi.yaml`.
 
 The same rows are on the project site's leaderboard, https://ielab.io/skim-search-agent/leaderboard/,
@@ -206,7 +222,7 @@ carries the model and the encoding settings, so a run finds the index from its f
 | `bm25` | `skimsearchagent-build-indexes --dataset browsecomp_plus --retriever bm25_pyserini --index-root indexes` |
 | `qwen3emb06b`, `qwen3emb4b`, `qwen3emb8b`, every `rerank_*` | `sbatch --export=ALL,EMBED_MODEL=Qwen/Qwen3-Embedding-0.6B,DATASET=browsecomp_plus,DENSE_SEQ_LENGTH=512,DENSE_DTYPE=bfloat16 scripts/embed_full.sbatch` (`-4B` or `-8B` for those rows) |
 | `lrat06b` | the same with `EMBED_MODEL=Yuqi-Zhou/LRAT-Qwen3-Embedding-0.6B,DENSE_POOLING=last_token` |
-| `iter06b`, `iter4b` | the same with `EMBED_MODEL=ielabgroup/ITER-Qwen3-Embedding-0.6B` (or `-4B`) `,DENSE_POOLING=last_token` |
+| `iter06b`, `iter4b`, `rerank_*_iter06b`, `rerank_*_iter4b` | the same with `EMBED_MODEL=ielabgroup/ITER-Qwen3-Embedding-0.6B` (or `-4B`) `,DENSE_POOLING=last_token` |
 | `iter4b_d4096` | the `iter4b` build with `DENSE_SEQ_LENGTH=4096` |
 | `agentir4b` | the same with `EMBED_MODEL=Tevatron/AgentIR-4B,DENSE_POOLING=last_token,DENSE_DTYPE=float16` |
 | `repllama` | merge the adapter first (below), then `EMBED_MODEL=models/repllama-v1-7b-passage-merged,DENSE_POOLING=last_token,DENSE_DTYPE=float16` |
