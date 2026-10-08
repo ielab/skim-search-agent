@@ -96,3 +96,14 @@ def test_the_seed_moves_with_the_episodes_calls_only_when_asked():
     assert _call_seed(42, False) == 42 and _call_seed(42, True) == 44 and _call_seed(None, True) is None
     reset_usage()
     assert _call_seed(42, True) == 42
+
+
+def test_the_prompt_date_can_be_pinned(monkeypatch):
+    """The prompt carries the date, so a cell resumed on a later day would not match its record."""
+    cond = CONDITIONS["research_mirothinker_dense"]
+    monkeypatch.setenv("MIROTHINKER_DATE", "2026-10-06")
+    pinned = cond.render()
+    assert "Today is: 2026-10-06" in pinned
+    assert cond.system_sha256() == cond.system_sha256()
+    monkeypatch.setenv("MIROTHINKER_DATE", "2026-10-07")
+    assert "Today is: 2026-10-07" in cond.render() and cond.render() != pinned

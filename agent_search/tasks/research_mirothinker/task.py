@@ -15,6 +15,7 @@ without a call ends the episode and is the answer, which carries the model's `\\
 MiroFlow then asks once more for a boxed summary and restarts an episode that gives no box;
 neither step is reproduced.
 """
+import os
 from datetime import date
 from typing import Optional, Sequence
 
@@ -44,4 +45,5 @@ class ResearchMiroThinker(Task):
             raise ValueError("research_mirothinker lists google_search and scrape_and_extract_info; "
                              f"the strategy has {names}")
         _, body = self.template()
-        return body.replace("{{date}}", date.today().isoformat())
+        # MIROTHINKER_DATE pins the date so a cell resumed on a later day keeps the same prompt.
+        return body.replace("{{date}}", os.environ.get("MIROTHINKER_DATE") or date.today().isoformat())

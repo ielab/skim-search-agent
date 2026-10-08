@@ -153,6 +153,9 @@ Read the rows with these points in mind:
 - The token column of the leaderboard counts the largest prompt plus the generated tokens.
   MiroThinker-1.7-mini keeps only its newest five tool results in the prompt, and the tokens its
   page reader spends are not in that count. Its real cost is higher than the column shows.
+- MiroThinker-1.7-mini's prompt states today's date, so a run resumed on a later day is refused
+  as a different experiment. Set `MIROTHINKER_DATE` (for example `2026-10-06`) in the file's `env`
+  block to the day the run started.
 - The OpenSeeker-v2-30B-SFT file ships without a row. Each `visit` asks the served model to read
   the page, and a full run was too slow to finish.
 - The fine-tuned agents' clients send no sampling seed. One seed on every request replays the
