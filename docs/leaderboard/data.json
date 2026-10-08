@@ -85,6 +85,18 @@
    "tokens": 84373
   },
   {
+   "id": "rerank_qwen3_4b_iter06b",
+   "retriever": "ITER-Qwen3-Embedding-0.6B",
+   "retriever_link": "https://huggingface.co/ielabgroup/ITER-Qwen3-Embedding-0.6B",
+   "kind": "reranked",
+   "accuracy": 59.2,
+   "recall": 73.8,
+   "search_calls": 49.9,
+   "reranker": "Qwen3-Reranker-4B",
+   "reranker_link": "https://huggingface.co/Qwen/Qwen3-Reranker-4B",
+   "tokens": 82599
+  },
+  {
    "id": "rerank_qwen3_06b_iter06b",
    "retriever": "ITER-Qwen3-Embedding-0.6B",
    "retriever_link": "https://huggingface.co/ielabgroup/ITER-Qwen3-Embedding-0.6B",
@@ -169,6 +181,18 @@
    "recall": 63.2,
    "search_calls": 58.0,
    "tokens": 91141
+  },
+  {
+   "id": "rerank_qwen3_4b",
+   "retriever": "Qwen3-Embedding-0.6B",
+   "retriever_link": "https://huggingface.co/Qwen/Qwen3-Embedding-0.6B",
+   "kind": "reranked",
+   "accuracy": 52.5,
+   "recall": 65.3,
+   "search_calls": 54.5,
+   "reranker": "Qwen3-Reranker-4B",
+   "reranker_link": "https://huggingface.co/Qwen/Qwen3-Reranker-4B",
+   "tokens": 88402
   },
   {
    "id": "rerank_qwen3_06b",
