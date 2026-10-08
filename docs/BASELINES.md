@@ -124,6 +124,7 @@ With Qwen3-Embedding-0.6B behind the search tool:
 
 | backbone | file | Qwen3-32B (official) | Qwen3-30B-A3B-Thinking-2507 | gpt-4o-mini | searches |
 |---|---|---:|---:|---:|---:|
+| MiroThinker-1.7-mini | `qwen3emb06b_mirothinker` | 52.3 | 55.1 | 50.7 | 52.8 |
 | Tongyi-DeepResearch-30B-A3B | `qwen3emb06b_tongyi` | 41.7 | 43.0 | 38.8 | 62.2 |
 | OpenResearcher-30B-A3B | `qwen3emb06b_openresearcher` | 39.6 | 42.0 | 38.8 | 43.5 |
 | gpt-oss-120b | `qwen3emb06b_gptoss_120b` | 38.1 | 38.7 | 36.3 | 21.8 |
@@ -147,10 +148,10 @@ the agent's search tool under its own name (`browser.search`, `google_search`, `
 
 Read the rows with these points in mind:
 
-- MiroThinker-1.7-mini and QUEST-35B-RL have no row yet. The first runs of the three fine-tuned
-  agents used the limits of their own code (300, 400 and 200 turns) and were removed: a larger
-  budget is a second difference from the other rows. OpenResearcher-30B-A3B is back at 100 turns;
-  the other two are running.
+- QUEST-35B-RL has no row yet. The first runs of the three fine-tuned agents used the limits of
+  their own code (300, 400 and 200 turns) and were removed: a larger budget is a second
+  difference from the other rows. MiroThinker-1.7-mini and OpenResearcher-30B-A3B are back at
+  100 turns; QUEST-35B-RL is running.
 - A 100-turn row keeps every episode of the first run that ended by itself within 98 model calls
   and reruns the other questions with the 100-turn limit.
 - The token column of the leaderboard counts the largest prompt plus the generated tokens.

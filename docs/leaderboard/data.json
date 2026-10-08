@@ -1,5 +1,5 @@
 {
- "updated": "2026-10-08",
+ "updated": "2026-10-09",
  "backbone": "Tongyi-DeepResearch-30B-A3B",
  "judge": "Qwen3-32B",
  "pending": [],
@@ -302,6 +302,17 @@
    "tokens": 96966
   },
   {
+   "id": "qwen3emb06b_mirothinker",
+   "backbone": "MiroThinker-1.7-mini",
+   "backbone_link": "https://huggingface.co/miromind-ai/MiroThinker-1.7-mini",
+   "retriever": "Qwen3-Embedding-0.6B",
+   "retriever_link": "https://huggingface.co/Qwen/Qwen3-Embedding-0.6B",
+   "accuracy": 52.3,
+   "recall": 66.6,
+   "search_calls": 52.8,
+   "tokens": 50172
+  },
+  {
    "id": "qwen3emb06b_openresearcher",
    "backbone": "OpenResearcher-30B-A3B",
    "backbone_link": "https://huggingface.co/OpenResearcher/OpenResearcher-30B-A3B",
@@ -424,7 +435,6 @@
   }
  ],
  "backbones_pending": [
-  "MiroThinker-1.7-mini",
   "QUEST-35B-RL"
  ]
 }
