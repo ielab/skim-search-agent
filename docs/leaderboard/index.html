@@ -87,10 +87,23 @@
   table{width:100%;min-width:640px;border-collapse:collapse;font-size:14px}
   th{position:sticky;top:0;background:var(--card);text-align:left;font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-3);font-weight:700;padding:12px 12px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
   th.num,td.num{text-align:right}
-  th button{all:unset;cursor:pointer}
-  th button:hover,th button:focus-visible{color:var(--teal)}
-  th[aria-sort="descending"] button::after{content:" \2193"}
-  th[aria-sort="ascending"] button::after{content:" \2191"}
+  th button.sort{all:unset;cursor:pointer}
+  th button.sort:hover,th button.sort:focus-visible{color:var(--teal)}
+  th .pick{display:none;position:relative;margin-top:6px;text-transform:none;letter-spacing:0;font-weight:500}
+  .board[data-view="all"] th .pick{display:block}
+  .tbl:has(.pick[open]){min-height:360px}
+  th .pick summary{list-style:none;cursor:pointer;display:inline-flex;align-items:center;gap:5px;font-size:12px;color:var(--ink-2);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:3px 9px}
+  th .pick summary::-webkit-details-marker{display:none}
+  th .pick summary::after{content:"\25BE";font-size:10px;color:var(--ink-3)}
+  th .pick.on summary{border-color:var(--teal);color:var(--teal)}
+  th .pick .menu{position:absolute;z-index:5;left:0;top:calc(100% + 4px);min-width:230px;max-height:280px;overflow:auto;background:var(--card);border:1px solid var(--line);border-radius:10px;box-shadow:0 8px 24px rgba(32,36,31,.16);padding:6px}
+  th .pick label{display:flex;gap:8px;align-items:center;font-size:13px;color:var(--ink);padding:4px 6px;border-radius:6px;cursor:pointer;white-space:nowrap}
+  th .pick label:hover{background:var(--bg)}
+  th .pick .acts{display:flex;gap:6px;padding:2px 6px 6px;border-bottom:1px solid var(--line-soft);margin-bottom:4px}
+  th .pick .acts button{all:unset;cursor:pointer;font-size:12px;color:var(--teal);font-weight:650}
+  .viewnote{font-size:13px;color:var(--ink-2);padding:10px 18px;border-bottom:1px solid var(--line-soft);background:var(--bg)}
+  th[aria-sort="descending"] button.sort::after{content:" \2193"}
+  th[aria-sort="ascending"] button.sort::after{content:" \2191"}
   td{padding:12px;border-bottom:1px solid var(--line-soft);vertical-align:middle}
   tbody tr:last-child td{border-bottom:none}
   tbody tr:hover td{background:var(--bg)}
@@ -174,7 +187,7 @@
     </div>
   </header>
 
-  <div class="board" id="boardMain">
+  <div class="board" id="boardMain" data-view="all">
     <div class="controls">
       <input class="search" id="q" type="search" placeholder="Search agents, retrievers and rerankers" aria-label="Search agents, retrievers and rerankers">
       <div class="filters" role="group" aria-label="Filter rows">
@@ -185,18 +198,19 @@
       </div>
       <div class="count" id="count"></div>
     </div>
+    <div class="viewnote" id="viewNote"></div>
     <div class="tbl">
       <table>
         <thead>
           <tr>
             <th class="rank">#</th>
-            <th data-k="backbone" aria-sort="none"><button>Agent</button></th>
-            <th data-k="retriever" aria-sort="none"><button>Retriever</button></th>
-            <th data-k="reranker" aria-sort="none"><button>Reranker</button></th>
-            <th class="num" data-k="accuracy" aria-sort="descending"><button>Accuracy (%)</button></th>
-            <th class="num" data-k="recall" aria-sort="none"><button>Recall (%)</button></th>
-            <th class="num" data-k="search_calls" aria-sort="none"><button>Search calls</button></th>
-            <th class="num" data-k="tokens" aria-sort="none"><button>Tokens</button></th>
+            <th data-k="backbone" aria-sort="none"><button class="sort">Agent</button><details class="pick" data-col="backbone"><summary>All</summary><div class="menu"></div></details></th>
+            <th data-k="retriever" aria-sort="none"><button class="sort">Retriever</button><details class="pick" data-col="retriever"><summary>All</summary><div class="menu"></div></details></th>
+            <th data-k="reranker" aria-sort="none"><button class="sort">Reranker</button><details class="pick" data-col="reranker"><summary>All</summary><div class="menu"></div></details></th>
+            <th class="num" data-k="accuracy" aria-sort="descending"><button class="sort">Accuracy (%)</button></th>
+            <th class="num" data-k="recall" aria-sort="none"><button class="sort">Recall (%)</button></th>
+            <th class="num" data-k="search_calls" aria-sort="none"><button class="sort">Search calls</button></th>
+            <th class="num" data-k="tokens" aria-sort="none"><button class="sort">Tokens</button></th>
           </tr>
         </thead>
         <tbody id="rows"><tr><td colspan="8" class="empty">Loading&hellip;</td></tr></tbody>
@@ -222,8 +236,16 @@
         sum of the prompts over the turns.</p></div>
       <div class="def"><h3>Rank</h3><p>Rows rank by accuracy inside the view shown. Click a column
         header to sort by it instead.</p></div>
-      <div class="def"><h3>Views</h3><p>Retrievers and Rerankers show the default agent's rows.
-        Agent backbones shows the retrievers that ran under several agent models.</p></div>
+      <div class="def"><h3>All</h3><p>Every row. The menus under Agent, Retriever and Reranker
+        choose which agents, retrievers and rerankers the table includes.</p></div>
+      <div class="def"><h3>Retrievers</h3><p>One part varies: the retriever. The agent is
+        Tongyi-DeepResearch-30B-A3B and there is no reranker.</p></div>
+      <div class="def"><h3>Rerankers</h3><p>One part varies: the reranker. The agent is
+        Tongyi-DeepResearch-30B-A3B and the retriever is Qwen3-Embedding-0.6B. Rerankers over
+        other retrievers are in All.</p></div>
+      <div class="def"><h3>Agent backbones</h3><p>One part varies: the agent model. The
+        retriever is Qwen3-Embedding-0.6B and there is no reranker. Agents run with other
+        retrievers are in All.</p></div>
     </div>
   </section>
 
@@ -239,7 +261,9 @@
         <code>get_document</code> reads a document, cut at 12,000 tokens.</li>
       <li><b>Budget:</b> 100 turns and a 131,072-token context window.</li>
       <li><b>Encoding:</b> every learned retriever encodes a document's first 512 tokens.</li>
-      <li><b>Rerankers:</b> each reorders the top 100 of Qwen3-Embedding-0.6B. The agent sees the top 10.</li>
+      <li><b>Rerankers:</b> each reorders the retriever's top 100. The agent sees the top 10.</li>
+      <li><b>Base retriever:</b> the Rerankers and Agent backbones views fix the retriever to
+        Qwen3-Embedding-0.6B, so their rows differ in one part only.</li>
       <li><b>Lists of queries:</b> when the agent sends several queries in one call, the first one runs.</li>
     </ul>
   </section>
@@ -285,19 +309,53 @@ python scripts/leaderboard_row.py &lt;the run's results directory&gt;</pre>
   const tbody = document.getElementById('rows');
   const state = {key: 'accuracy', asc: false, filter: 'all', q: ''};
   let entries = [];
-  let swept = new Set();     // retrievers that also ran under other agent models
+  const BASE = 'Qwen3-Embedding-0.6B';   // the retriever the Rerankers and Agent backbones views fix
+  const COLS = ['backbone', 'retriever', 'reranker'];
+  const off = {backbone: new Set(), retriever: new Set(), reranker: new Set()};   // values unticked in All
+  const val = (e, k) => e[k] || 'none';
+  const NOTE = {
+    all: 'Every row. Use the menus under Agent, Retriever and Reranker to choose what the table includes.',
+    retrievers: 'Agent fixed to Tongyi-DeepResearch-30B-A3B, no reranker. Only the retriever changes.',
+    rerankers: 'Agent fixed to Tongyi-DeepResearch-30B-A3B, retriever fixed to Qwen3-Embedding-0.6B. Only the reranker changes.',
+    agents: 'Retriever fixed to Qwen3-Embedding-0.6B, no reranker. Only the agent model changes.',
+  };
 
   const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const link = (text, href, cls) => href ? `<a class="${cls}" href="${esc(href)}">${esc(text)}</a>` : `<span class="${cls}">${esc(text)}</span>`;
 
-  // Retrievers and Rerankers are the default agent's rows. Agent backbones are the rows of the
-  // retrievers that ran under several agent models, the default agent's row included.
+  // Each named view changes one part. All shows every row, narrowed by the column menus.
   const VIEW = {
-    all: () => true,
+    all: e => COLS.every(k => !off[k].has(val(e, k))),
     retrievers: e => e.default_agent && !e.reranker,
-    rerankers: e => e.default_agent && !!e.reranker,
-    agents: e => !e.reranker && swept.has(e.retriever),
+    rerankers: e => e.default_agent && !!e.reranker && e.retriever === BASE,
+    agents: e => !e.reranker && e.retriever === BASE,
   };
+
+  function buildPicks() {
+    board.querySelectorAll('.pick').forEach(d => {
+      const k = d.dataset.col;
+      const values = [...new Set(entries.map(e => val(e, k)))].sort((a, b) => a.localeCompare(b));
+      d.querySelector('.menu').innerHTML =
+        `<div class="acts"><button type="button" data-a="all">Select all</button><button type="button" data-a="none">Clear</button></div>` +
+        values.map(v => `<label><input type="checkbox" value="${esc(v)}" checked>${esc(v)}</label>`).join('');
+      const sync = () => {
+        const boxes = [...d.querySelectorAll('input')];
+        off[k] = new Set(boxes.filter(b => !b.checked).map(b => b.value));
+        const on = boxes.length - off[k].size;
+        d.querySelector('summary').textContent = off[k].size ? `${on} of ${boxes.length}` : 'All';
+        d.classList.toggle('on', off[k].size > 0);
+        render();
+      };
+      d.addEventListener('change', sync);
+      d.querySelectorAll('.acts button').forEach(b => b.addEventListener('click', () => {
+        d.querySelectorAll('input').forEach(i => { i.checked = b.dataset.a === 'all'; });
+        sync();
+      }));
+    });
+    document.addEventListener('click', ev => {
+      board.querySelectorAll('.pick[open]').forEach(d => { if (!d.contains(ev.target)) d.open = false; });
+    });
+  }
 
   function render() {
     // rank is by accuracy inside the view shown
@@ -330,12 +388,13 @@ python scripts/leaderboard_row.py &lt;the run's results directory&gt;</pre>
       </tr>`;
     }).join('') : '<tr><td colspan="8" class="empty">No row matches.</td></tr>';
     document.getElementById('count').textContent = `${rows.length} of ${total} rows`;
+    document.getElementById('viewNote').textContent = NOTE[state.filter];
     board.querySelectorAll('th[data-k]').forEach(th => {
       th.setAttribute('aria-sort', th.dataset.k === state.key ? (state.asc ? 'ascending' : 'descending') : 'none');
     });
   }
 
-  board.querySelectorAll('th[data-k] button').forEach(b => b.addEventListener('click', () => {
+  board.querySelectorAll('th[data-k] button.sort').forEach(b => b.addEventListener('click', () => {
     const k = b.parentElement.dataset.k;
     if (state.key === k) state.asc = !state.asc;
     else { state.key = k; state.asc = !(k === 'accuracy' || k === 'recall'); }
@@ -343,6 +402,7 @@ python scripts/leaderboard_row.py &lt;the run's results directory&gt;</pre>
   }));
   board.querySelectorAll('.filt').forEach(b => b.addEventListener('click', () => {
     state.filter = b.dataset.f;
+    board.dataset.view = state.filter;
     board.querySelectorAll('.filt').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
     render();
   }));
@@ -358,7 +418,7 @@ python scripts/leaderboard_row.py &lt;the run's results directory&gt;</pre>
     for (const b of d.backbones || []) {
       if (!have.has(b.id)) entries.push({...b, default_agent: false, file: `browsecomp_plus_${b.id}.yaml`});
     }
-    swept = new Set(entries.filter(e => !e.default_agent).map(e => e.retriever));
+    buildPicks();
     document.getElementById('chipDate').textContent = d.updated;
     document.getElementById('chipBackbone').textContent = agent;
     document.getElementById('chipJudge').textContent = d.judge;
