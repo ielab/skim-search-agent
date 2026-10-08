@@ -291,17 +291,6 @@
  ],
  "backbones": [
   {
-   "id": "qwen3emb06b_mirothinker",
-   "backbone": "MiroThinker-1.7-mini",
-   "backbone_link": "https://huggingface.co/miromind-ai/MiroThinker-1.7-mini",
-   "retriever": "Qwen3-Embedding-0.6B",
-   "retriever_link": "https://huggingface.co/Qwen/Qwen3-Embedding-0.6B",
-   "accuracy": 58.1,
-   "recall": 73.1,
-   "search_calls": 93.6,
-   "tokens": 70320
-  },
-  {
    "id": "qwen3emb06b",
    "backbone": "Tongyi-DeepResearch-30B-A3B",
    "backbone_link": "https://huggingface.co/Alibaba-NLP/Tongyi-DeepResearch-30B-A3B",
@@ -311,28 +300,6 @@
    "recall": 52.9,
    "search_calls": 62.2,
    "tokens": 96966
-  },
-  {
-   "id": "qwen3emb06b_quest",
-   "backbone": "QUEST-35B-RL",
-   "backbone_link": "https://huggingface.co/osunlp/QUEST-35B-RL",
-   "retriever": "Qwen3-Embedding-0.6B",
-   "retriever_link": "https://huggingface.co/Qwen/Qwen3-Embedding-0.6B",
-   "accuracy": 41.3,
-   "recall": 51.9,
-   "search_calls": 50.7,
-   "tokens": 101198
-  },
-  {
-   "id": "qwen3emb06b_openresearcher",
-   "backbone": "OpenResearcher-30B-A3B",
-   "backbone_link": "https://huggingface.co/OpenResearcher/OpenResearcher-30B-A3B",
-   "retriever": "Qwen3-Embedding-0.6B",
-   "retriever_link": "https://huggingface.co/Qwen/Qwen3-Embedding-0.6B",
-   "accuracy": 39.4,
-   "recall": 58.4,
-   "search_calls": 43.6,
-   "tokens": 93573
   },
   {
    "id": "qwen3emb06b_gptoss_120b",
@@ -445,5 +412,9 @@
    "tokens": 28374
   }
  ],
- "backbones_pending": []
+ "backbones_pending": [
+  "MiroThinker-1.7-mini",
+  "QUEST-35B-RL",
+  "OpenResearcher-30B-A3B"
+ ]
 }

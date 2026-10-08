@@ -27,7 +27,7 @@ model:
   retry_attempts: 5
   tool_call_format: mcp
 agent:
-  max_steps: 300                        # MiroFlow's turn limit
+  max_steps: 100                        # the leaderboard's budget for every agent (the agent's own code allows 300)
   forced_answer_tokens: 2000
   forced_answer_prefill: null
   forced_answer_nudge: null

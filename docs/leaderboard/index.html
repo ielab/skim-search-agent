@@ -59,7 +59,7 @@
     .nav{gap:11px;font-size:12.5px}
   }
 
-  .wrap{max-width:1040px;margin:0 auto;padding:0 28px}
+  .wrap{max-width:1120px;margin:0 auto;padding:0 28px}
   @media(max-width:600px){.wrap{padding:0 16px}}
 
   .hero{text-align:center;padding:56px 0 8px}
@@ -82,17 +82,18 @@
   .filters{display:flex;gap:6px;flex-wrap:wrap}
   .filt{font:inherit;font-size:12.5px;font-weight:650;color:var(--ink-2);background:var(--bg);border:1px solid var(--line);border-radius:999px;padding:5px 12px;cursor:pointer}
   .filt[aria-pressed="true"]{background:var(--teal);border-color:var(--teal);color:#fff}
-  .count{font-size:12.5px;color:var(--ink-3);width:100%}
+  .count{font-size:12.5px;color:var(--ink-3);width:100%;display:flex;gap:8px;flex-wrap:wrap;align-items:baseline}
+  .count b{color:var(--ink-2);font-weight:650}
   .tbl{overflow-x:auto}
   table{width:100%;min-width:640px;border-collapse:collapse;font-size:14px}
   th{position:sticky;top:0;background:var(--card);text-align:left;font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-3);font-weight:700;padding:12px 12px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
   th.num,td.num{text-align:right}
   th button.sort{all:unset;cursor:pointer}
   th button.sort:hover,th button.sort:focus-visible{color:var(--teal)}
-  th .pick{display:none;position:relative;margin-top:6px;text-transform:none;letter-spacing:0;font-weight:500}
-  .board[data-view="all"] th .pick{display:block}
+  th .pick{display:none;position:relative;margin-left:8px;text-transform:none;letter-spacing:0;font-weight:500;vertical-align:middle}
+  .board[data-view="all"] th .pick{display:inline-block}
   .tbl:has(.pick[open]){min-height:360px}
-  th .pick summary{list-style:none;cursor:pointer;display:inline-flex;align-items:center;gap:5px;font-size:12px;color:var(--ink-2);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:3px 9px}
+  th .pick summary{list-style:none;cursor:pointer;display:inline-flex;align-items:center;gap:4px;font-size:11.5px;color:var(--ink-2);background:var(--bg);border:1px solid var(--line-soft);border-radius:999px;padding:1px 9px;line-height:1.6}
   th .pick summary::-webkit-details-marker{display:none}
   th .pick summary::after{content:"\25BE";font-size:10px;color:var(--ink-3)}
   th .pick.on summary{border-color:var(--teal);color:var(--teal)}
@@ -101,16 +102,17 @@
   th .pick label:hover{background:var(--bg)}
   th .pick .acts{display:flex;gap:6px;padding:2px 6px 6px;border-bottom:1px solid var(--line-soft);margin-bottom:4px}
   th .pick .acts button{all:unset;cursor:pointer;font-size:12px;color:var(--teal);font-weight:650}
-  .viewnote{font-size:13px;color:var(--ink-2);padding:10px 18px;border-bottom:1px solid var(--line-soft);background:var(--bg)}
   th[aria-sort="descending"] button.sort::after{content:" \2193"}
   th[aria-sort="ascending"] button.sort::after{content:" \2191"}
-  td{padding:12px;border-bottom:1px solid var(--line-soft);vertical-align:middle}
+  td{padding:12px 10px;border-bottom:1px solid var(--line-soft);vertical-align:middle}
   tbody tr:last-child td{border-bottom:none}
   tbody tr:hover td{background:var(--bg)}
   .rank{width:52px;font-family:var(--mono);font-weight:700;color:var(--ink-3)}
   .medal{display:inline-grid;place-items:center;width:26px;height:26px;border-radius:50%;color:#fff;font-size:12.5px}
   .m1{background:var(--gold)}.m2{background:var(--silver)}.m3{background:var(--bronze)}
   .name{font-weight:650;color:var(--ink)}
+  td:nth-child(2) .name,td:nth-child(4) .name{white-space:nowrap}
+  td:nth-child(3){min-width:210px}
   .name:hover{color:var(--teal)}
   .meta{display:flex;align-items:center;gap:6px;margin-top:3px}
   .kind{font-family:var(--mono);font-size:10.5px;letter-spacing:.04em;border-radius:6px;padding:1px 7px;white-space:nowrap}
@@ -121,7 +123,7 @@
   .file:hover{color:var(--teal)}
   .none{color:var(--ink-3)}
   .acc{display:flex;align-items:center;justify-content:flex-end;gap:10px}
-  .bar{width:90px;height:7px;border-radius:4px;background:var(--bg-soft);overflow:hidden}
+  .bar{width:64px;height:7px;border-radius:4px;background:var(--bg-soft);overflow:hidden}
   .bar i{display:block;height:100%;background:var(--teal);border-radius:4px}
   .acc b{font-variant-numeric:tabular-nums;font-weight:750;min-width:38px;text-align:right}
   td.num{font-variant-numeric:tabular-nums;color:var(--ink-2)}
@@ -132,8 +134,20 @@
   section{padding:48px 0 0}
   .sec-k{font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--teal);font-weight:700}
   h2{font-size:clamp(21px,3vw,28px);font-weight:800;letter-spacing:-.025em;margin:6px 0 14px}
-  .defs{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
-  @media(max-width:700px){.defs{grid-template-columns:1fr}}
+  .defs{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+  @media(max-width:900px){.defs{grid-template-columns:repeat(2,1fr)}}
+  @media(max-width:560px){.defs{grid-template-columns:1fr}}
+  .def .tags{display:flex;flex-direction:column;gap:5px;margin-top:10px;padding-top:10px;border-top:1px solid var(--line-soft)}
+  .def .tag{font-size:12px;color:var(--ink-2);display:flex;gap:8px;align-items:baseline}
+  .def .tag i{font-style:normal;font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3);flex:0 0 46px}
+  .def .tag.v i{color:var(--teal)}
+  .secnote{font-size:13px;color:var(--ink-3);margin-top:12px}
+  .fixed{display:grid;grid-template-columns:150px 1fr;background:var(--card);border:1px solid var(--line-soft);border-radius:16px;overflow:hidden}
+  .fixed dt,.fixed dd{padding:12px 18px;border-top:1px solid var(--line-soft);font-size:14px}
+  .fixed dt:first-of-type,.fixed dt:first-of-type+dd{border-top:none}
+  .fixed dt{font-weight:700;color:var(--ink);background:var(--bg)}
+  .fixed dd{color:var(--ink-2)}
+  @media(max-width:560px){.fixed{grid-template-columns:1fr}.fixed dd{border-top:none;padding-top:0}.fixed dt{background:none;padding-bottom:4px}}
   .def{background:var(--card);border:1px solid var(--line-soft);border-radius:16px;padding:16px 18px}
   .def h3{font-size:15px;font-weight:750;margin-bottom:4px}
   .def p{font-size:13.5px;color:var(--ink-2)}
@@ -156,6 +170,7 @@
     SkimSearch<b>Agent</b>
   </a>
   <div class="nav">
+    <a class="opt" href="#views">Views</a>
     <a class="opt" href="#metrics">Metrics</a>
     <a class="opt" href="#setting">Setting</a>
     <a class="opt" href="#run">Run a row</a>
@@ -198,7 +213,6 @@
       </div>
       <div class="count" id="count"></div>
     </div>
-    <div class="viewnote" id="viewNote"></div>
     <div class="tbl">
       <table>
         <thead>
@@ -219,53 +233,53 @@
     <div class="note" id="pending"></div>
   </div>
 
+  <section id="views">
+    <span class="sec-k">Views</span>
+    <h2>Each view changes one part</h2>
+    <div class="defs">
+      <div class="def"><h3>All</h3><p>Every row on the board.</p>
+        <div class="tags"><span class="tag"><i>Fixed</i>nothing</span><span class="tag v"><i>Varies</i>agent, retriever, reranker</span></div></div>
+      <div class="def"><h3>Retrievers</h3><p>The retriever behind the search tool.</p>
+        <div class="tags"><span class="tag"><i>Fixed</i>Tongyi-DeepResearch-30B-A3B, no reranker</span><span class="tag v"><i>Varies</i>retriever</span></div></div>
+      <div class="def"><h3>Rerankers</h3><p>A reranker over the retriever's top 100.</p>
+        <div class="tags"><span class="tag"><i>Fixed</i>Tongyi-DeepResearch-30B-A3B, Qwen3-Embedding-0.6B</span><span class="tag v"><i>Varies</i>reranker</span></div></div>
+      <div class="def"><h3>Agent backbones</h3><p>The agent model that runs the search.</p>
+        <div class="tags"><span class="tag"><i>Fixed</i>Qwen3-Embedding-0.6B, no reranker, 100 turns</span><span class="tag v"><i>Varies</i>agent model</span></div></div>
+    </div>
+    <p class="secnote">A reranker over another retriever, or an agent with another retriever, is a row in All only. In All, the menus in the Agent, Retriever and Reranker headers choose what the table includes.</p>
+  </section>
+
   <section id="metrics">
     <span class="sec-k">Metrics</span>
     <h2>What each column means</h2>
     <div class="defs">
       <div class="def"><h3>Accuracy</h3><p>The share of all 830 questions the Qwen3-32B judge marks
-        correct, with the BrowseComp-Plus judge prompt. An answer the judge gives no verdict on
-        counts as wrong.</p></div>
+        correct, with the BrowseComp-Plus judge prompt. An answer without a verdict counts as wrong.</p></div>
       <div class="def"><h3>Recall</h3><p>For each question, the share of its evidence documents
         (gold and evidence together) that any search result showed the agent, averaged over all
         830 questions.</p></div>
       <div class="def"><h3>Search calls</h3><p>The mean number of <code>search</code> calls per
         question.</p></div>
-      <div class="def"><h3>Tokens</h3><p>The mean tokens per question, each token counted once:
-        the largest prompt the episode held plus every token the model generated. It is not the
-        sum of the prompts over the turns.</p></div>
-      <div class="def"><h3>Rank</h3><p>Rows rank by accuracy inside the view shown. Click a column
-        header to sort by it instead.</p></div>
-      <div class="def"><h3>All</h3><p>Every row. The menus under Agent, Retriever and Reranker
-        choose which agents, retrievers and rerankers the table includes.</p></div>
-      <div class="def"><h3>Retrievers</h3><p>One part varies: the retriever. The agent is
-        Tongyi-DeepResearch-30B-A3B and there is no reranker.</p></div>
-      <div class="def"><h3>Rerankers</h3><p>One part varies: the reranker. The agent is
-        Tongyi-DeepResearch-30B-A3B and the retriever is Qwen3-Embedding-0.6B. Rerankers over
-        other retrievers are in All.</p></div>
-      <div class="def"><h3>Agent backbones</h3><p>One part varies: the agent model. The
-        retriever is Qwen3-Embedding-0.6B and there is no reranker. Agents run with other
-        retrievers are in All.</p></div>
+      <div class="def"><h3>Tokens</h3><p>The mean tokens per question, each counted once:
+        the largest prompt the episode held plus every token the model generated.</p></div>
     </div>
+    <p class="secnote">Rows rank by accuracy inside the view shown. Click a column header to sort by it instead.</p>
   </section>
 
   <section id="setting">
     <span class="sec-k">Setting</span>
     <h2>What stays fixed</h2>
-    <ul class="setting">
-      <li><b>Agent:</b> Tongyi-DeepResearch-30B-A3B served with vLLM, temperature 0.6, seed 42.
-        A row with another agent model keeps everything else on this list and runs that model with
-        its own prompt family, sampling settings and tool-call format.</li>
-      <li><b>Corpus:</b> the original BrowseComp-Plus text, 100,195 documents, all 830 questions.</li>
-      <li><b>Tools:</b> <code>search</code> returns the top 10 documents with a 64-token snippet each.
-        <code>get_document</code> reads a document, cut at 12,000 tokens.</li>
-      <li><b>Budget:</b> 100 turns and a 131,072-token context window.</li>
-      <li><b>Encoding:</b> every learned retriever encodes a document's first 512 tokens.</li>
-      <li><b>Rerankers:</b> each reorders the retriever's top 100. The agent sees the top 10.</li>
-      <li><b>Base retriever:</b> the Rerankers and Agent backbones views fix the retriever to
-        Qwen3-Embedding-0.6B, so their rows differ in one part only.</li>
-      <li><b>Lists of queries:</b> when the agent sends several queries in one call, the first one runs.</li>
-    </ul>
+    <dl class="fixed">
+      <dt>Budget</dt><dd>100 turns and a 131,072-token context window, for every agent on the board.</dd>
+      <dt>Default agent</dt><dd>Tongyi-DeepResearch-30B-A3B served with vLLM, temperature 0.6, seed 42.</dd>
+      <dt>Other agents</dt><dd>Each runs with its own prompt family, sampling settings and tool-call format. An agent fine-tuned on its own tools keeps those tools and its prompt. The budget, the corpus and the retriever do not change.</dd>
+      <dt>Corpus</dt><dd>The original BrowseComp-Plus text: 100,195 documents, all 830 questions.</dd>
+      <dt>Tools</dt><dd><code>search</code> returns the top 10 documents with a 64-token snippet each. <code>get_document</code> reads a document, cut at 12,000 tokens.</dd>
+      <dt>Encoding</dt><dd>Every learned retriever encodes a document's first 512 tokens.</dd>
+      <dt>Rerankers</dt><dd>Each reorders the retriever's top 100. The agent sees the top 10.</dd>
+      <dt>Base retriever</dt><dd>Qwen3-Embedding-0.6B in the Rerankers and Agent backbones views.</dd>
+      <dt>Lists of queries</dt><dd>When the agent sends several queries in one call, the first one runs.</dd>
+    </dl>
   </section>
 
   <section id="run">
@@ -314,7 +328,7 @@ python scripts/leaderboard_row.py &lt;the run's results directory&gt;</pre>
   const off = {backbone: new Set(), retriever: new Set(), reranker: new Set()};   // values unticked in All
   const val = (e, k) => e[k] || 'none';
   const NOTE = {
-    all: 'Every row. Use the menus under Agent, Retriever and Reranker to choose what the table includes.',
+    all: 'Every row. The menus in the Agent, Retriever and Reranker headers choose what the table includes.',
     retrievers: 'Agent fixed to Tongyi-DeepResearch-30B-A3B, no reranker. Only the retriever changes.',
     rerankers: 'Agent fixed to Tongyi-DeepResearch-30B-A3B, retriever fixed to Qwen3-Embedding-0.6B. Only the reranker changes.',
     agents: 'Retriever fixed to Qwen3-Embedding-0.6B, no reranker. Only the agent model changes.',
@@ -387,8 +401,7 @@ python scripts/leaderboard_row.py &lt;the run's results directory&gt;</pre>
         <td class="num">${(e.tokens / 1000).toFixed(1)}k</td>
       </tr>`;
     }).join('') : '<tr><td colspan="8" class="empty">No row matches.</td></tr>';
-    document.getElementById('count').textContent = `${rows.length} of ${total} rows`;
-    document.getElementById('viewNote').textContent = NOTE[state.filter];
+    document.getElementById('count').innerHTML = `<b>${rows.length} of ${total} rows</b><span>${esc(NOTE[state.filter])}</span>`;
     board.querySelectorAll('th[data-k]').forEach(th => {
       th.setAttribute('aria-sort', th.dataset.k === state.key ? (state.asc ? 'ascending' : 'descending') : 'none');
     });

@@ -108,11 +108,12 @@ experiment file.
 
 General models (Tongyi-DeepResearch, gpt-oss, Qwen3.5, Qwen-AgentWorld) use the library's search
 and fetch tools and the 100-turn budget. Four agents were fine-tuned with their own tools and
-prompt, and they run in that interface: the tool names, the result layout, the system prompt, the
-history format and the turn budget are the ones in each agent's released code. The library's
-retriever answers the searches, and the corpus answers the page reads.
+prompt, and they run in that interface: the tool names, the result layout, the system prompt and
+the history format are the ones in each agent's released code. The turn budget is not: every
+agent gets 100 turns, so a row differs from another in the agent only. The library's retriever
+answers the searches, and the corpus answers the page reads.
 
-| agent | tools | turn budget | sampling |
+| agent | tools | its own code's limit (not used) | sampling |
 |---|---|---|---|
 | OpenResearcher-30B-A3B | `browser.search`, `browser.open`, `browser.find` | 200 turns | temperature 1.0 |
 | QUEST-35B-RL | `search` (several queries, five 512-token passages each) | 400 calls | temperature 1.0, presence penalty 1.1 |
@@ -123,10 +124,7 @@ With Qwen3-Embedding-0.6B behind the search tool:
 
 | backbone | file | Qwen3-32B (official) | Qwen3-30B-A3B-Thinking-2507 | gpt-4o-mini | searches |
 |---|---|---:|---:|---:|---:|
-| MiroThinker-1.7-mini | `qwen3emb06b_mirothinker` | 58.1 | 61.2 | 56.4 | 93.6 |
 | Tongyi-DeepResearch-30B-A3B | `qwen3emb06b_tongyi` | 41.7 | 43.0 | 38.8 | 62.2 |
-| QUEST-35B-RL | `qwen3emb06b_quest` | 41.3 | 40.8 | 39.5 | 50.7 |
-| OpenResearcher-30B-A3B | `qwen3emb06b_openresearcher` | 39.4 | 41.7 | 38.4 | 43.6 |
 | gpt-oss-120b | `qwen3emb06b_gptoss_120b` | 38.1 | 38.7 | 36.3 | 21.8 |
 | gpt-oss-20b | `qwen3emb06b_gptoss_20b` | 36.5 | 34.6 | 33.5 | 44.5 |
 | Qwen-AgentWorld-35B-A3B | `qwen3emb06b_agentworld` | 28.4 | 29.3 | 27.6 | 21.7 |
@@ -148,8 +146,9 @@ the agent's search tool under its own name (`browser.search`, `google_search`, `
 
 Read the rows with these points in mind:
 
-- The budgets differ. MiroThinker-1.7-mini may take 300 turns and uses 126 steps per question on
-  average. Tongyi-DeepResearch stops at 100.
+- MiroThinker-1.7-mini, QUEST-35B-RL and OpenResearcher-30B-A3B have no row yet. Their first
+  runs used the limits of their own code (300, 400 and 200 turns) and were removed: a larger
+  budget is a second difference from the other rows. They are running again at 100 turns.
 - The token column of the leaderboard counts the largest prompt plus the generated tokens.
   MiroThinker-1.7-mini keeps only its newest five tool results in the prompt, and the tokens its
   page reader spends are not in that count. Its real cost is higher than the column shows.
