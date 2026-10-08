@@ -302,6 +302,17 @@
    "tokens": 96966
   },
   {
+   "id": "qwen3emb06b_openresearcher",
+   "backbone": "OpenResearcher-30B-A3B",
+   "backbone_link": "https://huggingface.co/OpenResearcher/OpenResearcher-30B-A3B",
+   "retriever": "Qwen3-Embedding-0.6B",
+   "retriever_link": "https://huggingface.co/Qwen/Qwen3-Embedding-0.6B",
+   "accuracy": 39.6,
+   "recall": 58.4,
+   "search_calls": 43.5,
+   "tokens": 93304
+  },
+  {
    "id": "qwen3emb06b_gptoss_120b",
    "backbone": "gpt-oss-120b",
    "backbone_link": "https://huggingface.co/openai/gpt-oss-120b",
@@ -414,7 +425,6 @@
  ],
  "backbones_pending": [
   "MiroThinker-1.7-mini",
-  "QUEST-35B-RL",
-  "OpenResearcher-30B-A3B"
+  "QUEST-35B-RL"
  ]
 }
