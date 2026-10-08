@@ -281,6 +281,7 @@
       <dt>Default agent</dt><dd>Tongyi-DeepResearch-30B-A3B served with vLLM, temperature 0.6, seed 42.</dd>
       <dt>Other agents</dt><dd>Each runs with its own prompt family, sampling settings and tool-call format. An agent fine-tuned on its own tools keeps those tools and its prompt. The budget, the corpus and the retriever do not change.</dd>
       <dt>Corpus</dt><dd>The original BrowseComp-Plus text: 100,195 documents, all 830 questions.</dd>
+      <dt>Strategy</dt><dd>Search-Visit, for every row. The agent searches, reads snippets, and opens the documents it picks. No row uses Sieve or another strategy. A fine-tuned agent does the same two steps through its own tool names.</dd>
       <dt>Tools</dt><dd><code>search</code> returns the top 10 documents with a 64-token snippet each. <code>get_document</code> reads a document, cut at 12,000 tokens.</dd>
       <dt>Encoding</dt><dd>Every learned retriever encodes a document's first 512 tokens.</dd>
       <dt>Rerankers</dt><dd>Each reorders the retriever's top 100. The agent sees the top 10.</dd>
