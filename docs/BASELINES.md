@@ -81,15 +81,17 @@ The same three rerankers over the pool of 100 from the ITER checkpoints:
 
 | retriever | reranker | file | Qwen3-32B (official) | Qwen3-30B-A3B-Thinking-2507 | gpt-4o-mini | searches |
 |---|---|---|---:|---:|---:|---:|
+| ITER-Qwen3-Embedding-4B | monoT5-3B | `rerank_monot5_iter4b` | 62.0 | 63.0 | 58.6 | 47.5 |
 | ITER-Qwen3-Embedding-0.6B | monoT5-3B | `rerank_monot5_iter06b` | 61.7 | 63.4 | 59.2 | 49.6 |
 | ITER-Qwen3-Embedding-4B | bge-reranker-v2-m3 | `rerank_bge_m3_iter4b` | 61.2 | 61.9 | 59.0 | 46.1 |
 | ITER-Qwen3-Embedding-0.6B | bge-reranker-v2-m3 | `rerank_bge_m3_iter06b` | 60.1 | 60.6 | 57.5 | 49.5 |
 | ITER-Qwen3-Embedding-4B | Qwen3-Reranker-0.6B | `rerank_qwen3_06b_iter4b` | 58.7 | 58.9 | 55.4 | 49.2 |
 | ITER-Qwen3-Embedding-0.6B | Qwen3-Reranker-0.6B | `rerank_qwen3_06b_iter06b` | 57.5 | 58.1 | 55.3 | 51.0 |
 
-Without a reranker the two retrievers score 56.4 (`iter06b`) and 58.2 (`iter4b`). These five
+Without a reranker the two retrievers score 56.4 (`iter06b`) and 58.2 (`iter4b`). These six
 rows ran as 12 shard jobs each. A row needs its retriever's index (`iter06b` or `iter4b` in step
-4). monoT5-3B over the ITER-Qwen3-Embedding-4B pool is not in the table: its run is not finished.
+4). `rerank_monot5_iter4b` runs the reranker 4 pairs at a time: the 4B encoder, monoT5-3B and the
+model server share one GPU.
 
 The file column is short for `configs/baselines/browsecomp_plus_<file>_tongyi.yaml`.
 

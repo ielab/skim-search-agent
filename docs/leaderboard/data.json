@@ -1,9 +1,21 @@
 {
- "updated": "2026-10-06",
+ "updated": "2026-10-08",
  "backbone": "Tongyi-DeepResearch-30B-A3B",
  "judge": "Qwen3-32B",
  "pending": [],
  "entries": [
+  {
+   "id": "rerank_monot5_iter4b",
+   "retriever": "ITER-Qwen3-Embedding-4B",
+   "retriever_link": "https://huggingface.co/ielabgroup/ITER-Qwen3-Embedding-4B",
+   "kind": "reranked",
+   "accuracy": 62.0,
+   "recall": 77.4,
+   "search_calls": 47.5,
+   "reranker": "monoT5-3B",
+   "reranker_link": "https://huggingface.co/castorini/monot5-3b-msmarco-10k",
+   "tokens": 79503
+  },
   {
    "id": "rerank_monot5_iter06b",
    "retriever": "ITER-Qwen3-Embedding-0.6B",
