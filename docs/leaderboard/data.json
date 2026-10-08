@@ -313,6 +313,17 @@
    "tokens": 50172
   },
   {
+   "id": "qwen3emb06b_quest",
+   "backbone": "QUEST-35B-RL",
+   "backbone_link": "https://huggingface.co/osunlp/QUEST-35B-RL",
+   "retriever": "Qwen3-Embedding-0.6B",
+   "retriever_link": "https://huggingface.co/Qwen/Qwen3-Embedding-0.6B",
+   "accuracy": 42.2,
+   "recall": 52.0,
+   "search_calls": 42.3,
+   "tokens": 98970
+  },
+  {
    "id": "qwen3emb06b_openresearcher",
    "backbone": "OpenResearcher-30B-A3B",
    "backbone_link": "https://huggingface.co/OpenResearcher/OpenResearcher-30B-A3B",
@@ -434,7 +445,5 @@
    "tokens": 28374
   }
  ],
- "backbones_pending": [
-  "QUEST-35B-RL"
- ]
+ "backbones_pending": []
 }
