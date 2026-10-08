@@ -60,7 +60,7 @@
   }
 
   .wrap{max-width:1120px;margin:0 auto;padding:0 28px}
-  @media(max-width:600px){.wrap{padding:0 16px}}
+  @media(max-width:600px){.wrap{padding:0 16px} .board{width:calc(100vw - 20px)}}
 
   .hero{text-align:center;padding:56px 0 8px}
   .kicker{display:inline-block;font-family:var(--mono);font-size:11px;letter-spacing:.08em;color:var(--teal);border:1px solid var(--teal);border-radius:999px;padding:3px 12px;margin-bottom:16px}
@@ -75,7 +75,7 @@
   .btn:hover{border-color:var(--ink-3)}
   .btn.primary{background:var(--teal);border-color:var(--teal);color:#fff;box-shadow:0 4px 14px var(--teal-glow)}
 
-  .board{margin-top:36px;background:var(--card);border:1px solid var(--line);border-radius:20px;box-shadow:0 2px 18px rgba(32,36,31,.07);overflow:hidden}
+  .board{width:min(1480px,calc(100vw - 48px));position:relative;left:50%;transform:translateX(-50%);margin-top:36px;background:var(--card);border:1px solid var(--line);border-radius:20px;box-shadow:0 2px 18px rgba(32,36,31,.07);overflow:hidden}
   .controls{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;padding:16px 18px;border-bottom:1px solid var(--line-soft)}
   .search{flex:1 1 220px;max-width:340px;font:inherit;font-size:14px;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:8px 12px}
   .search:focus{outline:none;border-color:var(--teal)}
@@ -112,7 +112,10 @@
   .m1{background:var(--gold)}.m2{background:var(--silver)}.m3{background:var(--bronze)}
   .name{font-weight:650;color:var(--ink)}
   td:nth-child(3){min-width:190px}
-  @media(min-width:1180px){td:nth-child(2) .name,td:nth-child(4) .name{white-space:nowrap}}
+  td:last-child,th:last-child{padding-right:22px}
+  td:first-child,th:first-child{padding-left:18px}
+  @media(min-width:1180px){td .name{white-space:nowrap}}
+  @media(min-width:1280px){td,th{padding-left:16px;padding-right:16px} .bar{width:120px}}
   @media(max-width:880px){th.num{white-space:normal;line-height:1.3}}
   th:not(.num):not(.rank){white-space:nowrap}
   @media(max-width:1100px){.bar{display:none} td,th{padding-left:8px;padding-right:8px} td:nth-child(3){min-width:160px}}
