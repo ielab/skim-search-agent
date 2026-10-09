@@ -26,6 +26,9 @@
     --gold:#c99a06; --silver:#8c9196; --bronze:#b26b3a;
     --sans:system-ui,-apple-system,"Segoe UI",sans-serif;
     --mono:ui-monospace,'SF Mono',Menlo,Consolas,monospace;
+    --band:#efeee6; --code-bg:#1f231e; --code-bar:#2a2f29; --code-ink:#e8eae5; --code-dim:#8b9187;
+    --shadow:0 1px 2px rgba(32,36,31,.05),0 10px 30px rgba(32,36,31,.07);
+    --r-lg:20px; --r-md:14px; --r-sm:8px;
   }
   :root[data-theme="dark"]{
     color-scheme:dark;
@@ -36,77 +39,168 @@
     --violet:#8d6ee8; --violet-soft:#2b2440;
     --amber:#e79b2e; --amber-soft:#3d321f;
     --gold:#e3b52a; --silver:#a9aeb3; --bronze:#d08a57;
+    --band:#1b1c19; --code-bg:#0f100e; --code-bar:#1a1b18; --code-ink:#e8eae5; --code-dim:#7d8279;
+    --shadow:0 0 0 1px rgba(255,255,255,.03),0 12px 32px rgba(0,0,0,.4);
   }
   *{box-sizing:border-box;margin:0;padding:0}
-  body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:15.5px;line-height:1.65;-webkit-font-smoothing:antialiased}
+  html{scroll-behavior:smooth;scroll-padding-top:72px}
+  body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:16px;line-height:1.6;-webkit-font-smoothing:antialiased}
+  ::selection{background:rgba(14,147,132,.22)}
   a{color:var(--teal);text-decoration:none}
-  code{font-family:var(--mono);font-size:.9em;background:var(--bg-soft);border-radius:5px;padding:1px 6px}
+  a:focus-visible,button:focus-visible,summary:focus-visible,input:focus-visible{outline:2px solid var(--teal);outline-offset:2px}
+  code{font-family:var(--mono);font-size:.88em;background:var(--bg-soft);border-radius:5px;padding:1px 5px}
+  [hidden]{display:none!important}
 
-  .topbar{position:sticky;top:0;z-index:20;display:flex;justify-content:space-between;align-items:center;padding:12px 24px;background:rgba(246,245,240,.85);backdrop-filter:blur(12px);border-bottom:1px solid var(--line-soft)}
+  .topbar{position:sticky;top:0;z-index:20;display:flex;justify-content:space-between;align-items:center;padding:12px 24px;background:rgba(246,245,240,.85);backdrop-filter:blur(12px);border-bottom:1px solid var(--line-soft);flex-wrap:nowrap;padding-left:max(24px,env(safe-area-inset-left));padding-right:max(24px,env(safe-area-inset-right))}
   :root[data-theme="dark"] .topbar{background:rgba(22,23,21,.85)}
-  .logo{display:flex;align-items:center;gap:7px;font-size:16px;font-weight:500;letter-spacing:-.02em;color:var(--ink);white-space:nowrap}
+  .logo{display:flex;align-items:center;gap:7px;font-size:16px;font-weight:500;letter-spacing:-.02em;color:var(--ink);white-space:nowrap;min-width:0}
   .logo b{font-weight:800}
   .logo svg{transform:rotate(-6deg)}
-  .nav{display:flex;gap:18px;font-size:13.5px;font-weight:550;white-space:nowrap;align-items:center}
+  .nav{display:flex;gap:18px;font-size:13.5px;font-weight:600;flex-wrap:nowrap;white-space:nowrap;align-items:center}
   .nav a{color:var(--ink-2)}
   .nav a:hover,.nav a.here{color:var(--teal)}
-  .theme-btn{border:1px solid var(--line);background:var(--card);color:var(--ink-2);width:30px;height:30px;border-radius:9px;cursor:pointer;font-size:14px;line-height:1}
+  .theme-btn{border:1px solid var(--line);background:var(--card);color:var(--ink-2);width:30px;height:30px;border-radius:9px;cursor:pointer;font-size:14px;line-height:1;transition:.15s}
   .theme-btn:hover{border-color:var(--teal);color:var(--teal)}
   @media(max-width:760px){
     .nav .opt{display:none}
-    .topbar{padding:10px 16px}
-    .logo{font-size:14.5px}
+    .topbar{padding-top:10px;padding-bottom:10px;padding-left:max(14px,env(safe-area-inset-left));padding-right:max(14px,env(safe-area-inset-right))}
+    .logo{font-size:14.5px;gap:5px}
+    .logo svg{width:19px;height:19px}
     .nav{gap:11px;font-size:12.5px}
+    .theme-btn{width:27px;height:27px;font-size:12.5px}
   }
 
-  .wrap{max-width:1120px;margin:0 auto;padding:0 28px}
-  @media(max-width:600px){.wrap{padding:0 16px} .board{width:calc(100vw - 20px)}}
+  .wrap{max-width:1096px;margin:0 auto;padding:0 28px}
+  @media(max-width:600px){.wrap{padding:0 18px}}
 
-  .hero{text-align:center;padding:56px 0 8px}
-  .kicker{display:inline-block;font-family:var(--mono);font-size:11px;letter-spacing:.08em;color:var(--teal);border:1px solid var(--teal);border-radius:999px;padding:3px 12px;margin-bottom:16px}
-  h1{font-size:clamp(32px,5.5vw,50px);font-weight:800;letter-spacing:-.035em;line-height:1.08}
+  /* hero */
+  .hero{text-align:center;padding:60px 0 0}
+  .kicker{display:inline-block;font-family:var(--mono);font-size:11px;letter-spacing:.08em;color:var(--teal);border:1px solid var(--teal);border-radius:999px;padding:3px 12px;margin-bottom:18px}
+  h1{font-size:clamp(36px,6vw,58px);font-weight:800;letter-spacing:-.04em;line-height:1.04}
   h1 span{color:var(--teal)}
-  .sub{margin:14px auto 0;max-width:640px;font-size:16.5px;color:var(--ink-2)}
-  .chips{display:flex;flex-wrap:wrap;justify-content:center;gap:8px;margin-top:22px}
-  .chip{font-size:12.5px;color:var(--ink-2);background:var(--card);border:1px solid var(--line-soft);border-radius:999px;padding:4px 12px}
-  .chip b{color:var(--ink);font-weight:650}
-  .cta{display:flex;gap:10px;justify-content:center;margin-top:22px;flex-wrap:wrap}
-  .btn{display:inline-flex;align-items:center;gap:7px;font-size:13.5px;font-weight:650;border-radius:12px;padding:9px 18px;border:1.5px solid var(--line);color:var(--ink);background:var(--card)}
+  .sub{margin:18px auto 0;max-width:640px;font-size:18px;line-height:1.55;color:var(--ink-2)}
+  .facts{display:flex;flex-wrap:wrap;justify-content:center;gap:8px;margin-top:24px}
+  .fact{font-size:13.5px;line-height:1.35;color:var(--ink-2);background:var(--card);border:1px solid var(--line-soft);border-radius:var(--r-sm);padding:5px 11px}
+  .fact b{color:var(--ink);font-weight:650;font-variant-numeric:tabular-nums}
+  .cta{display:flex;gap:10px;justify-content:center;margin-top:24px;flex-wrap:wrap}
+  .btn{display:inline-flex;align-items:center;gap:7px;font-size:14.5px;font-weight:650;border-radius:12px;padding:11px 22px;border:1.5px solid var(--line);color:var(--ink);background:var(--card);transition:.15s}
   .btn:hover{border-color:var(--ink-3)}
   .btn.primary{background:var(--teal);border-color:var(--teal);color:#fff;box-shadow:0 4px 14px var(--teal-glow)}
+  .btn.primary:hover{border-color:var(--teal)}
+  @media(max-width:600px){.hero{padding-top:40px}.sub{font-size:16.5px}.btn{padding:10px 16px;font-size:14px}}
 
-  .board{width:min(1480px,calc(100vw - 48px));position:relative;left:50%;transform:translateX(-50%);margin-top:36px;background:var(--card);border:1px solid var(--line);border-radius:20px;box-shadow:0 2px 18px rgba(32,36,31,.07);overflow:hidden}
-  .controls{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;padding:16px 18px;border-bottom:1px solid var(--line-soft)}
-  .search{flex:1 1 220px;max-width:340px;font:inherit;font-size:14px;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:8px 12px}
-  .search:focus{outline:none;border-color:var(--teal)}
-  .filters{display:flex;gap:6px;flex-wrap:wrap}
-  .filt{font:inherit;font-size:12.5px;font-weight:650;color:var(--ink-2);background:var(--bg);border:1px solid var(--line);border-radius:999px;padding:5px 12px;cursor:pointer}
+  /* the board: controls, chart, table */
+  .board{width:min(1480px,calc(100vw - 48px));position:relative;left:50%;transform:translateX(-50%);margin-top:44px;background:var(--card);border:1px solid var(--line);border-radius:var(--r-lg);box-shadow:var(--shadow);overflow:hidden}
+  @media(max-width:600px){.board{width:calc(100vw - 20px);margin-top:32px;border-radius:var(--r-md)}}
+  .controls{display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:16px 18px;border-bottom:1px solid var(--line-soft)}
+  .search{flex:1 1 220px;max-width:340px;font:inherit;font-size:14.5px;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:8px 12px}
+  .search:focus{border-color:var(--teal)}
+  .filters{display:flex;gap:6px;flex-wrap:wrap;margin-left:auto}
+  .filt{font:inherit;font-size:13px;font-weight:650;color:var(--ink-2);background:var(--bg);border:1px solid var(--line);border-radius:999px;padding:5px 13px;cursor:pointer;transition:border-color .15s,color .15s}
+  .filt:hover{border-color:var(--ink-3)}
   .filt[aria-pressed="true"]{background:var(--teal);border-color:var(--teal);color:#fff}
-  .count{font-size:12.5px;color:var(--ink-3);width:100%;display:flex;gap:8px;flex-wrap:wrap;align-items:baseline}
+  .chart-btn{font:inherit;font-size:13px;font-weight:650;color:var(--ink-2);background:none;border:none;border-bottom:1px solid var(--line);padding:2px 0;cursor:pointer}
+  .chart-btn:hover{color:var(--teal);border-bottom-color:var(--teal)}
+  .count{font-size:13px;color:var(--ink-3);width:100%;display:flex;gap:8px;flex-wrap:wrap;align-items:baseline}
   .count b{color:var(--ink-2);font-weight:650}
-  .tbl{overflow-x:auto}
-  table{width:100%;min-width:600px;border-collapse:collapse;font-size:14px}
-  th{position:sticky;top:0;background:var(--card);text-align:left;font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-3);font-weight:700;padding:12px 12px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
+  @media(max-width:760px){.filters{margin-left:0}}
+
+  /* Pareto chart */
+  .chart{display:grid;grid-template-columns:minmax(0,1fr) 336px;border-bottom:1px solid var(--line-soft)}
+  .chart-main{min-width:0;padding:14px 10px 10px 14px;display:flex;flex-direction:column}
+  .plot{position:relative;flex:1 1 384px;min-height:384px;max-height:430px}
+  .plot svg{display:block;width:100%;height:100%;overflow:visible;touch-action:manipulation}
+  .legend{list-style:none;display:flex;flex-wrap:wrap;gap:4px 18px;padding:8px 8px 4px 36px;font-size:13px;color:var(--ink-2)}
+  .legend li{display:inline-flex;align-items:center;gap:6px}
+  .legend svg{width:18px;height:14px;flex:none;overflow:visible}
+  .chart-side{background:var(--bg);border-left:1px solid var(--line-soft);padding:20px 22px 18px;min-width:0}
+  .chart-h{font-size:17px;font-weight:750;letter-spacing:-.015em;line-height:1.25;margin:0 0 6px}
+  .chart-side p{font-size:13.5px;line-height:1.55;color:var(--ink-2)}
+  .front-h{font-size:13.5px;font-weight:700;color:var(--ink);margin:16px 0 4px}
+  .front{list-style:none;border-top:1px solid var(--line-soft)}
+  .front li{border-bottom:1px solid var(--line-soft)}
+  .front button{all:unset;box-sizing:border-box;cursor:pointer;display:grid;grid-template-columns:14px minmax(0,1fr) auto;column-gap:8px;align-items:center;width:100%;padding:7px 4px;font-size:13.5px;line-height:1.35;color:var(--ink)}
+  .front button:hover,.front button.hl{background:var(--card)}
+  .front button:focus-visible{outline:2px solid var(--teal);outline-offset:-2px}
+  .front svg{width:14px;height:14px;overflow:visible}
+  .front .nm{font-weight:650;overflow-wrap:anywhere}
+  .front .nu{font-variant-numeric:tabular-nums;color:var(--ink-2);white-space:nowrap}
+  .front .nu b{color:var(--ink);font-weight:750}
+  .front .empty-f{padding:8px 4px;font-size:13.5px;color:var(--ink-3)}
+  .chart-note{margin-top:12px;font-size:13px!important;color:var(--ink-3)!important}
+  @media(max-width:1040px){
+    .chart{grid-template-columns:1fr}
+    .chart-side{border-left:none;border-top:1px solid var(--line-soft)}
+    .plot{flex:none;min-height:0;height:360px}
+  }
+  @media(max-width:560px){
+    .chart-main{padding:10px 4px 8px 6px}
+    .plot{height:320px}
+    .legend{padding-left:12px;font-size:12.5px;gap:4px 14px}
+    .chart-side{padding:16px 16px 14px}
+  }
+
+  /* chart marks; colour and shape both carry the row kind */
+  .plot .grid{stroke:var(--line-soft);stroke-width:1;shape-rendering:crispEdges}
+  .plot .axis{stroke:var(--line);stroke-width:1;shape-rendering:crispEdges}
+  .plot .tick{font-size:11.5px;fill:var(--ink-2);font-variant-numeric:tabular-nums}
+  .plot .ttl{font-size:12px;font-weight:650;fill:var(--ink-2)}
+  .plot .under{fill:var(--bg);opacity:.75}
+  .plot .step,.legend .step{fill:none;stroke:var(--ink);stroke-width:1.75;stroke-linejoin:round;opacity:.8}
+  .plot .lbl{font-size:12px;font-weight:650;fill:var(--ink);paint-order:stroke;stroke:var(--card);stroke-width:3.5px;stroke-linejoin:round;pointer-events:none}
+  .plot .lead{stroke:var(--ink-3);stroke-width:1;pointer-events:none}
+  .plot .msg{font-size:14px;fill:var(--ink-3)}
+  .pt{cursor:pointer;outline:none}
+  .pt .hit{fill:transparent;stroke:none}
+  .pt .ring{fill:none;stroke-width:2;opacity:0;transition:opacity .12s}
+  .pt.hl .ring,.pt:focus-visible .ring{opacity:1}
+  .mk{stroke-width:1.5}
+  .k-retriever .mk{fill:var(--teal-soft);stroke:var(--teal)}
+  .k-reranked .mk{fill:var(--violet-soft);stroke:var(--violet)}
+  .k-agent .mk{fill:var(--amber-soft);stroke:var(--amber)}
+  .k-retriever .ring{stroke:var(--teal)}.k-reranked .ring{stroke:var(--violet)}.k-agent .ring{stroke:var(--amber)}
+  .on.k-retriever .mk{fill:var(--teal);stroke:var(--card)}
+  .on.k-reranked .mk{fill:var(--violet);stroke:var(--card)}
+  .on.k-agent .mk{fill:var(--amber);stroke:var(--card)}
+
+  .tip{position:absolute;z-index:6;left:0;top:0;width:max-content;max-width:min(300px,calc(100% - 12px));pointer-events:none;background:var(--card);border:1px solid var(--line);border-radius:var(--r-sm);box-shadow:var(--shadow);padding:10px 12px;font-size:13px;line-height:1.4}
+  .tip .tag{display:inline-block;font-size:11.5px;font-weight:700;color:var(--teal);background:var(--teal-soft);border-radius:5px;padding:1px 7px;margin-bottom:6px}
+  .tip dl{display:grid;grid-template-columns:auto minmax(0,1fr);gap:2px 12px}
+  .tip dt{color:var(--ink-3)}
+  .tip dd{color:var(--ink);font-weight:650;overflow-wrap:anywhere}
+  .tip dl.nums{margin-top:7px;padding-top:7px;border-top:1px solid var(--line-soft)}
+  .tip dl.nums dd{font-variant-numeric:tabular-nums}
+
+  /* table */
+  .tbl{overflow-x:auto;scrollbar-width:thin;scrollbar-color:var(--line) transparent}
+  table{width:100%;min-width:600px;border-collapse:collapse;font-size:14.5px}
+  th{position:sticky;top:0;background:var(--card);text-align:left;font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-3);font-weight:700;padding:13px 12px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
   th.num,td.num{text-align:right}
   th button.sort{all:unset;cursor:pointer}
   th button.sort:hover,th button.sort:focus-visible{color:var(--teal)}
+  th button.sort:focus-visible{outline:2px solid var(--teal);outline-offset:3px;border-radius:3px}
   th .pick{display:none;position:relative;margin-left:8px;text-transform:none;letter-spacing:0;font-weight:500;vertical-align:middle}
   .board[data-view="all"] th .pick{display:inline-block}
   .tbl:has(.pick[open]){min-height:360px}
-  th .pick summary{list-style:none;cursor:pointer;display:inline-flex;align-items:center;gap:4px;font-size:11.5px;color:var(--ink-2);background:var(--bg);border:1px solid var(--line-soft);border-radius:999px;padding:1px 9px;line-height:1.6}
+  th .pick summary{list-style:none;cursor:pointer;display:inline-flex;align-items:center;gap:4px;font-size:12px;color:var(--ink-2);background:var(--bg);border:1px solid var(--line-soft);border-radius:999px;padding:1px 9px;line-height:1.6}
   th .pick summary::-webkit-details-marker{display:none}
   th .pick summary::after{content:"\25BE";font-size:10px;color:var(--ink-3)}
   th .pick.on summary{border-color:var(--teal);color:var(--teal)}
-  th .pick .menu{position:absolute;z-index:5;left:0;top:calc(100% + 4px);min-width:230px;max-height:280px;overflow:auto;background:var(--card);border:1px solid var(--line);border-radius:10px;box-shadow:0 8px 24px rgba(32,36,31,.16);padding:6px}
-  th .pick label{display:flex;gap:8px;align-items:center;font-size:13px;color:var(--ink);padding:4px 6px;border-radius:6px;cursor:pointer;white-space:nowrap}
+  th .pick .menu{position:absolute;z-index:5;left:0;top:calc(100% + 4px);min-width:230px;max-height:280px;overflow:auto;background:var(--card);border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow);padding:6px}
+  th .pick label{display:flex;gap:8px;align-items:center;font-size:13.5px;color:var(--ink);padding:4px 6px;border-radius:6px;cursor:pointer;white-space:nowrap}
   th .pick label:hover{background:var(--bg)}
-  th .pick .acts{display:flex;gap:6px;padding:2px 6px 6px;border-bottom:1px solid var(--line-soft);margin-bottom:4px}
-  th .pick .acts button{all:unset;cursor:pointer;font-size:12px;color:var(--teal);font-weight:650}
+  th .pick input{accent-color:var(--teal)}
+  th .pick .acts{display:flex;gap:10px;padding:2px 6px 6px;border-bottom:1px solid var(--line-soft);margin-bottom:4px}
+  th .pick .acts button{all:unset;cursor:pointer;font-size:12.5px;color:var(--teal);font-weight:650}
+  th .pick .acts button:focus-visible{outline:2px solid var(--teal);outline-offset:2px;border-radius:3px}
   th[aria-sort="descending"] button.sort::after{content:" \2193"}
   th[aria-sort="ascending"] button.sort::after{content:" \2191"}
-  td{padding:12px 10px;border-bottom:1px solid var(--line-soft);vertical-align:middle}
+  td{padding:12px 10px;border-bottom:1px solid var(--line-soft);vertical-align:middle;transition:background-color .12s}
   tbody tr:last-child td{border-bottom:none}
   tbody tr:hover td{background:var(--bg)}
+  tbody tr.hl td{background:var(--teal-soft)}
+  tbody tr.flash td{animation:rowflash 1.8s ease-out}
+  @keyframes rowflash{0%,55%{background:var(--teal-soft)}100%{background:transparent}}
   .rank{width:52px;font-family:var(--mono);font-weight:700;color:var(--ink-3)}
   .medal{display:inline-grid;place-items:center;width:26px;height:26px;border-radius:50%;color:#fff;font-size:12.5px}
   .m1{background:var(--gold)}.m2{background:var(--silver)}.m3{background:var(--bronze)}
@@ -119,54 +213,83 @@
   @media(max-width:880px){th.num{white-space:normal;line-height:1.3}}
   th:not(.num):not(.rank){white-space:nowrap}
   @media(max-width:1100px){.bar{display:none} td,th{padding-left:8px;padding-right:8px} td:nth-child(3){min-width:160px}}
-  @media(max-width:980px){table{font-size:13px} th{letter-spacing:.03em} td:nth-child(3){min-width:140px} td,th{padding-left:6px;padding-right:6px} .rank{width:34px} th .pick{margin-left:4px}}
-  .name:hover{color:var(--teal)}
+  @media(max-width:980px){table{font-size:13.5px} th{letter-spacing:.03em} td:nth-child(3){min-width:140px} td,th{padding-left:6px;padding-right:6px} .rank{width:34px} th .pick{margin-left:4px}}
+  a.name:hover{color:var(--teal)}
   .meta{display:flex;align-items:center;gap:6px;margin-top:3px}
   .kind{font-family:var(--mono);font-size:10.5px;letter-spacing:.04em;border-radius:6px;padding:1px 7px;white-space:nowrap}
   .k-sparse{background:var(--amber-soft);color:var(--amber)}
   .k-dense{background:var(--teal-soft);color:var(--teal)}
   .k-multi-vector{background:var(--violet-soft);color:var(--violet)}
-  .file{font-family:var(--mono);font-size:11px;color:var(--ink-3)}
+  .file{font-family:var(--mono);font-size:11.5px;color:var(--ink-3)}
   .file:hover{color:var(--teal)}
   .none{color:var(--ink-3)}
   .acc{display:flex;align-items:center;justify-content:flex-end;gap:10px}
-  .bar{width:64px;height:7px;border-radius:4px;background:var(--bg-soft);overflow:hidden}
-  .bar i{display:block;height:100%;background:var(--teal);border-radius:4px}
+  .bar{width:64px;height:6px;border-radius:3px;background:var(--bg-soft);overflow:hidden}
+  .bar i{display:block;height:100%;background:var(--teal);border-radius:3px}
   .acc b{font-variant-numeric:tabular-nums;font-weight:750;min-width:38px;text-align:right}
   td.num{font-variant-numeric:tabular-nums;color:var(--ink-2)}
   @media(max-width:600px){.bar{display:none}}
   .empty{padding:28px;text-align:center;color:var(--ink-3)}
-  .note{padding:12px 18px;font-size:12.5px;color:var(--ink-3);border-top:1px solid var(--line-soft)}
+  .note{padding:12px 18px;font-size:13px;color:var(--ink-3);border-top:1px solid var(--line-soft)}
 
-  section{padding:48px 0 0}
+  /* sections and bands */
+  section{padding:88px 0 0}
+  @media(max-width:700px){section{padding:60px 0 0}}
   .sec-k{font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--teal);font-weight:700}
-  h2{font-size:clamp(21px,3vw,28px);font-weight:800;letter-spacing:-.025em;margin:6px 0 14px}
-  .defs{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
-  @media(max-width:900px){.defs{grid-template-columns:repeat(2,1fr)}}
-  @media(max-width:560px){.defs{grid-template-columns:1fr}}
-  .def .tags{display:flex;flex-direction:column;gap:5px;margin-top:10px;padding-top:10px;border-top:1px solid var(--line-soft)}
-  .def .tag{font-size:12px;color:var(--ink-2);display:flex;gap:8px;align-items:baseline}
-  .def .tag i{font-style:normal;font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3);flex:0 0 46px}
-  .def .tag.v i{color:var(--teal)}
-  .secnote{font-size:13px;color:var(--ink-3);margin-top:12px}
-  .fixed{display:grid;grid-template-columns:150px 1fr;background:var(--card);border:1px solid var(--line-soft);border-radius:16px;overflow:hidden}
-  .fixed dt,.fixed dd{padding:12px 18px;border-top:1px solid var(--line-soft);font-size:14px}
-  .fixed dt:first-of-type,.fixed dt:first-of-type+dd{border-top:none}
-  .fixed dt{font-weight:700;color:var(--ink);background:var(--bg)}
-  .fixed dd{color:var(--ink-2)}
-  @media(max-width:560px){.fixed{grid-template-columns:1fr}.fixed dd{border-top:none;padding-top:0}.fixed dt{background:none;padding-bottom:4px}}
-  .def{background:var(--card);border:1px solid var(--line-soft);border-radius:16px;padding:16px 18px}
-  .def h3{font-size:15px;font-weight:750;margin-bottom:4px}
-  .def p{font-size:13.5px;color:var(--ink-2)}
-  ul.setting{list-style:none;display:grid;gap:8px;max-width:760px}
-  ul.setting li{font-size:14px;color:var(--ink-2);padding-left:16px;position:relative}
-  ul.setting li::before{content:"";position:absolute;left:0;top:.7em;width:6px;height:6px;border-radius:50%;background:var(--teal)}
-  ul.setting b{color:var(--ink)}
-  pre{background:#222621;color:#e8eae5;border-radius:14px;padding:16px 20px;font-family:var(--mono);font-size:12.5px;line-height:1.7;overflow-x:auto;margin-top:14px}
-  p.lead{color:var(--ink-2);max-width:700px}
+  h2{font-size:clamp(24px,3.2vw,32px);font-weight:800;letter-spacing:-.028em;line-height:1.15;margin:8px 0 12px;text-wrap:balance}
+  .lead{color:var(--ink-2);font-size:17px;max-width:68ch}
+  .secnote{font-size:14.5px;color:var(--ink-2);margin-top:18px;max-width:76ch}
+  .band{background:var(--band);box-shadow:0 0 0 100vmax var(--band);clip-path:inset(0 -100vmax);padding-bottom:72px;margin-top:88px;padding-top:72px}
+  .band+section:not(.band){padding-top:72px}
+  @media(max-width:700px){.band{margin-top:60px;padding-top:52px;padding-bottom:52px}}
 
-  footer{margin-top:64px;border-top:1px solid var(--line-soft);padding:28px 24px 40px;text-align:center;font-size:12.5px;color:var(--ink-3)}
+  /* views: one joined panel */
+  .views{margin-top:24px;display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--line-soft);border:1px solid var(--line-soft);border-radius:var(--r-lg);overflow:hidden}
+  .views>div{background:var(--card);padding:20px 22px 22px;display:flex;flex-direction:column}
+  .views h3{font-size:17px;font-weight:750;letter-spacing:-.015em;margin-bottom:4px}
+  .views p{font-size:14px;line-height:1.55;color:var(--ink-2)}
+  .views dl{margin-top:auto;padding-top:14px;display:grid;grid-template-columns:auto minmax(0,1fr);gap:5px 12px;font-size:13.5px;line-height:1.45}
+  .views dt{color:var(--ink-3)}
+  .views dd{color:var(--ink-2)}
+  .views dt.v,.views dt.v+dd{color:var(--teal);font-weight:650}
+  @media(max-width:920px){.views{grid-template-columns:1fr 1fr}}
+  @media(max-width:560px){.views{grid-template-columns:1fr}.views>div{padding:18px}}
+
+  /* metrics: unboxed columns */
+  .cols{margin-top:28px;display:grid;grid-template-columns:repeat(4,1fr);gap:28px}
+  .cols>div{border-top:2px solid var(--teal);padding-top:14px}
+  .cols h3{font-size:17px;font-weight:750;letter-spacing:-.015em;margin-bottom:6px}
+  .cols p{font-size:14px;line-height:1.55;color:var(--ink-2)}
+  @media(max-width:900px){.cols{grid-template-columns:1fr 1fr}}
+  @media(max-width:520px){.cols{grid-template-columns:1fr;gap:20px}}
+
+  /* fixed settings: definition rows */
+  .spec{margin-top:26px;background:var(--card);border:1px solid var(--line-soft);border-radius:var(--r-lg);overflow:hidden}
+  .spec>div{display:grid;grid-template-columns:190px 1fr;border-top:1px solid var(--line-soft)}
+  .spec>div:first-child{border-top:none}
+  .spec dt{padding:14px 20px;font-size:14.5px;font-weight:700;color:var(--ink);background:var(--bg)}
+  .spec dd{padding:14px 20px;min-width:0;font-size:14.5px;color:var(--ink-2)}
+  @media(max-width:640px){.spec>div{grid-template-columns:1fr}.spec dt{padding:12px 16px 2px;background:none}.spec dd{padding:2px 16px 14px}}
+
+  /* code block */
+  .code{margin-top:22px;background:var(--code-bg);border-radius:var(--r-md);overflow:hidden;box-shadow:var(--shadow)}
+  :root[data-theme="dark"] .code{border:1px solid var(--line)}
+  .code-bar{display:flex;justify-content:space-between;align-items:center;padding:8px 10px 8px 18px;background:var(--code-bar);font-family:var(--mono);font-size:12px;color:var(--code-dim)}
+  .copy{font:inherit;font-size:12px;color:var(--code-ink);background:transparent;border:1px solid rgba(255,255,255,.16);border-radius:7px;padding:3px 11px;cursor:pointer}
+  .copy:hover{border-color:var(--teal);color:#fff}
+  pre{background:none;color:var(--code-ink);border-radius:0;margin:0;padding:16px 18px 18px;font-family:var(--mono);font-size:13px;line-height:1.7;overflow-x:auto;tab-size:4;scrollbar-width:thin;scrollbar-color:var(--code-dim) transparent}
+  pre .c{color:var(--code-dim)}
+  @media(max-width:600px){pre{font-size:12px;padding:14px}}
+
+  footer{margin-top:96px;border-top:1px solid var(--line-soft);padding:32px 24px 44px;text-align:center;font-size:13.5px;color:var(--ink-3)}
   footer a{color:var(--ink-2)}
+  .foot-links{margin-top:6px}
+
+  @media (prefers-reduced-motion: reduce){
+    *{animation:none!important;transition:none!important}
+    html{scroll-behavior:auto}
+    tbody tr.flash td{background:var(--teal-soft)}
+  }
 </style>
 </head>
 <body>
@@ -195,12 +318,12 @@
     <p class="sub">One fixed setting, with one part swapped at a time: the retriever behind the
     search tool, a reranker over it, or the agent model. Every row is one experiment file you can
     run with SkimSearchAgent.</p>
-    <div class="chips">
-      <span class="chip">Default agent <b id="chipBackbone">Tongyi-DeepResearch-30B-A3B</b></span>
-      <span class="chip">Questions <b>830</b></span>
-      <span class="chip">Corpus <b>100,195 docs</b></span>
-      <span class="chip">Judge <b id="chipJudge">Qwen3-32B</b></span>
-      <span class="chip">Updated <b id="chipDate">&ndash;</b></span>
+    <div class="facts">
+      <span class="fact">Default agent <b id="chipBackbone">Tongyi-DeepResearch-30B-A3B</b></span>
+      <span class="fact">Questions <b>830</b></span>
+      <span class="fact">Corpus <b>100,195 docs</b></span>
+      <span class="fact">Judge <b id="chipJudge">Qwen3-32B</b></span>
+      <span class="fact">Updated <b id="chipDate">&ndash;</b></span>
     </div>
     <div class="cta">
       <a class="btn primary" href="https://github.com/ielab/skim-search-agent/blob/main/docs/BASELINES.md">How to run a row</a>
@@ -218,8 +341,34 @@
         <button class="filt" data-f="rerankers" aria-pressed="false">Rerankers</button>
         <button class="filt" data-f="agents" aria-pressed="false">Agent backbones</button>
       </div>
+      <button class="chart-btn" id="chartBtn" type="button" aria-expanded="true" aria-controls="chart">Hide chart</button>
       <div class="count" id="count"></div>
     </div>
+
+    <div class="chart" id="chart">
+      <div class="chart-main">
+        <div class="plot" id="plot">
+          <svg id="pareto" role="group" aria-label="Scatter plot of accuracy against tokens per question for the rows in the table. Arrow keys move between points. Enter jumps to the row."></svg>
+          <div class="tip" id="tip" aria-hidden="true" hidden></div>
+        </div>
+        <ul class="legend" aria-label="Legend">
+          <li><svg viewBox="0 0 18 14" class="k-retriever on" aria-hidden="true"><circle class="mk" cx="9" cy="7" r="5.5"/></svg>Default agent, no reranker</li>
+          <li><svg viewBox="0 0 18 14" class="k-reranked on" aria-hidden="true"><path class="mk" d="M9 0.5L15.5 7L9 13.5L2.5 7Z"/></svg>Default agent with a reranker</li>
+          <li><svg viewBox="0 0 18 14" class="k-agent on" aria-hidden="true"><rect class="mk" x="4" y="2" width="10" height="10" rx="1.5"/></svg>Another agent model</li>
+          <li><svg viewBox="0 0 18 14" aria-hidden="true"><path class="step" d="M1 12V8H9V3H17"/></svg>Pareto frontier</li>
+        </ul>
+      </div>
+      <aside class="chart-side" aria-label="About the chart">
+        <h2 class="chart-h">Accuracy against tokens</h2>
+        <p>A row is on the Pareto frontier when no other row shown reaches the same or higher
+        accuracy with the same or fewer tokens. The line joins those rows. Every row under it
+        spends more tokens for the same accuracy or less.</p>
+        <h3 class="front-h" id="frontH">On the frontier</h3>
+        <ol class="front" id="frontList" aria-labelledby="frontH"></ol>
+        <p class="chart-note" id="plotNote"></p>
+      </aside>
+    </div>
+
     <div class="tbl">
       <table>
         <thead>
@@ -243,15 +392,15 @@
   <section id="views">
     <span class="sec-k">Views</span>
     <h2>Each view changes one part</h2>
-    <div class="defs">
-      <div class="def"><h3>All</h3><p>Every row on the board.</p>
-        <div class="tags"><span class="tag"><i>Fixed</i>nothing</span><span class="tag v"><i>Varies</i>agent, retriever, reranker</span></div></div>
-      <div class="def"><h3>Retrievers</h3><p>The retriever behind the search tool.</p>
-        <div class="tags"><span class="tag"><i>Fixed</i>Tongyi-DeepResearch-30B-A3B, no reranker</span><span class="tag v"><i>Varies</i>retriever</span></div></div>
-      <div class="def"><h3>Rerankers</h3><p>A reranker over the retriever's top 100.</p>
-        <div class="tags"><span class="tag"><i>Fixed</i>Tongyi-DeepResearch-30B-A3B, Qwen3-Embedding-0.6B</span><span class="tag v"><i>Varies</i>reranker</span></div></div>
-      <div class="def"><h3>Agent backbones</h3><p>The agent model that runs the search.</p>
-        <div class="tags"><span class="tag"><i>Fixed</i>Qwen3-Embedding-0.6B, no reranker, 100 turns</span><span class="tag v"><i>Varies</i>agent model</span></div></div>
+    <div class="views">
+      <div><h3>All</h3><p>Every row on the board.</p>
+        <dl><dt>Fixed</dt><dd>nothing</dd><dt class="v">Varies</dt><dd>agent, retriever, reranker</dd></dl></div>
+      <div><h3>Retrievers</h3><p>The retriever behind the search tool.</p>
+        <dl><dt>Fixed</dt><dd>Tongyi-DeepResearch-30B-A3B, no reranker</dd><dt class="v">Varies</dt><dd>retriever</dd></dl></div>
+      <div><h3>Rerankers</h3><p>A reranker over the retriever's top 100.</p>
+        <dl><dt>Fixed</dt><dd>Tongyi-DeepResearch-30B-A3B, Qwen3-Embedding-0.6B</dd><dt class="v">Varies</dt><dd>reranker</dd></dl></div>
+      <div><h3>Agent backbones</h3><p>The agent model that runs the search.</p>
+        <dl><dt>Fixed</dt><dd>Qwen3-Embedding-0.6B, no reranker, 100 turns</dd><dt class="v">Varies</dt><dd>agent model</dd></dl></div>
     </div>
     <p class="secnote">A reranker over another retriever, or an agent with another retriever, is a row in All only. In All, the menus in the Agent, Retriever and Reranker headers choose what the table includes.</p>
   </section>
@@ -259,34 +408,34 @@
   <section id="metrics">
     <span class="sec-k">Metrics</span>
     <h2>What each column means</h2>
-    <div class="defs">
-      <div class="def"><h3>Accuracy</h3><p>The share of all 830 questions the Qwen3-32B judge marks
+    <div class="cols">
+      <div><h3>Accuracy</h3><p>The share of all 830 questions the Qwen3-32B judge marks
         correct, with the BrowseComp-Plus judge prompt. An answer without a verdict counts as wrong.</p></div>
-      <div class="def"><h3>Recall</h3><p>For each question, the share of its evidence documents
+      <div><h3>Recall</h3><p>For each question, the share of its evidence documents
         (gold and evidence together) that any search result showed the agent, averaged over all
         830 questions.</p></div>
-      <div class="def"><h3>Search calls</h3><p>The mean number of <code>search</code> calls per
+      <div><h3>Search calls</h3><p>The mean number of <code>search</code> calls per
         question.</p></div>
-      <div class="def"><h3>Tokens</h3><p>The mean tokens per question, each counted once:
+      <div><h3>Tokens</h3><p>The mean tokens per question, each counted once:
         the largest prompt the episode held plus every token the model generated.</p></div>
     </div>
-    <p class="secnote">Rows rank by accuracy inside the view shown. Click a column header to sort by it instead.</p>
+    <p class="secnote">Rows rank by accuracy inside the view shown. Click a column header to sort by it instead. The chart plots the Accuracy and Tokens columns of the rows in the table.</p>
   </section>
 
-  <section id="setting">
+  <section id="setting" class="band">
     <span class="sec-k">Setting</span>
     <h2>What stays fixed</h2>
-    <dl class="fixed">
-      <dt>Budget</dt><dd>100 turns and a 131,072-token context window, for every agent on the board.</dd>
-      <dt>Default agent</dt><dd>Tongyi-DeepResearch-30B-A3B served with vLLM, temperature 0.6, seed 42.</dd>
-      <dt>Other agents</dt><dd>Each runs with its own prompt family, sampling settings and tool-call format. An agent fine-tuned on its own tools keeps those tools and its prompt. The budget, the corpus and the retriever do not change.</dd>
-      <dt>Corpus</dt><dd>The original BrowseComp-Plus text: 100,195 documents, all 830 questions.</dd>
-      <dt>Strategy</dt><dd>Search-Visit, for every row. The agent searches, reads snippets, and opens the documents it picks. No row uses Sieve or another strategy. A fine-tuned agent does the same two steps through its own tool names.</dd>
-      <dt>Tools</dt><dd><code>search</code> returns the top 10 documents with a 64-token snippet each. <code>get_document</code> reads a document, cut at 12,000 tokens.</dd>
-      <dt>Encoding</dt><dd>Every learned retriever encodes a document's first 512 tokens.</dd>
-      <dt>Rerankers</dt><dd>Each reorders the retriever's top 100. The agent sees the top 10.</dd>
-      <dt>Base retriever</dt><dd>Qwen3-Embedding-0.6B in the Rerankers and Agent backbones views.</dd>
-      <dt>Lists of queries</dt><dd>When the agent sends several queries in one call, the first one runs.</dd>
+    <dl class="spec">
+      <div><dt>Budget</dt><dd>100 turns and a 131,072-token context window, for every agent on the board.</dd></div>
+      <div><dt>Default agent</dt><dd>Tongyi-DeepResearch-30B-A3B served with vLLM, temperature 0.6, seed 42.</dd></div>
+      <div><dt>Other agents</dt><dd>Each runs with its own prompt family, sampling settings and tool-call format. An agent fine-tuned on its own tools keeps those tools and its prompt. The budget, the corpus and the retriever do not change.</dd></div>
+      <div><dt>Corpus</dt><dd>The original BrowseComp-Plus text: 100,195 documents, all 830 questions.</dd></div>
+      <div><dt>Strategy</dt><dd>Search-Visit, for every row. The agent searches, reads snippets, and opens the documents it picks. No row uses Sieve or another strategy. A fine-tuned agent does the same two steps through its own tool names.</dd></div>
+      <div><dt>Tools</dt><dd><code>search</code> returns the top 10 documents with a 64-token snippet each. <code>get_document</code> reads a document, cut at 12,000 tokens.</dd></div>
+      <div><dt>Encoding</dt><dd>Every learned retriever encodes a document's first 512 tokens.</dd></div>
+      <div><dt>Rerankers</dt><dd>Each reorders the retriever's top 100. The agent sees the top 10.</dd></div>
+      <div><dt>Base retriever</dt><dd>Qwen3-Embedding-0.6B in the Rerankers and Agent backbones views.</dd></div>
+      <div><dt>Lists of queries</dt><dd>When the agent sends several queries in one call, the first one runs.</dd></div>
     </dl>
   </section>
 
@@ -298,16 +447,19 @@
     Build its index, serve the agent model, run the file and judge the answers.
     <a href="https://github.com/ielab/skim-search-agent/blob/main/docs/BASELINES.md">docs/BASELINES.md</a>
     has every step and command.</p>
+    <div class="code">
+      <div class="code-bar"><span>shell</span><button class="copy" type="button">Copy</button></div>
 <pre>skimsearchagent run configs/baselines/browsecomp_plus_colbert_tongyi.yaml \
   model.backend=api model.api_base=http://127.0.0.1:8000/v1
-# after the three judges: the row's accuracy, recall and search calls
+<span class="c"># after the three judges: the row's accuracy, recall and search calls</span>
 python scripts/leaderboard_row.py &lt;the run's results directory&gt;</pre>
+    </div>
   </section>
 </div>
 
 <footer>
   <div>Contact: <a href="https://shuaiwang.io">Shuai Wang</a> &middot; <a href="https://ielab.io">ielab</a>, The University of Queensland &middot; Apache-2.0</div>
-  <div style="margin-top:6px"><a href="../">SkimSearchAgent</a> &middot;
+  <div class="foot-links"><a href="../">SkimSearchAgent</a> &middot;
   <a href="https://github.com/ielab/skim-search-agent">github.com/ielab/skim-search-agent</a></div>
 </footer>
 
@@ -322,6 +474,12 @@ python scripts/leaderboard_row.py &lt;the run's results directory&gt;</pre>
     paint();
   };
   paint();
+  document.querySelectorAll('.code .copy').forEach(b => b.onclick = () => {
+    if (!navigator.clipboard) return;
+    navigator.clipboard.writeText(b.closest('.code').querySelector('pre').innerText).then(() => {
+      b.textContent = 'Copied'; setTimeout(() => b.textContent = 'Copy', 1400);
+    });
+  });
 })();
 
 (function board() {
@@ -344,6 +502,8 @@ python scripts/leaderboard_row.py &lt;the run's results directory&gt;</pre>
 
   const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const link = (text, href, cls) => href ? `<a class="${cls}" href="${esc(href)}">${esc(text)}</a>` : `<span class="${cls}">${esc(text)}</span>`;
+  const hasTokens = e => typeof e.tokens === 'number' && e.tokens > 0;
+  const kTokens = e => hasTokens(e) ? `${(e.tokens / 1000).toFixed(1)}k` : '&ndash;';
 
   // Each named view changes one part. All shows every row, narrowed by the column menus.
   const VIEW = {
@@ -397,7 +557,7 @@ python scripts/leaderboard_row.py &lt;the run's results directory&gt;</pre>
     tbody.innerHTML = rows.length ? rows.map(e => {
       const r = rank.get(e.id);
       const kind = e.reranker || !e.kind ? '' : `<span class="kind k-${esc(e.kind)}">${esc(KIND[e.kind] || e.kind)}</span>`;
-      return `<tr>
+      return `<tr data-id="${esc(e.id)}">
         <td class="rank">${r <= 3 ? `<span class="medal m${r}">${r}</span>` : r}</td>
         <td>${link(e.backbone, e.backbone_link, 'name')}</td>
         <td>${link(e.retriever, e.retriever_link, 'name')}
@@ -406,14 +566,296 @@ python scripts/leaderboard_row.py &lt;the run's results directory&gt;</pre>
         <td class="num"><div class="acc"><span class="bar"><i style="width:${(100 * e.accuracy / max).toFixed(1)}%"></i></span><b>${e.accuracy.toFixed(1)}</b></div></td>
         <td class="num">${e.recall.toFixed(1)}</td>
         <td class="num">${e.search_calls.toFixed(1)}</td>
-        <td class="num">${(e.tokens / 1000).toFixed(1)}k</td>
+        <td class="num">${kTokens(e)}</td>
       </tr>`;
     }).join('') : '<tr><td colspan="8" class="empty">No row matches.</td></tr>';
     document.getElementById('count').innerHTML = `<b>${rows.length} of ${total} rows</b><span>${esc(NOTE[state.filter])}</span>`;
     board.querySelectorAll('th[data-k]').forEach(th => {
       th.setAttribute('aria-sort', th.dataset.k === state.key ? (state.asc ? 'ascending' : 'descending') : 'none');
     });
+    shown = rows;
+    draw();
   }
+
+  /* ---- Pareto chart: accuracy against tokens for the rows the table shows ---- */
+  const chart = document.getElementById('chart');
+  const plot = document.getElementById('plot');
+  const svg = document.getElementById('pareto');
+  const tip = document.getElementById('tip');
+  const frontList = document.getElementById('frontList');
+  const plotNote = document.getElementById('plotNote');
+  let shown = [];            // the table's rows, after view, menus and search
+  let geo = new Map();       // id -> {x, y, e, on} for the points drawn
+  let order = [];            // ids by tokens, for the arrow keys
+  let active = null, armed = null, lastPointer = 'mouse', drawnW = 0, drawnH = 0;
+
+  // A row is the default agent alone, the default agent with a reranker, or another agent model.
+  const rowKind = e => !e.default_agent ? 'agent' : e.reranker ? 'reranked' : 'retriever';
+  const short = s => String(s).replace('Qwen3-Embedding-', 'Qwen3-Emb-').replace('-DeepResearch', '-DR')
+    .replace(/-A3B$/, '').replace(/\s*\(CoCondenser[^)]*\)/, '').replace('(generic instruction)', '(generic)');
+
+  // A point is dominated when another has no more tokens and no less accuracy, one of them strictly.
+  function frontierOf(pts) {
+    return pts.filter(p => !pts.some(q => q !== p && q.tokens <= p.tokens && q.accuracy >= p.accuracy &&
+                                          (q.tokens < p.tokens || q.accuracy > p.accuracy)))
+              .sort((a, b) => a.tokens - b.tokens || a.accuracy - b.accuracy);
+  }
+
+  // The label names the parts that differ among the points shown.
+  function labeller(pts) {
+    const varies = k => new Set(pts.map(e => val(e, k))).size > 1;
+    const vb = varies('backbone'), vr = varies('retriever');
+    return e => {
+      const parts = [];
+      if (vb && !e.default_agent) parts.push(short(e.backbone));
+      if (vr) parts.push(short(e.retriever));
+      if (e.reranker) parts.push(short(e.reranker));
+      if (!parts.length) parts.push(short(vb ? e.backbone : e.retriever));
+      return parts.join(' + ');
+    };
+  }
+
+  function niceStep(span, target) {
+    const raw = span / target, p = Math.pow(10, Math.floor(Math.log10(raw))), m = raw / p;
+    return (m <= 1 ? 1 : m <= 2 ? 2 : m <= 5 ? 5 : 10) * p;
+  }
+  // A linear axis padded around the data and snapped to round ticks. It does not start at zero.
+  function axis(lo, hi, target, minPad) {
+    const pad = Math.max((hi - lo) * 0.07, minPad);
+    lo = Math.max(0, lo - pad); hi += pad;
+    const step = niceStep(hi - lo, target);
+    const a = Math.floor(lo / step) * step, b = Math.ceil(hi / step) * step;
+    const ticks = [];
+    for (let v = a; v <= b + step / 2; v += step) ticks.push(+v.toFixed(6));
+    return {lo: a, hi: b, ticks};
+  }
+
+  function mark(kind, x, y, r) {
+    if (kind === 'reranked') { const d = r * 1.3; return `<path class="mk" d="M${x} ${y - d}L${x + d} ${y}L${x} ${y + d}L${x - d} ${y}Z"/>`; }
+    if (kind === 'agent') { const h = r * 0.92; return `<rect class="mk" x="${x - h}" y="${y - h}" width="${2 * h}" height="${2 * h}" rx="1.5"/>`; }
+    return `<circle class="mk" cx="${x}" cy="${y}" r="${r}"/>`;
+  }
+  const f1 = v => v.toFixed(1);
+
+  function draw() {
+    if (chart.hidden) return;
+    hideTip();
+    const pts = shown.filter(hasTokens);
+    const missing = shown.length - pts.length;
+    const front = frontierOf(pts);
+    const onFront = new Set(front.map(e => e.id));
+    const name = labeller(pts);
+    geo = new Map(); order = [];
+
+    plotNote.textContent = `${pts.length} of ${shown.length} rows plotted.` +
+      (missing ? ` ${missing} ${missing === 1 ? 'row has' : 'rows have'} no token count and ${missing === 1 ? 'is' : 'are'} left out.` : '') +
+      ' Both axes are linear and cover the range of the rows shown, not from zero.';
+    frontList.innerHTML = front.length ? front.map(e => `<li><button type="button" data-id="${esc(e.id)}">
+        <svg viewBox="0 0 14 14" class="k-${rowKind(e)} on" aria-hidden="true">${mark(rowKind(e), 7, 7, 4.6)}</svg>
+        <span class="nm">${esc(name(e))}</span>
+        <span class="nu"><b>${f1(e.accuracy)}%</b> at ${f1(e.tokens / 1000)}k</span></button></li>`).join('')
+      : '<li class="empty-f">No row to plot.</li>';
+
+    // measured after the list is filled: on a wide screen the list sets the panel's height
+    const W = plot.clientWidth, H = plot.clientHeight;
+    if (!W || !H) return;
+    drawnW = W; drawnH = H;
+    svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+    if (!pts.length) {
+      svg.innerHTML = `<text class="msg" x="${W / 2}" y="${H / 2}" text-anchor="middle">No row to plot.</text>`;
+      return;
+    }
+
+    const small = W < 560;
+    const m = {l: 40, r: small ? 12 : 20, t: 30, b: 42};
+    const xs = pts.map(e => e.tokens / 1000), ys = pts.map(e => e.accuracy);
+    const ax = axis(Math.min(...xs), Math.max(...xs), small ? 5 : 8, 2);
+    const ay = axis(Math.min(...ys), Math.max(...ys), 5, 1.5);
+    const X = v => m.l + (v - ax.lo) / (ax.hi - ax.lo) * (W - m.l - m.r);
+    const Y = v => H - m.b - (v - ay.lo) / (ay.hi - ay.lo) * (H - m.t - m.b);
+    const r2 = v => Math.round(v * 10) / 10;
+    const bottom = H - m.b, right = W - m.r;
+
+    let s = '';
+    for (const t of ay.ticks) s += `<line class="grid" x1="${m.l}" x2="${right}" y1="${r2(Y(t))}" y2="${r2(Y(t))}"/>` +
+      `<text class="tick" x="${m.l - 8}" y="${r2(Y(t)) + 4}" text-anchor="end">${t}</text>`;
+    for (const t of ax.ticks) s += `<line class="grid" y1="${m.t}" y2="${bottom}" x1="${r2(X(t))}" x2="${r2(X(t))}"/>` +
+      `<text class="tick" x="${r2(X(t))}" y="${bottom + 17}" text-anchor="middle">${t}k</text>`;
+    s += `<line class="axis" x1="${m.l}" x2="${right}" y1="${bottom}" y2="${bottom}"/>`;
+    s += `<text class="ttl" x="${(m.l + right) / 2}" y="${H - 6}" text-anchor="middle">Tokens per question</text>`;
+    s += `<text class="ttl" x="4" y="14">Accuracy (%)</text>`;
+
+    // the step line: from each frontier point, flat to the next one's tokens, then up to it
+    let d = `M${r2(X(front[0].tokens / 1000))} ${bottom}`;
+    for (const e of front) d += `H${r2(X(e.tokens / 1000))}V${r2(Y(e.accuracy))}`;
+    d += `H${right}`;
+    s += `<path class="under" d="${d}V${bottom}Z"/><path class="step" d="${d}"/>`;
+
+    const byTok = [...pts].sort((a, b) => a.tokens - b.tokens || a.accuracy - b.accuracy);
+    order = byTok.map(e => e.id);
+    const focusId = onFront.has(active) || geo.has(active) ? active : front[front.length - 1].id;
+    const pointOf = e => {
+      const on = onFront.has(e.id), x = r2(X(e.tokens / 1000)), y = r2(Y(e.accuracy)), kind = rowKind(e);
+      const r = on ? (small ? 5.5 : 6.5) : (small ? 3.6 : 4.4);
+      geo.set(e.id, {x, y, e, on, r});
+      const label = `${e.backbone}, ${e.retriever}, ${e.reranker ? e.reranker : 'no reranker'}: accuracy ${f1(e.accuracy)}%, ${f1(e.tokens / 1000)}k tokens` +
+        (on ? ', on the Pareto frontier' : '');
+      return `<g class="pt k-${kind}${on ? ' on' : ''}" data-id="${esc(e.id)}" tabindex="${e.id === focusId ? 0 : -1}" role="button" aria-label="${esc(label)}">` +
+        `<circle class="hit" cx="${x}" cy="${y}" r="${small ? 14 : 11}"/><circle class="ring" cx="${x}" cy="${y}" r="${r + 5}"/>${mark(kind, x, y, r)}</g>`;
+    };
+    s += byTok.filter(e => !onFront.has(e.id)).map(pointOf).join('');
+    s += front.map(pointOf).join('');
+    s += front.map(e => `<text class="lbl" data-for="${esc(e.id)}" visibility="hidden">${esc(name(e))}</text>`).join('');
+    svg.innerHTML = s;
+
+    // Place the frontier labels. The region up and left of the frontier holds no point, so try there first.
+    const boxes = [...geo.values()].map(g => ({id: g.e.id, x0: g.x - g.r - 1, x1: g.x + g.r + 1, y0: g.y - g.r - 1, y1: g.y + g.r + 1}));
+    const hit = (a, b) => a.x0 < b.x1 && a.x1 > b.x0 && a.y0 < b.y1 && a.y1 > b.y0;
+    const placed = [];
+    // the line's own segments are obstacles too: each riser and each flat run
+    front.forEach((e, i) => {
+      const g = geo.get(e.id), below = i ? geo.get(front[i - 1].id).y : bottom, next = i + 1 < front.length ? geo.get(front[i + 1].id).x : right;
+      boxes.push({id: e.id + ' riser', x0: g.x - 1, x1: g.x + 1, y0: g.y + g.r, y1: below},
+                 {id: e.id + ' run', x0: g.x + g.r, x1: next, y0: g.y - 1, y1: g.y + 1});
+    });
+    svg.querySelectorAll('text.lbl').forEach(t => {
+      const g = geo.get(t.dataset.for), w = t.getComputedTextLength() || t.textContent.length * 6.6, gap = g.r + 6;
+      const tries = [];
+      // beside the point on its left, then above it, then below; a phone keeps only the nearest spots
+      for (const dy of small ? [4, -gap - 2, gap + 11] : [4, -gap - 2, -gap - 17, -gap - 32, gap + 11, -gap - 47, gap + 26]) {
+        // beside the point: on its left, then on its right under or over the line that leaves it
+        if (dy === 4) { tries.push(['end', g.x - gap, dy], ['start', g.x + gap, 15], ['start', g.x + gap, -7]); continue; }
+        tries.push(['end', g.x, dy], ['middle', g.x, dy], ['start', g.x, dy]);
+      }
+      for (const [anchor, x, dy] of tries) {
+        const x0 = anchor === 'end' ? x - w : anchor === 'middle' ? x - w / 2 : x, y = g.y + dy;
+        const box = {x0: x0 - 2, x1: x0 + w + 2, y0: y - 10, y1: y + 3};
+        if (box.x0 < m.l + 2 || box.x1 > W - 2 || box.y0 < m.t - 14 || box.y1 > bottom - 2) continue;
+        if (boxes.some(b => b.id !== g.e.id && hit(box, b)) || placed.some(b => hit(box, b))) continue;
+        t.setAttribute('x', r2(x)); t.setAttribute('y', r2(y)); t.setAttribute('text-anchor', anchor);
+        t.removeAttribute('visibility');
+        placed.push(box);
+        if (Math.abs(dy) > gap + 10) {   // a label moved away from its point gets a leader
+          const lx = r2(Math.max(x0 + 4, Math.min(x0 + w - 4, g.x)));
+          t.insertAdjacentHTML('beforebegin', `<line class="lead" x1="${g.x}" y1="${r2(g.y + Math.sign(dy) * (g.r + 2))}" x2="${lx}" y2="${r2(dy < 0 ? y + 4 : y - 11)}"/>`);
+        }
+        return;
+      }
+      t.remove();   // no free spot: the name stays in the list and the tooltip
+    });
+    if (active && geo.has(active)) mark_active(active, false); else active = null;
+  }
+
+  const rowOf = id => [...tbody.querySelectorAll('tr[data-id]')].find(tr => tr.dataset.id === id);
+  const ptOf = id => [...svg.querySelectorAll('.pt')].find(g => g.dataset.id === id);
+  const listOf = id => [...frontList.querySelectorAll('button')].find(b => b.dataset.id === id);
+
+  function hideTip() { tip.hidden = true; }
+  function showTip(id) {
+    const g = geo.get(id);
+    if (!g) return hideTip();
+    const e = g.e;
+    tip.innerHTML = (g.on ? '<span class="tag">On the frontier</span>' : '') +
+      `<dl><dt>Agent</dt><dd>${esc(e.backbone)}</dd><dt>Retriever</dt><dd>${esc(e.retriever)}</dd>` +
+      `<dt>Reranker</dt><dd>${e.reranker ? esc(e.reranker) : 'none'}</dd></dl>` +
+      `<dl class="nums"><dt>Accuracy</dt><dd>${f1(e.accuracy)}%</dd><dt>Tokens</dt><dd>${f1(e.tokens / 1000)}k per question</dd>` +
+      `<dt>Search calls</dt><dd>${f1(e.search_calls)}</dd><dt>Recall</dt><dd>${f1(e.recall)}%</dd></dl>`;
+    tip.hidden = false;
+    const tw = tip.offsetWidth, th = tip.offsetHeight, W = plot.clientWidth, H = plot.clientHeight;
+    let x = g.x + 14, y = g.y - th - 12;
+    if (x + tw > W - 4) x = g.x - tw - 14;
+    if (x < 4) x = Math.max(4, Math.min(W - tw - 4, g.x - tw / 2));
+    if (y < 4) y = Math.min(g.y + 14, H - th - 4);
+    tip.style.transform = `translate(${Math.round(x)}px,${Math.round(Math.max(4, y))}px)`;
+  }
+
+  function mark_active(id, withTip) {
+    const tr = rowOf(id), g = ptOf(id), li = listOf(id);
+    if (tr) tr.classList.add('hl');
+    if (g) g.classList.add('hl');
+    if (li) li.classList.add('hl');
+    if (withTip) showTip(id);
+  }
+  function setActive(id, withTip) {
+    if (active && active !== id) {
+      const tr = rowOf(active), g = ptOf(active), li = listOf(active);
+      if (tr) tr.classList.remove('hl');
+      if (g) g.classList.remove('hl');
+      if (li) li.classList.remove('hl');
+    }
+    active = id || null;
+    if (!active) { armed = null; return hideTip(); }
+    mark_active(active, withTip);
+    if (!withTip) hideTip();
+  }
+
+  function goToRow(id) {
+    const tr = rowOf(id);
+    if (!tr) return;
+    const calm = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    tr.scrollIntoView({block: 'center', behavior: calm ? 'instant' : 'smooth'});
+    tr.classList.remove('flash'); void tr.offsetWidth; tr.classList.add('flash');
+    setTimeout(() => tr.classList.remove('flash'), 1800);
+  }
+
+  const idAt = ev => { const g = ev.target.closest && ev.target.closest('.pt'); return g ? g.dataset.id : null; };
+  svg.addEventListener('pointerdown', ev => { lastPointer = ev.pointerType || 'mouse'; });
+  svg.addEventListener('pointerover', ev => { if (ev.pointerType !== 'touch') { const id = idAt(ev); if (id) setActive(id, true); } });
+  svg.addEventListener('pointerout', ev => {
+    if (ev.pointerType === 'touch' || !idAt(ev)) return;
+    const f = document.activeElement && document.activeElement.closest ? document.activeElement.closest('#pareto .pt') : null;
+    setActive(f ? f.dataset.id : null, !!f);
+  });
+  svg.addEventListener('focusin', ev => { const id = idAt(ev); if (id) setActive(id, true); });
+  svg.addEventListener('focusout', () => setActive(null));
+  // mouse: a click jumps to the row. touch: the first tap shows the tooltip, the second jumps.
+  svg.addEventListener('click', ev => {
+    const id = idAt(ev);
+    if (!id) return setActive(null);
+    if (lastPointer === 'touch' && armed !== id) { setActive(id, true); armed = id; return; }
+    goToRow(id);
+  });
+  svg.addEventListener('keydown', ev => {
+    const id = idAt(ev);
+    if (!id) return;
+    if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); return goToRow(id); }
+    if (ev.key === 'Escape') return setActive(null);
+    const step = {ArrowRight: 1, ArrowUp: 1, ArrowLeft: -1, ArrowDown: -1}[ev.key];
+    if (!step) return;
+    ev.preventDefault();
+    const next = order[Math.max(0, Math.min(order.length - 1, order.indexOf(id) + step))];
+    const g = ptOf(next);
+    if (!g || next === id) return;
+    svg.querySelectorAll('.pt[tabindex="0"]').forEach(x => x.setAttribute('tabindex', '-1'));
+    g.setAttribute('tabindex', '0');
+    g.focus();
+  });
+  document.addEventListener('pointerdown', ev => { if (active && !board.contains(ev.target)) setActive(null); });
+
+  // the table and the frontier list point back at the chart
+  tbody.addEventListener('mouseover', ev => { const tr = ev.target.closest('tr[data-id]'); if (tr && geo.has(tr.dataset.id)) setActive(tr.dataset.id, false); });
+  tbody.addEventListener('mouseleave', () => setActive(null));
+  frontList.addEventListener('mouseover', ev => { const b = ev.target.closest('button'); if (b) setActive(b.dataset.id, true); });
+  frontList.addEventListener('mouseleave', () => setActive(null));
+  frontList.addEventListener('focusin', ev => { const b = ev.target.closest('button'); if (b) setActive(b.dataset.id, true); });
+  frontList.addEventListener('focusout', () => setActive(null));
+  frontList.addEventListener('click', ev => { const b = ev.target.closest('button'); if (b) goToRow(b.dataset.id); });
+
+  const chartBtn = document.getElementById('chartBtn');
+  function showChart(on) {
+    chart.hidden = !on;
+    chartBtn.setAttribute('aria-expanded', String(on));
+    chartBtn.textContent = on ? 'Hide chart' : 'Show chart';
+    if (on) draw();
+  }
+  chartBtn.addEventListener('click', () => {
+    const on = chart.hidden;
+    try { localStorage.setItem('ssa-lb-chart', on ? 'on' : 'off'); } catch (e) {}
+    showChart(on);
+  });
+  try { if (localStorage.getItem('ssa-lb-chart') === 'off') showChart(false); } catch (e) {}
+  if (window.ResizeObserver) new ResizeObserver(() => { if (plot.clientWidth !== drawnW || plot.clientHeight !== drawnH) draw(); }).observe(plot);
+  else window.addEventListener('resize', draw);
 
   board.querySelectorAll('th[data-k] button.sort').forEach(b => b.addEventListener('click', () => {
     const k = b.parentElement.dataset.k;
