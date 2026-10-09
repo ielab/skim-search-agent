@@ -69,6 +69,7 @@ question. It needs its own index, built with `DENSE_SEQ_LENGTH=4096`.
 |---|---|---:|---:|---:|---:|
 | monoT5-3B | `rerank_monot5` | 56.1 | 57.0 | 53.5 | 53.3 |
 | bge-reranker-v2-m3 | `rerank_bge_m3` | 52.5 | 53.7 | 49.8 | 54.4 |
+| Qwen3-Reranker-4B | `rerank_qwen3_4b` | 52.5 | 54.7 | 50.2 | 54.5 |
 | Qwen3-Reranker-0.6B | `rerank_qwen3_06b` | 49.9 | 51.1 | 48.1 | 57.0 |
 | none (the pool's own order) | `qwen3emb06b` | 41.7 | 43.0 | 38.8 | 62.2 |
 | Laya typed-decisions | `rerank_laya_typed` | 35.5 | 36.7 | 33.7 | 72.3 |
