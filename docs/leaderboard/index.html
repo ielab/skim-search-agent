@@ -65,6 +65,9 @@
   .nav{display:flex;gap:18px;font-size:13.5px;font-weight:600;flex-wrap:nowrap;white-space:nowrap;align-items:center}
   .nav a{color:var(--ink-2)}
   .nav a:hover,.nav a.here{color:var(--teal-ink)}
+  @media(max-width:980px){.nav .opt{display:none}}
+  @media(max-width:600px){.nav .x{display:none}}
+  @media(max-width:400px){.nav a[href^="https://github.com"]{display:none}.nav{gap:9px}}
   .theme-btn{border:1px solid var(--line);background:var(--card);color:var(--ink-2);width:30px;height:30px;border-radius:9px;cursor:pointer;font-size:14px;line-height:1;transition:.15s}
   .theme-btn:hover{border-color:var(--teal);color:var(--teal-ink)}
   @media(max-width:760px){
@@ -353,12 +356,14 @@
     <span>SkimSearch<b>Agent</b></span>
   </a>
   <div class="nav">
+    <a href="../">Home</a>
     <a class="opt" href="#views">Views</a>
     <a class="opt" href="#metrics">Metrics</a>
     <a class="opt" href="#setting">Setting</a>
     <a class="opt" href="#run">Run a row</a>
-    <a href="../">Library</a>
     <a class="here" href="./" aria-current="page">Leaderboard</a>
+    <a class="x" href="../sieve/">Sieve</a>
+    <a class="x" href="../iter/">ITER</a>
     <a href="https://github.com/ielab/skim-search-agent">GitHub</a>
     <button type="button" class="theme-btn" id="themeBtn" title="toggle light/dark" aria-label="toggle color theme">&#9789;</button>
   </div>
