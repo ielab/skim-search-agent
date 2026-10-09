@@ -19,6 +19,8 @@ Styles (ITER's names are kept so results line up with the paper):
   trained on: ``i2``'s fields plus the agent's reasoning before the search (the ITER paper's
   ITER-i7). A run on an ITER checkpoint uses it by default (`default_style_for`).
 * ``i8``     AgentIR's format: the issuing turn's reasoning, then the sub-query.
+* ``question_sep`` Agentic-R's format: the original question, ``[SEP]``, the sub-query. Not a
+  training style here.
 
 Token truncation uses the library's token ruler (`agent_search.tokens`), so this module has
 no tokenizer dependency; the numbers are the ones ITER used (64-token snippets, 256-token
@@ -31,7 +33,7 @@ from typing import Callable, Iterable, Optional, Sequence
 
 from agent_search.tokens import count_tokens, truncate_tokens
 
-STYLES = ("plain", "mem", "docs", "i0", "i1", "i2", "i3", "i4", "i5", "i6", "i7", "i8", "iter")
+STYLES = ("plain", "mem", "docs", "i0", "i1", "i2", "i3", "i4", "i5", "i6", "i7", "i8", "iter", "question_sep")
 # iter (the paper's ITER-i7): i2's fields plus the agent's pre-search reasoning, one line, before the
 # sub-query. The released ielabgroup/ITER-Qwen3-Embedding checkpoints are trained on it (model card).
 DEFAULT_STYLE = "iter"
@@ -61,7 +63,9 @@ def default_style_for(model_id: Optional[str]) -> str:
     except Exception:  # noqa: BLE001: no note, or not readable here: fall through to the name
         pass
     name = model_id.rstrip("/").split("/")[-1].lower()
-    return "iter" if name.startswith("iter-qwen3-embedding") else "plain"
+    if name.startswith("iter-qwen3-embedding"):
+        return "iter"
+    return "question_sep" if name.startswith("agentic-r") else "plain"
 
 # The instruction the trained model is served with. Training passes the same string as
 # FlagEmbedding's --query_instruction_for_retrieval; inference prefixes queries with
@@ -266,6 +270,9 @@ def render_query(style: str, question: str, current: str, interactions: Sequence
     style = canonical_style(style)
     if style == "plain" or style == "i0":
         return current
+    if style == "question_sep":
+        # Agentic-R's query: the original question, `[SEP]`, the agent's query (its model card)
+        return f"{question} [SEP] {current}"
     if style == "mem":
         notes = [r for it in interactions for _, _, r in it.get("visits", []) if r]
         return memory_query(question, current, notes)

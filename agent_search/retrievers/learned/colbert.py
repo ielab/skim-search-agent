@@ -28,11 +28,19 @@ DEFAULT_MODEL = "colbert-ir/colbertv2.0"
 DEFAULT_DOC_LENGTH = 180          # ColBERTv2's training length
 DEFAULT_QUERY_LENGTH = 32
 DIM = 128
-CHUNK_TOKENS = 4_000_000          # page tokens scored per step
+CHUNK_TOKENS = 4_000_000          # page tokens scored per step for a 32-token query
 
 
 class ColbertRetriever(LearnedIndexRetriever):
     name = "colbert"
+
+    def __new__(cls, model: Optional[str] = None, *args, **kwargs):
+        """A checkpoint in PyLate's format is served by `modern_colbert.py`."""
+        if cls is ColbertRetriever:
+            from agent_search.retrievers.learned.modern_colbert import ModernColbertRetriever, pylate_config
+            if pylate_config(model or os.environ.get("COLBERT_MODEL") or DEFAULT_MODEL) is not None:
+                return super().__new__(ModernColbertRetriever)
+        return super().__new__(cls)
 
     def __init__(self, model: Optional[str] = None, doc_length: Optional[int] = None,
                  query_length: Optional[int] = None, store_device: Optional[str] = None, **kw):
@@ -149,9 +157,11 @@ class ColbertRetriever(LearnedIndexRetriever):
         pages = len(off) - 1
         out = torch.empty(pages, dtype=torch.float32, device=q.device)
         page = 0
+        # a longer query scores fewer page tokens per step, so the step's memory stays the same
+        chunk = max(1, CHUNK_TOKENS * DEFAULT_QUERY_LENGTH // max(int(q.shape[0]), DEFAULT_QUERY_LENGTH))
         while page < pages:
             # the pages whose tokens fit in one chunk, at least one page
-            fit = int(np.searchsorted(off, off[page] + CHUNK_TOKENS, side="right")) - 1
+            fit = int(np.searchsorted(off, off[page] + chunk, side="right")) - 1
             end = min(pages, max(page + 1, fit))
             a, b = int(off[page]), int(off[end])
             block = self._store[a:b].to(q.device, non_blocking=True)

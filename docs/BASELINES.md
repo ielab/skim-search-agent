@@ -39,10 +39,12 @@ An answer without a verdict counts as wrong.
 | retriever | file | Qwen3-32B (official) | Qwen3-30B-A3B-Thinking-2507 | gpt-4o-mini | searches |
 |---|---|---:|---:|---:|---:|
 | ITER-Qwen3-Embedding-4B (generic instruction) | `iter4b_generic` | 59.8 | 60.6 | 56.7 | 48.9 |
+| Agent-ModernColBERT | `agent_moderncolbert` | 58.7 | 58.9 | 55.4 | 49.2 |
 | ITER-Qwen3-Embedding-4B | `iter4b` | 58.2 | 59.4 | 54.5 | 50.8 |
 | AgentIR-4B | `agentir4b` | 57.0 | 57.7 | 53.9 | 50.3 |
 | ITER-Qwen3-Embedding-0.6B | `iter06b` | 56.4 | 57.5 | 53.6 | 53.5 |
 | ColBERTv2 | `colbert` | 54.5 | 55.7 | 52.5 | 52.9 |
+| LRAT-multilingual-e5-large | `lrate5` | 51.9 | 52.2 | 49.4 | 53.7 |
 | LRAT-Qwen3-Embedding-0.6B | `lrat06b` | 50.2 | 50.8 | 47.2 | 55.7 |
 | Qwen3-Embedding-4B | `qwen3emb4b` | 50.0 | 51.7 | 47.2 | 58.0 |
 | SPLADE++ (CoCondenser-EnsembleDistil) | `splade` | 49.9 | 50.6 | 47.0 | 55.9 |
@@ -50,8 +52,14 @@ An answer without a verdict counts as wrong.
 | DiffRetriever, dense | `diffretriever` | 48.6 | 49.8 | 46.4 | 57.5 |
 | DiffRetriever, sparse | `diffretriever_sparse` | 46.7 | 47.8 | 44.0 | 58.9 |
 | RepLLaMA | `repllama` | 44.8 | 45.1 | 41.9 | 61.4 |
+| Agentic-R (e5-base) | `agenticr` | 42.5 | 43.3 | 40.1 | 60.3 |
 | Qwen3-Embedding-0.6B | `qwen3emb06b` | 41.7 | 43.0 | 38.8 | 62.2 |
 | BM25 | `bm25` | 37.8 | 38.9 | 35.3 | 61.0 |
+
+Three rows are retrievers trained for search agents, each queried the way its model card says:
+Agent-ModernColBERT (`lightonai/Agent-ModernColBERT`) reads the turn's reasoning and the query,
+Agentic-R (`liuwenhan/Agentic-R_e5`) reads the question, `[SEP]` and the query, and
+LRAT-multilingual-e5-large (`Yuqi-Zhou/LRAT-multilingual-e5-large`) reads the query alone.
 
 `iter4b_generic` is the same 4B checkpoint in its own query format, with the generic
 Qwen3-Embedding instruction ("Given a web search query, retrieve relevant passages that answer the

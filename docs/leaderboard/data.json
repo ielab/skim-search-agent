@@ -163,6 +163,36 @@
    "tokens": 86998
   },
   {
+   "id": "agent_moderncolbert",
+   "retriever": "Agent-ModernColBERT",
+   "retriever_link": "https://huggingface.co/lightonai/Agent-ModernColBERT",
+   "kind": "multi-vector",
+   "accuracy": 58.7,
+   "recall": 75.7,
+   "search_calls": 49.2,
+   "tokens": 81514
+  },
+  {
+   "id": "lrate5",
+   "retriever": "LRAT-multilingual-e5-large",
+   "retriever_link": "https://huggingface.co/Yuqi-Zhou/LRAT-multilingual-e5-large",
+   "kind": "dense",
+   "accuracy": 51.9,
+   "recall": 65.6,
+   "search_calls": 53.7,
+   "tokens": 86963
+  },
+  {
+   "id": "agenticr",
+   "retriever": "Agentic-R (e5-base)",
+   "retriever_link": "https://huggingface.co/liuwenhan/Agentic-R_e5",
+   "kind": "dense",
+   "accuracy": 42.5,
+   "recall": 48.6,
+   "search_calls": 60.3,
+   "tokens": 94134
+  },
+  {
    "id": "lrat06b",
    "retriever": "LRAT-Qwen3-Embedding-0.6B",
    "retriever_link": "https://huggingface.co/Yuqi-Zhou/LRAT-Qwen3-Embedding-0.6B",

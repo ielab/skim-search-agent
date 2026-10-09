@@ -61,8 +61,8 @@ Each name below is a file in the library and a value in an experiment file. A ro
 | part | supported |
 |---|---|
 | Lexical retrievers | BM25 on Lucene (Pyserini), the Boolean method BQL, Indri query language, grep |
-| Dense retrievers | BGE (small, base, large), Qwen3-Embedding (0.6B, 4B, 8B), RepLLaMA, LRAT, AgentIR, the ITER checkpoints, CodeRankEmbed for code, and any checkpoint trained with `skimsearchagent-train-retriever` |
-| Learned sparse and multi-vector retrievers | SPLADE++, ColBERTv2, DiffRetriever (dense and sparse) |
+| Dense retrievers | BGE (small, base, large), Qwen3-Embedding (0.6B, 4B, 8B), RepLLaMA, LRAT (Qwen3 and multilingual-e5), Agentic-R, AgentIR, the ITER checkpoints, CodeRankEmbed for code, and any checkpoint trained with `skimsearchagent-train-retriever` |
+| Learned sparse and multi-vector retrievers | SPLADE++, ColBERTv2, Agent-ModernColBERT, DiffRetriever (dense and sparse) |
 | Compositions | hybrid fusion of two rankings (`rrf`, `interpolation`), a reranker over a retriever's pool |
 | Rerankers | `cross_encoder` (bge-reranker-v2-m3), `qwen3_reranker` (Qwen3-Reranker), `monot5` (monoT5), `laya` (the Laya decision models) |
 | Agent backbones | any model behind an OpenAI-compatible server (vLLM), vLLM in-process, the OpenAI chat and reasoning models, Gemini. Experiment files ship for Tongyi-DeepResearch-30B, Qwen3.5 (4B, 9B, 27B), Qwen3.6-27B, Qwen3.8-27B, gpt-oss (20b, 120b), Qwen-AgentWorld-35B, OpenResearcher-30B, OpenSeeker-v2-30B, MiroThinker-1.7-mini and QUEST-35B. Those last four run in their own interface: the tools, prompt and history format of each agent's released code, with a 100-turn budget |

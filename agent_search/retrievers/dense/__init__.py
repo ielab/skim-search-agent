@@ -15,12 +15,13 @@ from agent_search.retrievers.dense.base import (DenseRetriever, FAMILIES, SERVIN
                                                  register_family, to_numpy, _ENCODER_CACHE, _ENCODER_LOCK)
 from agent_search.retrievers.dense.bge import BgeRetriever
 from agent_search.retrievers.dense.coderank import CodeRankEmbedRetriever
+from agent_search.retrievers.dense.e5 import AgenticRRetriever, LratE5Retriever
 from agent_search.retrievers.dense.qwen3_embedding import QWEN3_EMBED_INSTRUCT, Qwen3EmbeddingRetriever
 from agent_search.retrievers.dense.repllama import RepLlamaRetriever   # before trained.py: it would claim the merged Llama checkpoint
 from agent_search.retrievers.dense.trained import TrainedRetriever, read_serving_note
 from agent_search.retrievers.dense.belief import DEFAULT_TOP_K, DenseBelief
 
-__all__ = ["DenseRetriever", "BgeRetriever", "CodeRankEmbedRetriever", "Qwen3EmbeddingRetriever",
+__all__ = ["DenseRetriever", "BgeRetriever", "CodeRankEmbedRetriever", "AgenticRRetriever", "LratE5Retriever", "Qwen3EmbeddingRetriever",
            "TrainedRetriever", "RepLlamaRetriever", "DenseBelief", "DEFAULT_TOP_K", "FAMILIES", "SERVING_NOTE",
            "QWEN3_EMBED_INSTRUCT", "register_family", "family_for", "local_snapshot",
            "external_index_path", "encode_query", "encode_with_retry", "to_numpy", "read_serving_note",
