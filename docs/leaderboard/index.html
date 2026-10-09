@@ -5,6 +5,12 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>BrowseComp-Plus Leaderboard · SkimSearchAgent</title>
 <meta name="description" content="Retriever and reranker baselines for deep-search agents on BrowseComp-Plus, run with SkimSearchAgent under one fixed agent setting.">
+<meta property="og:type" content="website">
+<meta property="og:title" content="BrowseComp-Plus Leaderboard">
+<meta property="og:description" content="Retriever and reranker baselines for deep-search agents on BrowseComp-Plus, run with SkimSearchAgent under one fixed agent setting.">
+<meta property="og:url" content="https://ielab.io/skim-search-agent/leaderboard/">
+<meta property="og:image" content="https://ielab.io/skim-search-agent/assets/skimsearchagent-overview.png">
+<meta name="twitter:card" content="summary_large_image">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 26 26'%3E%3Ccircle cx='11' cy='11' r='7.2' fill='none' stroke='%230e9384' stroke-width='2.6'/%3E%3Cline x1='16.5' y1='16.5' x2='23' y2='23' stroke='%230e9384' stroke-width='3' stroke-linecap='round'/%3E%3Cline x1='7.4' y1='9.4' x2='14.6' y2='9.4' stroke='%230e9384' stroke-width='1.7' stroke-linecap='round' opacity='.85'/%3E%3Cline x1='7.4' y1='12.8' x2='12.2' y2='12.8' stroke='%230e9384' stroke-width='1.7' stroke-linecap='round' opacity='.45'/%3E%3C/svg%3E">
 <script>
 (function(){
@@ -18,37 +24,37 @@
   :root{
     color-scheme:light;
     --bg:#f6f5f0; --bg-soft:#ecebe3; --card:#ffffff;
-    --ink:#20241f; --ink-2:#5c6159; --ink-3:#989d93;
+    --ink:#20241f; --ink-2:#5c6159; --ink-3:#676c62;
     --line:#dfded4; --line-soft:#e9e8df;
-    --teal:#0e9384; --teal-soft:#e2f1ee; --teal-glow:rgba(14,147,132,.30);
-    --violet:#7c3aed; --violet-soft:#efe9fb;
-    --amber:#d97706; --amber-soft:#f5e3c8;
-    --gold:#c99a06; --silver:#8c9196; --bronze:#b26b3a;
+    --teal:#0e9384; --teal-ink:#0b776b; --teal-fill:#0b776b; --teal-soft:#e2f1ee; --teal-glow:rgba(14,147,132,.30);
+    --violet:#7c3aed; --violet-ink:#7c3aed; --violet-soft:#efe9fb;
+    --amber:#d07100; --amber-ink:#965200; --amber-soft:#f5e3c8;
+    --gold:#c99a06; --silver:#8c9196; --bronze:#b26b3a; --medal-ink:#0f110d;
     --sans:system-ui,-apple-system,"Segoe UI",sans-serif;
     --mono:ui-monospace,'SF Mono',Menlo,Consolas,monospace;
-    --band:#efeee6; --code-bg:#1f231e; --code-bar:#2a2f29; --code-ink:#e8eae5; --code-dim:#8b9187;
+    --band:#efeee6; --code-bg:#1f231e; --code-bar:#2a2f29; --code-ink:#e8eae5; --code-dim:#939990;
     --shadow:0 1px 2px rgba(32,36,31,.05),0 10px 30px rgba(32,36,31,.07);
     --r-lg:20px; --r-md:14px; --r-sm:8px;
   }
   :root[data-theme="dark"]{
     color-scheme:dark;
     --bg:#161715; --bg-soft:#22231f; --card:#1d1e1b;
-    --ink:#eceae2; --ink-2:#b3b1a6; --ink-3:#82807a;
+    --ink:#eceae2; --ink-2:#b3b1a6; --ink-3:#9c9a93;
     --line:#383931; --line-soft:#2b2c27;
-    --teal:#16a795; --teal-soft:#1c3531; --teal-glow:rgba(22,167,149,.35);
-    --violet:#8d6ee8; --violet-soft:#2b2440;
-    --amber:#e79b2e; --amber-soft:#3d321f;
+    --teal:#16a795; --teal-ink:#1cad9b; --teal-fill:#0d8275; --teal-soft:#1c3531; --teal-glow:rgba(22,167,149,.35);
+    --violet:#8d6ee8; --violet-ink:#9c84ee; --violet-soft:#2b2440;
+    --amber:#e79b2e; --amber-ink:#e79b2e; --amber-soft:#3d321f;
     --gold:#e3b52a; --silver:#a9aeb3; --bronze:#d08a57;
-    --band:#1b1c19; --code-bg:#0f100e; --code-bar:#1a1b18; --code-ink:#e8eae5; --code-dim:#7d8279;
+    --band:#1b1c19; --code-bg:#0f100e; --code-bar:#1a1b18; --code-ink:#e8eae5; --code-dim:#83887f;
     --shadow:0 0 0 1px rgba(255,255,255,.03),0 12px 32px rgba(0,0,0,.4);
   }
   *{box-sizing:border-box;margin:0;padding:0}
   html{scroll-behavior:smooth;scroll-padding-top:72px}
   body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:16px;line-height:1.6;-webkit-font-smoothing:antialiased}
   ::selection{background:rgba(14,147,132,.22)}
-  a{color:var(--teal);text-decoration:none}
+  a{color:var(--teal-ink);text-decoration:none}
   a:focus-visible,button:focus-visible,summary:focus-visible,input:focus-visible{outline:2px solid var(--teal);outline-offset:2px}
-  code{font-family:var(--mono);font-size:.88em;background:var(--bg-soft);border-radius:5px;padding:1px 5px}
+  code{font-family:var(--mono);font-size:.88em;background:var(--bg-soft);border-radius:5px;padding:1px 5px;overflow-wrap:anywhere}
   [hidden]{display:none!important}
 
   .topbar{position:sticky;top:0;z-index:20;display:flex;justify-content:space-between;align-items:center;padding:12px 24px;background:rgba(246,245,240,.85);backdrop-filter:blur(12px);border-bottom:1px solid var(--line-soft);flex-wrap:nowrap;padding-left:max(24px,env(safe-area-inset-left));padding-right:max(24px,env(safe-area-inset-right))}
@@ -58,9 +64,9 @@
   .logo svg{transform:rotate(-6deg)}
   .nav{display:flex;gap:18px;font-size:13.5px;font-weight:600;flex-wrap:nowrap;white-space:nowrap;align-items:center}
   .nav a{color:var(--ink-2)}
-  .nav a:hover,.nav a.here{color:var(--teal)}
+  .nav a:hover,.nav a.here{color:var(--teal-ink)}
   .theme-btn{border:1px solid var(--line);background:var(--card);color:var(--ink-2);width:30px;height:30px;border-radius:9px;cursor:pointer;font-size:14px;line-height:1;transition:.15s}
-  .theme-btn:hover{border-color:var(--teal);color:var(--teal)}
+  .theme-btn:hover{border-color:var(--teal);color:var(--teal-ink)}
   @media(max-width:760px){
     .nav .opt{display:none}
     .topbar{padding-top:10px;padding-bottom:10px;padding-left:max(14px,env(safe-area-inset-left));padding-right:max(14px,env(safe-area-inset-right))}
@@ -74,20 +80,24 @@
   @media(max-width:600px){.wrap{padding:0 18px}}
 
   /* hero */
-  .hero{text-align:center;padding:60px 0 0}
-  .kicker{display:inline-block;font-family:var(--mono);font-size:11px;letter-spacing:.08em;color:var(--teal);border:1px solid var(--teal);border-radius:999px;padding:3px 12px;margin-bottom:18px}
-  h1{font-size:clamp(36px,6vw,58px);font-weight:800;letter-spacing:-.04em;line-height:1.04}
+  .hero{text-align:center;padding:72px 0 0}
+  .kicker{display:inline-block;font-family:var(--mono);font-size:11px;letter-spacing:.08em;color:var(--teal-ink);border:1px solid var(--teal);border-radius:999px;padding:3px 12px;margin-bottom:18px}
+  h1{font-size:clamp(36px,7vw,68px);font-weight:800;letter-spacing:-.04em;line-height:1.04}
   h1 span{color:var(--teal)}
-  .sub{margin:18px auto 0;max-width:640px;font-size:18px;line-height:1.55;color:var(--ink-2)}
+  .sub{margin:18px auto 0;max-width:620px;font-size:18px;line-height:1.55;color:var(--ink-2);text-wrap:balance}
   .facts{display:flex;flex-wrap:wrap;justify-content:center;gap:8px;margin-top:24px}
   .fact{font-size:13.5px;line-height:1.35;color:var(--ink-2);background:var(--card);border:1px solid var(--line-soft);border-radius:var(--r-sm);padding:5px 11px}
   .fact b{color:var(--ink);font-weight:650;font-variant-numeric:tabular-nums}
-  .cta{display:flex;gap:10px;justify-content:center;margin-top:24px;flex-wrap:wrap}
+  .cta{display:flex;gap:10px;justify-content:center;margin-top:26px;flex-wrap:wrap}
   .btn{display:inline-flex;align-items:center;gap:7px;font-size:14.5px;font-weight:650;border-radius:12px;padding:11px 22px;border:1.5px solid var(--line);color:var(--ink);background:var(--card);transition:.15s}
   .btn:hover{border-color:var(--ink-3)}
-  .btn.primary{background:var(--teal);border-color:var(--teal);color:#fff;box-shadow:0 4px 14px var(--teal-glow)}
-  .btn.primary:hover{border-color:var(--teal)}
-  @media(max-width:600px){.hero{padding-top:40px}.sub{font-size:16.5px}.btn{padding:10px 16px;font-size:14px}}
+  .btn.primary{background:var(--teal-fill);border-color:var(--teal-fill);color:#fff;box-shadow:0 4px 14px var(--teal-glow)}
+  .btn.primary:hover{border-color:var(--teal-fill)}
+  .hero-links{margin-top:16px;display:flex;justify-content:center;flex-wrap:wrap;gap:8px 22px;font-size:14px;font-weight:600}
+  .hero-links a{color:var(--ink-2);border-bottom:1px solid var(--line)}
+  .hero-links a:hover{color:var(--teal-ink);border-bottom-color:var(--teal)}
+  @media(max-width:600px){.hero{padding-top:44px}.sub{font-size:16.5px}}
+  @media(max-width:600px){.kicker{border-radius:13px;text-wrap:balance}}
 
   /* the board: controls, chart, table */
   .board{width:min(1480px,calc(100vw - 48px));position:relative;left:50%;transform:translateX(-50%);margin-top:44px;background:var(--card);border:1px solid var(--line);border-radius:var(--r-lg);box-shadow:var(--shadow);overflow:hidden}
@@ -95,12 +105,13 @@
   .controls{display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:16px 18px;border-bottom:1px solid var(--line-soft)}
   .search{flex:1 1 220px;max-width:340px;font:inherit;font-size:14.5px;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:8px 12px}
   .search:focus{border-color:var(--teal)}
+  .search::placeholder{color:var(--ink-3);opacity:1}
   .filters{display:flex;gap:6px;flex-wrap:wrap;margin-left:auto}
   .filt{font:inherit;font-size:13px;font-weight:650;color:var(--ink-2);background:var(--bg);border:1px solid var(--line);border-radius:999px;padding:5px 13px;cursor:pointer;transition:border-color .15s,color .15s}
   .filt:hover{border-color:var(--ink-3)}
-  .filt[aria-pressed="true"]{background:var(--teal);border-color:var(--teal);color:#fff}
+  .filt[aria-pressed="true"]{background:var(--teal-fill);border-color:var(--teal-fill);color:#fff}
   .chart-btn{font:inherit;font-size:13px;font-weight:650;color:var(--ink-2);background:none;border:none;border-bottom:1px solid var(--line);padding:2px 0;cursor:pointer}
-  .chart-btn:hover{color:var(--teal);border-bottom-color:var(--teal)}
+  .chart-btn:hover{color:var(--teal-ink);border-bottom-color:var(--teal)}
   .count{font-size:13px;color:var(--ink-3);width:100%;display:flex;gap:8px;flex-wrap:wrap;align-items:baseline}
   .count b{color:var(--ink-2);font-weight:650}
   @media(max-width:760px){.filters{margin-left:0}}
@@ -108,12 +119,12 @@
   /* Pareto chart */
   .chart{display:grid;grid-template-columns:minmax(0,1fr) 336px;border-bottom:1px solid var(--line-soft)}
   .chart-main{min-width:0;padding:14px 10px 10px 14px;display:flex;flex-direction:column}
-  .plot{position:relative;flex:1 1 384px;min-height:384px;max-height:430px}
+  .plot{position:relative;flex:1 1 384px;min-height:384px;max-height:480px}
   .plot svg{display:block;width:100%;height:100%;overflow:visible;touch-action:manipulation}
   .legend{list-style:none;display:flex;flex-wrap:wrap;gap:4px 18px;padding:8px 8px 4px 36px;font-size:13px;color:var(--ink-2)}
   .legend li{display:inline-flex;align-items:center;gap:6px}
   .legend svg{width:18px;height:14px;flex:none;overflow:visible}
-  .chart-side{background:var(--bg);border-left:1px solid var(--line-soft);padding:20px 22px 18px;min-width:0}
+  .chart-side{background:var(--bg);border-left:1px solid var(--line-soft);padding:20px 22px 18px;min-width:0;display:flex;flex-direction:column}
   .chart-h{font-size:17px;font-weight:750;letter-spacing:-.015em;line-height:1.25;margin:0 0 6px}
   .chart-side p{font-size:13.5px;line-height:1.55;color:var(--ink-2)}
   .front-h{font-size:13.5px;font-weight:700;color:var(--ink);margin:16px 0 4px}
@@ -127,7 +138,7 @@
   .front .nu{font-variant-numeric:tabular-nums;color:var(--ink-2);white-space:nowrap}
   .front .nu b{color:var(--ink);font-weight:750}
   .front .empty-f{padding:8px 4px;font-size:13.5px;color:var(--ink-3)}
-  .chart-note{margin-top:12px;font-size:13px!important;color:var(--ink-3)!important}
+  .chart-note{margin-top:auto;padding-top:12px;font-size:13px!important;color:var(--ink-3)!important}
   @media(max-width:1040px){
     .chart{grid-template-columns:1fr}
     .chart-side{border-left:none;border-top:1px solid var(--line-soft)}
@@ -164,7 +175,7 @@
   .on.k-agent .mk{fill:var(--amber);stroke:var(--card)}
 
   .tip{position:absolute;z-index:6;left:0;top:0;width:max-content;max-width:min(300px,calc(100% - 12px));pointer-events:none;background:var(--card);border:1px solid var(--line);border-radius:var(--r-sm);box-shadow:var(--shadow);padding:10px 12px;font-size:13px;line-height:1.4}
-  .tip .tag{display:inline-block;font-size:11.5px;font-weight:700;color:var(--teal);background:var(--teal-soft);border-radius:5px;padding:1px 7px;margin-bottom:6px}
+  .tip .tag{display:inline-block;font-size:11.5px;font-weight:700;color:var(--teal-ink);background:var(--teal-soft);border-radius:5px;padding:1px 7px;margin-bottom:6px}
   .tip dl{display:grid;grid-template-columns:auto minmax(0,1fr);gap:2px 12px}
   .tip dt{color:var(--ink-3)}
   .tip dd{color:var(--ink);font-weight:650;overflow-wrap:anywhere}
@@ -177,21 +188,22 @@
   th{position:sticky;top:0;background:var(--card);text-align:left;font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-3);font-weight:700;padding:13px 12px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
   th.num,td.num{text-align:right}
   th button.sort{all:unset;cursor:pointer}
-  th button.sort:hover,th button.sort:focus-visible{color:var(--teal)}
+  th button.sort:hover,th button.sort:focus-visible{color:var(--teal-ink)}
   th button.sort:focus-visible{outline:2px solid var(--teal);outline-offset:3px;border-radius:3px}
   th .pick{display:none;position:relative;margin-left:8px;text-transform:none;letter-spacing:0;font-weight:500;vertical-align:middle}
   .board[data-view="all"] th .pick{display:inline-block}
   .tbl:has(.pick[open]){min-height:360px}
+  th:has(.pick[open]){z-index:6}
   th .pick summary{list-style:none;cursor:pointer;display:inline-flex;align-items:center;gap:4px;font-size:12px;color:var(--ink-2);background:var(--bg);border:1px solid var(--line-soft);border-radius:999px;padding:1px 9px;line-height:1.6}
   th .pick summary::-webkit-details-marker{display:none}
   th .pick summary::after{content:"\25BE";font-size:10px;color:var(--ink-3)}
-  th .pick.on summary{border-color:var(--teal);color:var(--teal)}
+  th .pick.on summary{border-color:var(--teal);color:var(--teal-ink)}
   th .pick .menu{position:absolute;z-index:5;left:0;top:calc(100% + 4px);min-width:230px;max-height:280px;overflow:auto;background:var(--card);border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow);padding:6px}
   th .pick label{display:flex;gap:8px;align-items:center;font-size:13.5px;color:var(--ink);padding:4px 6px;border-radius:6px;cursor:pointer;white-space:nowrap}
   th .pick label:hover{background:var(--bg)}
   th .pick input{accent-color:var(--teal)}
   th .pick .acts{display:flex;gap:10px;padding:2px 6px 6px;border-bottom:1px solid var(--line-soft);margin-bottom:4px}
-  th .pick .acts button{all:unset;cursor:pointer;font-size:12.5px;color:var(--teal);font-weight:650}
+  th .pick .acts button{all:unset;cursor:pointer;font-size:12.5px;color:var(--teal-ink);font-weight:650}
   th .pick .acts button:focus-visible{outline:2px solid var(--teal);outline-offset:2px;border-radius:3px}
   th[aria-sort="descending"] button.sort::after{content:" \2193"}
   th[aria-sort="ascending"] button.sort::after{content:" \2191"}
@@ -201,8 +213,8 @@
   tbody tr.hl td{background:var(--teal-soft)}
   tbody tr.flash td{animation:rowflash 1.8s ease-out}
   @keyframes rowflash{0%,55%{background:var(--teal-soft)}100%{background:transparent}}
-  .rank{width:52px;font-family:var(--mono);font-weight:700;color:var(--ink-3)}
-  .medal{display:inline-grid;place-items:center;width:26px;height:26px;border-radius:50%;color:#fff;font-size:12.5px}
+  .rank{width:52px;color:var(--ink-3);font-variant-numeric:tabular-nums}
+  .medal{display:inline-grid;place-items:center;width:24px;height:24px;border-radius:50%;color:var(--medal-ink);font-size:12px;font-weight:700}
   .m1{background:var(--gold)}.m2{background:var(--silver)}.m3{background:var(--bronze)}
   .name{font-weight:650;color:var(--ink)}
   td:nth-child(3){min-width:190px}
@@ -214,14 +226,15 @@
   th:not(.num):not(.rank){white-space:nowrap}
   @media(max-width:1100px){.bar{display:none} td,th{padding-left:8px;padding-right:8px} td:nth-child(3){min-width:160px}}
   @media(max-width:980px){table{font-size:13.5px} th{letter-spacing:.03em} td:nth-child(3){min-width:140px} td,th{padding-left:6px;padding-right:6px} .rank{width:34px} th .pick{margin-left:4px}}
-  a.name:hover{color:var(--teal)}
+  @media(max-width:980px){.file{overflow-wrap:anywhere} td:last-child,th:last-child{padding-right:14px} td:first-child,th:first-child{padding-left:14px}}
+  a.name:hover{color:var(--teal-ink)}
   .meta{display:flex;align-items:center;gap:6px;margin-top:3px}
   .kind{font-family:var(--mono);font-size:10.5px;letter-spacing:.04em;border-radius:6px;padding:1px 7px;white-space:nowrap}
-  .k-sparse{background:var(--amber-soft);color:var(--amber)}
-  .k-dense{background:var(--teal-soft);color:var(--teal)}
-  .k-multi-vector{background:var(--violet-soft);color:var(--violet)}
+  .k-sparse{background:var(--amber-soft);color:var(--amber-ink)}
+  .k-dense{background:var(--teal-soft);color:var(--teal-ink)}
+  .k-multi-vector{background:var(--violet-soft);color:var(--violet-ink)}
   .file{font-family:var(--mono);font-size:11.5px;color:var(--ink-3)}
-  .file:hover{color:var(--teal)}
+  .file:hover{color:var(--teal-ink)}
   .none{color:var(--ink-3)}
   .acc{display:flex;align-items:center;justify-content:flex-end;gap:10px}
   .bar{width:64px;height:6px;border-radius:3px;background:var(--bg-soft);overflow:hidden}
@@ -232,10 +245,48 @@
   .empty{padding:28px;text-align:center;color:var(--ink-3)}
   .note{padding:12px 18px;font-size:13px;color:var(--ink-3);border-top:1px solid var(--line-soft)}
 
+  /* phone: the header is a sort and filter bar, and each row stacks its names beside the accuracy */
+  .mline{display:none}
+  @media(max-width:640px){
+    table{min-width:0;font-size:14px}
+    table,thead,tbody{display:block}
+    .tbl thead tr{display:flex;flex-wrap:wrap;align-items:center;gap:4px 14px;position:relative;padding:8px 14px;border-bottom:1px solid var(--line)}
+    .tbl thead tr::before{content:"Sort";order:-1;font-size:12px;color:var(--ink-3)}
+    .tbl thead th{position:static;display:inline-flex;align-items:center;padding:0;border:none;background:none;white-space:nowrap;line-height:1.6}
+    .tbl thead th.rank{order:1;flex:0 0 100%;height:0;overflow:hidden}
+    .tbl thead th.num{order:2}
+    .tbl thead th button.sort{padding:5px 0}
+    .tbl thead th .pick{position:static;margin-left:6px}
+    .tbl thead th .pick .menu{left:14px;right:14px;top:calc(100% - 2px);min-width:0}
+    #rows tr{display:grid;grid-template-columns:28px minmax(0,1fr) auto;column-gap:10px;row-gap:1px;align-items:start;padding:12px 14px;border-bottom:1px solid var(--line-soft)}
+    #rows tr:last-child{border-bottom:none}
+    #rows td{display:block;min-width:0;padding:0;border:none;background:none;text-align:left}
+    #rows td.rank{grid-column:1;grid-row:1/span 2;width:auto}
+    #rows td.c-agent{grid-column:2;grid-row:1}
+    #rows td.c-acc{grid-column:3;grid-row:1/span 2}
+    #rows td.c-retr{display:contents}
+    #rows td.c-retr>.name{grid-column:2;grid-row:2;font-weight:500;color:var(--ink-2)}
+    #rows td.c-rr{grid-column:2/-1;grid-row:3}
+    #rows td.c-rr .name{font-weight:500;color:var(--ink-2)}
+    #rows td.c-rr .name::before{content:"reranker: ";color:var(--ink-3)}
+    #rows td.c-rr .none{display:none}
+    #rows .mline{display:block;margin-top:3px;font-size:12.5px;color:var(--ink-2);font-variant-numeric:tabular-nums}
+    #rows td.c-retr>.meta{grid-column:2/-1;grid-row:4;margin-top:4px}
+    #rows td.c-x{display:none}
+    #rows td.empty{grid-column:1/-1;padding:28px 0;text-align:center}
+    #rows .acc{flex-direction:column-reverse;align-items:flex-end;gap:4px}
+    #rows .acc b{font-size:16px;line-height:1.35;color:var(--ink)}
+    #rows .bar{display:block;width:56px}
+    #rows tr:hover td,#rows tr.hl td{background:none}
+    #rows tr.hl{background:var(--teal-soft)}
+    #rows tr.flash td{animation:none}
+    #rows tr.flash{animation:rowflash 1.8s ease-out}
+  }
+
   /* sections and bands */
   section{padding:88px 0 0}
   @media(max-width:700px){section{padding:60px 0 0}}
-  .sec-k{font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--teal);font-weight:700}
+  .sec-k{font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--teal-ink);font-weight:700}
   h2{font-size:clamp(24px,3.2vw,32px);font-weight:800;letter-spacing:-.028em;line-height:1.15;margin:8px 0 12px;text-wrap:balance}
   .lead{color:var(--ink-2);font-size:17px;max-width:68ch}
   .secnote{font-size:14.5px;color:var(--ink-2);margin-top:18px;max-width:76ch}
@@ -251,7 +302,7 @@
   .views dl{margin-top:auto;padding-top:14px;display:grid;grid-template-columns:auto minmax(0,1fr);gap:5px 12px;font-size:13.5px;line-height:1.45}
   .views dt{color:var(--ink-3)}
   .views dd{color:var(--ink-2)}
-  .views dt.v,.views dt.v+dd{color:var(--teal);font-weight:650}
+  .views dt.v,.views dt.v+dd{color:var(--teal-ink);font-weight:650}
   @media(max-width:920px){.views{grid-template-columns:1fr 1fr}}
   @media(max-width:560px){.views{grid-template-columns:1fr}.views>div{padding:18px}}
 
@@ -267,9 +318,9 @@
   .spec{margin-top:26px;background:var(--card);border:1px solid var(--line-soft);border-radius:var(--r-lg);overflow:hidden}
   .spec>div{display:grid;grid-template-columns:190px 1fr;border-top:1px solid var(--line-soft)}
   .spec>div:first-child{border-top:none}
-  .spec dt{padding:14px 20px;font-size:14.5px;font-weight:700;color:var(--ink);background:var(--bg)}
-  .spec dd{padding:14px 20px;min-width:0;font-size:14.5px;color:var(--ink-2)}
-  @media(max-width:640px){.spec>div{grid-template-columns:1fr}.spec dt{padding:12px 16px 2px;background:none}.spec dd{padding:2px 16px 14px}}
+  .spec dt{padding:15px 20px;font-size:14.5px;font-weight:700;color:var(--ink);background:var(--bg)}
+  .spec dd{padding:13px 20px 15px;min-width:0;font-size:14.5px;color:var(--ink-2)}
+  @media(max-width:640px){.spec>div{grid-template-columns:1fr}.spec dt{padding:12px 16px 2px;background:none}.spec dd{padding:6px 16px 14px}}
 
   /* code block */
   .code{margin-top:22px;background:var(--code-bg);border-radius:var(--r-md);overflow:hidden;box-shadow:var(--shadow)}
@@ -283,6 +334,7 @@
 
   footer{margin-top:96px;border-top:1px solid var(--line-soft);padding:32px 24px 44px;text-align:center;font-size:13.5px;color:var(--ink-3)}
   footer a{color:var(--ink-2)}
+  footer a:hover{color:var(--teal-ink)}
   .foot-links{margin-top:6px}
 
   @media (prefers-reduced-motion: reduce){
@@ -290,6 +342,7 @@
     html{scroll-behavior:auto}
     tbody tr.flash td{background:var(--teal-soft)}
   }
+  @media (max-width:640px) and (prefers-reduced-motion: reduce){#rows tr.flash td{background:none}#rows tr.flash{background:var(--teal-soft)}}
 </style>
 </head>
 <body>
@@ -297,7 +350,7 @@
 <nav class="topbar">
   <a class="logo" href="../" aria-label="SkimSearchAgent home">
     <svg viewBox="0 0 26 26" width="22" height="22"><circle cx="11" cy="11" r="7.2" fill="none" stroke="#0e9384" stroke-width="2.6"/><line x1="16.5" y1="16.5" x2="23" y2="23" stroke="#0e9384" stroke-width="3" stroke-linecap="round"/><line x1="7.4" y1="9.4" x2="14.6" y2="9.4" stroke="#0e9384" stroke-width="1.7" stroke-linecap="round" opacity=".85"/><line x1="7.4" y1="12.8" x2="12.2" y2="12.8" stroke="#0e9384" stroke-width="1.7" stroke-linecap="round" opacity=".45"/></svg>
-    SkimSearch<b>Agent</b>
+    <span>SkimSearch<b>Agent</b></span>
   </a>
   <div class="nav">
     <a class="opt" href="#views">Views</a>
@@ -305,15 +358,15 @@
     <a class="opt" href="#setting">Setting</a>
     <a class="opt" href="#run">Run a row</a>
     <a href="../">Library</a>
-    <a class="here" href="./">Leaderboard</a>
+    <a class="here" href="./" aria-current="page">Leaderboard</a>
     <a href="https://github.com/ielab/skim-search-agent">GitHub</a>
-    <button class="theme-btn" id="themeBtn" title="toggle light/dark" aria-label="toggle color theme">&#9789;</button>
+    <button type="button" class="theme-btn" id="themeBtn" title="toggle light/dark" aria-label="toggle color theme">&#9789;</button>
   </div>
 </nav>
 
 <div class="wrap">
   <header class="hero">
-    <span class="kicker">BrowseComp-Plus &middot; retriever, reranker and agent baselines</span>
+    <span class="kicker">BrowseComp-Plus: retriever, reranker and agent baselines</span>
     <h1>Search <span>Leaderboard</span></h1>
     <p class="sub">One fixed setting, with one part swapped at a time: the retriever behind the
     search tool, a reranker over it, or the agent model. Every row is one experiment file you can
@@ -328,18 +381,18 @@
     <div class="cta">
       <a class="btn primary" href="https://github.com/ielab/skim-search-agent/blob/main/docs/BASELINES.md">How to run a row</a>
       <a class="btn" href="https://github.com/ielab/skim-search-agent/tree/main/configs/baselines">Experiment files</a>
-      <a class="btn" href="https://huggingface.co/spaces/Tevatron/BrowseComp-Plus">BrowseComp-Plus leaderboard</a>
     </div>
+    <p class="hero-links"><a href="https://huggingface.co/spaces/Tevatron/BrowseComp-Plus">BrowseComp-Plus leaderboard</a><a href="../">SkimSearchAgent library</a></p>
   </header>
 
   <div class="board" id="boardMain" data-view="all">
     <div class="controls">
       <input class="search" id="q" type="search" placeholder="Search agents, retrievers and rerankers" aria-label="Search agents, retrievers and rerankers">
       <div class="filters" role="group" aria-label="Filter rows">
-        <button class="filt" data-f="all" aria-pressed="true">All</button>
-        <button class="filt" data-f="retrievers" aria-pressed="false">Retrievers</button>
-        <button class="filt" data-f="rerankers" aria-pressed="false">Rerankers</button>
-        <button class="filt" data-f="agents" aria-pressed="false">Agent backbones</button>
+        <button type="button" class="filt" data-f="all" aria-pressed="true">All</button>
+        <button type="button" class="filt" data-f="retrievers" aria-pressed="false">Retrievers</button>
+        <button type="button" class="filt" data-f="rerankers" aria-pressed="false">Rerankers</button>
+        <button type="button" class="filt" data-f="agents" aria-pressed="false">Agent backbones</button>
       </div>
       <button class="chart-btn" id="chartBtn" type="button" aria-expanded="true" aria-controls="chart">Hide chart</button>
       <div class="count" id="count"></div>
@@ -374,13 +427,13 @@
         <thead>
           <tr>
             <th class="rank">#</th>
-            <th data-k="backbone" aria-sort="none"><button class="sort">Agent</button><details class="pick" data-col="backbone"><summary>All</summary><div class="menu"></div></details></th>
-            <th data-k="retriever" aria-sort="none"><button class="sort">Retriever</button><details class="pick" data-col="retriever"><summary>All</summary><div class="menu"></div></details></th>
-            <th data-k="reranker" aria-sort="none"><button class="sort">Reranker</button><details class="pick" data-col="reranker"><summary>All</summary><div class="menu"></div></details></th>
-            <th class="num" data-k="accuracy" aria-sort="descending"><button class="sort">Accuracy (%)</button></th>
-            <th class="num" data-k="recall" aria-sort="none"><button class="sort">Recall (%)</button></th>
-            <th class="num" data-k="search_calls" aria-sort="none"><button class="sort">Search calls</button></th>
-            <th class="num" data-k="tokens" aria-sort="none"><button class="sort">Tokens</button></th>
+            <th data-k="backbone" aria-sort="none"><button type="button" class="sort">Agent</button><details class="pick" data-col="backbone"><summary>All</summary><div class="menu"></div></details></th>
+            <th data-k="retriever" aria-sort="none"><button type="button" class="sort">Retriever</button><details class="pick" data-col="retriever"><summary>All</summary><div class="menu"></div></details></th>
+            <th data-k="reranker" aria-sort="none"><button type="button" class="sort">Reranker</button><details class="pick" data-col="reranker"><summary>All</summary><div class="menu"></div></details></th>
+            <th class="num" data-k="accuracy" aria-sort="descending"><button type="button" class="sort">Accuracy (%)</button></th>
+            <th class="num" data-k="recall" aria-sort="none"><button type="button" class="sort">Recall (%)</button></th>
+            <th class="num" data-k="search_calls" aria-sort="none"><button type="button" class="sort">Search calls</button></th>
+            <th class="num" data-k="tokens" aria-sort="none"><button type="button" class="sort">Tokens</button></th>
           </tr>
         </thead>
         <tbody id="rows"><tr><td colspan="8" class="empty">Loading&hellip;</td></tr></tbody>
@@ -459,7 +512,7 @@ python scripts/leaderboard_row.py &lt;the run's results directory&gt;</pre>
 
 <footer>
   <div>Contact: <a href="https://shuaiwang.io">Shuai Wang</a> &middot; <a href="https://ielab.io">ielab</a>, The University of Queensland &middot; Apache-2.0</div>
-  <div class="foot-links"><a href="../">SkimSearchAgent</a> &middot;
+  <div class="foot-links"><a href="../">SkimSearchAgent</a> &middot; <a href="../sieve/">Sieve</a> &middot; <a href="../iter/">ITER</a> &middot;
   <a href="https://github.com/ielab/skim-search-agent">github.com/ielab/skim-search-agent</a></div>
 </footer>
 
@@ -559,14 +612,15 @@ python scripts/leaderboard_row.py &lt;the run's results directory&gt;</pre>
       const kind = e.reranker || !e.kind ? '' : `<span class="kind k-${esc(e.kind)}">${esc(KIND[e.kind] || e.kind)}</span>`;
       return `<tr data-id="${esc(e.id)}">
         <td class="rank">${r <= 3 ? `<span class="medal m${r}">${r}</span>` : r}</td>
-        <td>${link(e.backbone, e.backbone_link, 'name')}</td>
-        <td>${link(e.retriever, e.retriever_link, 'name')}
+        <td class="c-agent">${link(e.backbone, e.backbone_link, 'name')}</td>
+        <td class="c-retr">${link(e.retriever, e.retriever_link, 'name')}
           <div class="meta">${kind}<a class="file" href="${FILES}${esc(e.file)}">${esc(e.id)}</a></div></td>
-        <td>${e.reranker ? link(e.reranker, e.reranker_link, 'name') : '<span class="none">none</span>'}</td>
-        <td class="num"><div class="acc"><span class="bar"><i style="width:${(100 * e.accuracy / max).toFixed(1)}%"></i></span><b>${e.accuracy.toFixed(1)}</b></div></td>
-        <td class="num">${e.recall.toFixed(1)}</td>
-        <td class="num">${e.search_calls.toFixed(1)}</td>
-        <td class="num">${kTokens(e)}</td>
+        <td class="c-rr">${e.reranker ? link(e.reranker, e.reranker_link, 'name') : '<span class="none">none</span>'}
+          <div class="mline">recall ${e.recall.toFixed(1)}, ${e.search_calls.toFixed(1)} searches${hasTokens(e) ? `, ${kTokens(e)} tok` : ''}</div></td>
+        <td class="num c-acc"><div class="acc"><span class="bar"><i style="width:${(100 * e.accuracy / max).toFixed(1)}%"></i></span><b>${e.accuracy.toFixed(1)}</b></div></td>
+        <td class="num c-x">${e.recall.toFixed(1)}</td>
+        <td class="num c-x">${e.search_calls.toFixed(1)}</td>
+        <td class="num c-x">${kTokens(e)}</td>
       </tr>`;
     }).join('') : '<tr><td colspan="8" class="empty">No row matches.</td></tr>';
     document.getElementById('count').innerHTML = `<b>${rows.length} of ${total} rows</b><span>${esc(NOTE[state.filter])}</span>`;
