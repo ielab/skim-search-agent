@@ -24,6 +24,10 @@
     --amber:#d97706; --amber-soft:#f5e3c8; --good:#317a31;
     --sans:system-ui,-apple-system,"Segoe UI",sans-serif;
     --mono:ui-monospace,'SF Mono',Menlo,Consolas,monospace;
+    --band:#efeee6; --code-bg:#1f231e; --code-bar:#2a2f29; --code-ink:#e8eae5; --code-dim:#8b9187;
+    --base-bar:#b9bdb3;
+    --shadow:0 1px 2px rgba(32,36,31,.05),0 10px 30px rgba(32,36,31,.07);
+    --r-lg:20px; --r-md:14px; --r-sm:8px;
   }
   /* dark theme, same roles as light, dark values. Validated as a pair on #161715. */
   :root[data-theme="dark"]{
@@ -35,20 +39,25 @@
     --violet:#8d6ee8; --violet-soft:#2b2440;
     --amber:#e79b2e; --amber-soft:#3d321f;
     --good:#5fae5f;
+    --band:#1b1c19; --code-bg:#0f100e; --code-bar:#1a1b18; --code-ink:#e8eae5; --code-dim:#7d8279;
+    --base-bar:#5d5e56;
+    --shadow:0 0 0 1px rgba(255,255,255,.03),0 12px 32px rgba(0,0,0,.4);
   }
   *{box-sizing:border-box;margin:0;padding:0}
-  html{scroll-behavior:smooth}
-  body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:15.5px;line-height:1.65;-webkit-font-smoothing:antialiased}
+  [hidden]{display:none!important}
+  html{scroll-behavior:smooth;scroll-padding-top:72px}
+  body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:16px;line-height:1.6;-webkit-font-smoothing:antialiased}
   ::selection{background:rgba(14,147,132,.22)}
   a{color:var(--teal);text-decoration:none}
-  code{font-family:var(--mono);font-size:.9em;background:var(--bg-soft);border-radius:5px;padding:1px 6px}
+  a:focus-visible,button:focus-visible{outline:2px solid var(--teal);outline-offset:2px}
+  code{font-family:var(--mono);font-size:.88em;background:var(--bg-soft);border-radius:5px;padding:1px 5px}
 
   .topbar{position:sticky;top:0;z-index:20;display:flex;justify-content:space-between;align-items:center;padding:12px 24px;background:rgba(246,245,240,.85);backdrop-filter:blur(12px);border-bottom:1px solid var(--line-soft);flex-wrap:nowrap;padding-left:max(24px,env(safe-area-inset-left));padding-right:max(24px,env(safe-area-inset-right))}
   :root[data-theme="dark"] .topbar{background:rgba(22,23,21,.85)}
   .logo{display:flex;align-items:center;gap:7px;font-size:16px;font-weight:500;letter-spacing:-.02em;color:var(--ink);white-space:nowrap;min-width:0}
   .logo b{font-weight:800}
   .logo svg{transform:rotate(-6deg)}
-  .nav{display:flex;gap:18px;font-size:13.5px;font-weight:550;flex-wrap:nowrap;white-space:nowrap;align-items:center}
+  .nav{display:flex;gap:18px;font-size:13.5px;font-weight:600;flex-wrap:nowrap;white-space:nowrap;align-items:center}
   .nav a{color:var(--ink-2)}
   .nav a:hover{color:var(--teal)}
   @media(max-width:760px){
@@ -59,53 +68,59 @@
     .nav{gap:11px;font-size:12.5px}
     .theme-btn{width:27px;height:27px;font-size:12.5px}
   }
-  @media(max-width:560px){
-    .station{width:64px;margin-left:-32px}
-    .st-pad{width:44px;height:44px;font-size:17px;border-radius:14px}
-    .st-name{font-size:8px;letter-spacing:.04em;margin-top:5px}
-    .stage{height:150px}
-    .agent{width:44px}
-    .lens{width:34px;height:34px;border-width:3px}
-    .eye.l{left:8px}.eye.r{left:19px}
-    .mouth{left:11px;top:20px}
-    .ticker{font-size:10.5px}
-    .caption{padding:0 8px}
-  }
 
-  .wrap{max-width:var(--shell,900px);margin:0 auto;padding:0 28px}
-  @media(min-width:1400px){:root{--shell:1040px}}
-  @media(min-width:1750px){:root{--shell:1140px}}
+  .wrap{max-width:1096px;margin:0 auto;padding:0 28px}
+  @media(max-width:600px){.wrap{padding:0 18px}}
 
   /* hero */
-  .hero{text-align:center;padding:64px 0 10px}
+  .hero{text-align:center;padding:72px 0 0}
   .kicker{display:inline-block;font-family:var(--mono);font-size:11px;letter-spacing:.08em;color:var(--teal);border:1px solid var(--teal);border-radius:999px;padding:3px 12px;margin-bottom:18px}
-  h1{font-size:clamp(34px,6vw,54px);font-weight:800;letter-spacing:-.035em;line-height:1.08}
+  h1{font-size:clamp(34px,6.2vw,60px);font-weight:800;letter-spacing:-.04em;line-height:1.06;text-wrap:balance}
   h1 .a{color:var(--teal)}h1 .b{color:var(--violet)}h1 .c{color:var(--amber)}
-  .sub{margin:16px auto 0;max-width:600px;font-size:17px;color:var(--ink-2)}
+  .sub{margin:18px auto 0;max-width:640px;font-size:18px;line-height:1.55;color:var(--ink-2)}
   .cta{display:flex;gap:10px;justify-content:center;margin-top:26px;flex-wrap:wrap}
-  .btn{display:inline-flex;align-items:center;gap:7px;font-size:14px;font-weight:650;border-radius:12px;padding:10px 20px;border:1.5px solid var(--line);color:var(--ink);background:var(--card);transition:.15s}
-  .btn:hover{transform:translateY(-1px);border-color:var(--ink-3)}
+  .btn{display:inline-flex;align-items:center;gap:7px;font-size:14.5px;font-weight:650;border-radius:12px;padding:11px 22px;border:1.5px solid var(--line);color:var(--ink);background:var(--card);transition:.15s}
+  .btn:hover{border-color:var(--ink-3)}
   .btn.primary{background:var(--teal);border-color:var(--teal);color:#fff;box-shadow:0 4px 14px var(--teal-glow)}
   .btn.primary:hover{border-color:var(--teal)}
+  .hero-links{margin-top:16px;display:flex;justify-content:center;flex-wrap:wrap;gap:8px 22px;font-size:14px;font-weight:600}
+  .hero-links a{color:var(--ink-2);border-bottom:1px solid var(--line)}
+  .hero-links a:hover{color:var(--teal);border-bottom-color:var(--teal)}
+  @media(max-width:600px){.hero{padding-top:44px}.sub{font-size:16.5px}}
 
-  /* animated stage */
-  .stage-card{margin:40px auto 0;max-width:760px;background:var(--card);border:1px solid var(--line);border-radius:22px;padding:16px 20px 10px;box-shadow:0 2px 18px rgba(32,36,31,.07);text-align:left}
-  .stage-top{display:flex;justify-content:space-between;gap:12px;align-items:center;flex-wrap:wrap}
-  .who{display:flex;align-items:baseline;gap:8px}
+  /* authors */
+  .authors-row{display:flex;flex-wrap:wrap;justify-content:center;gap:6px 24px;margin-top:26px}
+  .au{font-size:16px;font-weight:650;color:var(--ink)}
+  .au a{color:var(--ink);border-bottom:1.5px solid var(--teal-soft);transition:.15s}
+  .au a:hover{color:var(--teal);border-bottom-color:var(--teal)}
+  .au sup{font-size:10.5px;color:var(--teal);font-weight:700;margin-left:1px}
+  .affil{display:flex;flex-direction:column;align-items:center;gap:2px;margin-top:10px;font-size:13.5px;color:var(--ink-3)}
+  .affil span sup{color:var(--teal);font-weight:700;margin-right:3px}
+
+  /* episode replay: the animated stage and its log, one raised panel */
+  .hero-panel{margin-top:44px;background:var(--card);border:1px solid var(--line);border-radius:var(--r-lg);box-shadow:var(--shadow);overflow:hidden}
+  .stage-card{padding:18px 24px 6px;text-align:left}
+  .stage-top{display:flex;justify-content:space-between;gap:8px 12px;align-items:center;flex-wrap:wrap}
+  .who{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
   .who-dot{width:9px;height:9px;border-radius:50%;background:var(--teal);align-self:center;box-shadow:0 0 8px var(--teal)}
-  .who-name{font-size:14px;font-weight:800}
-  .who-sub{font-size:11.5px;color:var(--ink-3)}
-  .meter{font-family:var(--mono);font-size:11px;color:var(--ink-3);font-variant-numeric:tabular-nums;white-space:nowrap}
-  .meter b{color:var(--teal);font-size:13px}
-  .ticker{margin-top:10px;font-family:var(--mono);font-size:11.5px;line-height:1.5;color:#e8eae5;background:#20241f;border-radius:10px;padding:6px 12px;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;word-break:break-word;min-height:30px}
+  .who-name{font-size:15px;font-weight:800}
+  .who-sub{font-size:13px;color:var(--ink-3)}
+  .stage-ctl{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+  .meter{font-family:var(--mono);font-size:12px;color:var(--ink-3);font-variant-numeric:tabular-nums;white-space:nowrap}
+  .meter b{color:var(--teal);font-size:13.5px}
+  .pp{font:inherit;font-size:12.5px;font-weight:650;color:var(--ink-2);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:3px 12px;min-width:62px;cursor:pointer}
+  .pp:hover{border-color:var(--teal);color:var(--teal)}
+  .ticker{margin-top:12px;font-family:var(--mono);font-size:12.5px;line-height:1.5;color:var(--code-ink);background:var(--code-bg);border-radius:10px;padding:8px 14px}
+  @media(max-width:900px){.ticker{min-height:calc(3em + 16px)}}
+  .ticker-in{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;word-break:break-word}
   .ticker .dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--teal);margin-right:8px;animation:pulse 1.1s ease-in-out infinite}
   .stage{position:relative;height:172px;margin-top:4px}
   .floor{position:absolute;left:20px;right:20px;bottom:30px;border-top:2px dotted var(--line)}
-  .station{position:absolute;top:18px;width:92px;margin-left:-46px;text-align:center;z-index:2}
+  .station{position:absolute;top:18px;width:104px;margin-left:-52px;text-align:center;z-index:2}
   .st-pad{width:60px;height:60px;margin:0 auto;border-radius:20px;background:var(--bg);border:1.5px solid var(--line);display:grid;place-items:center;font-size:24px;transition:.3s;position:relative}
   .station.active .st-pad{background:var(--teal-soft);border-color:var(--teal);transform:translateY(-4px);box-shadow:0 6px 18px var(--teal-glow)}
   .station.active .st-pad::after{content:'';position:absolute;inset:-8px;border-radius:25px;border:2px solid var(--teal);opacity:0;animation:ring 1.1s ease-out infinite}
-  .st-name{margin-top:7px;font-size:10px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;color:var(--ink-3)}
+  .st-name{margin-top:7px;font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3)}
   .station.active .st-name{color:var(--teal)}
   .agent{position:absolute;bottom:6px;left:1%;width:52px;z-index:4;transition:left .75s cubic-bezier(.45,1.45,.4,1)}
   .lens{position:relative;width:40px;height:40px;margin:0 auto;border-radius:50%;background:linear-gradient(150deg,#fff,#eef5f3);border:3.5px solid var(--teal);box-shadow:0 3px 10px var(--teal-glow),inset -3px -3px 8px rgba(32,36,31,.07);animation:bob 2s ease-in-out infinite}
@@ -116,73 +131,180 @@
   .bubble{position:absolute;top:-17px;right:-7px;font-size:13px;opacity:0}
   .agent.thinking .bubble{opacity:1;animation:bob 1.1s ease-in-out infinite}
   .packet{position:absolute;width:12px;height:9px;border-radius:2.5px;background:var(--teal);z-index:3;opacity:0}
+  .packet.seen{background:var(--ink-3)}
   .packet.fly{animation:pkfly .7s cubic-bezier(.4,.1,.7,1) forwards}
   .conf{position:absolute;width:7px;height:7px;border-radius:2px;z-index:6;opacity:0}
   .conf.go{animation:confl 1s ease-out forwards}
-  .caption{text-align:center;font-size:12px;color:var(--ink-3);margin-top:10px}
+  .paused .lens,.paused .eye,.paused .ticker .dot,.paused .st-pad::after{animation-play-state:paused}
 
-  /* authors */
-  .authors-row{display:flex;flex-wrap:wrap;justify-content:center;gap:6px 22px;margin-top:22px}
-  .au{font-size:15px;font-weight:600;color:var(--ink)}
-  .au a{color:var(--ink);border-bottom:1.5px solid var(--teal-soft);transition:.15s}
-  .au a:hover{color:var(--teal);border-bottom-color:var(--teal)}
-  .au sup{font-size:10.5px;color:var(--teal);font-weight:700;margin-left:1px}
-  .affil{display:flex;flex-direction:column;align-items:center;gap:2px;margin-top:12px;font-size:12.5px;color:var(--ink-3)}
-  .affil span sup{color:var(--teal);font-weight:700;margin-right:3px}
-
-  /* results */
-  .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:24px}
-  @media(max-width:720px){.stats{grid-template-columns:1fr}}
-  .stat{background:var(--card);border:1px solid var(--line-soft);border-radius:16px;padding:16px 18px}
-  .stat .v{font-size:30px;font-weight:800;letter-spacing:-.03em;line-height:1.1;color:var(--teal)}
-  .stat .v small{font-size:15px;font-weight:700;color:var(--ink-3);margin-left:3px}
-  .stat .l{font-size:12.5px;color:var(--ink-2);margin-top:5px;line-height:1.45}
-  .tbl-wrap{overflow-x:auto}
-  table.res{width:100%;min-width:520px;border-collapse:collapse;margin-top:22px;font-size:13.5px}
-  table.res th{text-align:left;font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--ink-3);font-weight:700;padding:0 10px 8px 0;border-bottom:1px solid var(--line)}
-  table.res td{padding:11px 10px 11px 0;border-bottom:1px solid var(--line-soft);vertical-align:baseline}
-  table.res td.c{font-weight:650}
-  .up{color:var(--good);font-weight:700}
-  .down{color:var(--teal);font-weight:700}
-  .arrow{color:var(--ink-3);margin:0 5px}
-  figure{margin-top:26px}
-  figure img{width:100%;border:1px solid var(--line-soft);border-radius:14px;background:var(--card)}
-  figcaption{margin-top:9px;font-size:12.5px;color:var(--ink-3);text-align:center}
+  /* episode log: one row per search, read from the same data the stage replays */
+  .hops{border-top:1px solid var(--line-soft)}
+  .hop-q{padding:14px 24px 12px;font-size:14.5px;color:var(--ink-2);background:var(--bg)}
+  .hop-q b{color:var(--ink);font-weight:700;margin-right:8px}
+  .hops ol{list-style:none}
+  .hops li{border-top:1px solid var(--line-soft)}
+  .hop{display:grid;grid-template-columns:86px minmax(0,1.15fr) 200px minmax(0,1fr) 118px;gap:4px 24px;align-items:center;width:100%;padding:12px 24px 12px 21px;border:none;border-left:3px solid transparent;background:none;font:inherit;font-size:14px;line-height:1.45;color:var(--ink);text-align:left;cursor:pointer}
+  .hop:disabled{cursor:default;color:var(--ink)}
+  .hop:not(:disabled):hover{background:var(--bg)}
+  .hop:focus-visible{outline-offset:-3px}
+  .hop.on{border-left-color:var(--teal);background:var(--teal-soft)}
+  .h-n{font-weight:750;white-space:nowrap}
+  .hop.on .h-n{color:var(--teal)}
+  .h-q{color:var(--ink-2);overflow-wrap:anywhere}
+  .h-res{display:block;font-size:13px;color:var(--ink-2)}
+  .split{display:flex;height:6px;border-radius:3px;overflow:hidden;background:var(--bg-soft);margin-bottom:5px}
+  .split i{display:block;background:var(--teal)}
+  .split i+i{background:var(--ink-3)}
+  .h-doc{font-size:13.5px;color:var(--ink-2);overflow-wrap:anywhere}
+  .h-doc code{color:var(--ink);white-space:nowrap;display:table;margin-bottom:3px}
+  .h-ctx{font-family:var(--mono);font-size:12px;color:var(--ink-3);text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+  .h-ctx b{font-size:14px;color:var(--ink);font-weight:700;margin-right:3px}
+  .hop .h-ans{font-weight:750;color:var(--ink)}
+  .panel-cap{border-top:1px solid var(--line-soft);padding:12px 24px 14px;font-size:13.5px;color:var(--ink-3);text-align:center}
+  @media(max-width:900px){
+    .hop{grid-template-columns:86px minmax(0,1fr) 118px}
+    .h-q{grid-column:2}.h-ctx{grid-column:3;grid-row:1}
+    .h-res,.h-doc{grid-column:2/-1}
+    .h-res{max-width:280px}
+  }
+  @media(max-width:560px){
+    .stage-card{padding:14px 14px 4px}
+    .station{width:74px;margin-left:-37px}
+    .st-pad{width:44px;height:44px;font-size:17px;border-radius:14px}
+    .st-name{font-size:8.5px;letter-spacing:.04em;margin-top:5px}
+    .stage{height:150px}
+    .agent{width:44px}
+    .lens{width:34px;height:34px;border-width:3px}
+    .eye.l{left:8px}.eye.r{left:19px}
+    .mouth{left:11px;top:20px}
+    .ticker{font-size:11.5px}
+    .hop-q{padding:12px 16px}
+    .hop{grid-template-columns:minmax(0,1fr) auto;padding:12px 16px 12px 13px}
+    .h-n{grid-column:1}.h-ctx{grid-column:2;grid-row:1}
+    .h-q,.h-res,.h-doc{grid-column:1/-1}
+    .panel-cap{padding:12px 16px 14px;font-size:13px}
+  }
   /* theme-specific images: these win over any component rule that sets display on an img */
   img.only-dark{display:none!important}
   :root[data-theme="dark"] img.only-dark{display:block!important}
   :root[data-theme="dark"] img.only-light{display:none!important}
 
-  /* team */
-  .team{margin-top:26px}
-  .team img{width:100%;border-radius:16px;border:1px solid var(--line-soft);display:block}
-  .team-names{display:grid;grid-template-columns:repeat(6,1fr);gap:4px;margin-top:9px}
-  .team-names a{display:block;text-align:center;font-size:12.5px;font-weight:650;color:var(--ink);line-height:1.3}
-  .team-names a:hover{color:var(--teal)}
-  .team-names a sup{color:var(--teal);font-size:9.5px;margin-left:1px}
-  @media(max-width:700px){.team-names{grid-template-columns:repeat(3,1fr);gap:8px 4px}}
-
-  /* sections */
-  section{padding:56px 0 0}
+  /* sections and bands */
+  section{padding:88px 0 0}
+  @media(max-width:700px){section{padding:60px 0 0}}
   .sec-k{font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--teal);font-weight:700}
-  h2{font-size:clamp(22px,3vw,30px);font-weight:800;letter-spacing:-.025em;margin:6px 0 10px}
-  .lead{color:var(--ink-2);max-width:640px}
+  h2{font-size:clamp(24px,3.2vw,32px);font-weight:800;letter-spacing:-.028em;line-height:1.15;margin:8px 0 12px;text-wrap:balance}
+  .lead{color:var(--ink-2);font-size:17px;max-width:68ch}
+  .after{margin-top:26px}
+  .band{background:var(--band);box-shadow:0 0 0 100vmax var(--band);clip-path:inset(0 -100vmax);padding-bottom:72px;margin-top:88px;padding-top:72px}
+  .band+section:not(.band){padding-top:72px}
+  @media(max-width:700px){.band{margin-top:60px;padding-top:52px;padding-bottom:52px}}
+  .band:has(+.band){padding-bottom:32px}
+  .band+.band{margin-top:0;padding-top:32px}
 
-  .stages{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:24px}
-  @media(max-width:760px){.stages{grid-template-columns:repeat(2,1fr)}}
-  .st-card{background:var(--card);border:1px solid var(--line-soft);border-radius:16px;padding:16px}
-  .st-card .n{font-family:var(--mono);font-size:11px;color:var(--teal);font-weight:700}
-  .st-card h3{font-size:15px;font-weight:750;margin:4px 0 5px;letter-spacing:-.01em}
-  .st-card p{font-size:12.5px;color:var(--ink-2);line-height:1.55}
+  /* headline numbers: unboxed columns */
+  .heads{margin-top:32px;display:grid;grid-template-columns:repeat(3,1fr);gap:28px}
+  .heads>div{border-top:2px solid var(--teal);padding-top:14px}
+  .heads dt{font-size:40px;font-weight:800;letter-spacing:-.035em;line-height:1;color:var(--ink);font-variant-numeric:tabular-nums}
+  .heads dt small{font-size:19px;font-weight:700;color:var(--ink-3);margin-left:3px;letter-spacing:-.01em}
+  .heads dd{margin-top:8px;font-size:14.5px;line-height:1.5;color:var(--ink-2);max-width:34ch}
+  @media(max-width:720px){.heads{grid-template-columns:1fr;gap:18px}.heads>div{display:grid;grid-template-columns:118px 1fr;align-items:baseline;gap:12px}.heads dt{font-size:32px}.heads dd{margin-top:0;max-width:none}}
 
-  .cite{margin-top:20px;position:relative}
-  .copy{position:absolute;top:12px;right:12px;font-size:11px;font-weight:650;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:5px 12px;cursor:pointer;color:var(--ink-2)}
-  .copy:hover{border-color:var(--teal);color:var(--teal)}
-  pre{background:#222621;color:#e8eae5;border-radius:14px;padding:16px 20px;font-family:var(--mono);font-size:12.5px;line-height:1.7;overflow-x:auto;margin-top:18px}
+  /* results: bar chart of one measure beside the full table, one raised panel */
+  .res-panel{margin-top:32px;background:var(--card);border:1px solid var(--line);border-radius:var(--r-lg);box-shadow:var(--shadow);padding:22px 26px 14px;display:grid;grid-template-columns:minmax(0,1fr);gap:8px 40px}
+  .res-panel.live{grid-template-columns:minmax(0,5fr) minmax(0,6fr)}
+  .seg{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:3px;padding:3px;background:var(--bg-soft);border-radius:11px;justify-self:start;max-width:100%}
+  .seg button{font:inherit;font-size:13.5px;font-weight:650;color:var(--ink-2);background:none;border:none;border-radius:8px;padding:6px 14px;cursor:pointer}
+  .seg button::first-letter{text-transform:uppercase}
+  .seg button:hover{color:var(--ink)}
+  .seg button[aria-pressed="true"]{background:var(--card);color:var(--ink);box-shadow:0 1px 2px rgba(32,36,31,.14)}
+  :root[data-theme="dark"] .seg button[aria-pressed="true"]{background:var(--line)}
+  .chart{padding-top:14px;min-width:0}
+  .bars{list-style:none}
+  .bars li{display:grid;grid-template-columns:104px minmax(0,1fr) 48px;align-items:center;gap:12px;height:44px}
+  .b-name{font-size:14px;font-weight:650;white-space:nowrap}
+  .b-track{position:relative;height:14px;border-radius:4px;background:var(--bg-soft)}
+  .b-track i{display:block;height:100%;border-radius:4px;background:var(--base-bar);transition:width .35s ease}
+  .bars li.iter .b-track i{background:var(--teal)}
+  .b-track em{position:absolute;top:-15px;bottom:-15px;width:0;border-left:1.5px dashed var(--ink-2);transition:left .35s ease}
+  .bars b{font-size:15px;font-weight:750;text-align:right;font-variant-numeric:tabular-nums}
+  .chart-cap{margin-top:6px;font-size:13px;color:var(--ink-3)}
+  .chart-cap i{display:inline-block;width:14px;border-top:1.5px dashed var(--ink-2);vertical-align:middle;margin-right:7px}
+  table.res{width:100%;border-collapse:collapse;font-size:14.5px;align-self:start;margin-top:6px}
+  table.res th{text-align:right;font-size:11px;line-height:1.35;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);font-weight:700;padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:bottom}
+  table.res td{padding:11px 10px;border-bottom:1px solid var(--line-soft);vertical-align:baseline;text-align:right;font-variant-numeric:tabular-nums}
+  table.res th:first-child,table.res td.c{text-align:left;padding-left:0}
+  table.res tr:last-child td{border-bottom:none}
+  table.res td.c{font-weight:650;white-space:nowrap}
+  table.res .sel{background:var(--bg)}
+  table.res th.sel{color:var(--ink);border-radius:8px 8px 0 0}
+  .up{color:var(--good);font-weight:700}
+  .note{margin-top:22px;font-size:15px;color:var(--ink-2);max-width:78ch}
+  @media(max-width:900px){.res-panel.live{grid-template-columns:minmax(0,1fr)}.chart{padding-bottom:10px;border-bottom:1px solid var(--line-soft)}}
+  @media(max-width:600px){
+    .res-panel{padding:16px 16px 6px}
+    .seg{display:grid;grid-template-columns:1fr 1fr;justify-self:stretch}
+    .seg button{padding:7px 6px;font-size:13px}
+    .bars li{grid-template-columns:88px minmax(0,1fr) 42px;gap:10px;height:40px}
+    .b-name{font-size:13.5px}
+    table.res thead{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
+    table.res,table.res tbody{display:block}
+    table.res tr{display:grid;grid-template-columns:1fr 1fr;gap:2px 22px;padding:12px 0;border-bottom:1px solid var(--line-soft)}
+    table.res tr:last-child{border-bottom:none}
+    table.res td{display:flex;justify-content:space-between;align-items:baseline;gap:8px;border:none;padding:2px 0;font-size:14px}
+    table.res td.c{grid-column:1/-1;font-size:15px}
+    table.res td[data-label]::before{content:attr(data-label);font-size:12.5px;color:var(--ink-3);font-weight:400}
+    table.res .sel{background:none}
+  }
 
-  footer{margin-top:70px;border-top:1px solid var(--line-soft);padding:28px 24px 40px;text-align:center;font-size:12.5px;color:var(--ink-3)}
-  footer .authors{color:var(--ink-2);margin-bottom:6px}
+  /* method: four stages in one joined panel, then the paper's figure */
+  .steps{list-style:none;margin-top:28px;display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--line-soft);border:1px solid var(--line-soft);border-radius:var(--r-lg);overflow:hidden}
+  .steps li{background:var(--card);padding:22px 22px 24px}
+  .steps .n{font-family:var(--mono);font-size:12px;font-weight:700;color:var(--teal)}
+  .steps h3{font-size:17px;font-weight:750;letter-spacing:-.015em;line-height:1.3;margin:6px 0 6px}
+  .steps p{font-size:14px;line-height:1.55;color:var(--ink-2)}
+  @media(max-width:900px){.steps{grid-template-columns:1fr 1fr}}
+  @media(max-width:560px){.steps{grid-template-columns:1fr}.steps li{padding:18px}}
+  figure{margin-top:18px;background:var(--card);border:1px solid var(--line);border-radius:var(--r-lg);overflow:hidden}
+  figure .mat{background:#fff;padding:18px}
+  figure img{width:100%;height:auto;display:block}
+  figcaption{border-top:1px solid var(--line-soft);padding:12px 24px 14px;font-size:13.5px;color:var(--ink-3);text-align:center}
+  @media(max-width:560px){figure .mat{padding:8px}figcaption{padding:12px 16px 14px}}
+
+  /* definition rows */
+  .spec{margin-top:26px;background:var(--card);border:1px solid var(--line-soft);border-radius:var(--r-lg);overflow:hidden}
+  .spec>div{display:grid;grid-template-columns:270px 1fr;border-top:1px solid var(--line-soft)}
+  .spec>div:first-child{border-top:none}
+  .spec dt{padding:16px 20px;font-size:15px;font-weight:700;color:var(--ink);background:var(--bg)}
+  .spec dt code{background:var(--card);border:1px solid var(--line-soft)}
+  .spec dd{padding:15px 22px 17px;min-width:0;font-size:15px;line-height:1.6;color:var(--ink-2)}
+  @media(max-width:720px){.spec>div{grid-template-columns:1fr}.spec dt{padding:14px 16px 0;background:none}.spec dd{padding:6px 16px 15px}}
+
+  /* code blocks */
+  .code{margin-top:22px;background:var(--code-bg);border-radius:var(--r-md);overflow:hidden;box-shadow:var(--shadow)}
+  :root[data-theme="dark"] .code{border:1px solid var(--line)}
+  .code-bar{display:flex;justify-content:space-between;align-items:center;padding:8px 10px 8px 18px;background:var(--code-bar);font-family:var(--mono);font-size:12px;color:var(--code-dim)}
+  .copy{font:inherit;font-size:12px;color:var(--code-ink);background:transparent;border:1px solid rgba(255,255,255,.16);border-radius:7px;padding:3px 11px;cursor:pointer}
+  .copy:hover{border-color:var(--teal);color:#fff}
+  pre{background:none;color:var(--code-ink);border-radius:0;margin:0;padding:16px 18px 18px;font-family:var(--mono);font-size:13px;line-height:1.7;overflow-x:auto;tab-size:4;scrollbar-width:thin;scrollbar-color:var(--code-dim) transparent}
+  pre .c{color:var(--code-dim)}
+  @media(max-width:600px){pre{font-size:12px;padding:14px}}
+
+  /* checkpoints: the only cards that are links */
+  .papers{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:28px}
+  @media(max-width:700px){.papers{grid-template-columns:1fr}}
+  .paper-card{position:relative;display:flex;flex-direction:column;background:var(--card);border:1px solid var(--line);border-radius:var(--r-lg);padding:22px 26px;transition:border-color .15s,box-shadow .15s}
+  .paper-card:hover,.paper-card:focus-within{border-color:var(--teal);box-shadow:var(--shadow)}
+  .paper-card h3{font-size:19px;font-weight:800;letter-spacing:-.02em;margin:0 0 8px;overflow-wrap:anywhere}
+  .paper-card h3 a::after{content:"";position:absolute;inset:0;border-radius:var(--r-lg)}
+  .paper-card p{font-size:14.5px;line-height:1.6;color:var(--ink-2)}
+  @media(max-width:560px){.paper-card{padding:18px}.paper-card h3{font-size:17.5px}}
+
+  footer{margin-top:96px;border-top:1px solid var(--line-soft);padding:32px 24px 44px;text-align:center;font-size:13.5px;color:var(--ink-3)}
   footer a{color:var(--ink-2)}
+  footer a:hover{color:var(--teal)}
+  footer .authors{color:var(--ink-2)}
+  .foot-links{margin-top:6px}
 
   /* dark mascot: bone lens, hollow eye sockets with glowing pupils, a stitched grin */
   :root[data-theme="dark"] .lens{
@@ -206,6 +328,11 @@
             mask-image:linear-gradient(90deg,#000 0 3px,transparent 3px 4.5px,#000 4.5px 7.5px,transparent 7.5px 9px,#000 9px 12px,transparent 12px 13.5px,#000 13.5px);
   }
   :root[data-theme="dark"] .agent .bubble{filter:grayscale(1) brightness(1.4)}
+  @media(max-width:560px){
+    :root[data-theme="dark"] .eye.l{left:5px}
+    :root[data-theme="dark"] .eye.r{left:17px}
+    :root[data-theme="dark"] .mouth{left:8px;top:21px}
+  }
 
   .theme-btn{border:1px solid var(--line);background:var(--card);color:var(--ink-2);width:30px;height:30px;border-radius:9px;cursor:pointer;font-size:14px;line-height:1;transition:.15s}
   .theme-btn:hover{border-color:var(--teal);color:var(--teal)}
@@ -217,17 +344,6 @@
   @keyframes confl{0%{opacity:1;transform:translate(0,0) rotate(0)}100%{opacity:0;transform:translate(var(--cx),var(--cy)) rotate(230deg)}}
   @keyframes pulse{0%,100%{opacity:.3}50%{opacity:1}}
   @media (prefers-reduced-motion: reduce){*{animation:none!important;transition:none!important}}
-
-  /* components shared with the library page */
-  .feats{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:24px}
-  @media(max-width:700px){.feats{grid-template-columns:1fr}}
-  .feat{background:var(--card);border:1px solid var(--line-soft);border-radius:16px;padding:18px 20px}
-  .feat h3{font-size:15.5px;font-weight:750;margin:0 0 5px;letter-spacing:-.01em}
-  .feat p{font-size:13px;color:var(--ink-2)}
-  .feat code{font-size:.88em}
-  pre .c{color:#8b9187}
-  .packet.seen{background:var(--ink-3)}
-  figure img.on-white{background:#fff}
 </style>
 </head>
 <body>
@@ -269,20 +385,23 @@
     </div>
 
     <div class="cta">
-      <a class="btn primary" href="https://github.com/ielab/ITER">&#9733; ITER on GitHub</a>
+      <a class="btn primary" href="https://github.com/ielab/ITER">ITER on GitHub</a>
       <a class="btn" href="https://arxiv.org/abs/2608.27912">Read the paper</a>
-      <a class="btn" href="https://huggingface.co/collections/ielabgroup/iter">Checkpoints</a>
-      <a class="btn" href="../">SkimSearchAgent library</a>
     </div>
+    <p class="hero-links"><a href="https://huggingface.co/collections/ielabgroup/iter">Checkpoints</a><a href="../">SkimSearchAgent library</a></p>
   </header>
 
-  <div class="stage-card">
-    <div class="stage-top">
-      <div class="who"><span class="who-dot"></span><span class="who-name">ITER-0.6B</span><span class="who-sub">history-aware search &middot; read by id</span></div>
-      <div class="meter"><b id="ctx">0</b> context tok &middot; <span id="nsearch">0</span> searches &middot; <span id="nread">0</span> reads</div>
-    </div>
-    <div class="ticker" id="ticker"><span class="dot"></span><span id="tick-text">warming up&hellip;</span></div>
-    <div class="stage" id="stage">
+  <div class="hero-panel" id="replay">
+    <div class="stage-card">
+      <div class="stage-top">
+        <div class="who"><span class="who-dot"></span><span class="who-name">ITER-0.6B</span><span class="who-sub">history-aware search &middot; read by id</span></div>
+        <div class="stage-ctl">
+          <div class="meter"><b id="ctx">0</b> context tok &middot; <span id="nsearch">0</span> searches &middot; <span id="nread">0</span> reads</div>
+          <button class="pp" id="playBtn" type="button" hidden>Pause</button>
+        </div>
+      </div>
+      <div class="ticker" id="ticker"><div class="ticker-in"><span class="dot"></span><span id="tick-text">warming up&hellip;</span></div></div>
+      <div class="stage" id="stage">
       <div class="floor"></div>
       <div class="station" id="st-search" style="left:12%"><div class="st-pad">&#128269;</div><div class="st-name">Search</div></div>
       <div class="station" id="st-rank" style="left:37%"><div class="st-pad">&#10024;</div><div class="st-name">Unseen first</div></div>
@@ -290,37 +409,72 @@
       <div class="station" id="st-answer" style="left:87%"><div class="st-pad">&#9997;&#65039;</div><div class="st-name">Answer</div></div>
       <div class="agent" id="agent"><div class="lens"><span class="eye l"></span><span class="eye r"></span><span class="mouth"></span><div class="handle"></div></div><span class="bubble">&#128173;</span></div>
     </div>
+    </div>
+    <div class="hops" id="hops">
+      <p class="hop-q"><b>Question</b><span id="hopQ">the first Prime Minister of a landlocked country, found from a chameleon named after its collector</span></p>
+      <ol>
+        <li><button class="hop" type="button" disabled data-q="chameleon species named after collector holotype landlocked country" data-ctx="878" data-results="10" data-new="10" data-doc="30814" data-title="Marshall’s pygmy chameleon" data-ctx2="2411">
+          <span class="h-n">Search 1</span>
+          <span class="h-q">chameleon species named after collector holotype landlocked country</span>
+          <span class="h-res"><span class="split" aria-hidden="true"><i style="width:100%"></i></span>10 results: 10 new</span>
+          <span class="h-doc"><code>get_document 30814</code> Marshall’s pygmy chameleon</span>
+          <span class="h-ctx"><b>2.4K</b> context tok</span>
+        </button></li>
+        <li><button class="hop" type="button" disabled data-q="Zimbabwe literacy rate 2014" data-ctx="3036" data-results="10" data-new="8" data-doc="68872" data-title="Zimbabwe Literacy Rate" data-ctx2="4312">
+          <span class="h-n">Search 2</span>
+          <span class="h-q">Zimbabwe literacy rate 2014</span>
+          <span class="h-res"><span class="split" aria-hidden="true"><i style="width:80%"></i><i style="width:20%"></i></span>10 results: 8 new, 2 already seen</span>
+          <span class="h-doc"><code>get_document 68872</code> Zimbabwe Literacy Rate</span>
+          <span class="h-ctx"><b>4.3K</b> context tok</span>
+        </button></li>
+        <li><button class="hop" type="button" disabled data-q="first prime minister of Zimbabwe" data-ctx="4586" data-results="10" data-new="5" data-doc="73071" data-title="Prime Minister of Zimbabwe" data-ctx2="5957">
+          <span class="h-n">Search 3</span>
+          <span class="h-q">first prime minister of Zimbabwe</span>
+          <span class="h-res"><span class="split" aria-hidden="true"><i style="width:50%"></i><i style="width:50%"></i></span>10 results: 5 new, 5 already seen</span>
+          <span class="h-doc"><code>get_document 73071</code> Prime Minister of Zimbabwe</span>
+          <span class="h-ctx"><b>6.0K</b> context tok</span>
+        </button></li>
+        <li><button class="hop" type="button" disabled data-answer="Robert Mugabe" data-ctx="6607">
+          <span class="h-n">Answer</span>
+          <span class="h-q h-ans">Robert Mugabe</span>
+          <span class="h-res">3 searches, 3 reads</span>
+          <span class="h-doc"></span>
+          <span class="h-ctx"><b>6.6K</b> context tok</span>
+        </button></li>
+      </ol>
+    </div>
+    <p class="panel-cap">replays a recorded ITER-0.6B episode on BrowseComp-Plus &middot; teal results are new to the agent, grey ones it has already seen</p>
   </div>
-  <div class="caption">replays a recorded ITER-0.6B episode on BrowseComp-Plus &middot; teal results are new to the agent, grey ones it has already seen</div>
 
-  <section id="results">
+  <section id="results" class="band">
     <span class="sec-k">Headline results</span>
     <h2>Better than LRAT on every backbone and benchmark</h2>
     <p class="lead">Across six agent backbones from three model families, ITER-0.6B outperforms LRAT,
     the existing agent-trajectory-trained retriever, in all twelve backbone and benchmark comparisons.</p>
 
-    <div class="stats">
-      <div class="stat"><div class="v">+15.4<small>%</small></div>
-        <div class="l">average relative improvement over LRAT in task success on BrowseComp-Plus</div></div>
-      <div class="stat"><div class="v">+6.9<small>%</small></div>
-        <div class="l">average relative improvement over LRAT in task success on InfoSeek-Eval</div></div>
-      <div class="stat"><div class="v">12<small>/12</small></div>
-        <div class="l">backbone and benchmark comparisons where ITER-0.6B beats LRAT</div></div>
-    </div>
+    <dl class="heads">
+      <div><dt>+15.4<small>%</small></dt><dd>average relative improvement over LRAT in task success on BrowseComp-Plus</dd></div>
+      <div><dt>+6.9<small>%</small></dt><dd>average relative improvement over LRAT in task success on InfoSeek-Eval</dd></div>
+      <div><dt>12<small>/12</small></dt><dd>backbone and benchmark comparisons where ITER-0.6B beats LRAT</dd></div>
+    </dl>
 
-    <div class="tbl-wrap">
-    <table class="res">
+    <div class="res-panel" id="resPanel">
+      <div class="chart" id="chart" hidden>
+        <ul class="bars" id="bars"></ul>
+        <p class="chart-cap"><i></i>the dashed line marks LRAT (0.6B)</p>
+      </div>
+    <table class="res" id="resTable">
       <thead><tr><th>retriever</th><th>InfoSeek-Eval SR</th><th>BrowseComp-Plus SR</th><th>search recall</th><th>visit recall</th></tr></thead>
       <tbody>
-        <tr><td class="c">BM25</td><td>77.3</td><td>31.1</td><td>.442</td><td>.248</td></tr>
-        <tr><td class="c">Base (0.6B)</td><td>58.0</td><td>32.4</td><td>.479</td><td>.249</td></tr>
-        <tr><td class="c">LRAT (0.6B)</td><td>72.0</td><td>43.7</td><td>.596</td><td>.321</td></tr>
-        <tr><td class="c">ITER (0.6B)</td><td><span class="up">78.7</span></td><td><span class="up">49.2</span></td><td><span class="up">.661</span></td><td><span class="up">.350</span></td></tr>
-        <tr><td class="c">ITER (4B)</td><td><span class="up">80.3</span></td><td><span class="up">51.2</span></td><td>.651</td><td><span class="up">.370</span></td></tr>
+        <tr><td class="c">BM25</td><td data-label="InfoSeek-Eval SR">77.3</td><td data-label="BrowseComp-Plus SR">31.1</td><td data-label="search recall">.442</td><td data-label="visit recall">.248</td></tr>
+        <tr><td class="c">Base (0.6B)</td><td data-label="InfoSeek-Eval SR">58.0</td><td data-label="BrowseComp-Plus SR">32.4</td><td data-label="search recall">.479</td><td data-label="visit recall">.249</td></tr>
+        <tr><td class="c">LRAT (0.6B)</td><td data-label="InfoSeek-Eval SR">72.0</td><td data-label="BrowseComp-Plus SR">43.7</td><td data-label="search recall">.596</td><td data-label="visit recall">.321</td></tr>
+        <tr><td class="c">ITER (0.6B)</td><td data-label="InfoSeek-Eval SR"><span class="up">78.7</span></td><td data-label="BrowseComp-Plus SR"><span class="up">49.2</span></td><td data-label="search recall"><span class="up">.661</span></td><td data-label="visit recall"><span class="up">.350</span></td></tr>
+        <tr><td class="c">ITER (4B)</td><td data-label="InfoSeek-Eval SR"><span class="up">80.3</span></td><td data-label="BrowseComp-Plus SR"><span class="up">51.2</span></td><td data-label="search recall">.651</td><td data-label="visit recall"><span class="up">.370</span></td></tr>
       </tbody>
     </table>
     </div>
-    <p class="lead" style="margin-top:16px">Matched-agent evaluation with Tongyi-DeepResearch-30B.
+    <p class="note">Matched-agent evaluation with Tongyi-DeepResearch-30B.
     SR is the task success rate; search and visit recall are the share of BrowseComp-Plus evidence
     the agent retrieved and opened. At the matched 4B scale, ITER outperforms AgentIR on InfoSeek-Eval
     for five of six backbones and has a higher visit-to-search recall ratio on BrowseComp-Plus for all
@@ -333,14 +487,14 @@
     <p class="lead">Retrievers trained from agent trajectories usually learn from the current
     sub-query and its results alone. ITER also uses what the agent already did in the episode: the
     searches it tried, the reasoning that led to the next one, and the documents it opened.</p>
-    <div class="stages">
-      <div class="st-card"><span class="n">01</span><h3>Trajectories</h3><p>A search agent answers questions over a corpus. Every sub-query it issues and every document it opens is recorded.</p></div>
-      <div class="st-card"><span class="n">02</span><h3>History-conditioned query</h3><p>The query carries the main question, the agent's pre-search reasoning, the current sub-query and the sub-queries already tried, not the text it read.</p></div>
-      <div class="st-card"><span class="n">03</span><h3>Trajectory-relative supervision</h3><p>Positives are documents the agent opened and a verifier confirmed useful. Negatives are split by what the agent already did with them: redundancy, hard and weak.</p></div>
-      <div class="st-card"><span class="n">04</span><h3>No gold labels</h3><p>The training data comes from signals the trajectories already produce. ITER needs neither gold document labels nor oracle reranking.</p></div>
-    </div>
+    <ol class="steps">
+      <li><span class="n">01</span><h3>Trajectories</h3><p>A search agent answers questions over a corpus. Every sub-query it issues and every document it opens is recorded.</p></li>
+      <li><span class="n">02</span><h3>History-conditioned query</h3><p>The query carries the main question, the agent's pre-search reasoning, the current sub-query and the sub-queries already tried, not the text it read.</p></li>
+      <li><span class="n">03</span><h3>Trajectory-relative supervision</h3><p>Positives are documents the agent opened and a verifier confirmed useful. Negatives are split by what the agent already did with them: redundancy, hard and weak.</p></li>
+      <li><span class="n">04</span><h3>No gold labels</h3><p>The training data comes from signals the trajectories already produce. ITER needs neither gold document labels nor oracle reranking.</p></li>
+    </ol>
     <figure>
-      <img class="on-white" src="../assets/iter_overview.png" alt="Overview of ITER: a history-conditioned query and trajectory-relative supervision." loading="lazy">
+      <div class="mat"><img width="1888" height="614" src="../assets/iter_overview.png" alt="Overview of ITER: a history-conditioned query and trajectory-relative supervision." loading="lazy"></div>
       <figcaption>ITER builds a history-conditioned query and derives trajectory-relative supervision from the agent's document interactions. Figure from <a href="https://github.com/ielab/ITER">ielab/ITER</a>.</figcaption>
     </figure>
   </section>
@@ -348,21 +502,23 @@
   <section id="tools">
     <span class="sec-k">Search tools</span>
     <h2>Search, then open a document by id</h2>
-    <div class="feats">
-      <div class="feat"><h3>Evaluation: <code>iter_dense</code></h3><p>The standard top ten results with no de-duplication, in ITER's result format. This is how the paper evaluates every retriever, and how the numbers above were produced.</p></div>
-      <div class="feat"><h3>Trajectories: <code>dedup_dense</code></h3><p>A search that drops every document an earlier search in the episode already listed. ITER collects its training trajectories this way.</p></div>
-    </div>
-    <p class="lead" style="margin-top:18px">Both pair the search with <code>get_document</code>, which
+    <dl class="spec">
+      <div><dt>Evaluation: <code>iter_dense</code></dt><dd>The standard top ten results with no de-duplication, in ITER's result format. This is how the paper evaluates every retriever, and how the numbers above were produced.</dd></div>
+      <div><dt>Trajectories: <code>dedup_dense</code></dt><dd>A search that drops every document an earlier search in the episode already listed. ITER collects its training trajectories this way.</dd></div>
+    </dl>
+    <p class="lead after">Both pair the search with <code>get_document</code>, which
     opens one document by id. The BM25 versions are <code>iter_bm25</code> and <code>dedup_bm25</code>.</p>
   </section>
 
-  <section id="reproduce">
+  <section id="reproduce" class="band">
     <span class="sec-k">Reproduce</span>
     <h2>One cache, one command</h2>
     <p class="lead">Build the dense cache with the checkpoint, serve Tongyi-DeepResearch-30B on an
     OpenAI-compatible endpoint, then run the experiment file. It holds every setting of the
     published cell.</p>
-    <pre><span class="c"># the ITER cache: documents at 512 tokens, last-token pooling, bfloat16</span>
+    <div class="code">
+      <div class="code-bar"><span>shell</span><button class="copy" type="button">Copy</button></div>
+<pre><span class="c"># the ITER cache: documents at 512 tokens, last-token pooling, bfloat16</span>
 DENSE_SEQ_LENGTH=512 DENSE_DTYPE=bfloat16 DENSE_POOLING=last_token \
 skimsearchagent-build-indexes --dataset browsecomp_plus_structured_full \
   --retriever dense --model ielabgroup/ITER-Qwen3-Embedding-0.6B --index-root indexes
@@ -371,33 +527,37 @@ skimsearchagent-build-indexes --dataset browsecomp_plus_structured_full \
 skimsearchagent validate configs/iter/browsecomp_plus_full_iter_iter06b_tongyi.yaml
 skimsearchagent run configs/iter/browsecomp_plus_full_iter_iter06b_tongyi.yaml \
   model.api_base=http://127.0.0.1:8000/v1</pre>
-    <p class="lead" style="margin-top:18px">Every step, from install to both judges, is in
+    </div>
+    <p class="lead after">Every step, from install to both judges, is in
     <a href="https://github.com/ielab/skim-search-agent/blob/main/docs/ITER.md">docs/ITER.md</a>.</p>
   </section>
 
-  <section id="retrievers">
+  <section id="retrievers" class="band">
     <span class="sec-k">Retrievers and training</span>
     <h2>Released checkpoints, and your own</h2>
-    <div class="feats">
-      <div class="feat"><h3><a href="https://huggingface.co/ielabgroup/ITER-Qwen3-Embedding-0.6B">ITER-Qwen3-Embedding-0.6B</a></h3><p>The smaller released checkpoint. Served with its trained query format, queries at 8,192 tokens and documents at 512.</p></div>
-      <div class="feat"><h3><a href="https://huggingface.co/ielabgroup/ITER-Qwen3-Embedding-4B">ITER-Qwen3-Embedding-4B</a></h3><p>The larger released checkpoint, same recipe and the same serving settings.</p></div>
+    <div class="papers">
+      <div class="paper-card"><h3><a href="https://huggingface.co/ielabgroup/ITER-Qwen3-Embedding-0.6B">ITER-Qwen3-Embedding-0.6B</a></h3><p>The smaller released checkpoint. Served with its trained query format, queries at 8,192 tokens and documents at 512.</p></div>
+      <div class="paper-card"><h3><a href="https://huggingface.co/ielabgroup/ITER-Qwen3-Embedding-4B">ITER-Qwen3-Embedding-4B</a></h3><p>The larger released checkpoint, same recipe and the same serving settings.</p></div>
     </div>
-    <p class="lead" style="margin-top:18px">Every run is a trajectory, so it is also training data.
+    <p class="lead after">Every run is a trajectory, so it is also training data.
     Triples come out of any run directory, a dense retriever trains on them, and the checkpoint
     plugs back in as any strategy's dense model.</p>
-    <pre><span class="c"># trajectories, triples, a checkpoint, then serve it</span>
+    <div class="code">
+      <div class="code-bar"><span>shell</span><button class="copy" type="button">Copy</button></div>
+<pre><span class="c"># trajectories, triples, a checkpoint, then serve it</span>
 skimsearchagent-build-triples --runs runs/mine --dataset hotpotqa_structured \
   --out train_data/hotpotqa_i2.jsonl --query-style i2 --labeller oracle
 skimsearchagent-train-retriever template &gt; train.yaml
 skimsearchagent run configs/sieve/hotpotqa_structured_sieve.yaml \
   retrieval.dense_model=models/my-retriever retrieval.dense_query_style=i2</pre>
+    </div>
   </section>
 
   <section id="cite">
     <span class="sec-k">Citation</span>
     <h2>If you use ITER</h2>
-    <div class="cite">
-      <button class="copy" onclick="navigator.clipboard.writeText(document.getElementById('bib').innerText).then(()=>{this.textContent='copied ✓';setTimeout(()=>this.textContent='copy',1500)})">copy</button>
+    <div class="code">
+      <div class="code-bar"><span>bibtex</span><button class="copy" type="button">Copy</button></div>
 <pre id="bib">@misc{chen2026iter,
   title         = {ITER: Interaction-Aware Retrieval for Agentic Search},
   author        = {Chen, Haodong and Wang, Shuai and Yin, Yu and Zhuang, Shengyao and
@@ -421,21 +581,48 @@ skimsearchagent run configs/sieve/hotpotqa_structured_sieve.yaml \
     <a href="https://ielab.io/people/guido-zuccon.html">Guido Zuccon</a> &middot;
     Teerapong Leelanupab
   </div>
-  <div><a href="../">SkimSearchAgent</a> &middot; Apache-2.0 &middot;
+  <div class="foot-links"><a href="../">SkimSearchAgent</a> &middot; Apache-2.0 &middot;
   <a href="https://github.com/ielab/ITER">github.com/ielab/ITER</a></div>
 </footer>
 
 <script>
-/* the hero board replays one recorded ITER-0.6B episode (BrowseComp-Plus, published run) on a loop */
+/* the hero board replays one recorded ITER-0.6B episode (BrowseComp-Plus, published run) on a loop.
+   The episode is read from the log rows under the stage, so the two cannot disagree. */
 const $ = id => document.getElementById(id);
-const agent = $('agent'), stage = $('stage');
-const sleep = ms => new Promise(r => setTimeout(r, ms));
+const agent = $('agent'), stage = $('stage'), replay = $('replay'), playBtn = $('playBtn');
+const rows = [...document.querySelectorAll('#hops .hop')];
+const hops = rows.filter(r => r.dataset.q).map(r => ({
+  query: r.dataset.q, context: +r.dataset.ctx, results: +r.dataset.results, fresh: +r.dataset.new,
+  docid: r.dataset.doc, title: r.dataset.title, contextAfterRead: +r.dataset.ctx2 }));
+const last = rows[rows.length - 1].dataset;
+const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const STOP = {};
+let gen = 0, paused = false, running = false;
+/* a wait that holds while paused and ends the run it belongs to when another run starts */
+function sleep(ms) {
+  const g = gen;
+  return new Promise((done, stop) => {
+    let left = ms, then = performance.now();
+    (function tick() {
+      if (g !== gen) return stop(STOP);
+      const now = performance.now();
+      if (!paused) left -= now - then;
+      then = now;
+      if (left <= 0) return done();
+      setTimeout(tick, Math.min(Math.max(left, 16), 100));
+    })();
+  });
+}
 let nsearch = 0, nread = 0;
 function ctx(n) { $('ctx').textContent = n >= 1000 ? (n / 1000).toFixed(1) + 'K' : n; }
 function counts() { $('nsearch').textContent = nsearch; $('nread').textContent = nread; }
 function say(t) { $('tick-text').textContent = t; }
+function mark(i) {
+  rows.forEach((r, j) => { r.classList.toggle('on', j === i); j === i ? r.setAttribute('aria-current', 'step') : r.removeAttribute('aria-current'); });
+}
+function clearStations() { document.querySelectorAll('#stage .station').forEach(s => s.classList.remove('active')); }
 async function goto(id, left) {
-  document.querySelectorAll('#stage .station').forEach(s => s.classList.remove('active'));
+  clearStations();
   agent.style.left = left; await sleep(760);
   if (id) $(id).classList.add('active');
 }
@@ -475,20 +662,77 @@ async function hop(query, context, results, fresh, docid, title, contextAfterRea
   say('get_document ' + docid + ' · ' + title);
   await sleep(1500);
 }
-async function episode() {
-  nsearch = 0; nread = 0; counts(); ctx(0);
-  agent.classList.add('thinking'); agent.style.left = '1%';
-  say('Q: the first Prime Minister of a landlocked country, found from a chameleon named after its collector');
-  await sleep(2000); agent.classList.remove('thinking');
-  await hop('chameleon species named after collector holotype landlocked country', 878, 10, 10, 30814, 'Marshall’s pygmy chameleon', 2411);
-  await hop('Zimbabwe literacy rate 2014', 3036, 10, 8, 68872, 'Zimbabwe Literacy Rate', 4312);
-  await hop('first prime minister of Zimbabwe', 4586, 10, 5, 73071, 'Prime Minister of Zimbabwe', 5957);
-  agent.classList.add('thinking'); await sleep(700); agent.classList.remove('thinking');
-  await goto('st-answer', '83.5%'); ctx(6607);
-  say('answer: Robert Mugabe ✓');
+function answerState() {
+  nsearch = hops.length; nread = hops.length; counts(); ctx(+last.ctx);
+  say('answer: ' + last.answer + ' ✓'); mark(hops.length);
+}
+/* one pass over the episode, starting at search `from` (hops.length starts at the answer) */
+async function episode(from) {
+  agent.classList.remove('thinking');
+  if (from === 0) {
+    nsearch = 0; nread = 0; counts(); ctx(0); mark(-1); clearStations();
+    agent.classList.add('thinking'); agent.style.left = '1%';
+    say('Q: ' + $('hopQ').textContent);
+    await sleep(2000); agent.classList.remove('thinking');
+  } else {
+    nsearch = from; nread = from; counts(); ctx(hops[from - 1].contextAfterRead);
+  }
+  for (let i = from; i < hops.length; i++) {
+    const h = hops[i]; mark(i);
+    await hop(h.query, h.context, h.results, h.fresh, h.docid, h.title, h.contextAfterRead);
+  }
+  if (from < hops.length) { agent.classList.add('thinking'); await sleep(700); agent.classList.remove('thinking'); }
+  mark(hops.length);
+  await goto('st-answer', '83.5%');
+  answerState();
   confetti(); await sleep(4200);
 }
-(async () => { for (;;) await episode(); })();
+async function run(from) {
+  ++gen; running = true;
+  try { for (;;) { await episode(from); from = 0; } }
+  catch (e) { if (e !== STOP) throw e; }
+}
+function setPaused(p) {
+  paused = p; replay.classList.toggle('paused', p);
+  playBtn.textContent = p ? 'Play' : 'Pause';
+}
+playBtn.hidden = false;
+playBtn.onclick = () => { setPaused(!paused); if (!paused && !running) run(0); };
+rows.forEach((r, i) => { r.disabled = false; r.title = 'Replay from here'; r.onclick = () => { setPaused(false); run(i); }; });
+if (still) {
+  /* reduced motion: show the finished episode and wait for Play */
+  setPaused(true); clearStations(); agent.style.left = '83.5%'; $('st-answer').classList.add('active'); answerState();
+} else run(0);
+
+/* results chart: one measure at a time, every value read from the table beside it */
+(function resultsChart() {
+  const table = $('resTable'), panel = $('resPanel'), chart = $('chart'), bars = $('bars');
+  const heads = [...table.querySelectorAll('thead th')], trs = [...table.querySelectorAll('tbody tr')];
+  const data = trs.map(tr => { const c = [...tr.cells].map(td => td.textContent.trim()); return { name: c[0], vals: c.slice(1) }; });
+  const ref = data.findIndex(d => d.name.startsWith('LRAT'));
+  const seg = document.createElement('div');
+  seg.className = 'seg'; seg.setAttribute('role', 'group'); seg.setAttribute('aria-label', 'Measure shown in the chart');
+  bars.innerHTML = data.map(d => `<li class="${d.name.startsWith('ITER') ? 'iter' : ''}"><span class="b-name"></span><span class="b-track"><i></i><em></em></span><b></b></li>`).join('');
+  const lis = [...bars.children];
+  lis.forEach((li, r) => { li.querySelector('.b-name').textContent = data[r].name; });
+  function show(m) {
+    const nums = data.map(d => parseFloat(d.vals[m])), max = Math.max(...nums);
+    lis.forEach((li, r) => {
+      li.querySelector('i').style.width = (100 * nums[r] / max).toFixed(1) + '%';
+      li.querySelector('em').style.left = (100 * nums[ref] / max).toFixed(1) + '%';
+      li.querySelector('b').textContent = data[r].vals[m];
+    });
+    [...seg.children].forEach((b, j) => b.setAttribute('aria-pressed', j === m));
+    table.querySelectorAll('.sel').forEach(c => c.classList.remove('sel'));
+    heads[m + 1].classList.add('sel'); trs.forEach(tr => tr.cells[m + 1].classList.add('sel'));
+    bars.setAttribute('aria-label', heads[m + 1].textContent + ' by retriever');
+  }
+  heads.slice(1).forEach((th, m) => {
+    const b = document.createElement('button'); b.type = 'button'; b.textContent = th.textContent; b.onclick = () => show(m); seg.appendChild(b);
+  });
+  panel.insertBefore(seg, panel.firstChild); panel.classList.add('live'); chart.hidden = false;
+  show(1);
+})();
 
 (function themeInit() {
   const btn = document.getElementById('themeBtn');
@@ -500,6 +744,12 @@ async function episode() {
     paint();
   };
   paint();
+  document.querySelectorAll('.code .copy').forEach(b => b.onclick = () => {
+    if (!navigator.clipboard) return;
+    navigator.clipboard.writeText(b.closest('.code').querySelector('pre').innerText).then(() => {
+      b.textContent = 'Copied'; setTimeout(() => b.textContent = 'Copy', 1400);
+    });
+  });
 })();
 </script>
 </body>

@@ -145,6 +145,7 @@
   .acc{display:inline-flex;align-items:center;gap:10px;justify-content:flex-end}
   .bar{width:72px;height:6px;border-radius:3px;background:var(--bg-soft);overflow:hidden}
   #lbAgents .bar{width:40px}
+  @media(min-width:1240px){#lbAgents .name{white-space:nowrap}}
   .bar i{display:block;height:100%;background:var(--teal);border-radius:3px;animation:grow .6s ease-out both;transform-origin:left}
   @keyframes grow{from{transform:scaleX(0)}}
   .acc b{min-width:36px;text-align:right;font-weight:750;font-variant-numeric:tabular-nums}
@@ -153,12 +154,16 @@
 
   /* modules: one joined panel */
   .mods{margin-top:28px;display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--line-soft);border:1px solid var(--line-soft);border-radius:var(--r-lg);overflow:hidden}
-  .mods>div{background:var(--card);padding:22px 22px 24px}
+  .mods>a{background:var(--card);padding:22px 22px 20px;display:flex;flex-direction:column;color:inherit;transition:background .15s}
+  .mods>a:hover{background:var(--teal-soft)}
+  .mods>a:hover h3{color:var(--teal)}
+  .src{display:block;margin-top:auto;padding-top:14px;font-family:var(--mono);font-size:12px;color:var(--ink-3)}
+  a.src:hover,.mods>a:hover .src{color:var(--teal)}
   .mods .n{font-family:var(--mono);font-size:12px;font-weight:700;color:var(--teal)}
   .mods h3{font-size:17px;font-weight:750;letter-spacing:-.015em;margin:6px 0 6px}
   .mods p{font-size:14px;line-height:1.55;color:var(--ink-2)}
   @media(max-width:860px){.mods{grid-template-columns:1fr 1fr}}
-  @media(max-width:560px){.mods{grid-template-columns:1fr}.mods>div{padding:18px}}
+  @media(max-width:560px){.mods{grid-template-columns:1fr}.mods>a{padding:18px}}
 
   /* definition rows with chips */
   .spec{margin-top:26px;background:var(--card);border:1px solid var(--line-soft);border-radius:var(--r-lg);overflow:hidden}
@@ -167,6 +172,8 @@
   .spec dt{padding:15px 20px;font-size:14.5px;font-weight:700;color:var(--ink);background:var(--bg)}
   .spec.strat dt{font-family:var(--mono);font-size:13.5px;font-weight:650}
   .spec.strat dt.plain{font-family:var(--sans)}
+  .spec dt a{color:inherit;border-bottom:1px solid var(--line)}
+  .spec dt a:hover{color:var(--teal);border-bottom-color:var(--teal)}
   .spec dd{padding:13px 20px 15px;min-width:0}
   .spec dd p{font-size:14.5px;color:var(--ink-2);margin-bottom:9px}
   .chips{list-style:none;display:flex;flex-wrap:wrap;gap:6px}
@@ -180,6 +187,10 @@
   .nouns>div{border-top:2px solid var(--teal);padding-top:14px}
   .nouns h3{font-size:17px;font-weight:750;letter-spacing:-.015em;margin-bottom:6px}
   .nouns p{font-size:14px;line-height:1.55;color:var(--ink-2)}
+  .nouns>div{display:flex;flex-direction:column}
+  .nouns h3 a{color:inherit}
+  .nouns h3 a:hover{color:var(--teal)}
+  .nouns .src{padding-top:10px}
   @media(max-width:900px){.nouns{grid-template-columns:1fr 1fr}}
   @media(max-width:520px){.nouns{grid-template-columns:1fr;gap:20px}}
 
@@ -295,12 +306,12 @@
     Documents go in, a run record comes out, and the same evaluation layer reads every strategy's
     output the same way.</p>
     <div class="mods">
-      <div><span class="n">01</span><h3>Corpus</h3><p>Documents become units: an id, a title, a body, and optional sections. One dataset registry loads them; a corpus too large for memory is served from disk instead of held in RAM.</p></div>
-      <div><span class="n">02</span><h3>Retrieval and reranking</h3><p>Every retriever indexes once and searches by query. Lucene BM25, dense encoders, BQL's fielded Boolean retrieval and Indri-style structured retrieval share one engine registry per corpus; a hybrid is any of them fused by one method, and a reranked retriever is one of them with a reranker over its pool.</p></div>
-      <div><span class="n">03</span><h3>Tools, tasks, strategies</h3><p>A tool is one atomic action with its own declaration and code, and it names the snippet its listing shows. A task is the goal and the answer protocol. A strategy combines tools with options and names its harness. This is where most extension work happens.</p></div>
-      <div><span class="n">04</span><h3>Harness</h3><p>How the model is put to work, one file each: ReAct, the default loop where the model picks each step; one-shot RAG; a plan-and-search team whose members are conditions run as agents. Every harness writes the same record, with every limit measured in tokens.</p></div>
-      <div><span class="n">05</span><h3>Evaluation and evidence</h3><p>Every run writes the same record: a full trajectory, its configuration, and its metrics. Metrics, judges and paired statistics all read that one record format, whichever strategy produced it.</p></div>
-      <div><span class="n">06</span><h3>Training and rollouts</h3><p>Every episode is a full trajectory, so it is also training data. Triples with tiered negatives come out of any run directory and train a dense retriever that plugs back in as any strategy's dense model.</p></div>
+      <a class="mod" href="https://github.com/ielab/skim-search-agent/tree/main/agent_search/corpus"><span class="n">01</span><h3>Corpus</h3><p>Documents become units: an id, a title, a body, and optional sections. One dataset registry loads them; a corpus too large for memory is served from disk instead of held in RAM.</p><span class="src">agent_search/corpus</span></a>
+      <a class="mod" href="https://github.com/ielab/skim-search-agent/tree/main/agent_search/retrievers"><span class="n">02</span><h3>Retrieval and reranking</h3><p>Every retriever indexes once and searches by query. Lucene BM25, dense encoders, BQL's fielded Boolean retrieval and Indri-style structured retrieval share one engine registry per corpus; a hybrid is any of them fused by one method, and a reranked retriever is one of them with a reranker over its pool.</p><span class="src">agent_search/retrievers</span></a>
+      <a class="mod" href="https://github.com/ielab/skim-search-agent/blob/main/docs/EXTENDING.md"><span class="n">03</span><h3>Tools, tasks, strategies</h3><p>A tool is one atomic action with its own declaration and code, and it names the snippet its listing shows. A task is the goal and the answer protocol. A strategy combines tools with options and names its harness. This is where most extension work happens.</p><span class="src">docs/EXTENDING.md</span></a>
+      <a class="mod" href="https://github.com/ielab/skim-search-agent/tree/main/agent_search/harness"><span class="n">04</span><h3>Harness</h3><p>How the model is put to work, one file each: ReAct, the default loop where the model picks each step; one-shot RAG; a plan-and-search team whose members are conditions run as agents. Every harness writes the same record, with every limit measured in tokens.</p><span class="src">agent_search/harness</span></a>
+      <a class="mod" href="https://github.com/ielab/skim-search-agent/tree/main/agent_search/evaluation"><span class="n">05</span><h3>Evaluation and evidence</h3><p>Every run writes the same record: a full trajectory, its configuration, and its metrics. Metrics, judges and paired statistics all read that one record format, whichever strategy produced it.</p><span class="src">agent_search/evaluation</span></a>
+      <a class="mod" href="https://github.com/ielab/skim-search-agent/blob/main/docs/TRAINING.md"><span class="n">06</span><h3>Training and rollouts</h3><p>Every episode is a full trajectory, so it is also training data. Triples with tiered negatives come out of any run directory and train a dense retriever that plugs back in as any strategy's dense model.</p><span class="src">docs/TRAINING.md</span></a>
     </div>
   </section>
 
@@ -310,21 +321,21 @@
     <p class="lead">Each part below is a registered name. Naming it in an experiment file is all
     it takes to use it.</p>
     <dl class="spec">
-      <div><dt>lexical retrievers</dt>
+      <div><dt><a href="https://github.com/ielab/skim-search-agent/tree/main/agent_search/retrievers/lexical">lexical retrievers</a></dt>
         <dd><ul class="chips"><li>BM25 on Lucene</li><li>the Boolean method BQL</li><li>Indri query language</li><li>grep</li></ul></dd></div>
-      <div><dt>dense retrievers</dt>
+      <div><dt><a href="https://github.com/ielab/skim-search-agent/tree/main/agent_search/retrievers/dense">dense retrievers</a></dt>
         <dd><ul class="chips"><li>BGE</li><li>Qwen3-Embedding (0.6B, 4B, 8B)</li><li>RepLLaMA</li><li>LRAT</li><li>AgentIR</li><li>the ITER checkpoints</li><li>CodeRankEmbed</li></ul>
           <span class="more-txt">any checkpoint you train</span></dd></div>
-      <div><dt>learned sparse and multi-vector</dt>
+      <div><dt><a href="https://github.com/ielab/skim-search-agent/tree/main/agent_search/retrievers/learned">learned sparse and multi-vector</a></dt>
         <dd><ul class="chips"><li>SPLADE++</li><li>ColBERTv2</li><li>DiffRetriever</li></ul></dd></div>
-      <div><dt>rerankers</dt>
+      <div><dt><a href="https://github.com/ielab/skim-search-agent/tree/main/agent_search/retrievers/rerankers">rerankers</a></dt>
         <dd><ul class="chips"><li>bge-reranker-v2-m3</li><li>Qwen3-Reranker</li><li>monoT5</li><li>the Laya decision models</li></ul></dd></div>
-      <div><dt>agent backbones</dt>
+      <div><dt><a href="https://github.com/ielab/skim-search-agent/tree/main/agent_search/agent/backbone">agent backbones</a></dt>
         <dd><ul class="chips"><li>Tongyi-DeepResearch-30B</li><li>Qwen3.5 (4B, 9B, 27B)</li><li>Qwen3.6-27B</li><li>Qwen3.8-27B</li><li>gpt-oss (20b, 120b)</li><li>Qwen-AgentWorld-35B</li><li>OpenResearcher-30B</li><li>OpenSeeker-v2-30B</li><li>MiroThinker-1.7-mini</li><li>QUEST-35B</li></ul>
           <span class="more-txt">any model behind an OpenAI-compatible server</span></dd></div>
-      <div><dt>judges</dt>
+      <div><dt><a href="https://github.com/ielab/skim-search-agent/blob/main/agent_search/evaluation/llm_judge.py">judges</a></dt>
         <dd><ul class="chips"><li>the BrowseComp-Plus judge prompt with gpt-4o-mini or a served model</li><li>DIVER's judge template</li><li>exact match and F1</li></ul></dd></div>
-      <div><dt>datasets</dt>
+      <div><dt><a href="https://github.com/ielab/skim-search-agent/tree/main/agent_search/evaluation/datasets">datasets</a></dt>
         <dd><ul class="chips"><li>BrowseComp-Plus</li><li>HotpotQA</li><li>MuSiQue</li><li>2WikiMultihopQA</li><li>InfoSeek</li><li>SWE-bench Lite and Verified</li><li>LocBench</li></ul>
           <span class="more-txt">your own corpus as a BEIR-style directory</span></dd></div>
     </dl>
@@ -335,42 +346,42 @@
     <h2>The nouns</h2>
     <p class="lead">Four words cover everything you build on top of the library.</p>
     <div class="nouns">
-      <div><h3>Tool</h3><p>One atomic action the agent can call. A tool owns its declaration (the name and description the model sees), its code (a <code>run</code> function that returns text, never an exception), and, when it needs one, a manual rendered into the prompt.</p></div>
-      <div><h3>Task</h3><p>The goal and the answer protocol: the prompt template, the domain, and the terminal that ends an episode, an <code>&lt;answer&gt;</code>, a <code>&lt;fix&gt;</code>, or a patch.</p></div>
-      <div><h3>Strategy</h3><p>A named combination of tools with their options and the harness that runs them, or a retrieval-only floor.</p></div>
-      <div><h3>Condition</h3><p>A task paired with a strategy. What a run names, what a config file's <code>strategy</code> and <code>dataset</code> keys resolve to, what the run record carries.</p></div>
+      <div><h3><a href="https://github.com/ielab/skim-search-agent/tree/main/agent_search/tools">Tool</a></h3><p>One atomic action the agent can call. A tool owns its declaration (the name and description the model sees), its code (a <code>run</code> function that returns text, never an exception), and, when it needs one, a manual rendered into the prompt.</p><a class="src" href="https://github.com/ielab/skim-search-agent/tree/main/agent_search/tools">agent_search/tools</a></div>
+      <div><h3><a href="https://github.com/ielab/skim-search-agent/tree/main/agent_search/tasks">Task</a></h3><p>The goal and the answer protocol: the prompt template, the domain, and the terminal that ends an episode, an <code>&lt;answer&gt;</code>, a <code>&lt;fix&gt;</code>, or a patch.</p><a class="src" href="https://github.com/ielab/skim-search-agent/tree/main/agent_search/tasks">agent_search/tasks</a></div>
+      <div><h3><a href="https://github.com/ielab/skim-search-agent/tree/main/agent_search/strategies">Strategy</a></h3><p>A named combination of tools with their options and the harness that runs them, or a retrieval-only floor.</p><a class="src" href="https://github.com/ielab/skim-search-agent/tree/main/agent_search/strategies">agent_search/strategies</a></div>
+      <div><h3><a href="https://github.com/ielab/skim-search-agent/blob/main/agent_search/strategies/conditions.py">Condition</a></h3><p>A task paired with a strategy. What a run names, what a config file's <code>strategy</code> and <code>dataset</code> keys resolve to, what the run record carries.</p><a class="src" href="https://github.com/ielab/skim-search-agent/blob/main/agent_search/strategies/conditions.py">agent_search/strategies/conditions.py</a></div>
     </div>
 
     <h3 class="sub-h">Built-in strategies by family</h3>
     <dl class="spec strat">
-      <div><dt>search_visit</dt>
+      <div><dt><a href="https://github.com/ielab/skim-search-agent/blob/main/agent_search/strategies/search_visit.py">search_visit</a></dt>
         <dd><p>a search that lists documents, then visits the whole document</p>
           <ul class="chips mono"><li>search_visit</li><li>search_visit_dense</li><li>search_visit_hybrid</li><li>search_visit_snippets</li></ul></dd></div>
-      <div><dt>autoread</dt>
+      <div><dt><a href="https://github.com/ielab/skim-search-agent/blob/main/agent_search/strategies/autoread.py">autoread</a></dt>
         <dd><p>one search that returns the full text of its hits</p>
           <ul class="chips mono"><li>autoread</li><li>autoread_dense</li><li>autoread_hybrid</li></ul></dd></div>
-      <div><dt>search_fetch</dt>
+      <div><dt><a href="https://github.com/ielab/skim-search-agent/blob/main/agent_search/strategies/search_fetch.py">search_fetch</a></dt>
         <dd><p>a search that lists structure, then fetches one section</p>
           <ul class="chips mono"><li>search_fetch</li><li>search_fetch_dense</li><li>search_fetch_hybrid</li><li>search_fetch_bm25_plain</li><li>search_fetch_dense_plain</li></ul></dd></div>
-      <div><dt>sieve</dt>
+      <div><dt><a href="https://github.com/ielab/skim-search-agent/blob/main/agent_search/strategies/sieve.py">sieve</a></dt>
         <dd><p>Boolean candidate filtering, one ranking model, result cards, section fetch</p>
           <ul class="chips mono"><li>sieve_bm25</li><li>sieve</li><li>sieve_dense</li><li>sieve_nosnip</li><li>sieve_plain</li><li>sieve_v2</li><li>sieve_visit</li><li>sieve_visit_fused</li><li>sieve_visit_dense</li></ul></dd></div>
-      <div><dt>indri</dt>
+      <div><dt><a href="https://github.com/ielab/skim-search-agent/blob/main/agent_search/strategies/indri.py">indri</a></dt>
         <dd><p>Indri-QL retrieval with cards and section fetch</p>
           <ul class="chips mono"><li>indri</li><li>indri_plain</li><li>indri_visit</li></ul></dd></div>
-      <div><dt>dci</dt>
+      <div><dt><a href="https://github.com/ielab/skim-search-agent/blob/main/agent_search/strategies/dci.py">dci</a></dt>
         <dd><p>shell commands over the exported corpus</p>
           <ul class="chips mono"><li>dci</li><li>bounded_dci</li></ul></dd></div>
-      <div><dt>iter</dt>
+      <div><dt><a href="https://github.com/ielab/skim-search-agent/blob/main/agent_search/strategies/dedup.py">iter</a></dt>
         <dd><p>ITER's search, the standard top ten or with already-listed documents dropped, then a document read by id</p>
           <ul class="chips mono"><li>iter_dense</li><li>iter_bm25</li><li>iter_reranked</li><li>iter_splade</li><li>iter_colbert</li><li>iter_diffretriever</li><li>dedup_dense</li><li>dedup_bm25</li></ul></dd></div>
-      <div><dt>codefix</dt>
+      <div><dt><a href="https://github.com/ielab/skim-search-agent/blob/main/agent_search/strategies/codefix.py">codefix</a></dt>
         <dd><p>Boolean code search or grep, then read a function and commit a fix</p>
           <ul class="chips mono"><li>codefix</li><li>codefix_grep</li></ul></dd></div>
-      <div><dt>rag</dt>
+      <div><dt><a href="https://github.com/ielab/skim-search-agent/blob/main/agent_search/strategies/rag.py">rag</a></dt>
         <dd><p>rank once, put the top documents in one prompt, one model call</p>
           <ul class="chips mono"><li>rag</li><li>rag_dense</li><li>rag_hybrid</li></ul></dd></div>
-      <div><dt class="plain">retrieval-only floors</dt>
+      <div><dt class="plain"><a href="https://github.com/ielab/skim-search-agent/blob/main/agent_search/strategies/retrieval_only.py">retrieval-only floors</a></dt>
         <dd><p>rank once, no agent loop, no model</p>
           <ul class="chips mono"><li>bm25</li><li>dense</li><li>bql</li><li>grep</li><li>hybrid</li></ul></dd></div>
     </dl>
